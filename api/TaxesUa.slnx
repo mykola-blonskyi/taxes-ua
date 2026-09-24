@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TaxesUa.Api/TaxesUa.Api.csproj" />
+    <Project Path="src/TaxesUa.Engine/TaxesUa.Engine.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TaxesUa.Engine.Tests/TaxesUa.Engine.Tests.csproj" />
+  </Folder>
+</Solution>
