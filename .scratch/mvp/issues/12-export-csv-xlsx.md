@@ -1,4 +1,4 @@
-# 12: Экспорт CSV и XLSX
+# 12: CSV and XLSX export
 
 GitHub: #13
 Status: ready-for-agent
@@ -10,14 +10,14 @@ Blocked by: #6
 
 ## What to build
 
-Владелец скачивает поступления за год в CSV и XLSX с датой, суммой, валютой, курсом, датой курса, суммой в гривнах, типом, клиентом и комментарием, чтобы передать бухгалтеру.
+The owner downloads the year's receipts as CSV and XLSX, with date, amount, currency, rate, rate date, hryvnia amount, type, client and comment, to hand to an accountant.
 
 ## Acceptance criteria
 
-- [ ] Оба файла открываются в Excel и Numbers, кириллица не ломается (BOM для CSV).
-- [ ] Суммы в файлах в гривнах с двумя знаками, совпадают с экраном.
-- [ ] Тест API на состав колонок и количество строк.
+- [ ] Both files open cleanly in Excel and Numbers; Cyrillic doesn't break (a BOM for CSV).
+- [ ] Amounts in the files are in hryvnia with two decimals and match the screen.
+- [ ] API test for the column layout and row count.
 
 ## Blocked by
 
-- #6 (Валютные поступления и курс НБУ)
+- #6 (Currency receipts and the NBU rate)

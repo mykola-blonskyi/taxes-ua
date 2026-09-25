@@ -1,4 +1,4 @@
-# 09: Главный экран: следующий шаг
+# 09: Home screen: the next step
 
 GitHub: #10
 Status: ready-for-agent
@@ -10,15 +10,15 @@ Blocked by: #9
 
 ## What to build
 
-Открыв приложение, владелец видит один ближайший невыполненный шаг: что сделать, до какого числа, сумму, сколько дней осталось или на сколько просрочено, с кнопкой открытия Электронного кабинета. Ниже налоговая нагрузка в процентах от дохода. Состояния: до даты регистрации подсказка, всё сделано, просрочено красным. Движок определяет ближайший шаг на дату по Europe/Kyiv.
+Opening the app, the owner sees the single nearest unfinished step: what to do, by when, how much, how many days remain or how overdue it is, with a button to open the Electronic Cabinet. Below it, the tax burden as a percentage of income. States: before the registration date a hint, all done, overdue in red. The engine determines the next step relative to today's date by Europe/Kyiv.
 
 ## Acceptance criteria
 
-- [ ] Тесты движка на выбор следующего шага при нескольких обязательствах, просрочке, отсутствии обязательств и дате до регистрации.
-- [ ] API dashboard берёт «сегодня» по Киеву, не по UTC; тест на границу полуночи.
-- [ ] Hero соответствует прототипу: дата крупно, название шага, сумма, дни, действия.
-- [ ] Отметка платежа переводит шаг в следующий без перезагрузки.
+- [ ] Engine tests for choosing the next step with several obligations/overdue/an empty list/a date before registration.
+- [ ] The dashboard API computes "today" by Kyiv time, not UTC; a test for the midnight boundary.
+- [ ] The hero matches the prototype: a large date, the step's name, the amount, the days, the actions.
+- [ ] Marking a payment moves the step forward without a reload.
 
 ## Blocked by
 
-- #9 (Платежи в бюджет и балансы)
+- #9 (Budget payments and balances)

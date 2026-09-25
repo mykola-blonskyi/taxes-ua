@@ -1,4 +1,4 @@
-# 17: PWA и мобильная полировка
+# 17: PWA and mobile polish
 
 GitHub: #18
 Status: ready-for-agent
@@ -10,14 +10,14 @@ Blocked by: #3
 
 ## What to build
 
-Приложение устанавливается на iOS и Android как PWA с иконкой и своим именем, учитывает safe‑area, все экраны MVP проверены на 375 px.
+The app installs on iOS and Android as a PWA with an icon and its own name, respects safe-area, and every MVP screen is verified at 375px.
 
 ## Acceptance criteria
 
-- [ ] Lighthouse отмечает приложение как installable.
-- [ ] Установка на iOS и Android проходит, приложение открывается в standalone‑режиме.
-- [ ] Ни один экран не даёт горизонтальной прокрутки страницы на 375 px.
+- [ ] Lighthouse marks the app installable.
+- [ ] Installation on iOS and Android succeeds; the app opens in standalone mode.
+- [ ] No screen scrolls horizontally at 375px.
 
 ## Blocked by
 
-- #3 (Вход через Google и каркас интерфейса)
+- #3 (Google sign-in and the interface shell)

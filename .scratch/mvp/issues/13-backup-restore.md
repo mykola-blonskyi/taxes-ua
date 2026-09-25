@@ -1,4 +1,4 @@
-# 13: Бэкап и восстановление JSON
+# 13: JSON backup and restore
 
 GitHub: #14
 Status: ready-for-agent
@@ -10,14 +10,14 @@ Blocked by: #9
 
 ## What to build
 
-Владелец скачивает полный бэкап всех своих данных в JSON и восстанавливает его с подтверждением, получая идентичное состояние. Восстановление заменяет данные пользователя в одной транзакции БД.
+The owner downloads a full backup of all their data as JSON and restores it with a confirmation, ending up with an identical state. Restoring replaces the user's data inside a single database transaction.
 
 ## Acceptance criteria
 
-- [ ] Тест API: бэкап, очистка, восстановление дают идентичные данные по всем сущностям MVP.
-- [ ] Восстановление с невалидным файлом ничего не меняет и отвечает 400.
-- [ ] Экран требует явного подтверждения перед заменой данных.
+- [ ] API test: backup, wipe, restore yields identical data across every MVP entity.
+- [ ] Restoring an invalid file changes nothing and returns 400.
+- [ ] The screen requires an explicit confirmation before replacing data.
 
 ## Blocked by
 
-- #9 (Платежи в бюджет и балансы)
+- #9 (Budget payments and balances)

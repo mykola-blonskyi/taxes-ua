@@ -1,37 +1,44 @@
-# Тикеты
+# Tickets
 
-Источник правды: GitHub Issues в `mykola-blonskyi/taxes-ua`. Зеркало: `.scratch/mvp/`.
-Spec: issue #1 и [spec-mvp.md](spec-mvp.md). Правила трекера: `docs/agents/issue-tracker.md`.
+Source of truth: GitHub Issues in `mykola-blonskyi/taxes-ua`. Mirror: `.scratch/mvp/`.
+Spec: issue #1 and [spec-mvp.md](spec-mvp.md). Tracker conventions: `docs/agents/issue-tracker.md`.
 
-Тикеты это вертикальные срезы: каждый проходит схему, API, интерфейс и тесты и проверяется
-на реальном деплое сам по себе. Блокировки заданы нативными зависимостями GitHub. Тикет можно
-брать, когда все его блокеры закрыты.
+Tickets are vertical slices: each one cuts through schema, API, UI and tests, and can be verified
+on its own. Blocking is set via native GitHub dependencies. A ticket can be picked up once all of
+its blockers are closed.
 
-## MVP (Этап 1)
+Deployment to the VPS is deliberately last. Every ticket before it is built and verified
+against the local Docker Compose stack (`docker compose -f docker-compose.yml -f
+docker-compose.local.yml up --build`) or the local dev servers (`dotnet run` / `pnpm dev`), never
+against a live domain. Only CI (GitHub Actions) runs early, since it needs no deployment.
 
-| # | Тикет | Blocked by |
+## MVP (Stage 1)
+
+| # | Ticket | Blocked by |
 | --- | --- | --- |
-| #2 | 01. Деплой скелета в Coolify и CI | нет |
-| #3 | 02. Вход через Google и каркас интерфейса | нет |
-| #4 | 03. Параметры года и настройки ФОП | #3 |
-| #5 | 04. Поступления в гривне | #4 |
-| #6 | 05. Валютные поступления и курс НБУ | #5 |
-| #7 | 06. Календарь сроков | #4 |
-| #8 | 07. Начисления и цифры для декларации | #6, #7 |
-| #9 | 08. Платежи в бюджет и балансы | #8 |
-| #10 | 09. Главный экран: следующий шаг | #9 |
-| #11 | 10. Лимит дохода | #10 |
-| #12 | 11. Помесячные авансы | #10 |
-| #13 | 12. Экспорт CSV и XLSX | #6 |
-| #14 | 13. Бэкап и восстановление JSON | #9 |
-| #15 | 14. Импорт JSON прототипа | #12 |
+| #2 | 01. Set up CI | none |
+| #3 | 02. Google sign-in and the interface shell | none |
+| #4 | 03. Year parameters and FOP settings | #3 |
+| #5 | 04. Receipts in hryvnia | #4 |
+| #6 | 05. Currency receipts and the NBU rate | #5 |
+| #7 | 06. Deadline calendar | #4 |
+| #8 | 07. Accruals and the declaration numbers | #6, #7 |
+| #9 | 08. Budget payments and balances | #8 |
+| #10 | 09. Home screen: the next step | #9 |
+| #11 | 10. Income limit | #10 |
+| #12 | 11. Monthly advances | #10 |
+| #13 | 12. CSV and XLSX export | #6 |
+| #14 | 13. JSON backup and restore | #9 |
+| #15 | 14. Prototype JSON import | #12 |
 | #16 | 15. Passkey | #3 |
-| #17 | 16. Журнал изменений | #9 |
-| #18 | 17. PWA и мобильная полировка | #3 |
+| #17 | 16. Change log | #9 |
+| #18 | 17. PWA and mobile polish | #3 |
+| #20 | 18. Deploy to Coolify on the VPS | #4–#18 (every other MVP ticket) |
 
-Критический путь: #2 → #3 → #4 → #5 → #6 → #8 → #9 → #10. Фронтир на старте: #2 и #3.
+Critical path: #2 → #3 → #4 → #5 → #6 → #8 → #9 → #10, then #20 once everything else lands.
+Frontier at the start: #2 and #3.
 
-## Этапы 2 и 3
+## Stages 2 and 3
 
-Не разбиты на тикеты. Состав в [backlog.md](backlog.md). Разбивка делается через `/to-tickets`,
-когда MVP закрыт.
+Not yet broken into tickets. Content in [backlog.md](backlog.md). Broken down via `/to-tickets`
+once the MVP is closed.

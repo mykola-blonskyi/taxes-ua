@@ -1,4 +1,4 @@
-# 02: Вход через Google и каркас интерфейса
+# 02: Google sign-in and the interface shell
 
 GitHub: #3
 Status: ready-for-agent
@@ -10,15 +10,15 @@ Blocked by: none
 
 ## What to build
 
-Владелец входит своим Google‑аккаунтом, чужой email получает отказ. После входа виден пустой главный экран с навигацией для телефона и десктопа, светлой и тёмной темой, переключателем языка (украинский по умолчанию, русский вторым) и дисклеймером о справочном расчёте. Backend: ASP.NET Core Identity схема v3, Google OAuth, cookie за Traefik, allowlist из конфигурации, /auth/me и выход. Frontend: shadcn/ui, Tailwind, next-intl с uk и ru, TanStack Query, генерация типов из OpenAPI, редирект на страницу входа при 401.
+The owner signs in with their Google account; any other email is rejected. After sign-in, an empty home screen is visible with navigation for phone and desktop, light and dark theme, a language switch (Ukrainian by default, Russian second) and a disclaimer about the informational nature of the calculation. Backend: ASP.NET Core Identity schema v3, Google OAuth, a cookie behind Traefik, an allowlist from configuration, /auth/me and sign-out. Frontend: shadcn/ui, Tailwind, next-intl with uk and ru, TanStack Query, types generated from OpenAPI, a redirect to the sign-in page on 401.
 
 ## Acceptance criteria
 
-- [ ] Вход с email из allowlist даёт сессию, `/api/auth/me` возвращает пользователя; другой email получает 403 и понятное сообщение.
-- [ ] Cookie `HttpOnly; Secure; SameSite=Lax`, секреты Google только в переменных окружения.
-- [ ] Тема переключается вручную и следует системной по умолчанию; язык переключается uk/ru, все видимые строки из файлов переводов.
-- [ ] Страницы‑заглушки всех экранов MVP открываются с телефона на 375 px без горизонтальной прокрутки.
-- [ ] Тест API: неавторизованный запрос к защищённому ресурсу даёт 401, email вне allowlist 403.
+- [ ] Signing in with an allowlisted email creates a session; `/api/auth/me` returns the user. A different email gets 403 with a clear message.
+- [ ] The cookie is `HttpOnly; Secure; SameSite=Lax`; Google secrets live only in environment variables.
+- [ ] The theme toggles manually and follows the system by default; the language toggles uk/ru, every visible string comes from the translation files.
+- [ ] Every MVP placeholder screen opens on a phone at 375px with no horizontal scroll.
+- [ ] API test: an unauthenticated request to a protected resource returns 401, an email outside the allowlist returns 403.
 
 ## Blocked by
 

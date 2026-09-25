@@ -18,8 +18,8 @@ New terms go into `knowledge/glossary.md`, new decisions into `docs/decisions.md
 ## Use the glossary's vocabulary
 
 When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test
-name), use the term as defined in `knowledge/glossary.md`: ЕП / `SingleTax`, ВЗ / `MilitaryLevy`,
-ЕСВ / `Esv`, `Obligation`, `Kop`, `RateE4`, `Bp`. Don't drift to synonyms the glossary avoids.
+name), use the term as defined in `knowledge/glossary.md`: EP / `SingleTax`, VZ / `MilitaryLevy`,
+ESV / `Esv`, `Obligation`, `Kop`, `RateE4`, `Bp`. Don't drift to synonyms the glossary avoids.
 
 If the concept you need isn't in the glossary yet, that's a signal: either you're inventing language
 the project doesn't use (reconsider) or there's a real gap (add it to the glossary).

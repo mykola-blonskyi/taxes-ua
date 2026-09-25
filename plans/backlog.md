@@ -2,31 +2,33 @@
 
 ## High Priority
 
-Этап 2. Автоматизация (около 6–8 дней).
+Stage 2. Automation (roughly 6–8 days).
 
-- [ ] Импорт CSV/XLSX выписок monobank и ПриватБанк. Дедупликация по ID транзакции.
-- [ ] Автоклассификация: доход, свой перевод, продажа валюты. Ручное подтверждение.
-- [ ] monobank personal API: токен в зашифрованном виде, очередь запросов с лимитом 1 запрос
-      в 60 секунд, выписки окнами по 31 день. Проверить видимость ФОП‑счетов.
-- [ ] ПриватБанк Автоклиент API для ФОП.
-- [ ] Напоминания: Telegram‑бот и email, включаются по отдельности. За 7 дней, за 1 день, в день срока.
-- [ ] Экспорт сроков в .ics.
+- [ ] Import monobank and PrivatBank CSV/XLSX statements. Dedupe by transaction ID.
+- [ ] Auto-classification: income, own transfer, currency sale. Manual confirmation.
+- [ ] monobank personal API: encrypted token, a request queue limited to 1 request per 60
+      seconds, statements in 31-day windows. Verify visibility of FOP accounts.
+- [ ] PrivatBank Autoclient API for FOP accounts.
+- [ ] Reminders: a Telegram bot and email, each toggleable independently. At 7 days, 1 day, and
+      on the deadline itself.
+- [ ] Export deadlines to .ics.
 
 ---
 
 ## Medium Priority
 
-Этап 3. Документы (около 5–7 дней).
+Stage 3. Documents (roughly 5–7 days).
 
-- [ ] Клиенты с реквизитами.
-- [ ] PDF‑инвойс на английском: IBAN, SWIFT, нумерация. Привязка поступления, статус «оплачен».
-- [ ] XML декларации F0103309 по актуальной схеме ДПС для импорта в Электронный кабинет.
-- [ ] Архив по годам, напоминание о хранении документов 3 года.
+- [ ] Clients with details.
+- [ ] English-language PDF invoice: IBAN, SWIFT, numbering. Link to a receipt, "paid" status.
+- [ ] F0103309 XML declaration per the current DPS schema, for import into the Electronic
+      Cabinet.
+- [ ] Yearly archive, a reminder to keep documents for 3 years.
 
 ---
 
 ## Low Priority
 
-- [ ] Мультипользовательский режим: снять allowlist, регистрация, изоляция данных.
-- [ ] Офлайн‑режим PWA.
+- [ ] Multi-user mode: remove the allowlist, self-registration, data isolation.
+- [ ] PWA offline mode.
 - [ ] Sentry free tier.

@@ -1,23 +1,25 @@
 # TODO
 
-Детальный план в [plans/current.md](../plans/current.md), будущее в [plans/backlog.md](../plans/backlog.md).
+Detailed plan in [plans/current.md](../plans/current.md), future work in
+[plans/backlog.md](../plans/backlog.md).
 
 ## Backlog
 
-- [ ] Этап 2. Импорт из банков, напоминания.
-- [ ] Этап 3. Инвойсы, XML декларации, архив.
+- [ ] Stage 2. Bank import, reminders.
+- [ ] Stage 3. Invoices, XML declarations, archiving.
 
 ---
 
 ## Planned
 
-- [ ] 1.2–1.9 MVP.
+- [ ] MVP tickets #4–#18, then #20 (VPS deploy, last).
 
 ---
 
 ## In Progress
 
-- [ ] 1.1 Скелет и деплой.
+- [ ] #2 Set up CI.
+- [ ] #3 Google sign-in and interface shell.
 
 ---
 
@@ -29,10 +31,15 @@
 
 ## Done
 
-- [x] ТЗ прочитано, вопросы сняты, план согласован (2026-09-25).
+- [x] Spec read, questions resolved, plan approved (2026-09-25).
+- [x] Repository scaffold: .NET solution, Next.js app, Docker, Central Package Management, web
+      layer boundaries (PR #19).
+- [x] MVP spec and 17 tickets published to GitHub Issues (#1–#18).
+- [x] Agent skills configured: GitHub tracker with local mirror, triage labels, domain docs.
 
 ## Open questions for the owner
 
-- [ ] Срок уплаты ЕП/ВЗ: отсчёт от статутной даты декларации, перенос с выходного.
-- [ ] ЕСВ в месяц регистрации: полная сумма или пропорция.
-- [ ] Есть ли официальное трудоустройство с уплатой ЕСВ работодателем.
+- [ ] EP/VZ payment deadline: counted from the declaration's statutory date, shifted off a
+      weekend.
+- [ ] ESV in the registration month: full amount or prorated.
+- [ ] Is there official employment with an employer paying ESV.

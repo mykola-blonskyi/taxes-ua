@@ -1,10 +1,10 @@
 # Architecture Decisions
 
-Формат: контекст, решение, альтернативы, последствия. Даты абсолютные.
+Format: context, decision, alternatives considered, consequences. Dates are absolute.
 
 ---
 
-## ADR-001. Backend на ASP.NET Core, frontend на Next.js
+## ADR-001. Backend on ASP.NET Core, frontend on Next.js
 
 Date: 2026-09-25
 
@@ -12,32 +12,34 @@ Status: Accepted
 
 ### Context
 
-Рассматривались три варианта серверного слоя: только Next.js (Server Actions), отдельный NestJS,
-отдельный .NET. Приложение однопользовательское, серверная логика это CRUD, экспорт, внешние API
-и cron. Хостинг на VPS с Coolify.
+Three options for the server layer were considered: Next.js only (Server Actions), a separate
+NestJS service, a separate .NET service. The application is single-user; the server-side logic is
+CRUD, export, external APIs and cron. Hosting is a VPS with Coolify.
 
 ### Decision
 
-Отдельный backend на ASP.NET Core 10 (Minimal APIs, EF Core, Identity). Next.js остаётся только
-интерфейсом и проксирует `/api/*` на backend. Решение принято владельцем при понимании компромисса
-ниже.
+A separate backend on ASP.NET Core 10 (Minimal APIs, EF Core, Identity). Next.js stays a pure
+interface and proxies `/api/*` to the backend. The owner made this call after understanding the
+trade-off below.
 
 ### Alternatives Considered
 
-Только Next.js. Один язык и один деплой, минимум инфраструктуры. Рекомендация исполнителя, отклонена.
+Next.js only. One language, one deployment, minimum infrastructure. The implementer's
+recommendation, declined.
 
-NestJS. Дублирует возможности Next.js, второй TS‑деплой без выигрыша в типах.
+NestJS. Duplicates what Next.js already provides, a second TS deployment with no type-sharing
+benefit.
 
 ### Consequences
 
-Плюсы: строгая типизация и `DateOnly`/`long` для денег, hosted services вместо внешнего cron,
-Identity с Google и passkey из коробки, встроенный OpenAPI. Минусы: два языка и две сборки,
-типы для UI генерируются из OpenAPI (`openapi-typescript`), чтобы не расходиться с backend.
-Второй контейнер на общем VPS, около 150 MB RAM.
+Pros: strong typing and `DateOnly`/`long` for money, hosted services instead of an external cron,
+Identity with Google and passkey out of the box, built-in OpenAPI. Cons: two languages and two
+builds; UI types are generated from OpenAPI (`openapi-typescript`) so they don't drift from the
+backend. A second container on the shared VPS, roughly 150 MB RAM.
 
 ---
 
-## ADR-002. Налоговый движок как отдельный пакет без зависимостей
+## ADR-002. Tax engine as a separate package with no dependencies
 
 Date: 2026-09-25
 
@@ -45,26 +47,28 @@ Status: Proposed
 
 ### Context
 
-ТЗ требует чистый модуль с полным покрытием ключевых сценариев тестами до появления UI.
+The spec requires a pure module with full test coverage of the key scenarios before any UI
+exists.
 
 ### Decision
 
-`api/src/TaxesUa.Engine` как class library без `PackageReference`. Вход и выход только простые
-данные: `DateOnly`, `long` копейки, перечисления, records. Никаких `DateTime.Now`, БД, сети,
-часов или локали. Тесты в `tests/TaxesUa.Engine.Tests` на xUnit.
+`api/src/TaxesUa.Engine` as a class library with no `PackageReference`. Input and output are
+plain data only: `DateOnly`, `long` kopecks, enums, records. No `DateTime.Now`, no database, no
+network, no locale. Tests live in `tests/TaxesUa.Engine.Tests` on xUnit.
 
 ### Alternatives Considered
 
-Папка внутри Api‑проекта. Дешевле, но границу держит только дисциплина. Отдельный проект без
-пакетов делает нарушение границы ошибкой сборки.
+A folder inside the Api project. Cheaper, but the boundary is held by discipline alone. A
+separate, package-free project turns a boundary violation into a build error.
 
 ### Consequences
 
-Тесты движка идут за миллисекунды без окружения. Приложение обязано подготовить данные на границе.
+Engine tests run in milliseconds, with no environment. The application must prepare the data at
+the boundary.
 
 ---
 
-## ADR-003. Деньги как целые копейки, курс как целое с масштабом 10⁴
+## ADR-003. Money as whole kopecks, rate as an integer scaled by 10⁴
 
 Date: 2026-09-25
 
@@ -72,28 +76,31 @@ Status: Proposed
 
 ### Context
 
-ТЗ запрещает float. Курс НБУ имеет 4 знака после запятой (например 44.9729).
+The spec forbids floats. The NBU rate has 4 decimal places (e.g. 44.9729).
 
 ### Decision
 
-Суммы хранятся и считаются в минимальных единицах валюты как `bigint` в БД, `long` в C#
-и `number` в TS (JSON‑числа безопасны до 2⁵³, то есть до 90 триллионов гривен). Курс хранится как `rateE4 = round(rate × 10⁴)`.
-Гривневый эквивалент: `kopecks = roundHalfUp(minorUnits × rateE4 / 10⁴)`. Одно округление на операцию.
-Проценты хранятся в базисных пунктах: 5% = 500, 1% = 100, 22% = 2200, 15% = 1500.
-Округление везде арифметическое, половина вверх.
+Amounts are stored and computed in the currency's minor unit as `bigint` in the database, `long`
+in C#, and `number` in TS (JSON numbers are safe up to 2⁵³, i.e. up to 90 trillion hryvnia). The
+rate is stored as `rateE4 = round(rate × 10⁴)`. Hryvnia equivalent:
+`kopecks = roundHalfUp(minorUnits × rateE4 / 10⁴)`. One rounding per operation. Percentages are
+stored as basis points: 5% = 500, 1% = 100, 22% = 2200, 15% = 1500. Rounding is always half away
+from zero.
 
 ### Alternatives Considered
 
-`decimal` в C# и `numeric` в БД. Точно на backend, но в JSON пришлось бы слать строки, и в TS
-появилось бы второе представление числа. Целые копейки одинаково безопасны в C#, PostgreSQL и JS.
+`decimal` in C# and `numeric` in the database. Exact on the backend, but JSON would have to carry
+strings and TS would gain a second number representation. Integer kopecks are equally safe in
+C#, PostgreSQL and JS.
 
 ### Consequences
 
-Форматирование в гривны только в UI. Ввод пользователя парсится в копейки на границе.
+Formatting into hryvnia happens only in the UI. User input is parsed into kopecks at the
+boundary.
 
 ---
 
-## ADR-004. Календарные даты по Europe/Kyiv, вычисляются на границе
+## ADR-004. Calendar dates by Europe/Kyiv, computed at the boundary
 
 Date: 2026-09-25
 
@@ -101,21 +108,21 @@ Status: Proposed
 
 ### Context
 
-Банки отдают UTC. Налоговый период определяется календарной датой по Киеву.
+Banks return UTC. The tax period is determined by the calendar date in Kyiv.
 
 ### Decision
 
-Транзакция хранит `ValueDate` типа `date` (`DateOnly`, дата по Киеву) и опционально `BankTime`
-как `timestamptz`. Перевод UTC в киевскую дату делает адаптер импорта через `TimeZoneInfo`
-`Europe/Kiev`. Движок работает только с `ValueDate`.
+A transaction stores `ValueDate` of type `date` (`DateOnly`, the Kyiv-time date) and optionally
+`BankTime` as `timestamptz`. Converting UTC to a Kyiv date is done by the import adapter via
+`TimeZoneInfo` `Europe/Kiev`. The engine works only with `ValueDate`.
 
 ### Consequences
 
-Движок не знает про таймзоны. Изменение правила даты меняет один адаптер.
+The engine knows nothing about time zones. Changing the date rule touches a single adapter.
 
 ---
 
-## ADR-005. Аутентификация: ASP.NET Core Identity, Google OAuth и passkey, allowlist email
+## ADR-005. Authentication: ASP.NET Core Identity, Google OAuth and passkey, email allowlist
 
 Date: 2026-09-25
 
@@ -123,30 +130,30 @@ Status: Proposed
 
 ### Context
 
-Один пользователь, финансовые данные, самостоятельный хостинг, бюджет ноль. Владелец хочет Google
-и passkey.
+Single user, financial data, self-hosted, zero budget. The owner wants Google and passkey.
 
 ### Decision
 
-ASP.NET Core Identity со схемой версии 3 (passkey встроен в .NET 10), внешний провайдер Google
-(`Microsoft.AspNetCore.Authentication.Google`, OAuth‑клиент в Google Cloud бесплатен), cookie‑сессия.
-Вход разрешён только email из `Auth__AllowedEmails`. Первый вход через Google, после него
-пользователь регистрирует passkey как второй способ входа. Всё бесплатно, без внешнего сервиса.
+ASP.NET Core Identity on schema version 3 (passkey is built into .NET 10), Google as the external
+provider (`Microsoft.AspNetCore.Authentication.Google`, a free OAuth client in Google Cloud),
+cookie session. Sign-in is allowed only for the email in `Auth__AllowedEmails`. First sign-in is
+via Google; afterward the user registers a passkey as a second sign-in method. Everything is
+free, with no external service.
 
 ### Alternatives Considered
 
-Clerk, Auth0, Supabase Auth. Бесплатные тарифы есть, но это внешняя зависимость для финансовых
-данных без нужды. Keycloak или Zitadel self‑hosted. 300–500 MB RAM ради одного пользователя.
-Пароль + TOTP. Требует хранить хэши и коды восстановления, лишняя ответственность.
+Clerk, Auth0, Supabase Auth. Free tiers exist, but they are an unnecessary external dependency
+for financial data. Self-hosted Keycloak or Zitadel. 300–500 MB RAM for a single user. Password +
+TOTP. Requires storing hashes and recovery codes, an unneeded responsibility.
 
 ### Consequences
 
-Открытие продукта другим ФОП сводится к снятию allowlist. Frontend делает WebAuthn‑вызовы
-через стандартный `navigator.credentials`, опции получает от API.
+Opening the product to other FOPs comes down to removing the allowlist. The frontend makes
+WebAuthn calls through the standard `navigator.credentials`, getting its options from the API.
 
 ---
 
-## ADR-006. Деплой через Coolify на существующем VPS
+## ADR-006. Deploy via Coolify on the existing VPS, reusing the existing PostgreSQL instance
 
 Date: 2026-09-25
 
@@ -154,27 +161,33 @@ Status: Proposed
 
 ### Context
 
-На VPS `blonskyi-dev` уже стоит Coolify с Traefik, автоматическими сертификатами, MinIO и
-несколькими Postgres. Бюджет: бесплатно.
+Coolify with Traefik, automatic certificates and several PostgreSQL instances already run on the
+`blonskyi-dev` VPS. The owner also runs a general-purpose PostgreSQL instance on that VPS outside
+Coolify's per-project resources. Budget: free.
 
 ### Decision
 
-Приложение как Coolify Docker Compose resource из репозитория (сервисы `web` и `api`), БД как
-Coolify PostgreSQL resource, бэкапы БД через встроенные scheduled backups в MinIO и во внешний
-бесплатный S3‑бакет. Cron внутри `api` как hosted services.
+The application as a Coolify Docker Compose resource from the repository (services `web` and
+`api`). Instead of provisioning a new Coolify PostgreSQL resource, a dedicated role and database
+for this project are created in the PostgreSQL instance the owner already runs on the VPS. Cron
+runs inside `api` as hosted services.
 
 ### Alternatives Considered
 
-Docker Compose вручную с Caddy. Дублирует то, что уже делает Coolify. Fly.io или Railway. Платные
-при таком объёме памяти и добавляют внешнюю зависимость.
+A new Coolify PostgreSQL resource per project. Simplest to wire up, but adds another PostgreSQL
+process on a VPS that already runs one the owner maintains — unnecessary duplication for a
+single-user app. Docker Compose by hand with Caddy. Duplicates what Coolify already does. Fly.io
+or Railway. Paid at this memory footprint and add an external dependency.
 
 ### Consequences
 
-Ноль стоимости и ноль новой инфраструктуры. Приложение зависит от Coolify для TLS и бэкапов.
+Zero cost and no new database process. The application depends on Coolify for TLS and on however
+the owner already backs up that PostgreSQL instance; if that instance has no backup in place, the
+project adds its own scheduled logical dump.
 
 ---
 
-## ADR-007. Параметры года в таблице с флагом проверки
+## ADR-007. Year parameters in a table with a verification flag
 
 Date: 2026-09-25
 
@@ -182,15 +195,17 @@ Status: Proposed
 
 ### Context
 
-Минимальная зарплата, ставки, лимит и правила сроков меняются каждый год. Нельзя хардкодить.
+The minimum wage, rates, limit and deadline rules change every year. They cannot be hardcoded.
 
 ### Decision
 
-Таблица `tax_year_config`, одна строка на год, все ставки и правила сроков в ней. Поля `source`
-(ссылка на закон или письмо ДПС) и `verifiedAt`. Приложение показывает предупреждение, если для
-текущего года строки нет или она не подтверждена. Новый год создаётся копированием предыдущего
-с правкой значений через UI настроек. Начальные значения 2026 года загружаются миграцией.
+A `tax_year_config` table, one row per year, holding every rate and deadline rule. Fields
+`source` (a reference to the law or DPS letter) and `verifiedAt`. The application shows a warning
+if the current year has no row, or it is not yet verified. A new year is created by copying the
+previous one and editing the values through the settings UI. The initial 2026 values load via a
+migration.
 
 ### Consequences
 
-Обновление правил без кода. Движок получает конфиг как входной параметр и не знает про годы.
+Rules update without a code change. The engine receives the config as an input parameter and
+knows nothing about years.

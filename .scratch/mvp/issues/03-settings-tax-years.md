@@ -1,4 +1,4 @@
-# 03: Параметры года и настройки ФОП
+# 03: Year parameters and FOP settings
 
 GitHub: #4
 Status: ready-for-agent
@@ -10,16 +10,16 @@ Blocked by: #3
 
 ## What to build
 
-В настройках владелец задаёт дату регистрации ФОП, режим оплаты, политику ЕСВ в месяц регистрации, освобождение от ЕСВ и правила переноса сроков. Отдельная вкладка показывает TaxYearConfig по годам: минимальная зарплата, ставки в базисных пунктах, лимит, дни сроков, праздники, источник и дата проверки. 2026 приходит seed‑данными. Год можно скопировать в следующий и отметить проверенным. Главный экран предупреждает, если для текущего года нет проверенного конфига.
+In settings, the owner sets the FOP registration date, the payment mode, the ESV registration-month policy, the ESV exemption, and the deadline-shifting rules. A separate tab shows TaxYearConfig by year: minimum wage, rates in basis points, the limit, deadline day counts, holidays, source and verification date. 2026 arrives via seed data. A year can be cloned into the next one and marked verified. The home screen warns when the current year has no verified config.
 
 ## Acceptance criteria
 
-- [ ] После старта в пустой БД есть строка 2026 со значениями из business-rules; миграции применяются при старте.
-- [ ] `EsvMonthlyKop` и `IncomeLimitKop` пересчитываются из минимальной зарплаты при сохранении и совпадают с 190 234 и 1 009 104 900 для 2026.
-- [ ] Клонирование 2026 в 2027 создаёт строку с пустым `VerifiedAt`, и на главном экране появляется предупреждение для 2027.
-- [ ] Все поля Settings из domain-model доступны в форме и сохраняются.
-- [ ] Тесты API на чтение, запись, клонирование и отметку «проверено».
+- [ ] After startup, an empty database has a 2026 row with the values from business-rules; migrations run at startup.
+- [ ] `EsvMonthlyKop` and `IncomeLimitKop` are recomputed from the minimum wage on save and equal 190,234 and 1,009,104,900 for 2026.
+- [ ] Cloning 2026 into 2027 creates a row with `VerifiedAt` empty, and the home screen shows a warning for 2027.
+- [ ] Every Settings field from domain-model is available in the form and persists.
+- [ ] API tests for read, write, clone, and marking a year verified.
 
 ## Blocked by
 
-- #3 (Вход через Google и каркас интерфейса)
+- #3 (Google sign-in and the interface shell)
