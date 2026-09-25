@@ -122,6 +122,49 @@ public class DeadlineCalendarTests
             DeadlineCalendar.ForQuarter(2026, 1, ReferenceConfig, settings));
     }
 
+    [Theory]
+    [InlineData(1, 20, 41, "2026-04-20", "2026-05-11", "2026-05-11")]
+    [InlineData(3, 21, 45, "2026-10-21", "2026-11-14", "2026-11-16")]
+    public void The_esv_day_and_the_declaration_day_count_come_from_the_config(
+        int quarter,
+        int esvDeadlineDay,
+        int declarationDays,
+        string expectedEsvStatutory,
+        string expectedDeclarationStatutory,
+        string expectedDeclarationDue)
+    {
+        var config = ReferenceConfig with
+        {
+            EsvDeadlineDay = esvDeadlineDay,
+            DeclarationDays = declarationDays,
+        };
+
+        var actual = DeadlineCalendar.ForQuarter(2026, quarter, config, ReferenceSettings);
+
+        Assert.Equal(Date(expectedEsvStatutory), actual.Esv.Statutory);
+        Assert.Equal(Date(expectedDeclarationStatutory), actual.Declaration.Statutory);
+        Assert.Equal(Date(expectedDeclarationDue), actual.Declaration.Due);
+    }
+
+    [Theory]
+    [InlineData(1, "2026-04-19", "2026-05-10")]
+    [InlineData(2, "2026-07-19", "2026-08-09")]
+    public void A_sunday_deadline_stays_put_when_the_weekend_is_friday_and_saturday(
+        int quarter,
+        string expectedEsvDue,
+        string expectedDeclarationDue)
+    {
+        var settings = ReferenceSettings with
+        {
+            WeekendDays = [DayOfWeek.Friday, DayOfWeek.Saturday],
+        };
+
+        var actual = DeadlineCalendar.ForQuarter(2026, quarter, ReferenceConfig, settings);
+
+        Assert.Equal(Date(expectedEsvDue), actual.Esv.Due);
+        Assert.Equal(Date(expectedDeclarationDue), actual.Declaration.Due);
+    }
+
     private static DateOnly Date(string iso) =>
         DateOnly.ParseExact(iso, "yyyy-MM-dd", CultureInfo.InvariantCulture);
 }
