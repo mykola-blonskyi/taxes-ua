@@ -66,3 +66,17 @@ Reuse existing templates whenever possible.
 Additional project-specific instructions may exist in:
 
 - .claude/CLAUDE.local.md
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues of `mykola-blonskyi/taxes-ua` via `gh`, mirrored as markdown under `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary: needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context. Glossary and rules in `knowledge/`, ADRs in `docs/decisions.md`. See `docs/agents/domain.md`.
