@@ -1,0 +1,28 @@
+services:
+  web:
+    ports:
+      - "3000:3000"
+
+  api:
+    environment:
+      ConnectionStrings__Default: Host=db;Port=5432;Database=taxes_ua;Username=taxes_ua;Password=taxes_ua
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: taxes_ua
+      POSTGRES_USER: taxes_ua
+      POSTGRES_PASSWORD: taxes_ua
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taxes_ua -d taxes_ua"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
