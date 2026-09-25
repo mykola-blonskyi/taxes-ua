@@ -1,198 +1,306 @@
 GitHub: #1
 Status: ready-for-agent
 
-Статус: черновик для публикации в трекер. Тикеты: `plans/tickets.md`.
-Словарь: `knowledge/glossary.md`. Правила: `knowledge/business-rules.md`.
-ADR: `docs/decisions.md`.
+Status: draft, published to the tracker. Tickets: `plans/tickets.md`.
+Glossary: `knowledge/glossary.md`. Rules:
+`knowledge/business-rules.md`.
+ADRs: `docs/decisions.md`.
 
 ## Problem Statement
 
-Я планирую открыть ФОП 3 группы и работать на иностранных клиентов, получая оплату в USD и EUR.
-Мне нужно каждый квартал знать, сколько дохода в гривнах я получил по курсу НБУ на день зачисления,
-сколько ЕП, ВЗ и ЕСВ начислено, что и до какого числа платить и подавать, сколько уже оплачено
-и есть ли переплата. Сейчас это считается в прототипе с ручным вводом курса и отметками
-«оплачено» без реального реестра платежей. Ошибка в дате или сумме стоит штрафа, а сверка
-с Электронным кабинетом требует ручной арифметики.
+I am planning to open a Group 3 FOP and work for foreign clients, getting paid in USD and EUR.
+Every quarter I need to know how much income in hryvnia I received, at the NBU rate on the credit
+date, how much EP, VZ and ESV is accrued, what to pay and file and by when, how much is already
+paid, and whether there is an overpayment. Right now this is computed in a prototype with manual
+rate entry and "paid" checkmarks, with no real payment ledger. A wrong date or amount costs a
+penalty, and reconciling against the Electronic Cabinet requires manual arithmetic.
 
 ## Solution
 
-Веб‑приложение с установкой на телефон, где я вношу поступления и платежи в бюджет, а оно
-подтягивает курс НБУ, считает начисления по параметрам года, ведёт баланс по каждому виду платежа,
-показывает ближайший шаг с датой и суммой, следит за лимитом дохода и готовит цифры для декларации
-нарастающим итогом. Все данные экспортируются и восстанавливаются из бэкапа. Приложение не платит
-налоги и не подаёт декларации.
+A web app installable on a phone, where I enter receipts and budget payments, and it pulls the
+NBU rate, computes the accruals from the year's parameters, keeps a balance per payment kind,
+shows the nearest next step with its date and amount, watches the income limit, and prepares the
+declaration numbers cumulatively. All data can be exported and restored from a backup. The app
+does not pay taxes and does not file declarations.
 
 ## User Stories
 
-Поступления
+Receipts
 
-1. Как ФОП, я хочу внести поступление с датой зачисления, суммой и валютой, чтобы оно попало в доход нужного периода.
-2. Как ФОП, я хочу, чтобы курс НБУ подставлялся автоматически на дату зачисления, чтобы не искать его вручную.
-3. Как ФОП, я хочу видеть, что для выходного дня взят курс последнего рабочего дня и какого именно, чтобы понимать происхождение цифры.
-4. Как ФОП, я хочу поправить курс вручную, чтобы совпасть с выпиской банка при расхождении.
-5. Как ФОП, я хочу видеть гривневый эквивалент до сохранения, чтобы проверить сумму глазами.
-6. Как ФОП, я хочу, чтобы курс и гривневая сумма фиксировались при сохранении и не менялись позже, чтобы декларация не «плыла».
-7. Как ФОП, я хочу указывать тип операции: доход, возврат клиенту, свой перевод, продажа валюты, пополнение своими, возврат ошибочного, прочее, чтобы в доход попадало только нужное.
-8. Как ФОП, я хочу обязательную причину для операции «не доход», чтобы через год понять, почему она исключена.
-9. Как ФОП, я хочу привязать поступление к клиенту и номеру инвойса, чтобы находить операции по контрагенту.
-10. Как ФОП, я хочу редактировать и удалять поступление с подтверждением, чтобы исправлять ошибки без риска случайного удаления.
-11. Как ФОП, я хочу видеть список поступлений за год с итогом в гривнах, чтобы сверять его с банком.
-12. Как ФОП, я хочу предупреждение при вводе операции раньше даты регистрации ФОП, чтобы не учесть личный доход как предпринимательский.
-13. Как ФОП, я хочу, чтобы возврат предоплаты клиенту уменьшал доход периода возврата, чтобы расчёт соответствовал правилам.
+1. As a FOP, I want to enter a receipt with a credit date, amount and currency, so it lands in
+   the right period's income.
+2. As a FOP, I want the NBU rate to be filled in automatically for the credit date, so I don't
+   have to look it up manually.
+3. As a FOP, I want to see that a weekend's rate came from the last business day, and which day,
+   so I understand where the number came from.
+4. As a FOP, I want to correct the rate manually, so it matches the bank statement when they
+   disagree.
+5. As a FOP, I want to see the hryvnia equivalent before saving, so I can eyeball the amount.
+6. As a FOP, I want the rate and hryvnia amount to be fixed at save time and never change later,
+   so the declaration doesn't "drift".
+7. As a FOP, I want to specify an operation type — income, refund to client, own transfer,
+   currency sale, own deposit, erroneous refund, other — so only the right entries count as
+   income.
+8. As a FOP, I want a mandatory reason for a "not income" entry, so a year later I understand why
+   it was excluded.
+9. As a FOP, I want to link a receipt to a client and an invoice number, so I can find operations
+   by counterparty.
+10. As a FOP, I want to edit and delete a receipt with a confirmation, so I can fix mistakes
+    without risking an accidental delete.
+11. As a FOP, I want to see the year's list of receipts with a hryvnia total, so I can reconcile
+    it against the bank.
+12. As a FOP, I want a warning when entering an operation dated before the FOP registration date,
+    so I don't count personal income as business income.
+13. As a FOP, I want a refund of a client prepayment to reduce the income of the period in which
+    the refund happened, so the calculation follows the rules.
 
-Платежи в бюджет
+Budget payments
 
-14. Как ФОП, я хочу записать фактический платёж с датой, видом (ЕП, ВЗ, ЕСВ), суммой и периодом, чтобы приложение знало, что оплачено.
-15. Как ФОП, я хочу видеть по каждому виду отдельно начислено, оплачено и остаток, чтобы это совпадало с интегрированной карточкой плательщика.
-16. Как ФОП, я хочу, чтобы переплата по виду переносилась на следующий период того же вида, чтобы не платить лишнее.
-17. Как ФОП, я хочу, чтобы переплата ЕП не гасила долг по ЕСВ, чтобы балансы соответствовали реальным счетам казначейства.
-18. Как ФОП, я хочу записать помесячный аванс за месяц, чтобы он зачёлся в квартальное обязательство.
-19. Как ФОП, я хочу редактировать и удалять платёж, чтобы исправлять опечатки.
+14. As a FOP, I want to record an actual payment with a date, kind (EP, VZ, ESV), amount and
+    period, so the app knows what's paid.
+15. As a FOP, I want to see, per kind, accrued, paid and remaining separately, so it matches the
+    integrated ledger card.
+16. As a FOP, I want an overpayment of a kind to carry forward to the next period of that kind,
+    so I don't overpay.
+17. As a FOP, I want an EP overpayment to never offset an ESV debt, so balances match the actual
+    treasury accounts.
+18. As a FOP, I want to record a monthly advance, so it credits against the quarterly obligation.
+19. As a FOP, I want to edit and delete a payment, so I can fix typos.
 
-Главный экран
+Home screen
 
-20. Как ФОП, я хочу видеть один ближайший невыполненный шаг: что, до какого числа, сколько, сколько дней осталось, чтобы не держать сроки в голове.
-21. Как ФОП, я хочу видеть просрочку красным с числом дней, чтобы сразу понять, что горит.
-22. Как ФОП, я хочу видеть доход за год относительно лимита с процентом, чтобы заранее видеть приближение к порогу.
-23. Как ФОП, я хочу предупреждение при 85% и 100% лимита, чтобы успеть подготовиться к смене системы.
-24. Как ФОП, я хочу видеть налоговую нагрузку в процентах от дохода, чтобы понимать реальную ставку.
-25. Как ФОП, я хочу видеть «всё сделано», когда обязательств нет, чтобы не искать скрытые задачи.
-26. Как ФОП, я хочу до даты регистрации видеть подсказку, что обязательств пока нет, чтобы не пугаться пустого экрана.
-27. Как ФОП, я хочу предупреждение, если для текущего года параметры не проверены, чтобы не считать по устаревшим ставкам.
+20. As a FOP, I want to see the single nearest unfinished step: what, by when, how much, how many
+    days remain, so I don't have to hold deadlines in my head.
+21. As a FOP, I want to see an overdue item in red with the number of days, so I immediately know
+    what's urgent.
+22. As a FOP, I want to see the year's income against the limit with a percentage, so I see the
+    threshold coming in advance.
+23. As a FOP, I want a warning at 85% and 100% of the limit, so I can prepare to switch systems in
+    time.
+24. As a FOP, I want to see the tax burden as a percentage of income, so I understand the real
+    rate.
+25. As a FOP, I want to see "all done" when there are no obligations, so I don't go looking for
+    hidden tasks.
+26. As a FOP, I want a hint before the registration date that there are no obligations yet, so an
+    empty screen doesn't worry me.
+27. As a FOP, I want a warning if the current year's parameters aren't verified, so I don't
+    compute against stale rates.
 
-Периоды и декларация
+Periods and declaration
 
-28. Как ФОП, я хочу таблицу по кварталам: доход, ЕП, ВЗ, ЕСВ, итого, оплачено, остаток, сроки, чтобы видеть картину года.
-29. Как ФОП, я хочу таблицу по месяцам с рекомендуемыми авансами в режиме «каждый месяц заранее», чтобы платить равномерно.
-30. Как ФОП, я хочу видеть цифры для декларации нарастающим итогом за квартал, полугодие, 9 месяцев и год, чтобы переносить их в Электронный кабинет без пересчёта.
-31. Как ФОП, я хочу видеть перенесённые сроки, если статутная дата выпала на выходной, чтобы не платить раньше или позже, чем нужно.
-32. Как ФОП, я хочу, чтобы обязательства за Q4 показывались с датами следующего года, чтобы январские сроки не терялись при смене года.
-33. Как ФОП, я хочу переключать год, чтобы смотреть прошлые периоды.
+28. As a FOP, I want a quarterly table — income, EP, VZ, ESV, total, paid, remaining, deadlines —
+    so I see the year's whole picture.
+29. As a FOP, I want a monthly table with recommended advances in "monthly ahead" mode, so I can
+    pay evenly.
+30. As a FOP, I want to see the declaration numbers cumulatively for the quarter, half-year, nine
+    months and year, so I can copy them into the Electronic Cabinet without recomputing.
+31. As a FOP, I want to see shifted deadlines when the statutory date falls on a weekend, so I
+    don't pay earlier or later than needed.
+32. As a FOP, I want Q4 obligations to show next year's dates, so the January deadlines aren't
+    lost across the year boundary.
+33. As a FOP, I want to switch years, so I can look at past periods.
 
-Настройки
+Settings
 
-34. Как ФОП, я хочу задать дату регистрации ФОП, чтобы ЕСВ и обязательства считались с правильного месяца.
-35. Как ФОП, я хочу выбрать режим оплаты «раз в квартал» или «каждый месяц заранее», чтобы приложение подстраивало подсказки.
-36. Как ФОП, я хочу выбрать политику ЕСВ в месяц регистрации (полная сумма или пропорция), чтобы следовать разъяснению бухгалтера.
-37. Как ФОП, я хочу отметить освобождение от ЕСВ, чтобы начисление обнулялось, если за меня платит работодатель.
-38. Как ФОП, я хочу настроить правила переноса сроков: какие дни выходные, список праздников, отсчёт срока уплаты от статутной даты, перенос срока уплаты, чтобы адаптироваться к изменению практики ДПС.
-39. Как ФОП, я хочу видеть и править параметры каждого года: минимальная зарплата, ставки, лимит, дни сроков, чтобы новый год не требовал изменения кода.
-40. Как ФОП, я хочу скопировать параметры года в следующий и отметить их проверенными со ссылкой на источник, чтобы обновление занимало минуту.
-41. Как ФОП, я хочу видеть, что ЕСВ в месяц и лимит в гривнах пересчитываются из минимальной зарплаты автоматически, чтобы не ошибиться в умножении.
+34. As a FOP, I want to set the FOP registration date, so ESV and obligations are computed from
+    the right month.
+35. As a FOP, I want to choose "quarterly" or "monthly ahead" payment mode, so the app adapts its
+    hints.
+36. As a FOP, I want to choose the ESV policy for the registration month (full amount or
+    prorated), so I can follow my accountant's guidance.
+37. As a FOP, I want to mark an ESV exemption, so the accrual zeroes out when an employer pays it
+    for me.
+38. As a FOP, I want to configure deadline-shifting rules — which days are weekends, the holiday
+    list, whether the payment deadline is counted from the statutory declaration date, whether
+    the payment deadline itself shifts — so I can adapt to changes in DPS practice.
+39. As a FOP, I want to view and edit each year's parameters — minimum wage, rates, limit,
+    deadline day counts — so a new year needs no code change.
+40. As a FOP, I want to copy a year's parameters into the next year and mark them verified with a
+    source link, so updating takes a minute.
+41. As a FOP, I want to see that the monthly ESV amount and the hryvnia limit are recomputed
+    automatically from the minimum wage, so I don't make a multiplication mistake.
 
-Экспорт и бэкап
+Export and backup
 
-42. Как ФОП, я хочу скачать поступления за год в CSV и XLSX, чтобы передать бухгалтеру.
-43. Как ФОП, я хочу скачать полный бэкап всех данных в JSON, чтобы не зависеть от сервера.
-44. Как ФОП, я хочу восстановить данные из бэкапа с подтверждением, чтобы переехать или откатиться.
-45. Как ФОП, я хочу импортировать JSON из текущего прототипа, чтобы не вводить историю заново.
-46. Как ФОП, я хочу, чтобы повторный импорт не создавал дубли, чтобы можно было импортировать безопасно.
+42. As a FOP, I want to download the year's receipts as CSV and XLSX, so I can hand them to an
+    accountant.
+43. As a FOP, I want to download a full backup of all data as JSON, so I don't depend on the
+    server.
+44. As a FOP, I want to restore data from a backup with a confirmation, so I can migrate or roll
+    back.
+45. As a FOP, I want to import JSON from my current prototype, so I don't re-enter the history.
+46. As a FOP, I want a repeat import to never create duplicates, so importing is safe.
 
-Вход и безопасность
+Sign-in and security
 
-47. Как ФОП, я хочу входить через Google, чтобы не хранить ещё один пароль.
-48. Как ФОП, я хочу добавить passkey и входить им с телефона, чтобы вход был быстрым и безопасным.
-49. Как владелец, я хочу, чтобы вход был разрешён только моему email, чтобы никто другой не мог зарегистрироваться.
-50. Как ФОП, я хочу выйти из сессии, чтобы закрыть доступ на чужом устройстве.
-51. Как ФОП, я хочу журнал изменений транзакций, платежей и настроек, чтобы понять, что и когда я поменял.
-52. Как ФОП, я хочу, чтобы всё работало по HTTPS, чтобы финансовые данные не ходили открыто.
+47. As a FOP, I want to sign in via Google, so I don't have to keep yet another password.
+48. As a FOP, I want to add a passkey and sign in with it from my phone, so sign-in is fast and
+    secure.
+49. As the owner, I want sign-in restricted to my own email, so no one else can register.
+50. As a FOP, I want to sign out, so I can close access on someone else's device.
+51. As a FOP, I want a change log for transactions, payments and settings, so I can see what I
+    changed and when.
+52. As a FOP, I want everything to run over HTTPS, so financial data never travels in the clear.
 
-Оболочка
+Shell
 
-53. Как ФОП, я хочу установить приложение на телефон как PWA, чтобы открывать его как обычное приложение.
-54. Как ФОП, я хочу светлую и тёмную тему по системной настройке с ручным переключением, чтобы глазам было удобно.
-55. Как ФОП, я хочу интерфейс на украинском по умолчанию и переключение на русский, чтобы пользоваться на удобном языке.
-56. Как ФОП, я хочу дисклеймер о справочном характере расчёта, чтобы помнить о сверке с кабинетом.
-57. Как ФОП, я хочу, чтобы таблицы читались на экране 375 px без горизонтальной прокрутки страницы, чтобы пользоваться с телефона.
+53. As a FOP, I want to install the app on my phone as a PWA, so I can open it like a regular
+    app.
+54. As a FOP, I want a light and dark theme following the system setting, with a manual toggle,
+    so it's comfortable to look at.
+55. As a FOP, I want the interface in Ukrainian by default with a switch to Russian, so I can use
+    whichever language is convenient.
+56. As a FOP, I want a disclaimer about the informational nature of the calculation, so I
+    remember to reconcile with the Cabinet.
+57. As a FOP, I want tables to be readable on a 375px screen with no horizontal page scroll, so I
+    can use the app from my phone.
 
-Надёжность
+Reliability
 
-58. Как ФОП, я хочу понятное сообщение, если НБУ недоступен, и возможность ввести курс вручную, чтобы работа не останавливалась.
-59. Как ФОП, я хочу, чтобы суммы всегда сходились до копейки, чтобы совпадать с выпиской и кабинетом.
-60. Как владелец, я хочу автоматические бэкапы БД, чтобы не потерять данные при сбое сервера.
+58. As a FOP, I want a clear message when NBU is unavailable, with the ability to enter the rate
+    manually, so my work isn't blocked.
+59. As a FOP, I want amounts to always reconcile to the kopeck, so they match the statement and
+    the Cabinet.
+60. As the owner, I want automatic database backups, so I don't lose data on a server failure.
 
 ## Implementation Decisions
 
-Архитектура (ADR‑001, ADR‑006)
+Architecture (ADR-001, ADR-006)
 
-- Backend на ASP.NET Core 10 с Minimal APIs, EF Core и Npgsql. Frontend на Next.js только как интерфейс, все запросы `/api/*` проксируются на backend внутри одной Docker‑сети, для браузера это один origin.
-- Деплой через Coolify: Docker Compose resource с сервисами `web` и `api`, Postgres как отдельный Coolify resource с встроенными бэкапами. Cron внутри `api` как hosted services. В MVP cron не нужен.
-- Адрес backend фиксируется в образе `web` при сборке, потому что rewrites Next.js вычисляются при сборке.
+- Backend on ASP.NET Core 10 with Minimal APIs, EF Core and Npgsql. Frontend on Next.js, UI only;
+  every `/api/*` request is proxied to the backend inside one Docker network, so from the browser
+  it is a single origin.
+- Deploy via Coolify: a Docker Compose resource with the `web` and `api` services. The database
+  reuses the PostgreSQL instance already running on the owner's VPS — a dedicated role and
+  database are created for this project, rather than a new Coolify PostgreSQL resource. Cron runs
+  inside `api` as hosted services. The MVP needs no cron.
+- The backend address is baked into the `web` image at build time, because Next.js rewrites are
+  resolved at build time.
 
-Налоговый движок (ADR‑002)
+Tax engine (ADR-002)
 
-- Отдельная class library без пакетов и без обращения к часам, БД и сети. Вход: конфиги лет, настройки ФОП, список записей дохода уже в копейках с типом и датой, список платежей, дата «сегодня». Выход: доход по периодам, начисления, обязательства со статусами, балансы по видам, статус лимита, предупреждения.
-- Обязательство (`Obligation`) вычисляется, не хранится. Ключ обязательства: год, квартал, вид, месяц для аванса. Статусы: `Upcoming`, `Due`, `Overdue`, `Done`.
-- ЕП и ВЗ квартала считаются как ставка от дохода нарастающим итогом минус начисленное за прошлые кварталы, как в декларации. ЕСВ считается по активным месяцам с даты регистрации с политикой месяца регистрации и флагом освобождения.
-- Балансы по видам независимы. Переплата переносится внутри вида.
-- Календарь сроков параметризован: день ЕСВ, дни декларации, дни уплаты после декларации, выходные, праздники, отсчёт уплаты от статутной даты, перенос уплаты с выходного. По умолчанию значения воспроизводят эталон 2026.
-- Лимит не пропорционален неполному году. Пороги 85% и 100%, превышение по ставке превышения.
+- A separate class library with no packages and no access to the clock, database or network.
+  Input: year configs, FOP settings, a list of income entries already in kopecks with a type and
+  date, a list of payments, "today's" date. Output: income by period, accruals, obligations with
+  statuses, balances per kind, limit status, warnings.
+- `Obligation` is computed, not stored. Its key: year, quarter, kind, month for an advance.
+  Statuses: `Upcoming`, `Due`, `Overdue`, `Done`.
+- The quarter's EP and VZ are the rate on cumulative income minus what was already accrued for
+  prior quarters, matching the declaration. ESV is computed over active months since the
+  registration date, per the registration-month policy and the exemption flag.
+- Balances per kind are independent. An overpayment carries forward within its own kind.
+- The deadline calendar is parameterized: the ESV day, the declaration day count, the days to pay
+  after the declaration, weekends, holidays, whether the payment deadline is counted from the
+  statutory date, whether the payment deadline itself shifts off a weekend. Defaults reproduce
+  the 2026 reference table.
+- The limit is not prorated for a partial year. Thresholds at 85% and 100%, excess taxed at the
+  excess rate.
 
-Деньги и даты (ADR‑003, ADR‑004)
+Money and dates (ADR-003, ADR-004)
 
-- Все суммы `long` в минимальных единицах: копейки для UAH, центы для USD и EUR. Курс `int RateE4` = курс × 10⁴. Проценты в базисных пунктах. Одно округление на операцию, половина от нуля. Реализовано и покрыто тестами в `Money`.
-- Дата операции `DateOnly` по Europe/Kyiv. Перевод из UTC делает адаптер на границе API. Движок таймзон не знает. «Сегодня» для статусов вычисляется API по Киеву и передаётся в движок.
+- Every amount is `long` in minor units: kopecks for UAH, cents for USD and EUR. Rate `int
+  RateE4` = rate × 10⁴. Percentages as basis points. One rounding per operation, half away from
+  zero. Implemented and covered by tests in `Money`.
+- Operation date is `DateOnly` by Europe/Kyiv. Conversion from UTC happens in the API boundary
+  adapter. The engine knows nothing about time zones. "Today" for statuses is computed by the API
+  in Kyiv time and passed to the engine.
 
-Данные (domain-model)
+Data (domain-model)
 
-- Сущности MVP: User, Settings, TaxYearConfig, BankAccount, Client, Transaction, BudgetPayment, FxRate, AuditLog. Все, кроме TaxYearConfig, с `UserId`, каждая выборка фильтруется по нему.
-- Transaction хранит `AmountMinor`, `Currency`, `RateE4`, `RateDate`, `RateSource`, `AmountUahKop`, `Kind`, `NonIncomeReason`. Гривневая сумма фиксируется при записи.
-- BudgetPayment хранит вид, сумму, год и квартал, либо месяц для аванса.
-- TaxYearConfig хранит все ставки и правила сроков, `Source`, `VerifiedAt`. Производные `EsvMonthlyKop` и `IncomeLimitKop` пересчитываются при сохранении. 2026 загружается seed‑данными.
-- Миграции применяются при старте `api`.
-- AuditLog пишется перехватчиком сохранения для Transaction, BudgetPayment, Settings, TaxYearConfig со снимками до и после.
+- MVP entities: User, Settings, TaxYearConfig, BankAccount, Client, Transaction, BudgetPayment,
+  FxRate, AuditLog. All except TaxYearConfig carry `UserId`; every query filters on it.
+- Transaction stores `AmountMinor`, `Currency`, `RateE4`, `RateDate`, `RateSource`,
+  `AmountUahKop`, `Kind`, `NonIncomeReason`. The hryvnia amount is fixed at write time.
+- BudgetPayment stores kind, amount, year and quarter, or month for an advance.
+- TaxYearConfig stores every rate and deadline rule, `Source`, `VerifiedAt`. Derived
+  `EsvMonthlyKop` and `IncomeLimitKop` are recomputed on save. 2026 loads via seed data.
+- Migrations run at `api` startup.
+- AuditLog is written by a save interceptor for Transaction, BudgetPayment, Settings,
+  TaxYearConfig, with before/after snapshots.
 
-Курс НБУ
+NBU rate
 
-- Клиент НБУ с таймаутом. На пустой ответ (выходной) откат по дням назад не более чем на 7 дней, фактическая дата курса сохраняется. Кэш в FxRate по валюте и дате. Недоступность НБУ отдаётся клиенту как ошибка внешней зависимости, а не 500, форма позволяет ввести курс вручную.
+- An NBU client with a timeout. On an empty response (weekend), it falls back day by day, up to
+  7 days; the actual rate date is stored. Cached in FxRate by currency and date. NBU
+  unavailability surfaces to the client as an external-dependency error, not a 500; the form
+  still allows a manual rate.
 
-Аутентификация (ADR‑005)
+Authentication (ADR-005)
 
-- ASP.NET Core Identity со схемой v3, вход через Google, passkey встроенными средствами Identity .NET 10, cookie `HttpOnly; Secure; SameSite=Lax`, ForwardedHeaders за Traefik. Allowlist email из конфигурации. Антифорджери через требование заголовка `X-Requested-With` на изменяющих запросах.
+- ASP.NET Core Identity on schema v3, sign-in via Google, passkey via .NET 10 Identity's built-in
+  support, cookie `HttpOnly; Secure; SameSite=Lax`, ForwardedHeaders behind Traefik. Email
+  allowlist from configuration. Anti-forgery for mutating requests via a required
+  `X-Requested-With` header.
 
-Контракт API
+API contract
 
-- Ресурсы: `auth`, `transactions`, `payments`, `settings`, `tax-years`, `fx`, `dashboard`, `periods/{year}`, `obligations/{year}`, `export`, `backup`, `restore`, `import/prototype`, `audit`, `health`.
-- OpenAPI генерируется backend. Типы для frontend генерируются из него скриптом, руками не дублируются.
-- Суммы в JSON как целые числа минимальных единиц. Даты как ISO `YYYY-MM-DD`.
-- Восстановление из бэкапа заменяет данные пользователя в одной транзакции БД. Импорт прототипа идемпотентен: записи помечаются внешним ключом источника.
+- Resources: `auth`, `transactions`, `payments`, `settings`, `tax-years`, `fx`, `dashboard`,
+  `periods/{year}`, `obligations/{year}`, `export`, `backup`, `restore`, `import/prototype`,
+  `audit`, `health`.
+- OpenAPI is generated by the backend. Frontend types are generated from it by a script, never
+  hand-duplicated.
+- Amounts in JSON as whole numbers of minor units. Dates as ISO `YYYY-MM-DD`.
+- Restoring from a backup replaces the user's data inside a single database transaction.
+  Prototype import is idempotent: imported records are tagged with a source external key.
 
 Frontend
 
-- shadcn/ui и Tailwind, токены цветов из прототипа, тёмная тема по системе с ручным переключением. TanStack Query для данных, TanStack Table для таблиц, TanStack Form для форм. Zustand не используется, пока нет глобального клиентского состояния.
-- next-intl с двумя локалями: украинский по умолчанию, русский вторым. Все строки вынесены с первого экрана, выбор языка хранится в настройках пользователя и в cookie.
-- PWA: манифест, иконки, service worker для установки и кэша оболочки. Офлайн‑данные не кэшируются.
+- shadcn/ui and Tailwind, color tokens from the prototype, dark theme following the system with a
+  manual toggle. TanStack Query for data, TanStack Table for tables, TanStack Form for forms.
+  Zustand is not used while there is no global client state.
+- next-intl with two locales: Ukrainian by default, Russian second. All strings are externalized
+  from the first screen; the language choice is stored in user settings and in a cookie.
+- PWA: manifest, icons, a service worker for installability and shell caching. Offline data is
+  not cached.
 
 ## Testing Decisions
 
-Что такое хороший тест здесь: он проверяет наблюдаемое поведение через публичную границу и не знает
-о внутреннем устройстве. Для движка это вход и выход чистых функций. Для API это HTTP‑запрос и ответ
-плюс состояние БД. Тест не мокает то, что можно поднять по‑настоящему.
+What makes a good test here: it checks observable behavior through a public boundary and knows
+nothing about internal structure. For the engine that means the input and output of pure
+functions. For the API that means an HTTP request and response plus database state. A test never
+mocks what it can stand up for real.
 
-Швы
+Seams
 
-1. Публичный API движка. Табличные тесты xUnit: эталон сроков 2026, сценарии из ТЗ (регистрация посреди квартала, переход года, возвраты, помесячные авансы с переплатой, валютные поступления с округлением, лимит на порогах). Это основной шов и здесь ожидается покрытие ключевых сценариев целиком. Прототип из Obsidian служит источником ожидаемых чисел для сверки.
-2. HTTP API через `WebApplicationFactory` с реальным Postgres в Testcontainers. Проверяется: allowlist и 401/403, валидация транзакций и платежей, фиксация курса и гривневой суммы, откат курса НБУ на рабочий день с подменённым HTTP‑обработчиком, журнал изменений, круг бэкап‑восстановление, идемпотентность импорта прототипа, совпадение ответов `dashboard` и `periods` с расчётом движка на тех же данных.
+1. The engine's public API. Table-driven xUnit tests: the 2026 deadline reference table, the
+   scenarios from the spec (registration mid-quarter, year rollover, refunds, monthly advances
+   with an overpayment, currency receipts with rounding, the limit at its thresholds). This is
+   the primary seam, and full coverage of the key scenarios is expected here. The Obsidian
+   prototype is the source of expected numbers for reconciliation.
+2. The HTTP API via `WebApplicationFactory` with a real Postgres in Testcontainers. Checked:
+   allowlist and 401/403, transaction and payment validation, fixing the rate and hryvnia amount,
+   the NBU rate falling back to a business day with a substituted HTTP handler, the change log,
+   the backup/restore round trip, prototype-import idempotence, `dashboard` and `periods`
+   responses matching the engine's computation on the same data.
 
-Новых швов не вводится. Frontend в MVP проверяется руками по критериям приёмки тикетов на телефоне
-и десктопе. Прямые тесты компонентов не пишутся.
+No new seams are introduced. In the MVP, the frontend is verified by hand against each ticket's
+acceptance criteria on phone and desktop. No direct component tests are written.
 
-Прежние примеры: `MoneyTests` в тестах движка задают стиль табличных тестов с `InlineData`.
-Тестов API в репозитории пока нет, проект тестов API создаётся в тикете схемы БД.
+Existing examples: `MoneyTests` in the engine tests set the style for table-driven tests with
+`InlineData`. There are no API tests in the repository yet; the API test project is created in
+the database-schema ticket.
 
 ## Out of Scope
 
-- Импорт выписок CSV/XLSX, API monobank и ПриватБанк, очередь запросов, шифрование токенов (Этап 2).
-- Напоминания в Telegram и email, экспорт .ics (Этап 2).
-- Клиенты с реквизитами, PDF‑инвойсы, XML декларации F0103309, архив (Этап 3).
-- Мультипользовательский режим, регистрация, офлайн‑данные в PWA.
-- Автоматическая уплата налогов и подача деклараций. Приложение этого не делает по замыслу.
-- Автоматические тесты интерфейса.
+- CSV/XLSX statement import, monobank and PrivatBank APIs, request queueing, token encryption
+  (Stage 2).
+- Telegram and email reminders, .ics export (Stage 2).
+- Clients with details, PDF invoices, F0103309 XML declarations, archiving (Stage 3).
+- Multi-user mode, self-registration, offline data in the PWA.
+- Automatic tax payment and declaration filing. The app deliberately does not do this.
+- Automated UI tests.
 
 ## Further Notes
 
-- Две трактовки правил не подтверждены владельцем и сделаны настраиваемыми: отсчёт срока уплаты ЕП/ВЗ от статутной даты декларации с переносом самого срока уплаты, и ЕСВ в месяц регистрации полной суммой. Значения по умолчанию воспроизводят эталон 2026.
-- ФОП ещё не зарегистрирован. Дата регистрации будет в будущем, реальных выписок нет, движок проверяется на синтетике и эталоне.
-- Совет владельцу при регистрации: подать заявление на 3 группу вместе с регистрацией, иначе первый неполный месяц идёт по общей системе.
-- НБУ на выходные отдаёт пустой массив, это проверено запросом. Праздники в военное время рабочие, список праздников в конфиге пуст.
-- Владелец реализует тикеты сам. Spec фиксирует решения, чтобы тикеты не расходились между собой.
+- Two rule interpretations are not yet confirmed by the owner and are made configurable: whether
+  the EP/VZ payment deadline is counted from the declaration's statutory date with the payment
+  deadline itself also shifted, and whether ESV in the registration month is the full amount.
+  Defaults reproduce the 2026 reference table.
+- The FOP is not registered yet. The registration date will be in the future; there are no real
+  statements yet, so the engine is verified against synthetic data and the reference table.
+- Advice for the owner at registration: file the Group 3 application together with the
+  registration, otherwise the first partial month falls under the general tax system.
+- NBU returns an empty array on weekends; this was verified by a live request. Holidays are
+  treated as business days during martial law, so the holiday list in the config is empty.
+- The owner implements the tickets by hand. This spec fixes the decisions so the tickets don't
+  drift from each other.

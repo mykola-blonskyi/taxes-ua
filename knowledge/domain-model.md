@@ -1,158 +1,165 @@
 # Domain Model
 
-Деньги: `long` в минимальных единицах валюты (копейки, центы). Курс: `int RateE4` = курс × 10⁴.
-Проценты: базисные пункты (`int`, 5% = 500). Даты операций: `DateOnly` по Europe/Kyiv.
-Все сущности кроме `TaxYearConfig` имеют `UserId`.
+Money: `long` in the minor unit of the currency (kopecks, cents). Rate: `int RateE4` = rate × 10⁴.
+Percentages: basis points (`int`, 5% = 500). Operation dates: `DateOnly` by Europe/Kyiv.
+Every entity except `TaxYearConfig` has a `UserId`.
 
 ## Entities
 
 ### User
 
-Responsibilities: владелец данных. Identity‑пользователь ASP.NET Core.
+Responsibilities: the data owner. An ASP.NET Core Identity user.
 
-Fields: `Id`, `Email`, `DisplayName`, `CreatedAt`. Passkeys и внешние логины хранит Identity.
+Fields: `Id`, `Email`, `DisplayName`, `CreatedAt`. Passkeys and external logins are stored by
+Identity.
 
-Relationships: 1‑к‑1 `Settings`, 1‑ко‑многим всё остальное.
+Relationships: 1-to-1 with `Settings`, 1-to-many with everything else.
 
 ---
 
 ### Settings
 
-Responsibilities: параметры конкретного ФОП, влияющие на расчёт.
+Responsibilities: the parameters of this specific FOP that affect the calculation.
 
 Fields:
 
-- `FopRegistrationDate: DateOnly?` дата регистрации ФОП. Пока не задана, обязательств нет.
+- `FopRegistrationDate: DateOnly?` FOP registration date. Until set, there are no obligations.
 - `PaymentMode: Quarterly | MonthlyAdvance`.
-- `EsvRegistrationMonthPolicy: FullMonth | Prorated` по умолчанию `FullMonth`.
-- `EsvExempt: bool` освобождение от ЕСВ за себя (например, платит работодатель). По умолчанию `false`.
-- `TaxPaymentCountsFromStatutoryDeclarationDate: bool` по умолчанию `true`.
-- `ShiftTaxPaymentFromWeekend: bool` по умолчанию `true`.
-- `WeekendDays: DayOfWeek[]` по умолчанию суббота и воскресенье.
+- `EsvRegistrationMonthPolicy: FullMonth | Prorated`, defaults to `FullMonth`.
+- `EsvExempt: bool` exemption from ESV for oneself (e.g. an employer pays it). Defaults to
+  `false`.
+- `TaxPaymentCountsFromStatutoryDeclarationDate: bool`, defaults to `true`.
+- `ShiftTaxPaymentFromWeekend: bool`, defaults to `true`.
+- `WeekendDays: DayOfWeek[]`, defaults to Saturday and Sunday.
 - `Locale`, `Theme`, `DefaultCurrency`.
 
-Relationships: принадлежит `User`.
+Relationships: belongs to `User`.
 
 ---
 
 ### TaxYearConfig
 
-Responsibilities: все параметры налогового года. Один источник правды для движка. Без `UserId`.
+Responsibilities: all parameters of a tax year. The single source of truth for the engine. No
+`UserId`.
 
 Fields:
 
 - `Year`.
-- `MinWageKop` минимальная зарплата на 1 января.
+- `MinWageKop` minimum wage as of January 1.
 - `SingleTaxRateBp` (500), `MilitaryLevyRateBp` (100), `EsvRateBp` (2200), `ExcessRateBp` (1500).
-- `EsvMonthlyKop` вычисляется как `MinWageKop × EsvRateBp / 10000`, хранится для прозрачности.
-- `IncomeLimitMinWages` (1167), `IncomeLimitKop` вычисляется и хранится.
+- `EsvMonthlyKop` computed as `MinWageKop × EsvRateBp / 10000`, stored for transparency.
+- `IncomeLimitMinWages` (1167), `IncomeLimitKop` computed and stored.
 - `LimitWarnThresholdsPct` (85, 100).
-- `EsvDeadlineDay` (19, включительно, месяц после квартала).
-- `DeclarationDays` (40, календарных после конца квартала).
+- `EsvDeadlineDay` (19, inclusive, month after the quarter).
+- `DeclarationDays` (40, calendar days after the end of the quarter).
 - `TaxPaymentDaysAfterDeclaration` (10).
-- `AdvanceRecommendedDay` (15, число следующего месяца).
-- `Holidays: DateOnly[]` нерабочие праздники. На время военного положения пусто.
-- `Source` ссылка на норму, `VerifiedAt: DateTime?`.
+- `AdvanceRecommendedDay` (15, of the following month).
+- `Holidays: DateOnly[]` non-working holidays. Empty during martial law.
+- `Source` a reference to the legal source, `VerifiedAt: DateTime?`.
 
-Relationships: нет. Движок получает список конфигов на входе.
+Relationships: none. The engine receives the list of configs as input.
 
 ---
 
 ### BankAccount
 
-Responsibilities: счёт ФОП или личный счёт, источник импорта.
+Responsibilities: a FOP account or personal account, the source of an import.
 
 Fields: `Bank: Monobank | PrivatBank | Other`, `Name`, `Currency`, `Iban`, `IsFop`, `ExternalId`,
 `EncryptedToken?`, `IsActive`.
 
-Relationships: принадлежит `User`, имеет много `Transaction`.
+Relationships: belongs to `User`, has many `Transaction`.
 
 ---
 
 ### Client
 
-Responsibilities: контрагент для привязки поступлений и инвойсов.
+Responsibilities: a counterparty for linking receipts and invoices.
 
-Fields: `Name`, `Country`, `Address`, `Email`, `VatId`, `DefaultCurrency`, `Notes`. В MVP используется только `Name`.
+Fields: `Name`, `Country`, `Address`, `Email`, `VatId`, `DefaultCurrency`, `Notes`. Only `Name` is
+used in the MVP.
 
-Relationships: принадлежит `User`, имеет много `Transaction` и `Invoice`.
+Relationships: belongs to `User`, has many `Transaction` and `Invoice`.
 
 ---
 
 ### Transaction
 
-Responsibilities: одно движение по счёту с типом и гривневым эквивалентом.
+Responsibilities: a single account movement with a type and a hryvnia equivalent.
 
 Fields:
 
-- `ValueDate: DateOnly` дата зачисления по Киеву. Определяет период.
-- `BankTime: DateTimeOffset?` исходное время банка.
+- `ValueDate: DateOnly` the credit date by Kyiv time. Determines the period.
+- `BankTime: DateTimeOffset?` the original bank timestamp.
 - `AmountMinor: long`, `Currency` (UAH, USD, EUR).
-- `RateE4: int` (10000 для UAH), `RateDate: DateOnly` фактическая дата курса НБУ, `RateSource: Nbu | Manual`.
-- `AmountUahKop: long` = roundHalfUp(`AmountMinor` × `RateE4` / 10⁴). Фиксируется при записи.
-- `Kind: Income | RefundToClient | OwnTransfer | FxSale | OwnDeposit | ErroneousReturn | OtherNonIncome`.
-- `NonIncomeReason?` текст для не‑дохода.
+- `RateE4: int` (10000 for UAH), `RateDate: DateOnly` the actual NBU rate date, `RateSource: Nbu
+  | Manual`.
+- `AmountUahKop: long` = roundHalfUp(`AmountMinor` × `RateE4` / 10⁴). Fixed at write time.
+- `Kind: Income | RefundToClient | OwnTransfer | FxSale | OwnDeposit | ErroneousReturn |
+  OtherNonIncome`.
+- `NonIncomeReason?` text for a non-income entry.
 - `ClientId?`, `InvoiceId?`, `InvoiceNumber?`, `Description`, `Counterparty`.
-- `ExternalId?` ID транзакции в банке, уникален в паре с `BankAccountId`.
+- `ExternalId?` the bank's transaction ID, unique together with `BankAccountId`.
 - `ImportBatchId?`, `ReviewStatus: Confirmed | NeedsReview`.
 - `CreatedAt`, `UpdatedAt`.
 
-Правило: в доход периода входят `Income` со знаком плюс и `RefundToClient` со знаком минус.
+Rule: period income includes `Income` with a plus sign and `RefundToClient` with a minus sign.
 
-Relationships: принадлежит `User`, опционально `BankAccount`, `Client`, `Invoice`, `ImportBatch`.
+Relationships: belongs to `User`, optionally `BankAccount`, `Client`, `Invoice`, `ImportBatch`.
 
 ---
 
 ### BudgetPayment
 
-Responsibilities: фактический платёж в бюджет.
+Responsibilities: an actual payment into the budget.
 
 Fields: `PaidOn: DateOnly`, `Kind: SingleTax | MilitaryLevy | Esv`, `AmountKop`, `PeriodYear`,
-`PeriodQuarter?` (1–4), `PeriodMonth?` (1–12, для авансов), `Note`, `CreatedAt`.
+`PeriodQuarter?` (1–4), `PeriodMonth?` (1–12, for advances), `Note`, `CreatedAt`.
 
-Relationships: принадлежит `User`.
+Relationships: belongs to `User`.
 
 ---
 
-### Obligation (вычисляемая)
+### Obligation (computed)
 
-Responsibilities: что и когда должно быть сделано. Не хранится, считается движком.
+Responsibilities: what is due and when. Not stored, computed by the engine.
 
 Fields: `Year`, `Quarter`, `Kind: SingleTax | MilitaryLevy | Esv | Declaration | MonthlyAdvance`,
-`Month?`, `AccruedKop`, `StatutoryDate`, `DueDate` (с переносом), `PaidKop`, `BalanceKop`
-(плюс долг, минус переплата), `Status: Upcoming | Due | Overdue | Done`, `CumulativeIncomeKop`
-для декларации.
+`Month?`, `AccruedKop`, `StatutoryDate`, `DueDate` (shifted), `PaidKop`, `BalanceKop` (positive =
+owed, negative = overpaid), `Status: Upcoming | Due | Overdue | Done`, `CumulativeIncomeKop` for
+the declaration.
 
 ---
 
 ### FxRate
 
-Responsibilities: кэш курсов НБУ.
+Responsibilities: a cache of NBU exchange rates.
 
-Fields: `Currency`, `Date`, `RateE4`, `FetchedAt`. Ключ (`Currency`, `Date`).
+Fields: `Currency`, `Date`, `RateE4`, `FetchedAt`. Key (`Currency`, `Date`).
 
 ---
 
 ### AuditLog
 
-Responsibilities: журнал изменений транзакций, платежей и настроек.
+Responsibilities: change log for transactions, payments and settings.
 
 Fields: `Entity`, `EntityId`, `Action: Create | Update | Delete`, `Before: jsonb`, `After: jsonb`,
 `At`, `UserId`.
 
 ---
 
-### NotificationChannel, Reminder (Этап 2)
+### NotificationChannel, Reminder (Stage 2)
 
-`NotificationChannel`: `Kind: Telegram | Email`, `Address` (chat id или email), `Enabled`.
-`Reminder`: `ObligationKey`, `OffsetDays` (7, 1, 0), `ScheduledAt`, `SentAt?`, `ChannelId`, `Status`.
+`NotificationChannel`: `Kind: Telegram | Email`, `Address` (chat id or email), `Enabled`.
+`Reminder`: `ObligationKey`, `OffsetDays` (7, 1, 0), `ScheduledAt`, `SentAt?`, `ChannelId`,
+`Status`.
 
-### ImportBatch (Этап 2)
+### ImportBatch (Stage 2)
 
 `Source: Csv | Monobank | PrivatBank`, `BankAccountId`, `FromDate`, `ToDate`, `FileName?`,
 `ImportedCount`, `SkippedCount`, `CreatedAt`.
 
-### Invoice (Этап 3)
+### Invoice (Stage 3)
 
 `Number`, `ClientId`, `IssueDate`, `DueDate`, `Currency`, `AmountMinor`, `Items: jsonb`,
 `Status: Draft | Sent | Paid`, `PdfPath`.

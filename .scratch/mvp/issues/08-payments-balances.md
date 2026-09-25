@@ -1,4 +1,4 @@
-# 08: Платежи в бюджет и балансы
+# 08: Budget payments and balances
 
 GitHub: #9
 Status: ready-for-agent
@@ -10,15 +10,15 @@ Blocked by: #8
 
 ## What to build
 
-Владелец записывает фактический платёж с датой, видом (ЕП, ВЗ, ЕСВ), суммой и периодом и видит по каждому виду отдельно начислено, оплачено и остаток или переплату. Переплата переносится на следующий период того же вида и не гасит долг другого вида. В таблице кварталов появляются колонки «оплачено» и «остаток».
+The owner records an actual payment with a date, kind (EP, VZ, ESV), amount and period, and sees, per kind, accrued, paid and the remainder or overpayment separately. An overpayment carries forward to the next period of the same kind and never offsets a different kind's debt. The quarters table gains "paid" and "remaining" columns.
 
 ## Acceptance criteria
 
-- [ ] CRUD платежей с экрана и через API, период валидируется (квартал 1–4 или месяц 1–12).
-- [ ] Тесты движка: переплата ЕСВ покрывает следующий квартал; переплата ЕП не уменьшает долг по ЕСВ; статусы обязательств `Upcoming`, `Due`, `Overdue`, `Done`.
-- [ ] Блок балансов показывает переплату со знаком и объясняет перенос.
-- [ ] Тест API: ответ обязательств с оплачено и остатком совпадает с движком.
+- [ ] CRUD for payments from the screen and via the API, with period validation (quarter 1–4 or month 1–12).
+- [ ] Engine tests: an ESV overpayment covers the next quarter; an EP overpayment never reduces an ESV debt; obligation statuses `Upcoming`, `Due`, `Overdue`, `Done`.
+- [ ] The balances panel shows an overpayment with its sign and explains the carry-forward.
+- [ ] API test: the obligations response with paid and remaining matches the engine.
 
 ## Blocked by
 
-- #8 (Начисления и цифры для декларации)
+- #8 (Accruals and the declaration numbers)

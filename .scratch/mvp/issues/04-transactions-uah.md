@@ -1,4 +1,4 @@
-# 04: Поступления в гривне
+# 04: Receipts in hryvnia
 
 GitHub: #5
 Status: ready-for-agent
@@ -10,15 +10,15 @@ Blocked by: #4
 
 ## What to build
 
-Владелец вносит поступление в UAH с датой зачисления, суммой, типом операции, клиентом, номером инвойса и комментарием, видит список за год с итогом, правит и удаляет с подтверждением. Для типов «не доход» обязательна причина. Операция раньше даты регистрации ФОП помечается предупреждением. Сумма хранится в копейках.
+The owner enters a UAH receipt with a credit date, amount, operation type, client, invoice number and comment, sees the year's list with a total, and edits or deletes with a confirmation. A "not income" type requires a reason. An operation dated before the FOP registration date is flagged with a warning. Amounts are stored in kopecks.
 
 ## Acceptance criteria
 
-- [ ] Создание, правка и удаление работают с экрана и через API; невалидные запросы (сумма ≤ 0, не‑доход без причины) дают 400 с деталями.
-- [ ] Список фильтруется по году, итог в гривнах совпадает с суммой строк типа доход минус возвраты клиенту.
-- [ ] Операция с датой раньше `FopRegistrationDate` показывает предупреждение в списке.
-- [ ] Тесты API на валидацию и на исключение операций до регистрации из итога.
+- [ ] Create, edit and delete work from the screen and via the API; invalid requests (amount ≤ 0, non-income without a reason) return 400 with details.
+- [ ] The list filters by year; the hryvnia total equals income rows minus refunds to clients.
+- [ ] An operation with a `ValueDate` earlier than `FopRegistrationDate` shows a warning in the list.
+- [ ] API tests for validation and for excluding pre-registration operations from the total.
 
 ## Blocked by
 
-- #4 (Параметры года и настройки ФОП)
+- #4 (Year parameters and FOP settings)

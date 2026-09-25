@@ -1,124 +1,127 @@
 # Business Rules
 
-Источник: ТЗ владельца и его эталон на 2026 год. Пометка «уточнить» означает, что владелец
-ещё не подтвердил трактовку, поведение сделано настраиваемым.
+Source: the owner's spec and their 2026 reference table. A "to confirm" mark means the owner has
+not yet confirmed the interpretation; the behavior is made configurable.
 
-## Rule 1. Что считается доходом
+## Rule 1. What counts as income
 
-Доход периода = сумма `Transaction.Kind = Income` минус сумма `Kind = RefundToClient` по `ValueDate`.
-Возврат предоплаты уменьшает доход того периода, в котором произошёл возврат.
+Period income = sum of `Transaction.Kind = Income` minus sum of `Kind = RefundToClient`, by
+`ValueDate`. A refund of a prepayment reduces the income of the period in which the refund
+happens.
 
-Не доход: переводы между своими счетами, гривна от продажи своей валюты, курсовые разницы,
-пополнение своими средствами, возврат ошибочного платежа. Каждая такая операция обязана иметь тип
-и причину. Расходы не вычитаются.
-
----
-
-## Rule 2. Валюта и курс
-
-Валютное поступление пересчитывается по официальному курсу НБУ на дату зачисления на валютный
-счёт (`ValueDate`). Курс фиксируется при записи и больше не меняется. Ручная правка курса
-допустима, источник помечается `Manual`.
-
-На выходные НБУ курс не публикует. Берётся курс последнего рабочего дня, фактическая дата
-сохраняется в `RateDate`.
-
-Формула: `AmountUahKop = roundHalfUp(AmountMinor × RateE4 / 10000)`.
+Not income: transfers between one's own accounts, hryvnia from selling one's own currency,
+exchange-rate differences, top-ups from one's own funds, refunds of erroneous payments. Every
+such operation must carry a type and a reason. Expenses are not deductible.
 
 ---
 
-## Rule 3. Ставки и ЕСВ
+## Rule 2. Currency and exchange rate
 
-- Единый налог: `SingleTaxRateBp` от дохода (2026: 5%).
-- Военный сбор: `MilitaryLevyRateBp` от дохода (2026: 1%).
-- ЕСВ за себя: `EsvRateBp` от минимальной зарплаты в месяц (2026: 22% × 8 647 = 1 902,34 грн).
-  Платится с месяца регистрации ФОП независимо от дохода.
-- Месяц регистрации: по умолчанию полная сумма. Настройка `EsvRegistrationMonthPolicy`. Уточнить.
-- Освобождение от ЕСВ (`Settings.EsvExempt`) обнуляет начисление ЕСВ.
+A foreign-currency receipt is converted at the official NBU rate on the date it is credited to
+the currency account (`ValueDate`). The rate is fixed at the time of recording and never changes
+afterward. A manual rate correction is allowed; the source is then marked `Manual`.
 
-Декларация подаётся нарастающим итогом. Налог квартала = налог с дохода нарастающим итогом минус
-налог, начисленный за предыдущие кварталы года.
+NBU does not publish a rate on weekends. The rate of the last business day is used, and the
+actual rate date is stored in `RateDate`.
 
----
-
-## Rule 4. Лимит дохода
-
-Годовой лимит = `IncomeLimitMinWages` × минимальная зарплата на 1 января (2026: 10 091 049 грн).
-Лимит не пропорционален неполному году. Предупреждения при 85% и 100%. Превышение облагается
-по `ExcessRateBp` (15%) и требует перехода на другую систему.
+Formula: `AmountUahKop = roundHalfUp(AmountMinor × RateE4 / 10000)`.
 
 ---
 
-## Rule 5. Сроки
+## Rule 3. Rates and ESV
 
-Все сроки квартальные.
+- Single Tax: `SingleTaxRateBp` of income (2026: 5%).
+- Military Levy: `MilitaryLevyRateBp` of income (2026: 1%).
+- ESV for oneself: `EsvRateBp` of the monthly minimum wage (2026: 22% × 8,647 = 1,902.34 UAH).
+  Paid from the month of FOP registration, regardless of income.
+- Registration month: full amount by default. Setting `EsvRegistrationMonthPolicy`. To confirm.
+- ESV exemption (`Settings.EsvExempt`) zeroes out the ESV accrual.
 
-- ЕСВ: до `EsvDeadlineDay` (19) включительно месяца после квартала.
-- Декларация: `DeclarationDays` (40) календарных дней после конца квартала.
-- ЕП и ВЗ: `TaxPaymentDaysAfterDeclaration` (10) дней после предельного срока декларации.
+The declaration is filed cumulatively. Quarter tax = tax on cumulative income minus tax already
+accrued for prior quarters of the year.
 
-Перенос: если срок ЕСВ или декларации выпадает на выходной, переносится на следующий рабочий
-день. Выходные это `Settings.WeekendDays`, праздники из `TaxYearConfig.Holidays`. На время военного
-положения праздники не выходные, список пуст.
+---
 
-Срок уплаты ЕП и ВЗ считается от статутной (неперенесённой) даты декларации
-(`TaxPaymentCountsFromStatutoryDeclarationDate`, уточнить). Сам срок уплаты переносится с выходного
-(`ShiftTaxPaymentFromWeekend`, уточнить).
+## Rule 4. Income limit
 
-Эталон 2026 (ЕСВ / декларация / налог):
+Annual limit = `IncomeLimitMinWages` × minimum wage as of January 1 (2026: 10,091,049 UAH). The
+limit is not prorated for a partial year. Warnings at 85% and 100%. Excess is taxed at
+`ExcessRateBp` (15%) and requires switching to another tax system.
 
-| Квартал | ЕСВ | Декларация | ЕП и ВЗ |
+---
+
+## Rule 5. Deadlines
+
+All deadlines are quarterly.
+
+- ESV: by `EsvDeadlineDay` (19th), inclusive, of the month after the quarter.
+- Declaration: `DeclarationDays` (40) calendar days after the end of the quarter.
+- EP and VZ: `TaxPaymentDaysAfterDeclaration` (10) days after the declaration's statutory
+  deadline.
+
+Shifting: if the ESV or declaration deadline falls on a weekend, it moves to the next business
+day. Weekends are `Settings.WeekendDays`; holidays come from `TaxYearConfig.Holidays`. During
+martial law, holidays are treated as business days, so the holiday list is empty.
+
+The EP/VZ payment deadline is counted from the declaration's statutory (unshifted) date
+(`TaxPaymentCountsFromStatutoryDeclarationDate`, to confirm). The payment deadline itself is also
+shifted off a weekend (`ShiftTaxPaymentFromWeekend`, to confirm).
+
+2026 reference (ESV / declaration / tax):
+
+| Quarter | ESV | Declaration | EP and VZ |
 | --- | --- | --- | --- |
-| Q1 | 20.04.2026 | 11.05.2026 | 20.05.2026 |
-| Q2 | 20.07.2026 | 10.08.2026 | 19.08.2026 |
-| Q3 | 19.10.2026 | 09.11.2026 | 19.11.2026 |
-| Q4 | 19.01.2027 | 09.02.2027 | 19.02.2027 |
+| Q1 | 2026-04-20 | 2026-05-11 | 2026-05-20 |
+| Q2 | 2026-07-20 | 2026-08-10 | 2026-08-19 |
+| Q3 | 2026-10-19 | 2026-11-09 | 2026-11-19 |
+| Q4 | 2027-01-19 | 2027-02-09 | 2027-02-19 |
 
-Годовая декларация (за Q4) содержит приложение по ЕСВ.
-
----
-
-## Rule 6. Режимы оплаты
-
-- `Quarterly`: платежи по официальным срокам.
-- `MonthlyAdvance`: рекомендуемый аванс за месяц = ЕП + ВЗ с дохода месяца + ЕСВ за месяц,
-  рекомендуемая дата `AdvanceRecommendedDay` (15) следующего месяца. Авансы засчитываются
-  в квартальные обязательства.
+The annual declaration (for Q4) includes the ESV attachment.
 
 ---
 
-## Rule 7. Балансы платежей
+## Rule 6. Payment modes
 
-По каждому виду (ЕП, ВЗ, ЕСВ) отдельно: начислено нарастающим итогом минус оплачено = долг
-или переплата. Переплата переносится на следующие периоды того же вида. Виды не смешиваются.
-
----
-
-## Rule 8. Регистрация ФОП
-
-До `FopRegistrationDate` обязательств нет. Операции с `ValueDate` раньше даты регистрации
-помечаются предупреждением и в доход не входят.
-
-Совет владельцу: заявление на 3 группу подаётся вместе с регистрацией, тогда единый налог
-действует с даты регистрации. Иначе до 1 числа следующего месяца действует общая система.
+- `Quarterly`: payments on the official deadlines.
+- `MonthlyAdvance`: recommended monthly advance = EP + VZ on the month's income + ESV for the
+  month, recommended date `AdvanceRecommendedDay` (15th) of the following month. Advances are
+  credited against the quarterly obligations.
 
 ---
 
-## Rule 9. Параметры года
+## Rule 7. Payment balances
 
-Каждый год имеет строку `TaxYearConfig`. Если для текущего года строки нет или `VerifiedAt` пуст,
-интерфейс показывает предупреждение. Значения не хардкодятся в коде.
-
----
-
-## Rule 10. Деньги и даты
-
-Никаких float. Целые копейки, одно округление на операцию, половина вверх.
-Даты операций по Europe/Kyiv, банковское UTC переводится на границе.
+Per kind (EP, VZ, ESV) independently: accrued cumulatively minus paid = owed or overpaid. An
+overpayment carries forward to the next period of the same kind. Kinds are never mixed.
 
 ---
 
-## Rule 11. Дисклеймер
+## Rule 8. FOP registration
 
-Расчёт справочный. Пользователь сверяет начисления с Электронным кабинетом. Приложение не платит
-налоги и не подаёт декларации.
+Before `FopRegistrationDate` there are no obligations. Operations with a `ValueDate` earlier than
+the registration date are flagged with a warning and excluded from income.
+
+Advice for the owner: file the Group 3 application together with the registration, so the single
+tax applies from the registration date. Otherwise the general tax system applies until the 1st of
+the following month.
+
+---
+
+## Rule 9. Year parameters
+
+Every year has a `TaxYearConfig` row. If the current year has no row, or its `VerifiedAt` is
+empty, the interface shows a warning. Values are never hardcoded in the code.
+
+---
+
+## Rule 10. Money and dates
+
+No floats. Whole kopecks, one rounding per operation, half away from zero. Operation dates are by
+Europe/Kyiv; bank UTC timestamps are converted at the boundary.
+
+---
+
+## Rule 11. Disclaimer
+
+The calculation is informational. The user reconciles accruals against the Electronic Cabinet.
+The application does not pay taxes and does not file declarations.

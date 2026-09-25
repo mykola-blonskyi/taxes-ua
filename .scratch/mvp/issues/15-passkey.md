@@ -10,14 +10,14 @@ Blocked by: #3
 
 ## What to build
 
-После входа через Google владелец добавляет passkey в профиле, выходит и входит только им с телефона. Используются встроенные средства ASP.NET Core Identity .NET 10 и стандартный `navigator.credentials` в браузере.
+After signing in via Google, the owner adds a passkey in their profile, signs out, and signs back in with it alone from their phone. Uses ASP.NET Core Identity's built-in .NET 10 support and the standard browser `navigator.credentials`.
 
 ## Acceptance criteria
 
-- [ ] Регистрация passkey и вход по нему работают на iOS Safari, Android Chrome и десктопе.
-- [ ] `IdentityPasskeyOptions.ServerDomain` совпадает с доменом деплоя.
-- [ ] Тест API на отклонение невалидной attestation.
+- [ ] Passkey registration and sign-in work on iOS Safari, Android Chrome and desktop.
+- [ ] `IdentityPasskeyOptions.ServerDomain` matches the deployment domain.
+- [ ] API test rejecting an invalid attestation.
 
 ## Blocked by
 
-- #3 (Вход через Google и каркас интерфейса)
+- #3 (Google sign-in and the interface shell)

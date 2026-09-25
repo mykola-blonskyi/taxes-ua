@@ -1,4 +1,4 @@
-# 05: Валютные поступления и курс НБУ
+# 05: Currency receipts and the NBU rate
 
 GitHub: #6
 Status: ready-for-agent
@@ -10,15 +10,15 @@ Blocked by: #5
 
 ## What to build
 
-Владелец вносит поступление в USD или EUR, курс НБУ подставляется автоматически на дату зачисления, гривневый эквивалент виден до сохранения. Для выходного дня берётся курс последнего рабочего дня, и его дата показана рядом с курсом. Курс можно поправить вручную, тогда источник помечается как ручной. При недоступности НБУ форма показывает понятное сообщение и позволяет ввести курс руками. Курс и сумма в копейках фиксируются при сохранении.
+The owner enters a USD or EUR receipt; the NBU rate is filled in automatically for the credit date, and the hryvnia equivalent is visible before saving. For a weekend date, the last business day's rate is used, with its date shown alongside. The rate can be corrected manually, then the source is marked manual. When NBU is unavailable, the form shows a clear message and still allows a manual rate. The rate and the kopeck amount are fixed at save time.
 
 ## Acceptance criteria
 
-- [ ] Запрос курса за субботу возвращает курс пятницы с `RateDate` пятницы; повторный запрос берётся из кэша `FxRate`, а не из НБУ.
-- [ ] Сумма в копейках равна `roundHalfUp(AmountMinor × RateE4 / 10⁴)` и не меняется после сохранения даже при изменении кэша.
-- [ ] Недоступность НБУ даёт ответ об ошибке внешней зависимости, не 500, и форма остаётся рабочей.
-- [ ] Тест API с подменённым HTTP‑обработчиком НБУ: пустой ответ за субботу, ошибка сети, нормальный ответ.
+- [ ] A rate request for a Saturday returns Friday's rate with `RateDate` set to Friday; a repeat request is served from the `FxRate` cache, not from NBU.
+- [ ] The kopeck amount equals `roundHalfUp(AmountMinor × RateE4 / 10⁴)` and never changes after saving even if the cache changes.
+- [ ] NBU unavailability returns an external-dependency error, not a 500, and the form keeps working.
+- [ ] API test with a substituted HTTP handler for NBU: an empty Saturday response, a network error, a normal response.
 
 ## Blocked by
 
-- #5 (Поступления в гривне)
+- #5 (Receipts in hryvnia)

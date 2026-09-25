@@ -1,4 +1,4 @@
-# 06: Календарь сроков
+# 06: Deadline calendar
 
 GitHub: #7
 Status: ready-for-agent
@@ -10,15 +10,15 @@ Blocked by: #4
 
 ## What to build
 
-Экран «Кварталы и сроки» показывает для каждого квартала года даты ЕСВ, декларации и уплаты ЕП и ВЗ с учётом переноса с выходных и праздников. Движок считает статутные и перенесённые даты по параметрам года и настройкам ФОП: день ЕСВ, дни декларации, дни уплаты после декларации, выходные, праздники, отсчёт уплаты от статутной даты и перенос уплаты с выходного. Изменение настроек сразу меняет таблицу.
+The "Quarters and deadlines" screen shows, for every quarter of the year, the ESV, declaration and EP/VZ payment dates, with shifting off weekends and holidays. The engine computes statutory and shifted dates from the year's parameters and the FOP's settings: the ESV day, declaration day count, days to pay after the declaration, weekends, holidays, whether the payment deadline counts from the statutory date, whether the payment deadline itself shifts. Changing settings updates the table immediately.
 
 ## Acceptance criteria
 
-- [ ] Табличный тест движка воспроизводит эталон 2026 целиком: 20.04/11.05/20.05, 20.07/10.08/19.08, 19.10/09.11/19.11, 19.01.2027/09.02.2027/19.02.2027.
-- [ ] Тесты на оба значения каждого флага переноса и на праздник из списка.
-- [ ] Q4 отдаёт даты следующего года; кварталы до даты регистрации не показываются.
-- [ ] Экран отображает перенесённую дату и подсказку со статутной, если они различаются.
+- [ ] An engine table-driven test reproduces the entire 2026 reference table: 2026-04-20/2026-05-11/2026-05-20, 2026-07-20/2026-08-10/2026-08-19, 2026-10-19/2026-11-09/2026-11-19, 2027-01-19/2027-02-09/2027-02-19.
+- [ ] Tests for both values of every shifting flag and for a holiday from the list.
+- [ ] Q4 returns next year's dates; quarters before the registration date are not shown.
+- [ ] The screen displays the shifted date with a hint showing the statutory one when they differ.
 
 ## Blocked by
 
-- #4 (Параметры года и настройки ФОП)
+- #4 (Year parameters and FOP settings)

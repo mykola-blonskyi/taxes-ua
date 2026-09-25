@@ -2,53 +2,57 @@
 
 ## Terms
 
-### ФОП
-Фізична особа‑підприємець. Индивидуальный предприниматель в Украине.
+### FOP
+Fizychna osoba-pidpryiemets — a sole proprietor / individual entrepreneur in Ukraine.
 
-### 3 группа единого налога
-Упрощённая система. Ставка 5% от дохода без НДС. Расходы не вычитаются. Лимит дохода 1 167 минимальных зарплат.
+### Group 3 single tax
+Simplified taxation system. Rate: 5% of income, no VAT. Expenses are not deductible. Annual
+income limit: 1,167 minimum wages.
 
-### ЕП (єдиний податок)
-Единый налог. В коде `SingleTax`.
+### EP (yedynyi podatok)
+Single Tax. In code: `SingleTax`.
 
-### ВЗ (військовий збір)
-Военный сбор. Для 3 группы 1% от дохода. В коде `MilitaryLevy`.
+### VZ (viiskovyi zbir)
+Military Levy. 1% of income for Group 3. In code: `MilitaryLevy`.
 
-### ЕСВ (єдиний соціальний внесок)
-Единый социальный взнос за себя. 22% от минимальной зарплаты в месяц. В коде `Esv`.
+### ESV (yedynyi sotsialnyi vnesok)
+Unified Social Contribution for oneself. 22% of the minimum wage per month. In code: `Esv`.
 
-### Минимальная зарплата
-Устанавливается законом о госбюджете на 1 января. База для ЕСВ и лимита.
+### Minimum wage
+Set by the state budget law as of January 1. Base for ESV and the income limit.
 
-### Декларация нарастающим итогом
-Квартальная декларация плательщика единого налога, показывает доход с начала года. Форма F0103309.
+### Cumulative declaration
+Quarterly declaration for a single-tax payer, reporting income cumulatively from the start of the
+year. Form F0103309.
 
-### Электронный кабинет
-cabinet.tax.gov.ua. Там подписывается декларация и видна интегрированная карточка плательщика.
+### Electronic Cabinet
+cabinet.tax.gov.ua. Where the declaration is signed and the taxpayer's integrated ledger card is
+visible.
 
-### Интегрированная карточка плательщика
-Лицевой счёт в ДПС: начислено, оплачено, долг или переплата по каждому платежу. Аналог в приложении это балансы по видам.
+### Integrated ledger card (taxpayer's ledger)
+The taxpayer's account with the State Tax Service (DPS): accrued, paid, owed or overpaid, per
+payment type. The app's equivalent is the per-kind balances.
 
-### КЭП
-Квалифицированная электронная подпись.
+### KEP
+Qualified electronic signature (kvalifikovanyi elektronnyi pidpys).
 
-### ДПС
-Державна податкова служба.
+### DPS
+State Tax Service of Ukraine (Derzhavna podatkova sluzhba).
 
-### НБУ
-Национальный банк Украины. Публикует официальный курс валют.
+### NBU
+National Bank of Ukraine. Publishes the official exchange rate.
 
-### Обязательство (Obligation)
-Вычисляемая сущность: что, за какой период, сколько и до какого числа.
+### Obligation
+A computed entity: what is owed, for which period, how much, and by when.
 
-### Аванс
-Добровольный помесячный платёж в режиме `MonthlyAdvance`, засчитывается в квартал.
+### Advance
+A voluntary monthly payment under `MonthlyAdvance` mode, credited against the quarter.
 
-### Копейки, `Kop`
-Все гривневые суммы в целых копейках. `Minor` для минимальных единиц любой валюты.
+### Kopecks, `Kop`
+All hryvnia amounts in whole kopecks. `Minor` denotes the minor unit of any currency.
 
 ### `RateE4`
-Курс НБУ, умноженный на 10 000 и округлённый до целого.
+The NBU exchange rate, multiplied by 10,000 and rounded to an integer.
 
-### Базисный пункт, `Bp`
-Одна сотая процента. 5% = 500 bp.
+### Basis point, `Bp`
+One hundredth of a percent. 5% = 500 bp.

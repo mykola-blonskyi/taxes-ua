@@ -1,202 +1,212 @@
-# Архитектура
+# Architecture
 
-## Обзор
+## Overview
 
-Личное веб‑приложение для учёта доходов и налогов ФОП 3 группы (единый налог 5% без НДС).
-Ведёт поступления в валюте с пересчётом по курсу НБУ, считает ЕП, ВЗ и ЕСВ, показывает сроки,
-ведёт реестр платежей в бюджет с балансом по каждому виду и готовит цифры для декларации.
+A personal web application for tracking income and taxes of a Group 3 FOP (single tax 5%, no
+VAT). Tracks foreign-currency receipts converted at the NBU rate, computes EP, VZ and ESV, shows
+deadlines, keeps a ledger of budget payments with a balance per kind, and prepares the numbers for
+the declaration.
 
-Приложение не платит налоги и не подаёт декларации. Платежи делает пользователь в банке,
-декларацию подписывает КЭП в Электронном кабинете.
+The application does not pay taxes and does not file declarations. Payments are made by the user
+in their bank; the declaration is signed with a KEP in the Electronic Cabinet.
 
-Полное ТЗ: `/Users/mykola/Documents/obsidian-notes/tsxes-ua/SPEC.md` (вне репозитория).
-
----
-
-## Цели
-
-- Точный расчёт по параметрам года без хардкода. Смена года не требует изменения кода.
-- Главный экран отвечает на один вопрос: что сделать следующим, до какого числа, сколько.
-- Один пользователь сейчас. Модель данных с `UserId`, чтобы позже открыть продукт другим ФОП.
-- Бесплатный self‑hosted хостинг на существующем VPS. Никаких платных сервисов.
+Full spec: `/Users/mykola/Documents/obsidian-notes/tsxes-ua/SPEC.md` (outside the repository).
 
 ---
 
-## Стек
+## Goals
 
-| Слой | Выбор | Почему |
+- Exact calculation from year parameters, no hardcoding. A new year needs no code change.
+- The home screen answers one question: what to do next, by when, how much.
+- Single user for now. The data model carries `UserId` so the product can later open up to other
+  FOPs.
+- Free, self-hosted deployment on the existing VPS. No paid services.
+
+---
+
+## Stack
+
+| Layer | Choice | Why |
 | --- | --- | --- |
-| Backend | ASP.NET Core 10 (LTS), Minimal APIs, C# | Решение владельца ([ADR-001](decisions.md)). Строгая типизация, hosted services для cron, встроенный OpenAPI. |
-| ORM | EF Core 10 + Npgsql, миграции | Стандарт платформы. |
-| Auth | ASP.NET Core Identity + Google OAuth + passkey (встроено в Identity .NET 10), cookie‑сессия, allowlist email | Бесплатно и без вендора. 2FA обеспечивает Google‑аккаунт. |
-| Налоговый движок | `TaxesUa.Engine`, class library без пакетов, xUnit | Тестируется без БД и UI. |
-| Frontend | Next.js (App Router), TypeScript | Предпочтение владельца. Только UI, серверного кода нет. |
-| Клиент | TanStack Query, Table, Form; типы из OpenAPI через `openapi-typescript` | Один источник типов, контракт API не дублируется руками. |
-| UI | Tailwind CSS + shadcn/ui, next-intl (uk по умолчанию, ru), PWA через Serwist | Адаптив, светлая и тёмная тема, установка на телефон. |
-| Состояние | Zustand только при реальной нужде | В MVP глобального клиентского состояния нет. |
-| БД | PostgreSQL 16+ | Предпочтение владельца. Уже есть в Coolify. |
-| Деплой | Coolify на VPS `blonskyi-dev`, Docker Compose из репозитория | Traefik с авто‑TLS, Postgres resource, бэкапы. |
+| Backend | ASP.NET Core 10 (LTS), Minimal APIs, C# | Owner's decision ([ADR-001](decisions.md)). Strong typing, hosted services for cron, built-in OpenAPI. |
+| ORM | EF Core 10 + Npgsql, migrations | Platform standard. |
+| Auth | ASP.NET Core Identity + Google OAuth + passkey (built into Identity in .NET 10), cookie session, email allowlist | Free, no vendor. 2FA comes from the Google account. |
+| Tax engine | `TaxesUa.Engine`, a package-free class library, xUnit | Testable without a database or UI. |
+| Frontend | Next.js (App Router), TypeScript | Owner's preference. UI only, no server code. |
+| Client | TanStack Query, Table, Form; types generated from OpenAPI via `openapi-typescript` | One source of types, the API contract is never hand-duplicated. |
+| UI | Tailwind CSS + shadcn/ui, next-intl (uk by default, ru), PWA via Serwist | Responsive layout, light and dark theme, installable on a phone. |
+| State | Zustand only when actually needed | No global client state in the MVP. |
+| Database | PostgreSQL 16+ | Owner's preference. Already running on the VPS. |
+| Deploy | Coolify on the `blonskyi-dev` VPS, Docker Compose from the repository | Traefik with auto-TLS, existing PostgreSQL instance, backups. |
 
 ---
 
-## Компоненты
+## Components
 
 ### api (ASP.NET Core)
 
 Responsibilities:
 
-- REST API: транзакции, платежи, настройки, параметры лет, периоды, обязательства, экспорт, бэкап.
-- Аутентификация и сессии. Все запросы к данным фильтруются по `UserId`.
-- Адаптеры границы: парсинг импорта, дата по Europe/Kyiv, курс НБУ, перевод в копейки, валидация.
-- Фоновые задачи как `IHostedService`: напоминания, очередь синхронизации банков (Этап 2).
-- Журнал изменений.
+- REST API: transactions, payments, settings, year parameters, periods, obligations, export,
+  backup.
+- Authentication and sessions. Every data request is filtered by `UserId`.
+- Boundary adapters: import parsing, Europe/Kyiv date conversion, NBU rate, conversion to
+  kopecks, validation.
+- Background jobs as `IHostedService`: reminders, bank-sync queue (Stage 2).
+- Change log.
 
-Dependencies: `TaxesUa.Engine`, PostgreSQL, NBU API, позже Telegram Bot API, SMTP, API банков.
+Dependencies: `TaxesUa.Engine`, PostgreSQL, the NBU API, later the Telegram Bot API, SMTP, bank
+APIs.
 
 ### TaxesUa.Engine (class library)
 
 Responsibilities:
 
-- Доход по периодам с учётом возвратов.
-- Начисления ЕП, ВЗ, ЕСВ по кварталам и месяцам, нарастающий итог для декларации.
-- Сроки с переносом с выходных по настраиваемым правилам.
-- Балансы по видам платежей, переплаты и остатки, рекомендуемые авансы.
-- Контроль лимита дохода с порогами 85% и 100% и ставкой превышения.
-- Предупреждения: операции до даты регистрации, год без проверенных параметров.
+- Income by period, accounting for refunds.
+- EP, VZ, ESV accruals by quarter and by month, the cumulative total for the declaration.
+- Deadlines with weekend shifting under configurable rules.
+- Balances per payment kind, overpayments and remainders, recommended advances.
+- Income-limit monitoring with 85% and 100% thresholds and the excess rate.
+- Warnings: operations before the registration date, a year without verified parameters.
 
-Dependencies: нет. Вход только простые данные: `DateOnly`, `long` копейки, перечисления, records.
+Dependencies: none. Input is plain data only: `DateOnly`, `long` kopecks, enums, records.
 
 ### web (Next.js)
 
-Responsibilities: экраны, формы, PWA, темы, i18n. Ходит в API через `/api/*`, который Next.js
-проксирует на контейнер `api` (rewrites). Для браузера это один origin, cookie‑сессия работает
-без CORS.
+Responsibilities: screens, forms, PWA, themes, i18n. Calls the API through `/api/*`, which
+Next.js rewrites to the `api` container. From the browser this is a single origin, so the cookie
+session works without CORS.
 
 Dependencies: `api`.
 
 ### PostgreSQL
 
-Хранит сущности из [knowledge/domain-model.md](../knowledge/domain-model.md). Деньги в `bigint`
-копейках, курсы в целых с масштабом 10⁴, даты операций как `date` по Киеву.
+Stores the entities from [knowledge/domain-model.md](../knowledge/domain-model.md). Money as
+`bigint` kopecks, rates as integers scaled by 10⁴, operation dates as `date` in Kyiv time.
 
-### Интеграции
+### Integrations
 
 External systems:
 
-- НБУ: `https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&date=YYYYMMDD&json`.
-  На выходные отдаёт `[]`. Адаптер откатывается к последнему рабочему дню и сохраняет
-  фактическую дату курса. Ответы кэшируются в таблице `fx_rate`.
-- monobank personal API, ПриватБанк Автоклиент (Этап 2). Токены шифруются AES‑256‑GCM ключом из env.
-- Telegram Bot API и SMTP для напоминаний (Этап 2).
-- Схема XML декларации ДПС F0103309 (Этап 3).
+- NBU: `https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&date=YYYYMMDD&json`.
+  Returns `[]` on weekends. The adapter falls back to the last business day and stores the actual
+  rate date. Responses are cached in the `fx_rate` table.
+- monobank personal API, PrivatBank Autoclient (Stage 2). Tokens are encrypted with AES-256-GCM
+  using a key from the environment.
+- Telegram Bot API and SMTP for reminders (Stage 2).
+- DPS XML declaration schema F0103309 (Stage 3).
 
 ---
 
-## Поток данных
+## Data flow
 
 ```
-браузер (Next.js UI)
+browser (Next.js UI)
    │  /api/*  (same origin, rewrite → http://api:8080)
    ▼
-api: граница
-   UTC → дата Europe/Kyiv, сумма → копейки, курс НБУ → RateE4, валидация
+api: boundary
+   UTC → Europe/Kyiv date, amount → kopecks, NBU rate → RateE4, validation
    │
    ▼
 PostgreSQL (transaction, budget_payment, settings, tax_year_config, …)
    │
    ▼
-TaxesUa.Engine (чистые функции: obligations, balances, periods, limit)
+TaxesUa.Engine (pure functions: obligations, balances, periods, limit)
    │
    ▼
-JSON ответы API → экраны, экспорт, напоминания
+JSON API responses → screens, export, reminders
 ```
 
-Движок пересчитывает всё при каждом запросе. Объём данных одного ФОП это сотни строк в год,
-кэш не нужен.
+The engine recomputes everything on every request. One FOP's data volume is a few hundred rows a
+year; no cache is needed.
 
 ---
 
-## Структура репозитория
+## Repository layout
 
 ```
 api/                          .NET solution
-  Directory.Build.props       общие свойства компиляции
-  Directory.Packages.props    версии пакетов в одном месте (Central Package Management)
+  Directory.Build.props       shared compilation properties
+  Directory.Packages.props    package versions in one place (Central Package Management)
   TaxesUa.slnx
-  src/TaxesUa.Engine/         движок, без пакетов
+  src/TaxesUa.Engine/         the engine, no packages
   src/TaxesUa.Api/            ASP.NET Core
   tests/TaxesUa.Engine.Tests/
   tests/TaxesUa.Api.Tests/
   Dockerfile
 web/                          Next.js
-  messages/uk.json, ru.json   переводы next-intl
-  src/                        см. ниже
+  messages/uk.json, ru.json   next-intl translations
+  src/                        see below
   Dockerfile
-docker-compose.yml            для Coolify
-docs/ knowledge/ plans/       документация
+docker-compose.yml            for Coolify
+docs/ knowledge/ plans/       documentation
 ```
 
-### Слои web
+### web layers
 
 ```
 src/
-  app/          только маршруты и layout. Импортирует features, shared, data. Никто не импортирует app.
-  data/         DAL: fetch-клиент, типы из OpenAPI (генерируются), query options и мутации
-                TanStack Query по ресурсам API. Импортирует только shared.
-  features/     один каталог на пользовательскую возможность (transactions, payments,
+  app/          routes and layout only. Imports features, shared, data. Nothing imports app.
+  data/         DAL: fetch client, types generated from OpenAPI, TanStack Query query options
+                and mutations per API resource. Imports only shared.
+  features/     one directory per user-facing capability (transactions, payments,
     <name>/     dashboard, periods, settings, auth, backup)
       components/
-      hooks/    хуки поверх data: собирают queries и мутации под сценарий фичи
+      hooks/    hooks on top of data: assemble queries and mutations for the feature's scenario
       tests/
-      index.ts  единственная публичная точка входа фичи
-  shared/       нижний слой, ни от кого не зависит
-    lib/        утилиты: cn, форматирование денег и дат
-    ui/         компоненты shadcn/ui (alias @/shared/ui в components.json)
-    types/      ручные типы, не связанные с API
+      index.ts  the feature's single public entry point
+  shared/       the bottom layer, depends on nothing
+    lib/        utilities: cn, money and date formatting
+    ui/         shadcn/ui components (alias @/shared/ui in components.json)
+    types/      hand-written types unrelated to the API
     constants/
-    theme/      токены цветов из прототипа, ThemeProvider
-  i18n/         конфигурация next-intl, выбор локали из cookie
+    theme/      color tokens from the prototype, ThemeProvider
+  i18n/         next-intl configuration, locale chosen from a cookie
 ```
 
-Правила зависимостей закреплены в eslint (`no-restricted-imports`): фичи не импортируют друг
-друга и доступны снаружи только через `index.ts`; `data` не знает про фичи; `shared` не
-импортирует ничего выше себя; из `app` не импортирует никто.
+The dependency rules are enforced in eslint (`no-restricted-imports`): features never import
+each other and are only reachable from outside through `index.ts`; `data` knows nothing about
+features; `shared` imports nothing above itself; nothing imports from `app`.
 
 ---
 
-## Деплой
+## Deployment
 
-- Хост: VPS `blonskyi-dev`, Ubuntu 24.04, 4 vCPU, 7.7 GB RAM, Docker 29, Coolify с Traefik v3.
-- Приложение: Coolify Docker Compose resource из GitHub‑репозитория, сервисы `web` и `api`.
-  Домен привязан к `web`. `api` наружу не публикуется.
-- БД: Coolify PostgreSQL resource. Бэкапы: встроенные scheduled backups Coolify в MinIO на том же
-  хосте плюс внешний S3‑совместимый бесплатный бакет (Cloudflare R2 или Backblaze B2).
-- Cron: hosted services внутри `api`. Внешний планировщик не нужен.
-- Секреты: переменные окружения Coolify. `.env.example` в репозитории без значений.
-- Стоимость: 0.
-
----
-
-## Безопасность
-
-Authentication: ASP.NET Core Identity, внешний вход Google, passkey как второй способ.
-Вход разрешён только email из `Auth__AllowedEmails`. Cookie `HttpOnly; Secure; SameSite=Lax`.
-
-Authorization: каждая выборка и запись фильтруется по `UserId` из сессии.
-
-Secrets Management: ключ шифрования токенов банков только в env. Токены расшифровываются в момент
-вызова API банка, не попадают в логи, ответы и клиент.
-
-Прочее: HTTPS через Traefik. Антифорджери для cookie‑auth через заголовок `X-Requested-With`
-и SameSite. Журнал изменений `audit_log`. Дисклеймер в интерфейсе: расчёт справочный.
+- Host: VPS `blonskyi-dev`, Ubuntu 24.04, 4 vCPU, 7.7 GB RAM, Docker 29, Coolify with Traefik v3.
+- Application: a Coolify Docker Compose resource built from the GitHub repository, services `web`
+  and `api`. The domain points at `web`. `api` is not published externally.
+- Database: a PostgreSQL instance already running on the VPS is reused. A dedicated role and
+  database are created for this project instead of provisioning a new Coolify PostgreSQL
+  resource. Backups: whatever backup mechanism already covers that instance, plus the project's
+  own scheduled logical dump if that instance has none.
+- Cron: hosted services inside `api`. No external scheduler is needed.
+- Secrets: Coolify environment variables. `.env.example` in the repository holds no values.
+- Cost: 0.
 
 ---
 
-## Наблюдаемость
+## Security
 
-Logging: структурные логи ASP.NET Core в stdout, читаются через Coolify. Суммы логируются,
-токены и email нет.
+Authentication: ASP.NET Core Identity, Google as the external sign-in, passkey as a second
+method. Sign-in is allowed only for the email in `Auth__AllowedEmails`. Cookie
+`HttpOnly; Secure; SameSite=Lax`.
 
-Metrics: не нужны для одного пользователя. `/api/health` с проверкой БД для мониторинга Coolify.
+Authorization: every read and write is filtered by the `UserId` from the session.
 
-Tracing: нет.
+Secrets management: the bank-token encryption key lives only in the environment. Tokens are
+decrypted at the moment of the bank API call and never appear in logs, responses or the client.
+
+Other: HTTPS via Traefik. Anti-forgery for cookie auth via the `X-Requested-With` header and
+SameSite. Change log `audit_log`. In-app disclaimer: the calculation is informational.
+
+---
+
+## Observability
+
+Logging: structured ASP.NET Core logs to stdout, read through Coolify. Amounts are logged; tokens
+and emails are not.
+
+Metrics: not needed for a single user. `/api/health` with a database check, for Coolify
+monitoring.
+
+Tracing: none.

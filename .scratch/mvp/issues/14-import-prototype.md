@@ -1,4 +1,4 @@
-# 14: Импорт JSON прототипа
+# 14: Prototype JSON import
 
 GitHub: #15
 Status: ready-for-agent
@@ -10,15 +10,15 @@ Blocked by: #12
 
 ## What to build
 
-Владелец загружает JSON из текущего прототипа (settings, incomes, mpaid, done), и в приложении появляются поступления с их курсами и помесячные оплаты как платежи в бюджет. Повторный импорт не создаёт дублей.
+The owner uploads the JSON from the current prototype (settings, incomes, mpaid, done), and the app gets receipts with their rates and monthly payments as budget payments. A repeat import creates no duplicates.
 
 ## Acceptance criteria
 
-- [ ] Все записи `incomes` становятся транзакциями с `RateSource: Manual` и суммой в копейках, равной `uah` прототипа.
-- [ ] Записи `mpaid` становятся тремя платежами (ЕП, ВЗ, ЕСВ) с периодом «месяц».
-- [ ] Повторный импорт того же файла не меняет количество записей.
-- [ ] Тест API на идемпотентность.
+- [ ] Every `incomes` record becomes a transaction with `RateSource: Manual` and a kopeck amount equal to the prototype's `uah` value.
+- [ ] `mpaid` records become three payments (EP, VZ, ESV) with a "month" period.
+- [ ] Re-importing the same file doesn't change the record count.
+- [ ] API test for idempotence.
 
 ## Blocked by
 
-- #12 (Помесячные авансы)
+- #12 (Monthly advances)

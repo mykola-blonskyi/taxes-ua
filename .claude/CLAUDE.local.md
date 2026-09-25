@@ -2,52 +2,63 @@
 
 ## Project Context
 
-Учёт налогов ФОП 3 группы для одного владельца. ТЗ: `/Users/mykola/Documents/obsidian-notes/tsxes-ua/SPEC.md`.
-Общение с владельцем на русском. Интерфейс на украинском по умолчанию, русский вторым языком.
+Tax tracker for a single owner's Group 3 FOP. Spec:
+`/Users/mykola/Documents/obsidian-notes/tsxes-ua/SPEC.md`. Chat with the owner is in Russian. All
+repository documents (docs/, knowledge/, plans/, READMEs, CLAUDE.md files) are written in
+English. The interface is Ukrainian by default, with Russian as a second language.
 
 ---
 
 ## Constraints
 
-- Деньги только целые: `long` копейки/центы, `int RateE4`, проценты в базисных пунктах. Никаких float и decimal в движке.
-- Даты операций `DateOnly` по Europe/Kyiv. Перевод из UTC только на границе API.
-- `TaxesUa.Engine` без `PackageReference`, без `DateTime.Now`, БД и сети.
-- Налоговые параметры только в `TaxYearConfig`. Не хардкодить ставки и даты в коде.
-- Токены банков не логировать и не отдавать клиенту.
-- Бесплатные и self-hosted решения. Никаких платных сервисов.
+- Money only as integers: `long` kopecks/cents, `int RateE4`, percentages in basis points. No
+  float and no decimal in the engine.
+- Operation dates are `DateOnly` by Europe/Kyiv. UTC conversion happens only at the API boundary.
+- `TaxesUa.Engine` has no `PackageReference`, no `DateTime.Now`, no database, no network.
+- Tax parameters live only in `TaxYearConfig`. Never hardcode rates or dates in code.
+- Bank tokens are never logged and never returned to the client.
+- Free and self-hosted solutions only. No paid services.
 
 ---
 
 ## Architecture Notes
 
-- `api/` ASP.NET Core 10 Minimal APIs, EF Core + Npgsql, Identity (Google + passkey), cookie-сессия, allowlist email.
-- `web/` Next.js только UI. `/api/*` проксируется на контейнер `api` через rewrites.
-- Типы для web генерируются из OpenAPI (`openapi-typescript`), руками не дублировать.
-- Cron внутри `api` как hosted services.
-- Деплой: Coolify Docker Compose resource на VPS `blonskyi-dev` (ssh `blonskyi`), Postgres как Coolify resource.
+- `api/` ASP.NET Core 10 Minimal APIs, EF Core + Npgsql, Identity (Google + passkey), cookie
+  session, email allowlist.
+- `web/` Next.js, UI only. `/api/*` is proxied to the `api` container via rewrites.
+- Web types are generated from OpenAPI (`openapi-typescript`), never hand-duplicated.
+- Cron runs inside `api` as hosted services.
+- Deploy: a Coolify Docker Compose resource on the `blonskyi-dev` VPS (ssh `blonskyi`). The
+  database reuses the PostgreSQL instance already running on that VPS — a dedicated role and
+  database are created for this project, not a new Coolify PostgreSQL resource.
 
 ---
 
 ## Coding Conventions
 
-- C#: records для входа/выхода движка, `DateOnly`, nullable включён, warnings как ошибки в Engine.
-- TS: TanStack Query/Table/Form, shadcn/ui, Tailwind. Zustand только при реальной нужде.
-- Web-слои: `app` → `features` → `data` → `shared`. Фичи наружу только через `index.ts`, друг друга не импортируют. Границы проверяет eslint.
-- .NET: версии пакетов только в `api/Directory.Packages.props`, в csproj без `Version`.
-- Тесты движка: xUnit, один файл на сценарий, эталон 2026 как таблица.
-- Комментарии только для неочевидного «почему».
+- C#: records for the engine's input/output, `DateOnly`, nullable enabled, warnings as errors in
+  Engine.
+- TS: TanStack Query/Table/Form, shadcn/ui, Tailwind. Zustand only when actually needed.
+- Web layers: `app` → `features` → `data` → `shared`. Features are reachable from outside only
+  through `index.ts` and never import each other. Boundaries are enforced by eslint.
+- .NET: package versions live only in `api/Directory.Packages.props`; csproj files carry no
+  `Version`.
+- Engine tests: xUnit, one file per scenario, the 2026 reference table as a data table.
+- Comments only for a non-obvious "why".
 
 ---
 
 ## Deployment Notes
 
-- VPS: Ubuntu 24.04, 4 vCPU, 7.7 GB RAM, Docker 29, Coolify + Traefik v3, MinIO на хосте.
-- Секреты в переменных окружения Coolify. `.env.example` без значений.
-- Бэкапы БД: Coolify scheduled backups в MinIO и внешний S3-совместимый бесплатный бакет.
+- VPS: Ubuntu 24.04, 4 vCPU, 7.7 GB RAM, Docker 29, Coolify + Traefik v3, MinIO on the host.
+- Secrets in Coolify environment variables. `.env.example` carries no values.
+- Database: an existing PostgreSQL instance on the VPS, reused via a new role/database for this
+  project. Backups depend on whatever already covers that instance.
 
 ---
 
 ## Known Limitations
 
-- ФОП владельца ещё не зарегистрирован. Реальных выписок нет.
-- Трактовка срока уплаты ЕП/ВЗ при переносе декларации и ЕСВ в месяц регистрации не подтверждены, настраиваемы.
+- The owner's FOP is not registered yet. There is no real bank data.
+- The EP/VZ payment-deadline interpretation and the ESV registration-month policy are not
+  confirmed yet; both are configurable.

@@ -1,4 +1,4 @@
-# 01: Деплой скелета в Coolify и CI
+# 01: Deploy the skeleton to Coolify and set up CI
 
 GitHub: #2
 Status: ready-for-agent
@@ -10,14 +10,14 @@ Blocked by: none
 
 ## What to build
 
-Скелет из ветки feat/scaffold работает на реальном домене, а каждый следующий тикет можно проверить на нём. В Coolify созданы PostgreSQL resource и Docker Compose resource из репозитория, домен привязан к сервису web, задан DATABASE_URL, включены scheduled backups БД. GitHub Actions на push и PR гоняет тесты .NET, lint и сборку web и сборку образов.
+The skeleton from the feat/scaffold branch runs on a real domain, and every following ticket can be verified against it. In Coolify: a Docker Compose resource is created from the repository. Instead of a new Coolify PostgreSQL resource, a dedicated role and database for this project are created in the PostgreSQL instance already running on the VPS. The domain is bound to the web service, DATABASE_URL points at the new role/database. GitHub Actions runs dotnet tests, web lint and build, and image builds on push and PR.
 
 ## Acceptance criteria
 
-- [ ] `https://<домен>/api/health` отвечает `{"status":"ok","database":true}`, главная страница открывается.
-- [ ] Сервис `api` наружу не опубликован.
-- [ ] В Coolify есть расписание бэкапов БД и хотя бы один успешный бэкап.
-- [ ] Workflow CI зелёный на ветке, падает при сломанном тесте движка.
+- [ ] `https://<domain>/api/health` returns `{"status":"ok","database":true}`, the home page opens.
+- [ ] The `api` service is not reachable from outside.
+- [ ] The new database role can connect only to its own database; if the existing Postgres instance has no backup already, the project has its own scheduled logical dump.
+- [ ] The CI workflow is green on the branch and fails on a broken engine test.
 
 ## Blocked by
 
