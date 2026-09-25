@@ -67,6 +67,23 @@ The EP/VZ payment deadline is counted from the declaration's statutory (unshifte
 (`TaxPaymentCountsFromStatutoryDeclarationDate`, to confirm). The payment deadline itself is also
 shifted off a weekend (`ShiftTaxPaymentFromWeekend`, to confirm).
 
+`ShiftTaxPaymentFromWeekend` shifts off any non-working day, holidays included, not off weekends
+only (to confirm). The flag is named for the weekend because that is the case the 2026 reference
+exercises, but the paragraph above defines shifting as moving to the next *business* day and names
+holidays in the same breath, so the payment deadline follows the same definition as the other two.
+Its `false` value therefore also leaves a payment deadline sitting on a holiday. No payment date in
+the 2026 reference falls on a weekend or a holiday, so the table cannot settle this.
+
+Q4's deadlines fall in January and February of the following year, and they shift against the
+holidays of the year the quarter belongs to, not the year the dates fall in (to confirm). Nothing
+distinguishes the two readings today, because the martial-law holiday list is empty. It starts to
+matter the first year holidays come back, and `GET /api/periods/{year}` will harden whichever
+reading it is built on, so this is the ambiguity to settle first.
+
+Whether the quarter *containing* `Settings.FopRegistrationDate` is shown at all is a display
+decision, not a rule. The engine returns every quarter of the year and leaves the choice to the
+screen.
+
 2026 reference (ESV / declaration / tax):
 
 | Quarter | ESV | Declaration | EP and VZ |
