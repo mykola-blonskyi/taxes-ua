@@ -32,7 +32,7 @@
 | Налоговый движок | `TaxesUa.Engine`, class library без пакетов, xUnit | Тестируется без БД и UI. |
 | Frontend | Next.js (App Router), TypeScript | Предпочтение владельца. Только UI, серверного кода нет. |
 | Клиент | TanStack Query, Table, Form; типы из OpenAPI через `openapi-typescript` | Один источник типов, контракт API не дублируется руками. |
-| UI | Tailwind CSS + shadcn/ui, next-intl (ru, позже uk), PWA через Serwist | Адаптив, тёмная тема, установка на телефон. |
+| UI | Tailwind CSS + shadcn/ui, next-intl (uk по умолчанию, ru), PWA через Serwist | Адаптив, светлая и тёмная тема, установка на телефон. |
 | Состояние | Zustand только при реальной нужде | В MVP глобального клиентского состояния нет. |
 | БД | PostgreSQL 16+ | Предпочтение владельца. Уже есть в Coolify. |
 | Деплой | Coolify на VPS `blonskyi-dev`, Docker Compose из репозитория | Traefik с авто‑TLS, Postgres resource, бэкапы. |
