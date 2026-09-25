@@ -119,18 +119,48 @@ JSON ответы API → экраны, экспорт, напоминания
 ## Структура репозитория
 
 ```
-api/                      .NET solution
-  TaxesUa.sln
-  src/TaxesUa.Engine/     движок, без пакетов
-  src/TaxesUa.Api/        ASP.NET Core
+api/                          .NET solution
+  Directory.Build.props       общие свойства компиляции
+  Directory.Packages.props    версии пакетов в одном месте (Central Package Management)
+  TaxesUa.slnx
+  src/TaxesUa.Engine/         движок, без пакетов
+  src/TaxesUa.Api/            ASP.NET Core
   tests/TaxesUa.Engine.Tests/
   tests/TaxesUa.Api.Tests/
   Dockerfile
-web/                      Next.js
+web/                          Next.js
+  messages/uk.json, ru.json   переводы next-intl
+  src/                        см. ниже
   Dockerfile
-docker-compose.yml        для Coolify
-docs/ knowledge/ plans/   документация
+docker-compose.yml            для Coolify
+docs/ knowledge/ plans/       документация
 ```
+
+### Слои web
+
+```
+src/
+  app/          только маршруты и layout. Импортирует features, shared, data. Никто не импортирует app.
+  data/         DAL: fetch-клиент, типы из OpenAPI (генерируются), query options и мутации
+                TanStack Query по ресурсам API. Импортирует только shared.
+  features/     один каталог на пользовательскую возможность (transactions, payments,
+    <name>/     dashboard, periods, settings, auth, backup)
+      components/
+      hooks/    хуки поверх data: собирают queries и мутации под сценарий фичи
+      tests/
+      index.ts  единственная публичная точка входа фичи
+  shared/       нижний слой, ни от кого не зависит
+    lib/        утилиты: cn, форматирование денег и дат
+    ui/         компоненты shadcn/ui (alias @/shared/ui в components.json)
+    types/      ручные типы, не связанные с API
+    constants/
+    theme/      токены цветов из прототипа, ThemeProvider
+  i18n/         конфигурация next-intl, выбор локали из cookie
+```
+
+Правила зависимостей закреплены в eslint (`no-restricted-imports`): фичи не импортируют друг
+друга и доступны снаружи только через `index.ts`; `data` не знает про фичи; `shared` не
+импортирует ничего выше себя; из `app` не импортирует никто.
 
 ---
 

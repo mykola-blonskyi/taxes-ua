@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY Directory.Build.props TaxesUa.slnx ./
+COPY Directory.Build.props Directory.Packages.props TaxesUa.slnx ./
 COPY src/TaxesUa.Engine/TaxesUa.Engine.csproj src/TaxesUa.Engine/
 COPY src/TaxesUa.Api/TaxesUa.Api.csproj src/TaxesUa.Api/
 RUN dotnet restore src/TaxesUa.Api/TaxesUa.Api.csproj

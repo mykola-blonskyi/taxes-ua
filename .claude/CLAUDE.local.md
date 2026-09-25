@@ -32,6 +32,8 @@
 
 - C#: records для входа/выхода движка, `DateOnly`, nullable включён, warnings как ошибки в Engine.
 - TS: TanStack Query/Table/Form, shadcn/ui, Tailwind. Zustand только при реальной нужде.
+- Web-слои: `app` → `features` → `data` → `shared`. Фичи наружу только через `index.ts`, друг друга не импортируют. Границы проверяет eslint.
+- .NET: версии пакетов только в `api/Directory.Packages.props`, в csproj без `Version`.
 - Тесты движка: xUnit, один файл на сценарий, эталон 2026 как таблица.
 - Комментарии только для неочевидного «почему».
 
