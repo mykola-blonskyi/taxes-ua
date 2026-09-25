@@ -16,12 +16,12 @@ against a live domain. Only CI (GitHub Actions) runs early, since it needs no de
 
 | # | Ticket | Blocked by |
 | --- | --- | --- |
-| #2 | 01. Set up CI | none |
+| #2 | 01. Set up CI | none, **done** |
 | #3 | 02. Google sign-in and the interface shell | none |
 | #4 | 03. Year parameters and FOP settings | #3 |
 | #5 | 04. Receipts in hryvnia | #4 |
 | #6 | 05. Currency receipts and the NBU rate | #5 |
-| #7 | 06. Deadline calendar | #4 |
+| #7 | 06. Deadline calendar | #4, **engine half done** |
 | #8 | 07. Accruals and the declaration numbers | #6, #7 |
 | #9 | 08. Budget payments and balances | #8 |
 | #10 | 09. Home screen: the next step | #9 |

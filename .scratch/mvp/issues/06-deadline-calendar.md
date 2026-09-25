@@ -1,7 +1,7 @@
 # 06: Deadline calendar
 
 GitHub: #7
-Status: ready-for-agent
+Status: ready-for-agent (engine half done on main, API and web half remain)
 Blocked by: #4
 
 ## Parent

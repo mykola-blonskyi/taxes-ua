@@ -6,12 +6,39 @@ Stage 1, MVP: track receipts, compute EP/VZ/ESV, show deadlines, keep a payment 
 balances, a home screen, declaration numbers, settings, export and backup, PWA. Backend on .NET,
 frontend on Next.js, deployed to Coolify.
 
-Implementation is manual — the owner writes the code themselves. Tickets are approved and
+Implementation runs as agent lanes, one ticket slice per branch and worktree, verified
+independently before merge. Tickets are approved and
 published to GitHub Issues in `mykola-blonskyi/taxes-ua`: spec
 [#1](https://github.com/mykola-blonskyi/taxes-ua/issues/1), tickets #2–#18 and #20, index in
 [tickets.md](tickets.md), mirror in `.scratch/mvp/`. Below is each ticket unpacked into steps:
 files, types, verification commands. Order follows the dependency graph (native GitHub
-dependencies); the frontier at the start is #2 and #3.
+dependencies). Run `snippets/frontier.sh` for the live frontier instead of reading the order here.
+
+## Progress
+
+- **#2 set up CI. Done**, closed. `.github/workflows/ci.yml` on `main`, green.
+- **#7 deadline calendar, engine half. Done.** `DeadlineCalendar` and its two input records are on
+  `main` (PR #23, hardened by PR #24). The API endpoint and the web table remain, blocked on #4, so
+  the issue stays open.
+- Three Rule 5 readings the 2026 reference table cannot settle are now written down in
+  `knowledge/business-rules.md` (PR #26). The Q4 holiday-year question needs the owner's answer
+  before #4 seeds holidays for a post-martial-law year.
+
+## Two chains, not one
+
+The ticket order reads as a single chain nine merges deep. It is not. The `TaxesUa.Engine` work is
+pure functions over input records, with no database, no auth and no HTTP, so it runs concurrently
+with the plumbing instead of behind it.
+
+**Chain A, plumbing.** #3 auth and shell, then #4, #5, #6, then each engine ticket's API and web
+half, then #13, #14, #15, #16, #17, #18.
+
+**Chain B, engine.** #7 `DeadlineCalendar`, then #8 `IncomeLedger` and `Accruals`, then #9
+`Balances` and `ObligationBuilder`, then #11 `LimitMonitor`. Each waits on its predecessor only
+because they share the Engine's input records, never for an API or database reason.
+
+A ticket closes when both its slices have landed. Splitting this way puts the tax arithmetic under
+test early, which is where a wrong answer costs the owner a real penalty rather than a rerender.
 
 **Backend layout follows ADR-008.** `TaxesUa.Api` organizes by feature, not by technical type:
 `api/src/TaxesUa.Api/Features/<Name>/` holds that feature's EF entity, its DTOs, and a
@@ -35,7 +62,7 @@ moved to the end of the sequence 2026-09-25. Backend layout switched to feature 
 
 ## Phase 1. MVP, by ticket
 
-### #2. Set up CI — no blockers
+### #2. Set up CI — done, closed
 
 `.github/workflows/ci.yml`: `dotnet test api`, `pnpm --dir web lint && pnpm --dir web build`,
 `docker build ./api` and `./web`, on every push and PR. This needs no deployment target; it
@@ -116,7 +143,7 @@ Relies on: Rule 1, Rule 8, Rule 10, ADR-003, ADR-008, domain-model `Transaction`
 
 ---
 
-### #7. Deadline calendar — blocked by #4 (can run alongside #5/#6)
+### #7. Deadline calendar — engine half done, API and web half blocked by #4
 
 `api/src/TaxesUa.Engine/DeadlineCalendar.cs` (new): `ForQuarter(int year, int quarter,
 TaxYearConfigInput config, FopSettingsInput settings)` → statutory and shifted dates for ESV,
@@ -314,8 +341,9 @@ screen scrolls horizontally at 375px.
 
 ---
 
-Tickets #13, #16, #17, #18 are off the critical path (#2 → #3 → #4 → #5 → #7 → #6 → #8 → #9 →
-#10) and can be done whenever convenient after their blocker.
+Tickets #13, #16, #17, #18 are off the critical path (#3 → #4 → #5 → #6 → #8 → #9 → #10 → #12
+→ #15) and can be done whenever convenient after their blocker. The engine halves of #7, #8, #9
+and #11 form Chain B above and run ahead of their nominal blockers.
 
 ---
 
