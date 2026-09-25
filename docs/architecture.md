@@ -142,6 +142,30 @@ docker-compose.yml            for Coolify
 docs/ knowledge/ plans/       documentation
 ```
 
+### api layers
+
+```
+src/TaxesUa.Api/
+  Program.cs      composition root: DI, middleware, calls each feature's Map<Name>Api()
+  Data/
+    AppDbContext.cs   only DbSet<T> per entity, no business logic
+    Migrations/
+  Features/       one directory per resource (auth, settings, tax-years, transactions, fx,
+    <Name>/       payments, periods, dashboard, export, backup, audit)
+      <Entity>.cs        EF entity/entities, declared internal
+      <Name>Endpoints.cs the feature's single public surface: Map<Name>Api(this
+                         IEndpointRouteBuilder group), called once from Program.cs
+```
+
+The dependency rule is enforced by the C# `internal` access modifier (ADR-008): entities and
+feature-internal helpers are `internal`, so only a feature's `Map<Name>Api` method is visible to
+`Program.cs` and to other features — the compiler refuses a feature that reaches into another
+feature's types, the same way eslint refuses it on the frontend. `TaxesUa.Engine` (ADR-002)
+sits outside this tree entirely, as a separate, package-free project; any feature that needs a
+computation references it, never duplicates it. `AppDbContext` and the audit save interceptor
+are the two deliberate exceptions — EF Core needs one `DbContext`, and change auditing needs to
+see every audited entity, so both necessarily touch every feature.
+
 ### web layers
 
 ```
@@ -167,6 +191,10 @@ src/
 The dependency rules are enforced in eslint (`no-restricted-imports`): features never import
 each other and are only reachable from outside through `index.ts`; `data` knows nothing about
 features; `shared` imports nothing above itself; nothing imports from `app`.
+
+Both layouts follow the same idea — one folder per feature, reachable only through its public
+surface — enforced by whatever each language gives for free: `internal` in C#, `no-restricted-
+imports` in eslint.
 
 ---
 

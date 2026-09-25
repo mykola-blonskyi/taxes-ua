@@ -209,3 +209,61 @@ migration.
 
 Rules update without a code change. The engine receives the config as an input parameter and
 knows nothing about years.
+
+---
+
+## ADR-008. Backend organized as vertical feature slices, not layered by type
+
+Date: 2026-09-25
+
+Status: Proposed
+
+### Context
+
+`TaxesUa.Api` hosts Minimal API endpoints for roughly ten resources (auth, settings, tax years,
+transactions, fx, payments, periods, dashboard, export, backup, audit). ASP.NET Core Minimal APIs
+have no built-in `Controllers`/`Models` convention — that split belongs to MVC, which ADR-001
+already ruled out. Microsoft's own guidance for organizing Minimal APIs at scale is one static
+class per resource with a single `Map<Name>Api(this IEndpointRouteBuilder group)` extension
+method, called once from `Program.cs`; that shape is already a vertical slice, not a layer. The
+frontend is already organized the same way, as `features/<name>/{components,hooks,tests,
+index.ts}` (see "web layers" in `docs/architecture.md`). The owner writes both sides by hand and
+wants one mental model, and the MVP tickets (#4–#18) are already scoped one resource per ticket.
+
+### Decision
+
+`TaxesUa.Api` organizes by feature, not by technical type: one folder per resource under
+`Features/<Name>/`, holding that feature's EF entity (or entities), its DTOs or inline records,
+and its `<Name>Endpoints.cs` static class exposing a single `Map<Name>Api` extension method
+called once from `Program.cs`. `Data/AppDbContext.cs` only aggregates `DbSet<T>` references; it
+owns no business logic. Entities and feature-internal helper types are declared `internal`, so
+only a feature's public endpoint-mapping method is visible to `Program.cs` and to other
+features — the C# access modifier enforces the same boundary the frontend gets from eslint's
+`no-restricted-imports`, with no extra tooling. `tests/TaxesUa.Api.Tests` mirrors the same
+`Features/<Name>/` layout, one test file group per feature.
+
+`TaxesUa.Engine` (ADR-002) is untouched by this decision. It stays a separate project and is the
+one place pure business logic lives; feature endpoints reference it, they don't duplicate it.
+
+### Alternatives Considered
+
+A classic layered structure (`Controllers/`, `Models/`, `Services/`, `Dtos/`). Familiar from MVC
+and from the default `dotnet new webapi` template, but that template defaults to it because it
+assumes MVC controllers, which this project doesn't use. Splitting ten resources by type scatters
+each feature's entity, DTO and route handler into three distant folders, and every ticket — each
+already scoped to one resource — would touch all three on every change.
+
+Clean/Onion architecture with separate `Application`/`Infrastructure` projects. Stronger
+isolation, but adds project count and indirection with no payoff at this size. `TaxesUa.Engine`
+already isolates the one boundary that matters here (business rules vs. everything else); a
+second boundary inside the thin persistence-and-transport layer buys nothing for a single
+developer and ten resources.
+
+### Consequences
+
+One folder maps to one ticket and to the same mental model already used on the frontend.
+`AppDbContext` is the only file that touches every feature, by necessity of EF Core requiring one
+`DbContext`; that coupling is deliberate and documented, not hidden. If the product later opens up
+to multiple developers or the API grows well past today's resource count, revisit: vertical
+slices scale per developer up to a point, and Clean Architecture's extra ceremony starts paying
+for itself past it. Not a concern at the current size.
