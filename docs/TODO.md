@@ -12,13 +12,13 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 
 ## Planned
 
-- [ ] MVP tickets #4–#18.
+- [ ] MVP tickets #4–#18, then #20 (VPS deploy, last).
 
 ---
 
 ## In Progress
 
-- [ ] #2 Skeleton and deployment.
+- [ ] #2 Set up CI.
 - [ ] #3 Google sign-in and interface shell.
 
 ---

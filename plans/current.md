@@ -8,31 +8,32 @@ frontend on Next.js, deployed to Coolify.
 
 Implementation is manual — the owner writes the code themselves. Tickets are approved and
 published to GitHub Issues in `mykola-blonskyi/taxes-ua`: spec
-[#1](https://github.com/mykola-blonskyi/taxes-ua/issues/1), tickets #2–#18, index in
+[#1](https://github.com/mykola-blonskyi/taxes-ua/issues/1), tickets #2–#18 and #20, index in
 [tickets.md](tickets.md), mirror in `.scratch/mvp/`. Below is each ticket unpacked into steps:
 files, types, verification commands. Order follows the dependency graph (native GitHub
 dependencies); the frontier at the start is #2 and #3.
 
-Approved by the owner 2026-09-25. The detailed per-ticket plan approved 2026-09-25.
+**Deployment is deliberately last.** Every ticket up through #18 is built and verified against
+the local Docker Compose stack (`docker compose -f docker-compose.yml -f docker-compose.local.yml
+up --build`, UI at `http://localhost:3000`) or the local dev servers (`dotnet run --project
+api/src/TaxesUa.Api` + `pnpm --dir web dev`). None of them need a live domain, Coolify, or the
+VPS's Postgres. Only ticket #20, the very last one, goes to production.
+
+Approved by the owner 2026-09-25. The detailed per-ticket plan approved 2026-09-25. Deployment
+moved to the end of the sequence 2026-09-25.
 
 ---
 
 ## Phase 1. MVP, by ticket
 
-### #2. Deploy the skeleton to Coolify and set up CI — no blockers
+### #2. Set up CI — no blockers
 
-The database reuses the PostgreSQL instance already running on the VPS: create a dedicated role
-and database for this project instead of provisioning a new Coolify PostgreSQL resource. Coolify:
-a Docker Compose resource from the repository (branch `main` after merging
-[PR #19](https://github.com/mykola-blonskyi/taxes-ua/pull/19)), the domain → `web` service, `api`
-with no external port, `DATABASE_URL` pointing at the new role/database in env. If the existing
-Postgres instance has no backup already, add the project's own scheduled logical dump (ADR-006).
 `.github/workflows/ci.yml`: `dotnet test api`, `pnpm --dir web lint && pnpm --dir web build`,
-`docker build ./api` and `./web`.
+`docker build ./api` and `./web`, on every push and PR. This needs no deployment target; it
+exercises the same local build every ticket already verifies with.
 
-Verify: `curl https://<domain>/api/health` → `{"status":"ok","database":true}`; `api` is not
-reachable from outside; the new role can connect only to its own database; the workflow fails on
-a broken test.
+Verify: the workflow is green on the branch; breaking `MoneyTests` locally and pushing makes it
+fail; reverting makes it pass again.
 
 Relies on: ADR-006, ADR-001.
 
@@ -290,6 +291,25 @@ screen scrolls horizontally at 375px.
 
 Tickets #13, #16, #17, #18 are off the critical path (#2 → #3 → #4 → #5 → #7 → #6 → #8 → #9 →
 #10) and can be done whenever convenient after their blocker.
+
+---
+
+### #20. Deploy to Coolify on the VPS — blocked by #4–#18 (every other MVP ticket)
+
+The finished MVP goes live. Coolify: a Docker Compose resource from the repository (branch
+`main` after merging [PR #19](https://github.com/mykola-blonskyi/taxes-ua/pull/19)), services
+`web` and `api`, the domain → `web`, `api` with no external port. The database reuses the
+PostgreSQL instance already running on the VPS: create a dedicated role and database for this
+project instead of provisioning a new Coolify PostgreSQL resource, `DATABASE_URL` in env points
+at it. If that instance has no backup already, add the project's own scheduled logical dump
+(ADR-006).
+
+Verify: `curl https://<domain>/api/health` → `{"status":"ok","database":true}`; `api` is not
+reachable from outside; the new role can connect only to its own database; every MVP screen
+(transactions, payments, dashboard, periods, settings, export, backup) works end to end against
+the production deployment, matching what was already verified locally.
+
+Relies on: ADR-006, ADR-001.
 
 ---
 

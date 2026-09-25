@@ -4,14 +4,19 @@ Source of truth: GitHub Issues in `mykola-blonskyi/taxes-ua`. Mirror: `.scratch/
 Spec: issue #1 and [spec-mvp.md](spec-mvp.md). Tracker conventions: `docs/agents/issue-tracker.md`.
 
 Tickets are vertical slices: each one cuts through schema, API, UI and tests, and can be verified
-on a real deployment on its own. Blocking is set via native GitHub dependencies. A ticket can be
-picked up once all of its blockers are closed.
+on its own. Blocking is set via native GitHub dependencies. A ticket can be picked up once all of
+its blockers are closed.
+
+Deployment to the VPS is deliberately last. Every ticket before it is built and verified
+against the local Docker Compose stack (`docker compose -f docker-compose.yml -f
+docker-compose.local.yml up --build`) or the local dev servers (`dotnet run` / `pnpm dev`), never
+against a live domain. Only CI (GitHub Actions) runs early, since it needs no deployment.
 
 ## MVP (Stage 1)
 
 | # | Ticket | Blocked by |
 | --- | --- | --- |
-| #2 | 01. Deploy the skeleton to Coolify and set up CI | none |
+| #2 | 01. Set up CI | none |
 | #3 | 02. Google sign-in and the interface shell | none |
 | #4 | 03. Year parameters and FOP settings | #3 |
 | #5 | 04. Receipts in hryvnia | #4 |
@@ -28,8 +33,10 @@ picked up once all of its blockers are closed.
 | #16 | 15. Passkey | #3 |
 | #17 | 16. Change log | #9 |
 | #18 | 17. PWA and mobile polish | #3 |
+| #20 | 18. Deploy to Coolify on the VPS | #4–#18 (every other MVP ticket) |
 
-Critical path: #2 → #3 → #4 → #5 → #6 → #8 → #9 → #10. Frontier at the start: #2 and #3.
+Critical path: #2 → #3 → #4 → #5 → #6 → #8 → #9 → #10, then #20 once everything else lands.
+Frontier at the start: #2 and #3.
 
 ## Stages 2 and 3
 
