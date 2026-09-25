@@ -25,19 +25,18 @@ jobs:
   web-lint-build:
     name: Web lint & build
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v6
-        with:
-          package_json_file: web/package.json
-          cache: true
-          cache_dependency_path: web/pnpm-lock.yaml
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: pnpm --dir web install --frozen-lockfile
-      - run: pnpm --dir web lint
-      - run: pnpm --dir web build
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm build
 
   docker-api:
     name: Build API image
