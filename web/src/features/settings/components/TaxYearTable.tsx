@@ -12,7 +12,7 @@ import {
   type TaxYearConfigResponse,
 } from "@/data/tax-years/useTaxYears";
 import { Button } from "@/shared/ui/button";
-import { MoneyField, NumberField, RateField, ReadOnlyMoneyField, TextField } from "./fields";
+import { MoneyField, NumberField, RateField, ReadOnlyMoneyField, TextField } from "@/shared/ui/fields";
 
 type FormState = {
   minWageKop: number;

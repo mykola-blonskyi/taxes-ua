@@ -9,6 +9,7 @@ using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
+using TaxesUa.Api.Features.Transactions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -158,6 +159,7 @@ api.MapAuthApi();
 api.MapSettingsApi();
 api.MapTaxYearsApi();
 api.MapPeriodsApi();
+api.MapTransactionsApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

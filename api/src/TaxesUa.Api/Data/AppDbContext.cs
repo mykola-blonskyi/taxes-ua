@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
+using TaxesUa.Api.Features.Transactions;
 
 namespace TaxesUa.Api.Data;
 
@@ -12,6 +13,10 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Settings> Settings => Set<Settings>();
 
     public DbSet<TaxYearConfig> TaxYearConfigs => Set<TaxYearConfig>();
+
+    public DbSet<Transaction> Transactions => Set<Transaction>();
+
+    public DbSet<Client> Clients => Set<Client>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

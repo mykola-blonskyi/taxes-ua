@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/data/api/client";
 import type { components } from "@/data/api/schema";
 import { periodsQueryKey } from "@/data/periods/usePeriods";
+import { transactionsQueryKey } from "@/data/transactions/useTransactions";
 
 export type SettingsRequest = components["schemas"]["SettingsRequest"];
 export type SettingsResponse = components["schemas"]["SettingsResponse"];
@@ -33,6 +34,7 @@ export function useSaveSettings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: settingsQueryKey });
       queryClient.invalidateQueries({ queryKey: periodsQueryKey });
+      queryClient.invalidateQueries({ queryKey: transactionsQueryKey });
     },
   });
 }
