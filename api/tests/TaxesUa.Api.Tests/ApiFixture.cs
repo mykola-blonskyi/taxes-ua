@@ -34,6 +34,10 @@ public sealed class ApiFixture : IAsyncLifetime
     public WebApplicationFactory<Program> CreateApplication(Action<IWebHostBuilder> configure) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
+            // Program.cs reads this one while it is still registering services, which is before a
+            // ConfigureAppConfiguration source is attached, so it has to be a host setting.
+            builder.UseSetting("Auth:Passkey:ServerDomain", "localhost");
+
             builder.ConfigureAppConfiguration(configuration => configuration.AddInMemoryCollection(
                 new Dictionary<string, string?>
                 {

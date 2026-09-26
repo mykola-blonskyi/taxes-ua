@@ -9,6 +9,10 @@ services:
       # host and serves the OpenAPI document `pnpm gen:api` reads.
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Default: Host=db;Port=5432;Database=taxes_ua;Username=taxes_ua;Password=taxes_ua
+      # docker-compose.yml always sets this from PASSKEY_SERVER_DOMAIN, so a local run without a
+      # .env hands the container an empty value, and an empty environment variable outranks
+      # appsettings.Development.json. Without this line the api would refuse to start locally.
+      Auth__Passkey__ServerDomain: localhost
     depends_on:
       db:
         condition: service_healthy

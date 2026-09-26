@@ -33,7 +33,14 @@
   "login": {
     "title": "Вхід",
     "google": "Увійти через Google",
-    "ownerOnly": "Доступ лише для власника: увійти можна тільки з дозволеного акаунта Google."
+    "ownerOnly": "Доступ лише для власника: увійти можна тільки з дозволеного акаунта Google.",
+    "passkeySignIn": "Увійти за допомогою passkey",
+    "passkeyRegister": "Додати passkey",
+    "passkeyRegisterPrompt": "Ви вже увійшли. Додайте passkey, щоб наступного разу входити швидше.",
+    "passkeyRegisterSuccess": "Passkey додано.",
+    "passkeyCancelled": "Дію скасовано.",
+    "passkeyForbidden": "Цей акаунт не має доступу до застосунку.",
+    "passkeyError": "Не вдалося виконати дію з passkey. Спробуйте ще раз."
   },
   "dashboard": {
     "title": "Головна",

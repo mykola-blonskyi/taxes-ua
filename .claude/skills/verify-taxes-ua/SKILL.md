@@ -138,3 +138,21 @@ handles this app already exposes, which are the `aria-label` on each toggle (`na
 `theme.label`, `language.label`, `account.signOut` in `web/messages/uk.json`) and `aria-current` on
 the active nav link. Exercise the real user path, and capture both the action and the resulting
 state.
+
+## Proving the passkey ceremony
+
+```
+node .claude/skills/verify-taxes-ua/scripts/verify-passkey.mjs --base http://localhost:3000
+```
+
+`scripts/verify-passkey.mjs` attaches a Chrome DevTools virtual authenticator over CDP, then runs the
+real ceremony against the real endpoints from inside the page: register a passkey, sign out, clear
+cookies, and sign back in with the passkey alone. It also posts a tampered credential to each submit
+route and expects the rejection. It reports the RP ID the server sent, so a `ServerDomain` that does
+not match the origin shows up as a failure rather than as a silent browser refusal. Report lands in
+`.verify/passkey.json`.
+
+A virtual authenticator is not a device. It exercises the genuine WebAuthn ceremony, the attestation
+and assertion paths and the allowlist gate, and it says nothing about iOS Safari, Android Chrome, or
+a hardware key. Name it as a virtual authenticator in your report and hand the owner the device steps
+separately.
