@@ -125,6 +125,11 @@ public static class SettingsEndpoints
             var name = nameof(request.WeekendDays);
             errors[Field(name)] = [$"{name} must not name a day twice."];
         }
+        else if (request.WeekendDays.Length == Enum.GetValues<DayOfWeek>().Length)
+        {
+            var name = nameof(request.WeekendDays);
+            errors[Field(name)] = [$"{name} must leave at least one working day."];
+        }
 
         return errors.Count == 0 ? null : errors;
     }
