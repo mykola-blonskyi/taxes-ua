@@ -218,10 +218,367 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SettingsResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SettingsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SettingsResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tax-years": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaxYearConfigResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tax-years/{year}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaxYearConfigResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TaxYearConfigRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaxYearConfigResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tax-years/{year}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaxYearConfigResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tax-years/{year}/clone-to/{next}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                    next: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaxYearConfigResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {unknown} */
+        DayOfWeek: "Sunday" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday";
+        /** @enum {unknown} */
+        EsvRegistrationMonthPolicy: "FullMonth" | "Prorated";
+        HttpValidationProblemDetails: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number | string;
+            detail?: null | string;
+            instance?: null | string;
+            errors?: {
+                [key: string]: string[];
+            };
+        };
         MeResponse: {
             id: string;
             email: string;
@@ -229,6 +586,8 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        /** @enum {unknown} */
+        PaymentMode: "Quarterly" | "MonthlyAdvance";
         ProblemDetails: {
             type?: null | string;
             title?: null | string;
@@ -236,6 +595,90 @@ export interface components {
             status?: null | number | string;
             detail?: null | string;
             instance?: null | string;
+        };
+        SettingsRequest: {
+            /** Format: date */
+            fopRegistrationDate: null | string;
+            paymentMode: components["schemas"]["PaymentMode"];
+            esvRegistrationMonthPolicy: components["schemas"]["EsvRegistrationMonthPolicy"];
+            esvExempt: boolean;
+            taxPaymentCountsFromStatutoryDeclarationDate: boolean;
+            shiftTaxPaymentFromWeekend: boolean;
+            weekendDays: components["schemas"]["DayOfWeek"][];
+            locale: string;
+            theme: string;
+            defaultCurrency: string;
+        };
+        SettingsResponse: {
+            /** Format: date */
+            fopRegistrationDate: null | string;
+            paymentMode: components["schemas"]["PaymentMode"];
+            esvRegistrationMonthPolicy: components["schemas"]["EsvRegistrationMonthPolicy"];
+            esvExempt: boolean;
+            taxPaymentCountsFromStatutoryDeclarationDate: boolean;
+            shiftTaxPaymentFromWeekend: boolean;
+            weekendDays: components["schemas"]["DayOfWeek"][];
+            locale: string;
+            theme: string;
+            defaultCurrency: string;
+        };
+        TaxYearConfigRequest: {
+            /** Format: int64 */
+            minWageKop: number | string;
+            /** Format: int32 */
+            singleTaxRateBp: number | string;
+            /** Format: int32 */
+            militaryLevyRateBp: number | string;
+            /** Format: int32 */
+            esvRateBp: number | string;
+            /** Format: int32 */
+            excessRateBp: number | string;
+            /** Format: int32 */
+            incomeLimitMinWages: number | string;
+            limitWarnThresholdsPct: (number | string)[];
+            /** Format: int32 */
+            esvDeadlineDay: number | string;
+            /** Format: int32 */
+            declarationDays: number | string;
+            /** Format: int32 */
+            taxPaymentDaysAfterDeclaration: number | string;
+            /** Format: int32 */
+            advanceRecommendedDay: number | string;
+            holidays: string[];
+            source: string;
+        };
+        TaxYearConfigResponse: {
+            /** Format: int32 */
+            year: number | string;
+            /** Format: int64 */
+            minWageKop: number | string;
+            /** Format: int32 */
+            singleTaxRateBp: number | string;
+            /** Format: int32 */
+            militaryLevyRateBp: number | string;
+            /** Format: int32 */
+            esvRateBp: number | string;
+            /** Format: int32 */
+            excessRateBp: number | string;
+            /** Format: int64 */
+            esvMonthlyKop: number | string;
+            /** Format: int32 */
+            incomeLimitMinWages: number | string;
+            /** Format: int64 */
+            incomeLimitKop: number | string;
+            limitWarnThresholdsPct: (number | string)[];
+            /** Format: int32 */
+            esvDeadlineDay: number | string;
+            /** Format: int32 */
+            declarationDays: number | string;
+            /** Format: int32 */
+            taxPaymentDaysAfterDeclaration: number | string;
+            /** Format: int32 */
+            advanceRecommendedDay: number | string;
+            holidays: string[];
+            source: string;
+            /** Format: date-time */
+            verifiedAt: null | string;
         };
     };
     responses: never;

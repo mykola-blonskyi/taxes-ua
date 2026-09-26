@@ -60,6 +60,74 @@
   },
   "settings": {
     "title": "Налаштування",
-    "empty": "Параметри ФОП і податкового року ще не налаштовані."
+    "tabs": {
+      "fop": "ФОП",
+      "taxYears": "Податкові роки"
+    },
+    "loading": "Завантаження…",
+    "loadFailed": "Не вдалося завантажити дані.",
+    "save": "Зберегти",
+    "saving": "Збереження…",
+    "saveFailed": "Не вдалося зберегти. Спробуйте ще раз.",
+    "validationError": "Перевірте введені дані:",
+    "fop": {
+      "fopRegistrationDate": "Дата реєстрації ФОП",
+      "paymentMode": "Режим сплати",
+      "paymentModeQuarterly": "Щоквартально",
+      "paymentModeMonthlyAdvance": "Щомісячний аванс",
+      "esvRegistrationMonthPolicy": "Місяць реєстрації ЄСВ",
+      "esvRegistrationMonthPolicyFullMonth": "Повний місяць",
+      "esvRegistrationMonthPolicyProrated": "Пропорційно",
+      "esvExempt": "Звільнення від ЄСВ за себе",
+      "taxPaymentCountsFromStatutoryDeclarationDate": "Термін сплати рахувати від встановленої дати декларації",
+      "shiftTaxPaymentFromWeekend": "Переносити сплату податку з вихідного дня",
+      "weekendDays": "Вихідні дні",
+      "weekdays": {
+        "sunday": "Неділя",
+        "monday": "Понеділок",
+        "tuesday": "Вівторок",
+        "wednesday": "Середа",
+        "thursday": "Четвер",
+        "friday": "П’ятниця",
+        "saturday": "Субота"
+      },
+      "locale": "Мова інтерфейсу",
+      "theme": "Тема",
+      "defaultCurrency": "Валюта за замовчуванням"
+    },
+    "taxYears": {
+      "empty": "Податкових років ще немає.",
+      "year": "Рік",
+      "minWageKop": "Мінімальна зарплата",
+      "singleTaxRateBp": "Єдиний податок",
+      "militaryLevyRateBp": "Військовий збір",
+      "esvRateBp": "Ставка ЄСВ",
+      "excessRateBp": "Ставка понад ліміт",
+      "esvMonthlyKop": "ЄСВ на місяць",
+      "incomeLimitMinWages": "Ліміт доходу (у мін. зарплатах)",
+      "incomeLimitKop": "Ліміт доходу",
+      "limitWarnThresholdsPct": "Пороги попередження, %",
+      "limitWarnThresholdsPctHint": "Через кому, наприклад: 85, 100",
+      "esvDeadlineDay": "Термін сплати ЄСВ (день місяця)",
+      "esvDeadlineDayHint": "Від 1 до 28, щоб дата існувала в кожному місяці",
+      "declarationDays": "Днів на подання декларації",
+      "taxPaymentDaysAfterDeclaration": "Днів на сплату після декларації",
+      "advanceRecommendedDay": "Рекомендований день авансу",
+      "holidays": "Святкові дні",
+      "holidaysHint": "Через кому у форматі РРРР-ММ-ДД, порожньо — без свят",
+      "source": "Джерело",
+      "verifiedAt": "Перевірено",
+      "verified": "Перевірено {date}",
+      "unverified": "Не перевірено",
+      "verify": "Позначити перевіреним",
+      "verifying": "Позначення…",
+      "cloneToNext": "Клонувати в {next}",
+      "cloning": "Клонування…"
+    },
+    "verificationWarning": {
+      "title": "Потребують перевірки параметри року",
+      "message": "Роки, що потребують перевірки: {years}",
+      "cta": "Перейти до налаштувань"
+    }
   }
 }
