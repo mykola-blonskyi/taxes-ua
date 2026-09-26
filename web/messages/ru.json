@@ -81,7 +81,9 @@
       "confirmDelete": "Удалить?",
       "confirmDeleteYes": "Да, удалить",
       "confirmDeleteCancel": "Отмена",
-      "deleteFailed": "Не удалось удалить:"
+      "deleteFailed": "Не удалось удалить:",
+      "rateNbu": "НБУ {date}",
+      "rateManual": "вручную"
     },
     "form": {
       "valueDate": "Дата зачисления",
@@ -99,7 +101,22 @@
       "saveFailed": "Не удалось сохранить:",
       "add": "Добавить",
       "newTitle": "Новое поступление",
-      "editTitle": "Редактирование поступления"
+      "editTitle": "Редактирование поступления",
+      "currency": "Валюта",
+      "rate": "Курс",
+      "rateNbuFor": "Курс НБУ на {date}",
+      "rateNbuFallback": "Курс НБУ за {date}: на выбранную дату НБУ курс не установил",
+      "rateManual": "Курс введён вручную",
+      "rateLoading": "Загрузка курса НБУ…",
+      "rateInvalid": "Введите курс, например 41,2345",
+      "nbuUnavailable": "НБУ недоступен. Введите курс вручную.",
+      "useNbuRate": "Использовать курс НБУ",
+      "uahEquivalent": "Гривневый эквивалент"
+    },
+    "currencies": {
+      "UAH": "Гривна (UAH)",
+      "USD": "Доллар США (USD)",
+      "EUR": "Евро (EUR)"
     }
   },
   "periods": {

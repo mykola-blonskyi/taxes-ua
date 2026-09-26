@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { currencies, useFxRate, type Currency } from "@/data/fx/useFxRate";
 import {
   useClients,
   useCreateTransaction,
@@ -11,9 +12,10 @@ import {
   type TransactionRequest,
   type TransactionResponse,
 } from "@/data/transactions/useTransactions";
-import { formatMoney, parseHryvnia } from "@/shared/lib/money";
+import { formatMinor, formatMoney, parseHryvnia, parseRate, toUahKop } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
 import { SelectField, TextField } from "@/shared/ui/fields";
+import { formatNumericDate } from "../dates";
 import { isNonIncomeKind, kindOptions } from "../kinds";
 
 function todayInKyiv(): string {
@@ -26,9 +28,20 @@ function kopecksToAmountText(kopecks: number): string {
   return `${digits.slice(0, -2)},${digits.slice(-2)}`;
 }
 
+function rateE4ToText(rateE4: number): string {
+  const digits = String(rateE4).padStart(5, "0");
+
+  return `${digits.slice(0, -4)},${digits.slice(-4)}`;
+}
+
+// "nbu" means the server resolves the rate on save; the form only shows it.
+type RateState = { mode: "nbu" } | { mode: "manual"; text: string };
+
 type FormState = {
   valueDate: string;
   amountText: string;
+  currency: Currency;
+  rate: RateState;
   kind: TransactionKind;
   nonIncomeReason: string;
   clientName: string;
@@ -40,6 +53,8 @@ function emptyForm(): FormState {
   return {
     valueDate: todayInKyiv(),
     amountText: "",
+    currency: "UAH",
+    rate: { mode: "nbu" },
     kind: "Income",
     nonIncomeReason: "",
     clientName: "",
@@ -52,6 +67,11 @@ function toFormState(transaction: TransactionResponse): FormState {
   return {
     valueDate: transaction.valueDate,
     amountText: kopecksToAmountText(Number(transaction.amountMinor)),
+    currency: transaction.currency,
+    rate:
+      transaction.rateSource === "Manual"
+        ? { mode: "manual", text: rateE4ToText(Number(transaction.rateE4)) }
+        : { mode: "nbu" },
     kind: transaction.kind,
     nonIncomeReason: transaction.nonIncomeReason ?? "",
     clientName: transaction.clientName ?? "",
@@ -77,6 +97,7 @@ export function TransactionForm({
 }) {
   const t = useTranslations("transactions.form");
   const tKinds = useTranslations("transactions.kinds");
+  const tCurrencies = useTranslations("transactions.currencies");
   const locale = useLocale();
   const { data: clients } = useClients();
   const createTransaction = useCreateTransaction();
@@ -94,15 +115,68 @@ export function TransactionForm({
   const parsedAmount = parseHryvnia(form.amountText);
   const amountIsInvalid = form.amountText.trim() !== "" && parsedAmount === null;
   const nonIncome = isNonIncomeKind(form.kind);
+  const foreign = form.currency !== "UAH";
+
+  // The server keeps a stored NBU rate on PUT while currency and valueDate stay the same, so the
+  // form shows that rate instead of asking NBU again.
+  const storedNbuRate =
+    editing &&
+    editing.rateSource === "Nbu" &&
+    editing.rateDate !== null &&
+    editing.currency === form.currency &&
+    editing.valueDate === form.valueDate
+      ? { rateE4: Number(editing.rateE4), rateDate: editing.rateDate }
+      : null;
+
+  const fx = useFxRate(form.currency, form.valueDate, form.rate.mode === "nbu" && storedNbuRate === null);
+  const nbuRate = storedNbuRate ?? (fx.data ? { rateE4: Number(fx.data.rateE4), rateDate: fx.data.rateDate } : null);
+  const nbuUnavailable = storedNbuRate === null && fx.isError;
+
+  const manualRateE4 = form.rate.mode === "manual" ? parseRate(form.rate.text) : null;
+  const rateIsInvalid = form.rate.mode === "manual" && form.rate.text.trim() !== "" && manualRateE4 === null;
+  const effectiveRateE4 = !foreign ? null : form.rate.mode === "manual" ? manualRateE4 : (nbuRate?.rateE4 ?? null);
+  const missingRate = foreign && effectiveRateE4 === null;
+
+  // In nbu mode the field shows the NBU rate, or stays empty while it loads or when NBU is down;
+  // typing into it is what switches to a manual rate.
+  const rateText = form.rate.mode === "manual" ? form.rate.text : nbuRate ? rateE4ToText(nbuRate.rateE4) : "";
+
+  function rateHint(): string | undefined {
+    if (form.rate.mode === "manual") {
+      return t("rateManual");
+    }
+
+    if (nbuRate) {
+      return nbuRate.rateDate === form.valueDate
+        ? t("rateNbuFor", { date: formatNumericDate(nbuRate.rateDate, locale) })
+        : t("rateNbuFallback", { date: formatNumericDate(nbuRate.rateDate, locale, true) });
+    }
+
+    return fx.isFetching ? t("rateLoading") : undefined;
+  }
+
+  function rateErrors(): string[] | undefined {
+    if (rateIsInvalid) {
+      return [t("rateInvalid")];
+    }
+
+    if (form.rate.mode === "nbu" && nbuUnavailable) {
+      return [t("nbuUnavailable")];
+    }
+
+    return fieldErrors?.manualRateE4;
+  }
 
   function submit() {
-    if (parsedAmount === null) {
+    if (parsedAmount === null || missingRate) {
       return;
     }
 
     const body: TransactionRequest = {
       valueDate: form.valueDate,
       amountMinor: parsedAmount,
+      currency: form.currency,
+      manualRateE4: foreign ? manualRateE4 : null,
       kind: form.kind,
       nonIncomeReason: nonIncome ? orNull(form.nonIncomeReason) : null,
       clientName: orNull(form.clientName),
@@ -121,7 +195,12 @@ export function TransactionForm({
 
     createTransaction.mutate(body, {
       onSuccess: () => {
-        setForm((current) => ({ ...emptyForm(), valueDate: current.valueDate, kind: current.kind }));
+        setForm((current) => ({
+          ...emptyForm(),
+          valueDate: current.valueDate,
+          kind: current.kind,
+          currency: current.currency,
+        }));
       },
     });
   }
@@ -159,9 +238,57 @@ export function TransactionForm({
           autoComplete="off"
           value={form.amountText}
           onChange={(value) => setForm((current) => ({ ...current, amountText: value }))}
-          hint={parsedAmount !== null ? formatMoney(parsedAmount, locale) : undefined}
+          hint={
+            parsedAmount === null
+              ? undefined
+              : foreign
+                ? formatMinor(parsedAmount, form.currency, locale)
+                : formatMoney(parsedAmount, locale)
+          }
           errors={amountIsInvalid ? [t("amountInvalid")] : fieldErrors?.amountMinor}
         />
+
+        <SelectField
+          id="transaction-currency"
+          label={t("currency")}
+          value={form.currency}
+          onChange={(value) =>
+            setForm((current) => ({ ...current, currency: value as Currency, rate: { mode: "nbu" } }))
+          }
+          options={currencies.map((currency) => ({ value: currency, label: tCurrencies(currency) }))}
+          errors={fieldErrors?.currency}
+        />
+
+        {foreign ? (
+          <div className="flex min-w-0 flex-col gap-1">
+            <TextField
+              id="transaction-rate"
+              label={t("rate")}
+              inputMode="decimal"
+              autoComplete="off"
+              value={rateText}
+              onChange={(value) => setForm((current) => ({ ...current, rate: { mode: "manual", text: value } }))}
+              hint={rateHint()}
+              errors={rateErrors()}
+            />
+            {form.rate.mode === "manual" ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onClick={() => setForm((current) => ({ ...current, rate: { mode: "nbu" } }))}
+              >
+                {t("useNbuRate")}
+              </Button>
+            ) : null}
+            {parsedAmount !== null && effectiveRateE4 !== null ? (
+              <p className="min-w-0 break-words text-sm">
+                {`${t("uahEquivalent")}: ≈ ${formatMoney(toUahKop(parsedAmount, effectiveRateE4), locale)}`}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         <SelectField
           id="transaction-kind"
@@ -219,7 +346,7 @@ export function TransactionForm({
       ) : null}
 
       <div className="flex gap-2">
-        <Button type="submit" disabled={mutation.isPending || parsedAmount === null}>
+        <Button type="submit" disabled={mutation.isPending || parsedAmount === null || missingRate}>
           {mutation.isPending ? t("saving") : editing ? t("save") : t("add")}
         </Button>
         {editing ? (
