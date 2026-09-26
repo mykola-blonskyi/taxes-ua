@@ -68,7 +68,7 @@ public static class AuthEndpoints
         }
 
         var email = login.Principal.FindFirstValue(ClaimTypes.Email);
-        if (email is null || !allowlist.Permits(email))
+        if (email is null || !allowlist.Permits(email) || !EmailVerified(login.Principal))
         {
             await http.SignOutAsync(IdentityConstants.ExternalScheme);
             return Results.Problem(
@@ -109,6 +109,11 @@ public static class AuthEndpoints
         await http.SignOutAsync(IdentityConstants.ExternalScheme);
         return Results.LocalRedirect(LocalPath(returnUrl));
     }
+
+    // Google's assertion that the account owns the address. Without it an allowlisted address on a
+    // custom domain admits whoever controls a Workspace for that domain.
+    internal static bool EmailVerified(ClaimsPrincipal principal) =>
+        bool.TryParse(principal.FindFirstValue(EmailVerifiedClaim), out var verified) && verified;
 
     private static IResult Failed(string title, IdentityResult result) => Results.Problem(
         statusCode: StatusCodes.Status500InternalServerError,

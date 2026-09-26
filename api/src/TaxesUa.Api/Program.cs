@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -49,6 +50,10 @@ if (!string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(goo
         // container, so a callback outside /api/ would never reach the Google handler at all.
         options.CallbackPath = "/api/auth/callback/google";
         options.SignInScheme = IdentityConstants.ExternalScheme;
+
+        // The handler maps sub, name, email and picture and nothing else, so the callback's
+        // email_verified check would find no claim at all without this mapping.
+        options.ClaimActions.MapJsonKey(AuthEndpoints.EmailVerifiedClaim, "email_verified");
     });
 }
 
