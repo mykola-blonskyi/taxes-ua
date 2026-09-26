@@ -45,8 +45,7 @@ public sealed class StartupTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
-    // `pnpm gen:api` reads this document from the Development server to regenerate
-    // web/src/data/api/schema.d.ts, so the endpoint stays reachable there.
+    // Guards `pnpm gen:api`, which reads the document from a development server.
     [Fact]
     public async Task Development_serves_the_openapi_document()
     {

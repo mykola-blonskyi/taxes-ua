@@ -112,8 +112,8 @@ public static class AuthEndpoints
         return Results.LocalRedirect(LocalPath(returnUrl));
     }
 
-    // Google's assertion that the account owns the address. Without it an allowlisted address on a
-    // custom domain admits whoever controls a Workspace for that domain.
+    // Without this an allowlisted address on a custom domain admits whoever controls a Google
+    // Workspace for that domain.
     internal static bool EmailVerified(ClaimsPrincipal principal) =>
         bool.TryParse(principal.FindFirstValue(EmailVerifiedClaim), out var verified) && verified;
 

@@ -12,8 +12,8 @@ var allowedHosts = (builder.Configuration["AllowedHosts"] ?? string.Empty)
     .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
 // The proxy lists below trust every hop, so X-Forwarded-Host lets any caller choose the host the
-// Google redirect_uri is built from. Pinning it to the deployed domain is the only defense, and an
-// operator who forgets the variable must not silently get the fail-open wildcard.
+// Google redirect_uri is built from. Pinning the domain is the only defense, so a forgotten
+// variable has to stop the deployment instead of falling open.
 if (builder.Environment.IsProduction() && (allowedHosts.Length == 0 || allowedHosts.Contains("*")))
 {
     throw new InvalidOperationException(
