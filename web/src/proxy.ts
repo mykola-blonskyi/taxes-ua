@@ -16,5 +16,5 @@ export const config = {
   // Default-deny, so a screen added by a later ticket is gated without editing this file. `login`
   // is the redirect target and would loop. `api` is rewritten to the api container, which owns its
   // own 401s and serves the sign-in endpoints themselves.
-  matcher: ["/((?!login|api|_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  matcher: ["/((?!login(?:/|$)|api(?:/|$)|_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };
