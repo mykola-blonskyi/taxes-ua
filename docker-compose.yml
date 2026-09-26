@@ -19,6 +19,7 @@ services:
       Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
       Auth__AllowedEmails: ${ALLOWED_EMAILS:-}
       AllowedHosts: ${ALLOWED_HOSTS:-}
+      Auth__Passkey__ServerDomain: ${PASSKEY_SERVER_DOMAIN:-}
     expose:
       - "8080"
     healthcheck:

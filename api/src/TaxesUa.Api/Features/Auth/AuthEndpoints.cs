@@ -51,6 +51,8 @@ public static class AuthEndpoints
             .Produces<MeResponse>()
             .Produces(StatusCodes.Status401Unauthorized);
 
+        auth.MapPasskey();
+
         return routes;
     }
 
@@ -117,7 +119,7 @@ public static class AuthEndpoints
     internal static bool EmailVerified(ClaimsPrincipal principal) =>
         bool.TryParse(principal.FindFirstValue(EmailVerifiedClaim), out var verified) && verified;
 
-    private static IResult Failed(string title, IdentityResult result) => Results.Problem(
+    internal static IResult Failed(string title, IdentityResult result) => Results.Problem(
         statusCode: StatusCodes.Status500InternalServerError,
         title: title,
         detail: string.Join(" ", result.Errors.Select(error => error.Description)));

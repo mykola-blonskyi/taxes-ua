@@ -106,6 +106,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 // The external cookie carries the pending Google sign-in, and Traefik forwards plain http to this
 // container, so the default SameAsRequest policy would let that cookie ride an unencrypted hop.
 builder.Services.ConfigureExternalCookie(options => options.Cookie.SecurePolicy = CookieSecurePolicy.Always);
+builder.Services.AddPasskeys(builder.Configuration);
 
 builder.Services.AddAuthorization();
 
