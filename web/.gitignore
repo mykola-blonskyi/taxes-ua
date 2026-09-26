@@ -17,6 +17,9 @@
 /.next/
 /out/
 
+# serwist (bundled by `pnpm build`, same category as .next/)
+/public/sw.js
+
 # production
 /build
 
