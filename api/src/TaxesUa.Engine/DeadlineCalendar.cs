@@ -1,24 +1,37 @@
 namespace TaxesUa.Engine;
 
 /// <summary>
-/// The tax year's deadline parameters. The year itself is a <c>ForQuarter</c> argument, so it is
-/// not repeated here. <c>DeclarationDays</c> and <c>TaxPaymentDaysAfterDeclaration</c> count
-/// calendar days. <c>Holidays</c> is empty during martial law, when holidays are business days.
+/// The tax year's parameters, in the order the <c>TaxYearConfig</c> entity lists them. The year
+/// itself is a <c>ForQuarter</c> argument, so it is not repeated here, and the entity's
+/// <c>EsvMonthlyKop</c> is absent for the same reason: it is <c>MinWageKop</c> at <c>EsvRateBp</c>,
+/// and a second copy could contradict the two it comes from. <c>DeclarationDays</c> and
+/// <c>TaxPaymentDaysAfterDeclaration</c> count calendar days. <c>Holidays</c> is empty during
+/// martial law, when holidays are business days.
 /// </summary>
 public sealed record TaxYearConfigInput(
+    long MinWageKop,
+    int SingleTaxRateBp,
+    int MilitaryLevyRateBp,
+    int EsvRateBp,
     int EsvDeadlineDay,
     int DeclarationDays,
     int TaxPaymentDaysAfterDeclaration,
     IReadOnlyList<DateOnly> Holidays);
 
 /// <summary>
-/// The FOP settings that move a deadline. Both shifting flags are unconfirmed readings of Rule 5,
-/// so both values of each stay reachable.
+/// The FOP settings the engine reads, mirroring the <c>Settings</c> entity. Both shifting flags are
+/// unconfirmed readings of Rule 5, and <c>EsvRegistrationMonthPolicy</c> an unconfirmed reading of
+/// Rule 3, so both values of each stay reachable. <c>FopRegistrationDate</c> is nullable like the
+/// entity and has no default, so a caller states the absence of a registration date rather than
+/// arriving at it by omission.
 /// </summary>
 public sealed record FopSettingsInput(
     IReadOnlyList<DayOfWeek> WeekendDays,
     bool TaxPaymentCountsFromStatutoryDeclarationDate,
-    bool ShiftTaxPaymentFromWeekend);
+    bool ShiftTaxPaymentFromWeekend,
+    DateOnly? FopRegistrationDate,
+    EsvRegistrationMonthPolicy EsvRegistrationMonthPolicy,
+    bool EsvExempt);
 
 /// <summary>
 /// One deadline. <c>Due</c> is <c>Statutory</c> moved forward off weekends and holidays, or equal

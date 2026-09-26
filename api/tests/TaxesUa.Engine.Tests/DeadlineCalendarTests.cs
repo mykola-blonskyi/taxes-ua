@@ -5,6 +5,10 @@ namespace TaxesUa.Engine.Tests;
 public class DeadlineCalendarTests
 {
     private static readonly TaxYearConfigInput ReferenceConfig = new(
+        MinWageKop: 864_700,
+        SingleTaxRateBp: 500,
+        MilitaryLevyRateBp: 100,
+        EsvRateBp: 2_200,
         EsvDeadlineDay: 19,
         DeclarationDays: 40,
         TaxPaymentDaysAfterDeclaration: 10,
@@ -13,7 +17,10 @@ public class DeadlineCalendarTests
     private static readonly FopSettingsInput ReferenceSettings = new(
         WeekendDays: [DayOfWeek.Saturday, DayOfWeek.Sunday],
         TaxPaymentCountsFromStatutoryDeclarationDate: true,
-        ShiftTaxPaymentFromWeekend: true);
+        ShiftTaxPaymentFromWeekend: true,
+        FopRegistrationDate: null,
+        EsvRegistrationMonthPolicy: EsvRegistrationMonthPolicy.FullMonth,
+        EsvExempt: false);
 
     [Theory]
     [InlineData(1, "2026-04-20", "2026-05-11", "2026-05-20")]

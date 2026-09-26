@@ -15,6 +15,9 @@ public static class Money
     public static long ApplyBp(long amountKop, int rateBp) =>
         DivRoundHalfUp(amountKop * rateBp, BasisPointScale);
 
+    public static long Prorate(long amountKop, int part, int whole) =>
+        DivRoundHalfUp(amountKop * part, whole);
+
     public static int ToRateE4(decimal rate) =>
         checked((int)decimal.Round(rate * RateScale, 0, MidpointRounding.AwayFromZero));
 

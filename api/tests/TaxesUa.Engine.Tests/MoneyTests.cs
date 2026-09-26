@@ -18,8 +18,17 @@ public class MoneyTests
     [InlineData(1_000_000, 100, 10_000)]
     [InlineData(1, 500, 0)]
     [InlineData(10, 500, 1)]
+    [InlineData(-100_010, 500, -5_001)]
     public void ApplyBp_rounds_half_up(long amountKop, int rateBp, long expectedKop) =>
         Assert.Equal(expectedKop, Money.ApplyBp(amountKop, rateBp));
+
+    [Theory]
+    [InlineData(190_234, 14, 28, 95_117)]
+    [InlineData(190_234, 22, 31, 135_005)]
+    [InlineData(190_234, 31, 31, 190_234)]
+    [InlineData(190_234, 0, 28, 0)]
+    public void Prorate_rounds_half_up(long amountKop, int part, int whole, long expectedKop) =>
+        Assert.Equal(expectedKop, Money.Prorate(amountKop, part, whole));
 
     [Fact]
     public void ToRateE4_scales_nbu_rate() =>
