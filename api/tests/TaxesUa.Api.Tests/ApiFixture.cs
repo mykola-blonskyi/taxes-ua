@@ -53,11 +53,12 @@ public sealed class ApiFixture : IAsyncLifetime
         await _database.DisposeAsync();
     }
 
-    public HttpClient CreateClient() => _application.CreateClient(new WebApplicationFactoryClientOptions
-    {
-        AllowAutoRedirect = false,
-        BaseAddress = new Uri("https://localhost"),
-    });
+    public HttpClient CreateClient(string origin = "https://localhost") =>
+        _application.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri(origin),
+        });
 
     public AsyncServiceScope CreateScope() => _application.Services.CreateAsyncScope();
 

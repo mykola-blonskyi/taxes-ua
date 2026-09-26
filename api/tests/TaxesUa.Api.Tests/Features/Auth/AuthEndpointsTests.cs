@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -101,6 +102,23 @@ public sealed class AuthEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFi
             (await client.GetAsync("/api/auth/callback")).StatusCode);
     }
 
+    // Traefik terminates TLS and forwards plain http to the api, which is the hop the default
+    // SameAsRequest policy drops the Secure flag on.
+    [Fact]
+    public async Task The_external_sign_in_cookie_is_hardened_behind_a_plain_http_hop()
+    {
+        using var client = fixture.CreateClient("http://localhost");
+
+        var response = await SignInExternally(client, ApiFixture.AllowedEmail);
+
+        var externalCookie = Assert.Single(
+            response.Headers.GetValues("Set-Cookie"),
+            header => header.StartsWith($"{IdentityConstants.ExternalScheme}=", StringComparison.Ordinal));
+        Assert.Contains("httponly", externalCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("secure", externalCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("samesite=lax", externalCookie, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Theory]
     [InlineData("//evil.example", "/")]
     [InlineData("/\\evil.example", "/")]
@@ -150,12 +168,16 @@ public sealed class AuthEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFi
 
     // "True" is what the Google handler's claim mapping writes for a JSON boolean, pinned by
     // GoogleClaimMappingTests.
-    private static async Task SignInExternally(HttpClient client, string email, string emailVerified = "True")
+    private static async Task<HttpResponseMessage> SignInExternally(
+        HttpClient client,
+        string email,
+        string emailVerified = "True")
     {
         var response = await client.PostAsync(
             $"/test-external-signin?email={Uri.EscapeDataString(email)}&emailVerified={Uri.EscapeDataString(emailVerified)}",
             content: null);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        return response;
     }
 }
