@@ -28,7 +28,11 @@ public sealed class ApiFixture : IAsyncLifetime
     {
         await _database.StartAsync();
 
-        _application = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        _application = CreateApplication(_ => { });
+    }
+
+    public WebApplicationFactory<Program> CreateApplication(Action<IWebHostBuilder> configure) =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.ConfigureAppConfiguration(configuration => configuration.AddInMemoryCollection(
                 new Dictionary<string, string?>
@@ -39,8 +43,9 @@ public sealed class ApiFixture : IAsyncLifetime
 
             builder.ConfigureTestServices(services =>
                 services.AddSingleton<IStartupFilter, ExternalSignInStub>());
+
+            configure(builder);
         });
-    }
 
     public async Task DisposeAsync()
     {
