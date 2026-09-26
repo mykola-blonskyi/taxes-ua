@@ -80,7 +80,7 @@ Relationships: belongs to `User`, has many `Transaction`.
 Responsibilities: a counterparty for linking receipts and invoices.
 
 Fields: `Name`, `Country`, `Address`, `Email`, `VatId`, `DefaultCurrency`, `Notes`. Only `Name` is
-used in the MVP.
+used in the MVP. A client is created the first time a receipt names it and is unique by name per owner.
 
 Relationships: belongs to `User`, has many `Transaction` and `Invoice`.
 
