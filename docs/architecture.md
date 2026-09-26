@@ -179,12 +179,15 @@ src/
       hooks/    hooks on top of data: assemble queries and mutations for the feature's scenario
       tests/
       index.ts  the feature's single public entry point
-  shared/       the bottom layer, depends on nothing
+  shared/       the bottom layer. Imports nothing from app, features or data
     lib/        utilities: cn, money and date formatting
     ui/         shadcn/ui components (alias @/shared/ui in components.json)
     types/      hand-written types unrelated to the API
     constants/
-    theme/      color tokens from the prototype, ThemeProvider
+    shell/      app chrome shared by every route group: navigation, header, disclaimer, the
+                theme and language toggles
+    theme/      ThemeProvider and the theme toggle. The colour tokens themselves live in
+                app/globals.css, because Tailwind v4 keeps the theme in CSS
   i18n/         next-intl configuration, locale chosen from a cookie
 ```
 
