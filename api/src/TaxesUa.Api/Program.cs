@@ -97,7 +97,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 var api = app.MapGroup("/api");
-api.MapOpenApi("/openapi/{documentName}.json");
+
+// The web build reads this document through `pnpm gen:api` against a development server and
+// commits the generated types, so a deployment has no reason to describe itself to a caller.
+if (app.Environment.IsDevelopment())
+{
+    api.MapOpenApi("/openapi/{documentName}.json");
+}
 
 api.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
 {
