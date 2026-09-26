@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -5,6 +6,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Settings;
+using TaxesUa.Api.Features.TaxYears;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,6 +44,18 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
     options.AllowedHosts = allowedHosts;
+});
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    // web/ reads these shapes as TypeScript generated from the OpenAPI document, where a numeric enum
+    // arrives as a magic number instead of a string union.
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+
+    // Both default to off, which lets a request body omit a non-nullable member and reach a handler
+    // with null in it. On, the serializer answers 400 and no handler needs a null guard.
+    options.SerializerOptions.RespectNullableAnnotations = true;
+    options.SerializerOptions.RespectRequiredConstructorParameters = true;
 });
 
 builder.Services.AddOpenApi();
@@ -136,6 +151,8 @@ api.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
 });
 
 api.MapAuthApi();
+api.MapSettingsApi();
+api.MapTaxYearsApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
