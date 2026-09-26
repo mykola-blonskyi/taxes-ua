@@ -1,7 +1,7 @@
 # 06: Deadline calendar
 
 GitHub: #7
-Status: ready-for-agent (engine half merged in PR #23/#24; API endpoint and web table remain, available now that #4 is closed)
+Status: the API endpoint and web table are in a PR on branch ticket-7-api (engine half merged in PR #23/#24)
 Blocked by: #4
 
 ## Parent
