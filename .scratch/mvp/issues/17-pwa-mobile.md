@@ -1,7 +1,7 @@
 # 17: PWA and mobile polish
 
 GitHub: #18
-Status: ready-for-agent
+Status: ready-for-human (merged in PR #35; open for iOS and Android install checks, needs the deployment)
 Blocked by: #3
 
 ## Parent

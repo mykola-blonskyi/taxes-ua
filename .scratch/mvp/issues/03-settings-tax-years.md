@@ -1,7 +1,7 @@
 # 03: Year parameters and FOP settings
 
 GitHub: #4
-Status: ready-for-agent
+Status: closed, done (PR #37)
 Blocked by: #3
 
 ## Parent

@@ -1,7 +1,7 @@
 # 15: Passkey
 
 GitHub: #16
-Status: ready-for-agent
+Status: ready-for-human (merged in PR #36; open for iOS and Android device checks, needs the deployment)
 Blocked by: #3
 
 ## Parent
