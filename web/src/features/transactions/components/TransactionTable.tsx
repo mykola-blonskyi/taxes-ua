@@ -5,17 +5,10 @@ import { useLocale, useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import { ApiError } from "@/data/api/client";
 import { useDeleteTransaction, type TransactionResponse } from "@/data/transactions/useTransactions";
-import { formatMoney } from "@/shared/lib/money";
+import { formatMinor, formatMoney, formatRateE4 } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
+import { formatNumericDate, parseDateOnly } from "../dates";
 import { isNonIncomeKind } from "../kinds";
-
-// Building the Date from Y/M/D parts (instead of parsing the ISO string) avoids a UTC-vs-local
-// timezone shift moving the displayed day.
-function parseDateOnly(value: string): Date {
-  const [year, month, day] = value.split("-").map(Number);
-
-  return new Date(year, month - 1, day);
-}
 
 export function TransactionTable({
   items,
@@ -55,6 +48,12 @@ function TransactionRow({
   );
   const formattedAmount = formatMoney(displayAmount, locale);
   const rowName = `${formattedDate}, ${formattedAmount}`;
+  const rateSourceText =
+    transaction.rateSource === "Manual"
+      ? t("row.rateManual")
+      : transaction.rateDate
+        ? t("row.rateNbu", { date: formatNumericDate(transaction.rateDate, locale) })
+        : null;
 
   return (
     <li className="flex min-w-0 flex-col gap-1.5 rounded-lg border p-3">
@@ -67,6 +66,13 @@ function TransactionRow({
           {formattedAmount}
         </span>
       </div>
+
+      {transaction.currency !== "UAH" ? (
+        <p className="min-w-0 break-words text-xs text-muted-foreground">
+          {`${formatMinor(Number(transaction.amountMinor), transaction.currency, locale)} × ${formatRateE4(Number(transaction.rateE4), locale)}`}
+          {rateSourceText ? ` · ${rateSourceText}` : null}
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
         {nonIncome ? <span className="rounded bg-muted px-1.5 py-0.5">{t("row.nonIncomeTag")}</span> : null}

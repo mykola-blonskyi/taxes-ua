@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
@@ -67,6 +68,13 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
 builder.Services.AddSingleton<EmailAllowlist>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<FxRates>();
+builder.Services.AddHttpClient<NbuRateClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Nbu:BaseUrl"] ?? "https://bank.gov.ua/");
+    client.Timeout = TimeSpan.FromSeconds(5);
+});
 
 var authentication = builder.Services.AddAuthentication(options =>
 {
@@ -160,6 +168,7 @@ api.MapSettingsApi();
 api.MapTaxYearsApi();
 api.MapPeriodsApi();
 api.MapTransactionsApi();
+api.MapFxApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

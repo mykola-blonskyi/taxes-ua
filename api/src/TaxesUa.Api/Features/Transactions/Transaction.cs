@@ -1,3 +1,4 @@
+using TaxesUa.Api.Features.Fx;
 using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Features.Transactions;
@@ -15,6 +16,10 @@ internal sealed class Transaction
     public Currency Currency { get; set; } = Currency.UAH;
 
     public int RateE4 { get; set; } = Money.RateScale;
+
+    public DateOnly? RateDate { get; set; }
+
+    public RateSource? RateSource { get; set; }
 
     // Fixed at write time (Rule 2): a later change to the rate table must not move income that was
     // already recorded.
@@ -52,13 +57,6 @@ internal sealed class Transaction
         TransactionKind.OtherNonIncome => NonIncomeKind.Other,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "not a non-income kind"),
     };
-}
-
-internal enum Currency
-{
-    UAH,
-    USD,
-    EUR,
 }
 
 internal enum TransactionKind

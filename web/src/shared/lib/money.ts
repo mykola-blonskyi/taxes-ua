@@ -43,3 +43,47 @@ export function parseHryvnia(input: string): number | null {
 
   return kopecks;
 }
+
+export function formatMinor(amountMinor: number, currency: string, locale: string) {
+  const formatted = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amountMinor / 100);
+
+  return `${formatted} ${currency}`;
+}
+
+export const maxRateE4 = 10_000_000;
+
+// Like parseHryvnia: rateE4 (rate × 10^4) is assembled from the digit strings, never from a float.
+const ratePattern = /^\s*(\d+)(?:[.,](\d{1,4}))?\s*$/;
+
+export function parseRate(input: string): number | null {
+  const match = ratePattern.exec(input);
+
+  if (!match || match[1].length > 7) {
+    return null;
+  }
+
+  const rateE4 = Number(match[1]) * 10000 + Number((match[2] ?? "").padEnd(4, "0"));
+
+  return rateE4 === 0 || rateE4 > maxRateE4 ? null : rateE4;
+}
+
+export function formatRateE4(rateE4: number, locale: string) {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 4,
+    maximumFractionDigits: 4,
+  }).format(rateE4 / 10000);
+}
+
+// amountMinor (up to ~1e14) times rateE4 (up to 1e7) overflows 2^53, so the product is taken in
+// BigInt. Rounds half away from zero like the server; the server's figure is the one that is saved.
+export function toUahKop(amountMinor: number, rateE4: number): number {
+  const zero = BigInt(0);
+  const product = BigInt(amountMinor) * BigInt(rateE4);
+  const magnitude = product < zero ? -product : product;
+  const rounded = (magnitude + BigInt(5000)) / BigInt(10000);
+
+  return Number(product < zero ? -rounded : rounded);
+}

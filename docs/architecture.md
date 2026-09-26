@@ -89,8 +89,10 @@ Stores the entities from [knowledge/domain-model.md](../knowledge/domain-model.m
 External systems:
 
 - NBU: `https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&date=YYYYMMDD&json`.
-  Returns `[]` on weekends. The adapter falls back to the last business day and stores the actual
-  rate date. Responses are cached in the `fx_rate` table.
+  Returns `[]` for a date it has not published (checked 2026-09-26: weekends currently come back
+  labelled with their own date, an unpublished future date comes back `[]`). The adapter falls back
+  day by day, up to 7 days, and stores the actual rate date. Responses are cached in the `FxRates`
+  table, except for a future date, whose fallback is provisional.
 - monobank personal API, PrivatBank Autoclient (Stage 2). Tokens are encrypted with AES-256-GCM
   using a key from the environment.
 - Telegram Bot API and SMTP for reminders (Stage 2).

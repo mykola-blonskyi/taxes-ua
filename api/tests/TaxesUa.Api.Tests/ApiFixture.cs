@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -10,6 +11,8 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Tests.Features.Fx;
 using Testcontainers.PostgreSql;
 
 namespace TaxesUa.Api.Tests;
@@ -46,7 +49,14 @@ public sealed class ApiFixture : IAsyncLifetime
                 }));
 
             builder.ConfigureTestServices(services =>
-                services.AddSingleton<IStartupFilter, ExternalSignInStub>());
+            {
+                services.AddSingleton<IStartupFilter, ExternalSignInStub>();
+
+                // A test that needs NBU registers its own handler after this one, which replaces it.
+                services.AddHttpClient<NbuRateClient>()
+                    .ConfigurePrimaryHttpMessageHandler(() => new StubNbuHandler(_ =>
+                        throw new InvalidOperationException("real NBU called from a test")));
+            });
 
             configure(builder);
         });
@@ -57,12 +67,33 @@ public sealed class ApiFixture : IAsyncLifetime
         await _database.DisposeAsync();
     }
 
-    public HttpClient CreateClient(string origin = "https://localhost") =>
-        _application.CreateClient(new WebApplicationFactoryClientOptions
+    public HttpClient CreateClient(string origin = "https://localhost") => CreateClient(_application, origin);
+
+    public static HttpClient CreateClient(WebApplicationFactory<Program> application, string origin = "https://localhost") =>
+        application.CreateClient(new WebApplicationFactoryClientOptions
         {
             AllowAutoRedirect = false,
             BaseAddress = new Uri(origin),
         });
+
+    // An application whose NBU answers come from nbu and whose clock reads today in Kyiv.
+    public WebApplicationFactory<Program> CreateApplication(StubNbuHandler nbu, DateOnly today) =>
+        CreateApplication(builder => builder.ConfigureTestServices(services =>
+        {
+            services.AddHttpClient<NbuRateClient>().ConfigurePrimaryHttpMessageHandler(() => nbu);
+            services.AddSingleton<TimeProvider>(
+                new FakeTime(new DateTimeOffset(today, new TimeOnly(10, 0), TimeSpan.Zero)));
+        }));
+
+    public static async Task<HttpClient> SignIn(WebApplicationFactory<Program> application, string email)
+    {
+        var client = CreateClient(application);
+        var login = await client.GetAsync($"/api/auth/login/development?email={email}");
+        Assert.Equal(HttpStatusCode.Found, login.StatusCode);
+        var callback = await client.GetAsync(login.Headers.Location);
+        Assert.Equal(HttpStatusCode.Found, callback.StatusCode);
+        return client;
+    }
 
     public AsyncServiceScope CreateScope() => _application.Services.CreateAsyncScope();
 

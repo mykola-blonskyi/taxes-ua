@@ -95,8 +95,8 @@ Fields:
 - `ValueDate: DateOnly` the credit date by Kyiv time. Determines the period.
 - `BankTime: DateTimeOffset?` the original bank timestamp.
 - `AmountMinor: long`, `Currency` (UAH, USD, EUR).
-- `RateE4: int` (10000 for UAH), `RateDate: DateOnly` the actual NBU rate date, `RateSource: Nbu
-  | Manual`.
+- `RateE4: int` (10000 for UAH), `RateDate: DateOnly?` the actual NBU rate date, `RateSource: Nbu
+  | Manual`. Both are null for UAH; `RateDate` is null for a manual rate.
 - `AmountUahKop: long` = roundHalfUp(`AmountMinor` × `RateE4` / 10⁴). Fixed at write time.
 - `Kind: Income | RefundToClient | OwnTransfer | FxSale | OwnDeposit | ErroneousReturn |
   OtherNonIncome`.
@@ -138,7 +138,9 @@ the declaration.
 
 Responsibilities: a cache of NBU exchange rates.
 
-Fields: `Currency`, `Date`, `RateE4`, `FetchedAt`. Key (`Currency`, `Date`).
+Fields: `Currency`, `Date` (the requested date), `RateE4`, `RateDate` (the NBU date the rate belongs
+to, earlier than `Date` after a fallback), `FetchedAt`. Key (`Currency`, `Date`). A future `Date` is
+never cached.
 
 ---
 

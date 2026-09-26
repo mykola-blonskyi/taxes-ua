@@ -310,6 +310,8 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     {
         ["valueDate"] = (valueDate == default ? new DateOnly(2030, 1, 1) : valueDate).ToString("yyyy-MM-dd"),
         ["amountMinor"] = amountMinor,
+        ["currency"] = "UAH",
+        ["manualRateE4"] = null,
         ["kind"] = kind.ToString(),
         ["nonIncomeReason"] = nonIncomeReason,
         ["clientName"] = clientName,

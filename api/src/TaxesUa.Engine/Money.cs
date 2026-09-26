@@ -18,9 +18,6 @@ public static class Money
     public static long Prorate(long amountKop, int part, int whole) =>
         DivRoundHalfUp(amountKop * part, whole);
 
-    public static int ToRateE4(decimal rate) =>
-        checked((int)decimal.Round(rate * RateScale, 0, MidpointRounding.AwayFromZero));
-
     private static long DivRoundHalfUp(long numerator, long denominator)
     {
         var (q, r) = Math.DivRem(numerator, denominator);
