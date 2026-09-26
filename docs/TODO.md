@@ -46,3 +46,5 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
       tokens. The prototype is an Obsidian note outside the repository, so #3 shipped the default.
 - [ ] Does removing an address from `Auth__AllowedEmails` have to end a live session, or is
       deleting the user row the answer? ADR-005 is silent and #3 made the allowlist an entry gate.
+      No session can be revoked server-side today, which [ADR-009](decisions.md) explains, so
+      answering yes costs a ticket store.

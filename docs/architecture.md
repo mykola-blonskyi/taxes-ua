@@ -219,15 +219,18 @@ imports` in eslint.
 ## Security
 
 Authentication: ASP.NET Core Identity, Google as the external sign-in, passkey as a second
-method. Sign-in is allowed only for the email in `Auth__AllowedEmails`. Cookie
-`HttpOnly; Secure; SameSite=Lax`.
+method. Sign-in requires an email listed in `Auth__AllowedEmails` that Google reports as verified.
+Both the session cookie and the external sign-in cookie are `HttpOnly; Secure; SameSite=Lax`. A
+session cannot be revoked server-side, which [ADR-009](decisions.md) explains.
 
 Authorization: every read and write is filtered by the `UserId` from the session.
 
 Secrets management: the bank-token encryption key lives only in the environment. Tokens are
 decrypted at the moment of the bank API call and never appear in logs, responses or the client.
 
-Other: HTTPS via Traefik. Anti-forgery for cookie auth via the `X-Requested-With` header and
+Other: HTTPS via Traefik. `ALLOWED_HOSTS` pins the host the Google redirect URI is built from, and
+the api refuses to start in Production without it. The OpenAPI document is served only in
+Development. Anti-forgery for cookie auth via the `X-Requested-With` header and
 SameSite. Change log `audit_log`. In-app disclaimer: the calculation is informational.
 
 ---

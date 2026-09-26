@@ -30,6 +30,8 @@ public static class AuthEndpoints
             .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status500InternalServerError);
 
+        // Deleting the cookies is the whole of sign-out. The session ticket is self-contained, so a
+        // copy taken earlier stays valid until it expires. That is deliberate, see ADR-009.
         auth.MapPost("/logout", async (HttpContext http) =>
             {
                 await http.SignOutAsync(IdentityConstants.ApplicationScheme);
