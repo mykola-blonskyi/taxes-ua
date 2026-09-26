@@ -20,6 +20,15 @@ dependencies). Run `snippets/frontier.sh` for the live frontier instead of readi
 - **#7 deadline calendar, engine half. Done.** `DeadlineCalendar` and its two input records are on
   `main` (PR #23, hardened by PR #24). The API endpoint and the web table remain, blocked on #4, so
   the issue stays open.
+- **#8 accruals, engine half. Done.** `IncomeLedger`, `Accruals`, the `TransactionInput` closed union
+  and `EngineWarning` are on `main` (PR #28). 99 engine tests, zero mismatches against an independent
+  3,273-scenario model of Rules 1 and 3.
+- **#3 sign-in and shell. Merged, issue still open.** PR #29 landed auth, the shell, theme and uk/ru,
+  plus four security fixes found by independent verification. It stays open for one criterion: five of
+  six screens cannot be measured at 375px while the auth gate is client-side only.
+- **#9 balances, engine half. In draft review.** `Balances` and `ObligationBuilder` on PR #30.
+- Issue bodies now carry a Status block and checked-off criteria with their evidence. Findings that
+  belong to a later ticket are filed as criteria on that ticket, not left in a comment thread.
 - Three Rule 5 readings the 2026 reference table cannot settle are now written down in
   `knowledge/business-rules.md` (PR #26). The Q4 holiday-year question needs the owner's answer
   before #4 seeds holidays for a post-martial-law year.

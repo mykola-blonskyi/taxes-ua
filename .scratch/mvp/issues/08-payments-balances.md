@@ -1,7 +1,7 @@
 # 08: Budget payments and balances
 
 GitHub: #9
-Status: ready-for-agent
+Status: ready-for-agent (engine half in draft PR #30; payments endpoint and web screens remain)
 Blocked by: #8
 
 ## Parent
