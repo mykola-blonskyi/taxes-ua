@@ -55,7 +55,10 @@ Fields:
 - `TaxPaymentDaysAfterDeclaration` (10).
 - `AdvanceRecommendedDay` (15, of the following month).
 - `Holidays: DateOnly[]` non-working holidays. Empty during martial law.
-- `Source` a reference to the legal source, `VerifiedAt: DateTime?`.
+- `Source` a reference to the legal source, `VerifiedAt: DateTimeOffset?`. An offset-aware
+  timestamp and not a `DateOnly`, because it records when a person checked the numbers rather
+  than a tax date. Writing any field of a year clears it, since a verification attests to the
+  values that were compared against the legal source and not to the row.
 
 Relationships: none. The engine receives the list of configs as input.
 

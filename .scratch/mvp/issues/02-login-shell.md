@@ -1,7 +1,7 @@
 # 02: Google sign-in and the interface shell
 
 GitHub: #3
-Status: ready-for-agent (PR #29 merged; open for the 375px criterion on five screens, see ticket-3-gate)
+Status: closed, done (PR #29, #32)
 Blocked by: none
 
 ## Parent

@@ -26,7 +26,27 @@ dependencies). Run `snippets/frontier.sh` for the live frontier instead of readi
 - **#3 sign-in and shell. Merged, issue still open.** PR #29 landed auth, the shell, theme and uk/ru,
   plus four security fixes found by independent verification. It stays open for one criterion: five of
   six screens cannot be measured at 375px while the auth gate is client-side only.
-- **#9 balances, engine half. In draft review.** `Balances` and `ObligationBuilder` on PR #30.
+- **#9 balances, engine half. Done.** `Balances` and `ObligationBuilder` on `main` (PR #30). Rule 7's
+  "kinds are never mixed" is a property of the type: `YearBalances` names one field per kind and holds
+  no collection over them, so there is nothing to iterate or sum across.
+- **#3 sign-in and shell. Closed.** PR #29 then PR #32. Four security findings fixed, including a
+  fail-open where `IsProduction()` is not the complement of `IsDevelopment()`, so an empty or
+  misspelled environment name skipped the `ALLOWED_HOSTS` pin entirely.
+- **#4 year parameters and FOP settings. Closed.** PR #37. `EsvDeadlineDay` and
+  `AdvanceRecommendedDay` are bounded 1..28, the bound independent verification of the engine asked
+  for. 2026 seeds to `EsvMonthlyKop` 190,234 and `IncomeLimitKop` 1,009,104,900.
+- **#16 passkey. Merged, open for device checks.** PR #36. `SignInManager.PasskeySignInAsync` is
+  deliberately unused: it signs a user in without consulting the allowlist.
+- **#18 PWA. Merged, open for device checks.** PR #35. The Lighthouse criterion named an audit that
+  Lighthouse 13 no longer has; installability is now checked through Chrome's own engine.
+- **#33 blank-screen fix. Closed.** PR #34. Every non-401 failure of `/api/auth/me` rendered an empty
+  page with a clean console.
+- **Verification is now a committed tool.** `.claude/skills/verify-taxes-ua/` plus
+  `scripts/measure-screens.mjs` and `scripts/verify-passkey.mjs`. Every UI ticket drives a real browser
+  through the Development-only sign-in seam instead of asserting a screen works. Note its limit: it
+  checks overflow, not usability. #4's first build measured clean while squeezing every number input
+  in the tax-year table to a few pixels.
+- **Test counts on `main`:** 165 engine, 106 api.
 - Issue bodies now carry a Status block and checked-off criteria with their evidence. Findings that
   belong to a later ticket are filed as criteria on that ticket, not left in a comment thread.
 - Three Rule 5 readings the 2026 reference table cannot settle are now written down in
