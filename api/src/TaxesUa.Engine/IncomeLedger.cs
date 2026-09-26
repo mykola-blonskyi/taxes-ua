@@ -16,7 +16,11 @@ public enum NonIncomeKind
 /// <summary>
 /// One account movement, already converted to hryvnia at the boundary (Rule 2). Rule 1 pairs a kind
 /// with a reason only for a non-income entry, so the kinds are cases and the reason belongs to the
-/// one case that has it. The private constructor closes the hierarchy.
+/// one case that has it. The private constructor stops direct construction outside the three nested
+/// cases below, but it does not close the hierarchy: C# requires a non-sealed record's copy
+/// constructor to be at least <c>protected</c>, so another assembly can still declare a fourth case
+/// that chains through it and overrides <see cref="IncomeContributionKop"/> with an arbitrary value.
+/// A switch over the three cases below is exhaustive by convention, not by the compiler.
 /// </summary>
 public abstract record TransactionInput
 {
@@ -28,13 +32,15 @@ public abstract record TransactionInput
     }
 
     /// <summary>The credit date by Kyiv time, which decides the period the money lands in.</summary>
-    public DateOnly ValueDate { get; init; }
+    public DateOnly ValueDate { get; }
 
     /// <summary>
     /// The hryvnia equivalent, fixed when the operation was recorded. Never negative: the kind
-    /// carries the sign, so a negative amount here would let an income entry behave as a refund.
+    /// carries the sign, so a negative amount here would let an income entry behave as a refund. Has
+    /// no <c>init</c> accessor on purpose, so a <c>with</c> expression cannot rewrite it past the
+    /// guard above.
     /// </summary>
-    public long AmountUahKop { get; init; }
+    public long AmountUahKop { get; }
 
     /// <summary>Rule 1: income adds, a refund to the client subtracts, everything else contributes
     /// nothing.</summary>

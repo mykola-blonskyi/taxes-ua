@@ -24,7 +24,11 @@ public static class Money
     private static long DivRoundHalfUp(long numerator, long denominator)
     {
         var (q, r) = Math.DivRem(numerator, denominator);
-        if (Math.Abs(r) * 2 >= denominator) q += Math.Sign(numerator);
+        if (Math.Abs(r) * 2 >= Math.Abs(denominator))
+        {
+            q += Math.Sign(numerator) * Math.Sign(denominator);
+        }
+
         return q;
     }
 }

@@ -50,6 +50,7 @@ public static class Accruals
     {
         var income = IncomeLedger.ForYear(year, transactions, settings);
         var esvByMonthKop = EsvByMonth(year, config, settings);
+        var warnings = new List<EngineWarning>(income.Warnings);
 
         var quarters = new QuarterAccrual[4];
         var accruedSingleTaxKop = 0L;
@@ -60,6 +61,11 @@ public static class Accruals
                 Money.ApplyBp(quarterIncome.CumulativeIncomeKop, config.SingleTaxRateBp);
             var cumulativeMilitaryLevyKop =
                 Money.ApplyBp(quarterIncome.CumulativeIncomeKop, config.MilitaryLevyRateBp);
+
+            if (cumulativeSingleTaxKop < 0 || cumulativeMilitaryLevyKop < 0)
+            {
+                warnings.Add(new EngineWarning.NegativeCumulativeTax(quarterIncome.Quarter));
+            }
 
             quarters[quarterIncome.Quarter - 1] = new QuarterAccrual(
                 quarterIncome,
@@ -73,7 +79,7 @@ public static class Accruals
             accruedMilitaryLevyKop = cumulativeMilitaryLevyKop;
         }
 
-        return new YearAccrual(year, income.Months, quarters, income.Warnings);
+        return new YearAccrual(year, income.Months, quarters, warnings);
     }
 
     private static long[] EsvByMonth(

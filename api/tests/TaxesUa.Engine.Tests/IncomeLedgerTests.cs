@@ -199,6 +199,16 @@ public class IncomeLedgerTests
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             new TransactionInput.Income(Date("2026-02-10"), -500_000));
 
+    [Fact]
+    public void The_amount_and_date_have_no_setter_so_with_cannot_smuggle_a_negative_amount_past_it()
+    {
+        var amountProperty = typeof(TransactionInput).GetProperty(nameof(TransactionInput.AmountUahKop))!;
+        var dateProperty = typeof(TransactionInput).GetProperty(nameof(TransactionInput.ValueDate))!;
+
+        Assert.Null(amountProperty.GetSetMethod(nonPublic: true));
+        Assert.Null(dateProperty.GetSetMethod(nonPublic: true));
+    }
+
     private static readonly FopSettingsInput RegisteredIn2025 = Settings(Date("2025-01-01"));
 
     private static FopSettingsInput Settings(DateOnly? registrationDate) => new(

@@ -164,6 +164,40 @@ public class AccrualsTests
     }
 
     [Fact]
+    public void A_year_other_than_2026_still_computes_esv_by_its_own_calendar()
+    {
+        var actual = Accruals.ForYear(2027, [], Config2026, Settings(Date("2027-03-10")));
+
+        Assert.Equal(10 * EsvMonthKop, actual.Quarters.Sum(quarter => quarter.EsvKop));
+    }
+
+    [Fact]
+    public void Registration_on_the_last_day_of_a_leap_february_prorates_by_its_true_length()
+    {
+        var settings = Settings(Date("2028-02-29")) with
+        {
+            EsvRegistrationMonthPolicy = EsvRegistrationMonthPolicy.Prorated,
+        };
+
+        var actual = Accruals.ForYear(2028, [], Config2026, settings);
+
+        Assert.Equal(6_560 + EsvMonthKop, actual.Quarters[0].EsvKop);
+    }
+
+    [Fact]
+    public void Registration_on_the_second_of_the_month_is_prorated_not_charged_a_full_month()
+    {
+        var settings = Settings(Date("2026-02-02")) with
+        {
+            EsvRegistrationMonthPolicy = EsvRegistrationMonthPolicy.Prorated,
+        };
+
+        var actual = Accruals.ForYear(2026, [], Config2026, settings);
+
+        Assert.Equal(183_440 + EsvMonthKop, actual.Quarters[0].EsvKop);
+    }
+
+    [Fact]
     public void A_refund_that_shrinks_the_cumulative_income_makes_the_quarter_tax_negative()
     {
         var actual = Accruals.ForYear(
@@ -196,6 +230,28 @@ public class AccrualsTests
             [new EngineWarning.OperationBeforeRegistration(Date("2026-02-10"), Date("2026-03-15"))],
             actual.Warnings);
         Assert.Equal(0, actual.Quarters[0].SingleTaxKop);
+    }
+
+    [Fact]
+    public void A_negative_cumulative_tax_from_a_refund_of_an_earlier_periods_receipt_is_warned_about()
+    {
+        var actual = Accruals.ForYear(
+            2026,
+            [
+                new TransactionInput.Income(Date("2025-12-20"), 10_000_000),
+                new TransactionInput.RefundToClient(Date("2026-04-15"), 10_000_000),
+            ],
+            Config2026,
+            RegisteredIn2025);
+
+        Assert.Equal(-500_000, actual.Quarters[1].CumulativeSingleTaxKop);
+        Assert.Equal(
+            [
+                new EngineWarning.NegativeCumulativeTax(2),
+                new EngineWarning.NegativeCumulativeTax(3),
+                new EngineWarning.NegativeCumulativeTax(4),
+            ],
+            actual.Warnings);
     }
 
     [Fact]
