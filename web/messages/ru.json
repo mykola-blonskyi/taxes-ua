@@ -49,6 +49,74 @@
   },
   "settings": {
     "title": "Настройки",
-    "empty": "Параметры ФОП и налогового года ещё не настроены."
+    "tabs": {
+      "fop": "ФОП",
+      "taxYears": "Налоговые годы"
+    },
+    "loading": "Загрузка…",
+    "loadFailed": "Не удалось загрузить данные.",
+    "save": "Сохранить",
+    "saving": "Сохранение…",
+    "saveFailed": "Не удалось сохранить. Попробуйте ещё раз.",
+    "validationError": "Проверьте введённые данные:",
+    "fop": {
+      "fopRegistrationDate": "Дата регистрации ФОП",
+      "paymentMode": "Режим уплаты",
+      "paymentModeQuarterly": "Ежеквартально",
+      "paymentModeMonthlyAdvance": "Ежемесячный аванс",
+      "esvRegistrationMonthPolicy": "Месяц регистрации ЕСВ",
+      "esvRegistrationMonthPolicyFullMonth": "Полный месяц",
+      "esvRegistrationMonthPolicyProrated": "Пропорционально",
+      "esvExempt": "Освобождение от ЕСВ за себя",
+      "taxPaymentCountsFromStatutoryDeclarationDate": "Срок уплаты считать от установленной даты декларации",
+      "shiftTaxPaymentFromWeekend": "Переносить уплату налога с выходного дня",
+      "weekendDays": "Выходные дни",
+      "weekdays": {
+        "sunday": "Воскресенье",
+        "monday": "Понедельник",
+        "tuesday": "Вторник",
+        "wednesday": "Среда",
+        "thursday": "Четверг",
+        "friday": "Пятница",
+        "saturday": "Суббота"
+      },
+      "locale": "Язык интерфейса",
+      "theme": "Тема",
+      "defaultCurrency": "Валюта по умолчанию"
+    },
+    "taxYears": {
+      "empty": "Налоговых годов пока нет.",
+      "year": "Год",
+      "minWageKop": "Минимальная зарплата",
+      "singleTaxRateBp": "Единый налог",
+      "militaryLevyRateBp": "Военный сбор",
+      "esvRateBp": "Ставка ЕСВ",
+      "excessRateBp": "Ставка сверх лимита",
+      "esvMonthlyKop": "ЕСВ в месяц",
+      "incomeLimitMinWages": "Лимит дохода (в мин. зарплатах)",
+      "incomeLimitKop": "Лимит дохода",
+      "limitWarnThresholdsPct": "Пороги предупреждения, %",
+      "limitWarnThresholdsPctHint": "Через запятую, например: 85, 100",
+      "esvDeadlineDay": "Срок уплаты ЕСВ (день месяца)",
+      "esvDeadlineDayHint": "От 1 до 28, чтобы дата существовала в каждом месяце",
+      "declarationDays": "Дней на подачу декларации",
+      "taxPaymentDaysAfterDeclaration": "Дней на уплату после декларации",
+      "advanceRecommendedDay": "Рекомендуемый день аванса",
+      "holidays": "Праздничные дни",
+      "holidaysHint": "Через запятую в формате ГГГГ-ММ-ДД, пусто — без праздников",
+      "source": "Источник",
+      "verifiedAt": "Проверено",
+      "verified": "Проверено {date}",
+      "unverified": "Не проверено",
+      "verify": "Отметить проверенным",
+      "verifying": "Отметка…",
+      "cloneToNext": "Клонировать в {next}",
+      "cloning": "Клонирование…"
+    },
+    "verificationWarning": {
+      "title": "Требуют проверки параметры года",
+      "message": "Годы, требующие проверки: {years}",
+      "cta": "Перейти к настройкам"
+    }
   }
 }
