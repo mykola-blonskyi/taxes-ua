@@ -7,6 +7,8 @@ namespace TaxesUa.Api.Features.Auth;
 
 public static class AuthEndpoints
 {
+    internal const string EmailVerifiedClaim = "email_verified";
+
     public static IEndpointRouteBuilder MapAuthApi(this IEndpointRouteBuilder routes)
     {
         var auth = routes.MapGroup("/auth").WithTags("Auth");

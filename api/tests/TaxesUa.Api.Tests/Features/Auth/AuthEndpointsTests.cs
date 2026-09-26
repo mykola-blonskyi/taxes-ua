@@ -48,6 +48,30 @@ public sealed class AuthEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFi
             "a rejected email was provisioned as a user");
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("false")]
+    [InlineData("False")]
+    public async Task Callback_rejects_an_email_google_has_not_verified(string emailVerified)
+    {
+        using var client = fixture.CreateClient();
+        await SignInExternally(client, ApiFixture.SecondAllowedEmail, emailVerified);
+
+        var response = await client.GetAsync("/api/auth/callback");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.False(string.IsNullOrWhiteSpace(problem?.Title), "the 403 carries no explanation");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
+
+        await using var scope = fixture.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<AppDbContext>().Users;
+        Assert.False(
+            await users.AnyAsync(user => user.Email == ApiFixture.SecondAllowedEmail),
+            "an unverified email was provisioned as a user");
+    }
+
     [Fact]
     public async Task Callback_signs_in_an_allowlisted_email_and_returns_a_hardened_cookie()
     {
@@ -124,10 +148,12 @@ public sealed class AuthEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFi
         Assert.Equal(HttpStatusCode.Unauthorized, callback.StatusCode);
     }
 
-    private static async Task SignInExternally(HttpClient client, string email)
+    // "True" is what the Google handler's claim mapping writes for a JSON boolean, pinned by
+    // GoogleClaimMappingTests.
+    private static async Task SignInExternally(HttpClient client, string email, string emailVerified = "True")
     {
         var response = await client.PostAsync(
-            $"/test-external-signin?email={Uri.EscapeDataString(email)}",
+            $"/test-external-signin?email={Uri.EscapeDataString(email)}&emailVerified={Uri.EscapeDataString(emailVerified)}",
             content: null);
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);

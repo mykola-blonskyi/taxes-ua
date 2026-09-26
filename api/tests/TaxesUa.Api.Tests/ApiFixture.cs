@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using TaxesUa.Api.Features.Auth;
 using Testcontainers.PostgreSql;
 
 namespace TaxesUa.Api.Tests;
@@ -16,6 +17,8 @@ namespace TaxesUa.Api.Tests;
 public sealed class ApiFixture : IAsyncLifetime
 {
     public const string AllowedEmail = "owner@example.com";
+
+    public const string SecondAllowedEmail = "second@example.com";
 
     private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:16-alpine").Build();
 
@@ -31,7 +34,7 @@ public sealed class ApiFixture : IAsyncLifetime
                 new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:Default"] = _database.GetConnectionString(),
-                    ["Auth:AllowedEmails"] = $" {AllowedEmail} ; second@example.com",
+                    ["Auth:AllowedEmails"] = $" {AllowedEmail} ; {SecondAllowedEmail}",
                 }));
 
             builder.ConfigureTestServices(services =>
@@ -67,6 +70,7 @@ public sealed class ApiFixture : IAsyncLifetime
                 }
 
                 var email = context.Request.Query["email"].ToString();
+                var emailVerified = context.Request.Query["emailVerified"].ToString();
                 var identity = new ClaimsIdentity(
                     [
                         new Claim(ClaimTypes.NameIdentifier, $"google-key-for-{email}"),
@@ -74,6 +78,11 @@ public sealed class ApiFixture : IAsyncLifetime
                         new Claim(ClaimTypes.Name, "Test Owner"),
                     ],
                     GoogleDefaults.AuthenticationScheme);
+
+                if (emailVerified.Length > 0)
+                {
+                    identity.AddClaim(new Claim(AuthEndpoints.EmailVerifiedClaim, emailVerified));
+                }
 
                 var properties = new AuthenticationProperties();
 
