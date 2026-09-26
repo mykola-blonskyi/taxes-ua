@@ -219,9 +219,14 @@ imports` in eslint.
 ## Security
 
 Authentication: ASP.NET Core Identity, Google as the external sign-in, passkey as a second
-method. Sign-in requires an email listed in `Auth__AllowedEmails` that Google reports as verified.
-Both the session cookie and the external sign-in cookie are `HttpOnly; Secure; SameSite=Lax`. A
-session cannot be revoked server-side, which [ADR-009](decisions.md) explains.
+method. Sign-in requires an email listed in `Auth__AllowedEmails`, and Google sign-in additionally
+requires that Google report it verified. The allowlist governs both methods: a passkey is registered
+by an already-signed-in owner, and the allowlist is re-checked against the asserted user's email on
+every passkey sign-in, because a stored credential outlives the email's removal from the list.
+`Features/Auth/PasskeyEndpoints.cs` says why that re-check is the last place it can happen. The
+session cookie, the external sign-in cookie and the passkey ceremony cookie are all
+`HttpOnly; Secure; SameSite=Lax`. A session cannot be revoked server-side, which
+[ADR-009](decisions.md) explains.
 
 Authorization: every read and write is filtered by the `UserId` from the session.
 
@@ -229,8 +234,10 @@ Secrets management: the bank-token encryption key lives only in the environment.
 decrypted at the moment of the bank API call and never appear in logs, responses or the client.
 
 Other: HTTPS via Traefik. `ALLOWED_HOSTS` pins the host the Google redirect URI is built from, and
-the api refuses to start in Production without it. The OpenAPI document is served only in
-Development. Anti-forgery for cookie auth via the `X-Requested-With` header and
+the api refuses to start in Production without it. `PASSKEY_SERVER_DOMAIN` pins the WebAuthn Relying
+Party ID rather than letting Identity infer it from the host header, and the api refuses to start
+without it too; a passkey is bound to the RP ID it was registered against. The OpenAPI document is
+served only in Development. Anti-forgery for cookie auth via the `X-Requested-With` header and
 SameSite. Change log `audit_log`. In-app disclaimer: the calculation is informational.
 
 ---
