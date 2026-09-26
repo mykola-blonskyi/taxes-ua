@@ -5,9 +5,9 @@ import { useLocale, useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import { ApiError } from "@/data/api/client";
 import { useDeleteTransaction, type TransactionResponse } from "@/data/transactions/useTransactions";
-import { formatMinor, formatMoney, formatRateE4 } from "@/shared/lib/money";
+import { formatAmount, formatMinor, formatMoney, formatRateE4 } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
-import { formatNumericDate, parseDateOnly } from "../dates";
+import { formatDateOnly, formatNumericDate } from "../dates";
 import { isNonIncomeKind } from "../kinds";
 
 export function TransactionTable({
@@ -43,9 +43,8 @@ function TransactionRow({
   const amountKop = Number(transaction.amountUahKop);
   const displayAmount = transaction.kind === "RefundToClient" ? -amountKop : amountKop;
   const deleteFailure = deleteTransaction.error instanceof ApiError ? deleteTransaction.error : null;
-  const formattedDate = new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
-    parseDateOnly(transaction.valueDate),
-  );
+  const formattedDate = formatDateOnly(transaction.valueDate, locale);
+  const receipt = transaction.refundsReceipt;
   const formattedAmount = formatMoney(displayAmount, locale);
   const rowName = `${formattedDate}, ${formattedAmount}`;
   const rateSourceText =
@@ -90,10 +89,21 @@ function TransactionRow({
         <p className="min-w-0 break-words text-xs text-muted-foreground">{transaction.nonIncomeReason}</p>
       ) : null}
 
+      {receipt ? (
+        <p className="min-w-0 break-words text-xs text-muted-foreground">
+          {t("row.reversesReceipt", {
+            date: formatDateOnly(receipt.valueDate, locale),
+            amount: formatAmount(Number(receipt.amountMinor), receipt.currency, locale),
+          })}
+        </p>
+      ) : null}
+
       {transaction.beforeRegistration ? (
         <p className="flex items-center gap-1.5 text-xs text-destructive">
           <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
-          <span className="min-w-0 break-words">{t("row.beforeRegistration")}</span>
+          <span className="min-w-0 break-words">
+            {receipt ? t("row.reversesReceiptBeforeRegistration") : t("row.beforeRegistration")}
+          </span>
         </p>
       ) : null}
 
@@ -141,7 +151,11 @@ function TransactionRow({
       </div>
 
       {deleteFailure ? (
-        <p className="text-xs text-destructive">{`${t("row.deleteFailed")} ${deleteFailure.message}`}</p>
+        <p className="text-xs text-destructive">
+          {deleteFailure.status === 409
+            ? t("row.deleteLinked")
+            : `${t("row.deleteFailed")} ${deleteFailure.message}`}
+        </p>
       ) : null}
     </li>
   );

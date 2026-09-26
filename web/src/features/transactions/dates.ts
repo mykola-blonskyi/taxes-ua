@@ -14,3 +14,7 @@ export function formatNumericDate(value: string, locale: string, withWeekday = f
     year: "numeric",
   }).format(parseDateOnly(value));
 }
+
+export function formatDateOnly(value: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(parseDateOnly(value));
+}

@@ -8,6 +8,8 @@ export type TransactionKind = components["schemas"]["TransactionKind"];
 export type TransactionRequest = components["schemas"]["TransactionRequest"];
 export type TransactionResponse = components["schemas"]["TransactionResponse"];
 export type TransactionListResponse = components["schemas"]["TransactionListResponse"];
+export type RefundedReceipt = components["schemas"]["RefundedReceipt"];
+export type ReceiptOption = components["schemas"]["ReceiptOption"];
 
 export const transactionsQueryKey = ["transactions"] as const;
 export const clientsQueryKey = ["clients"] as const;
@@ -67,6 +69,17 @@ export function useDeleteTransaction() {
   return useMutation({
     mutationFn: (id: string) => api.DELETE("/api/transactions/{id}", { params: { path: { id } } }),
     onSuccess: invalidate,
+  });
+}
+
+export function useReceipts() {
+  return useQuery({
+    queryKey: [...transactionsQueryKey, "receipts"],
+    queryFn: async () => {
+      const { data } = await api.GET("/api/transactions/receipts");
+
+      return data;
+    },
   });
 }
 
