@@ -1,25 +1,9 @@
 import type { ComponentProps, ReactNode } from "react";
+import { formatMoney, formatRate } from "@/shared/lib/money";
 import { cn } from "@/shared/lib/utils";
 
 const inputClasses =
   "w-full min-w-24 rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
-
-export function formatMoney(kopecks: number, locale: string) {
-  const formatted = new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(kopecks / 100);
-
-  return `${formatted} ₴`;
-}
-
-export function formatRate(basisPoints: number, locale: string) {
-  return new Intl.NumberFormat(locale, {
-    style: "percent",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(basisPoints / 10000);
-}
 
 function numberOrZero(value: number): number {
   return Number.isNaN(value) ? 0 : value;

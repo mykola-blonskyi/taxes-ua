@@ -6,7 +6,7 @@ import { ApiError } from "@/data/api/client";
 import { useSaveSettings, useSettings, type SettingsRequest } from "@/data/settings/useSettings";
 import { locales } from "@/i18n/locales";
 import { Button } from "@/shared/ui/button";
-import { CheckboxField, SelectField, TextField } from "./fields";
+import { CheckboxField, SelectField, TextField } from "@/shared/ui/fields";
 
 type PaymentMode = SettingsRequest["paymentMode"];
 type EsvRegistrationMonthPolicy = SettingsRequest["esvRegistrationMonthPolicy"];
