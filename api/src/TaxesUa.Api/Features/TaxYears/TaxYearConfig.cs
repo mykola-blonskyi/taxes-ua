@@ -48,6 +48,16 @@ internal sealed class TaxYearConfig
         IncomeLimitKop = checked(MinWageKop * IncomeLimitMinWages);
     }
 
+    public TaxYearConfigInput ToEngineInput() => new(
+        MinWageKop,
+        SingleTaxRateBp,
+        MilitaryLevyRateBp,
+        EsvRateBp,
+        EsvDeadlineDay,
+        DeclarationDays,
+        TaxPaymentDaysAfterDeclaration,
+        Holidays);
+
     // VerifiedAt is left unset on purpose: a verification attests to the numbers someone compared
     // against the law, and nobody has compared the copy.
     public TaxYearConfig CloneTo(int year)

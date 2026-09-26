@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
 
@@ -156,6 +157,7 @@ api.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
 api.MapAuthApi();
 api.MapSettingsApi();
 api.MapTaxYearsApi();
+api.MapPeriodsApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
