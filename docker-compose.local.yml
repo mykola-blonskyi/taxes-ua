@@ -5,6 +5,9 @@ services:
 
   api:
     environment:
+      # A local stack has no pinned domain, and the Development environment is where the api accepts
+      # the "*" host and serves the OpenAPI document `pnpm gen:api` reads.
+      ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Default: Host=db;Port=5432;Database=taxes_ua;Username=taxes_ua;Password=taxes_ua
     depends_on:
       db:

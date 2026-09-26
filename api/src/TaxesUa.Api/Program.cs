@@ -8,16 +8,26 @@ using TaxesUa.Api.Features.Auth;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var allowedHosts = (builder.Configuration["AllowedHosts"] ?? string.Empty)
+    .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+// The proxy lists below trust every hop, so X-Forwarded-Host lets any caller choose the host the
+// Google redirect_uri is built from. Pinning it to the deployed domain is the only defense, and an
+// operator who forgets the variable must not silently get the fail-open wildcard.
+if (builder.Environment.IsProduction() && (allowedHosts.Length == 0 || allowedHosts.Contains("*")))
+{
+    throw new InvalidOperationException(
+        "ALLOWED_HOSTS must name the deployed domains, semicolon-separated, in Production. "
+        + "A missing or wildcard value lets any caller choose the host the Google redirect_uri is "
+        + "built from. Use docker-compose.local.yml for a local run.");
+}
+
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
     options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
-
-    // The proxy lists above trust every hop, so X-Forwarded-Host would otherwise let any caller
-    // choose the host the Google redirect_uri is built from. Pin it to the deployed domain.
-    options.AllowedHosts = (builder.Configuration["AllowedHosts"] ?? "*")
-        .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    options.AllowedHosts = allowedHosts;
 });
 
 builder.Services.AddOpenApi();
