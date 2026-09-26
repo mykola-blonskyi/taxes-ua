@@ -13,8 +13,11 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Default-deny, so a screen added by a later ticket is gated without editing this file. `login`
-  // is the redirect target and would loop. `api` is rewritten to the api container, which owns its
-  // own 401s and serves the sign-in endpoints themselves.
-  matcher: ["/((?!login(?:/|$)|api(?:/|$)|_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // Default-deny for routes, so a screen added by a later ticket is gated without editing this file.
+  // `login` is the redirect target and would loop. `api` is rewritten to the api container, which
+  // owns its own 401s and serves the sign-in endpoints themselves. Anything whose last segment
+  // carries an extension is a file, not a route: an enumerated extension list silently gated
+  // `manifest.json` and `sw.js`, which made the app uninstallable because Chrome reads both
+  // unauthenticated.
+  matcher: ["/((?!login(?:/|$)|api(?:/|$)|_next/|.*\\.[^/]+$).*)"],
 };
