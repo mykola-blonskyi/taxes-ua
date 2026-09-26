@@ -47,7 +47,15 @@ const eslintConfig = defineConfig([
       ],
     },
   },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"]),
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    "service-worker/**",
+    // Bundled by `serwist build`, not hand-written; same category as .next/.
+    "public/sw.js",
+  ]),
 ]);
 
 export default eslintConfig;
