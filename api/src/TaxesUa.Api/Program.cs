@@ -49,8 +49,10 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     // web/ reads these shapes as TypeScript generated from the OpenAPI document, where a numeric enum
-    // arrives as a magic number instead of a string union.
-    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    // arrives as a magic number instead of a string union. allowIntegerValues also defaults to true,
+    // and the number path checks no enum member, so `{"paymentMode": 77}` would otherwise be stored.
+    options.SerializerOptions.Converters.Add(
+        new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false));
 
     // Both default to off, which lets a request body omit a non-nullable member and reach a handler
     // with null in it. On, the serializer answers 400 and no handler needs a null guard.

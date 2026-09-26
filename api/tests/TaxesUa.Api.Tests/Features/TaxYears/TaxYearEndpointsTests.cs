@@ -7,8 +7,9 @@ using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Tests.Features.TaxYears;
 
-// Every mutating test owns a year no other test in the assembly touches, so nothing here depends on
-// the order the shared tax year table is written in. Only the seed and the clone read 2026.
+// ApiFixture is an IClassFixture, so this class owns its own database. Within it every mutating test
+// writes a year no other test writes, because xUnit fixes no order between them. Only the seed test
+// and the clone read 2026, and neither writes it.
 public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
     [Fact]
@@ -159,8 +160,94 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
             StringComparison.Ordinal);
     }
 
-    // Pins the serializer options Program.cs sets: without them a body missing a member reaches the
-    // handler with null in a non-nullable property and stores a row with no source.
+    // Every case here is rejected, so nothing is written and they can share one year.
+    [Theory]
+    [InlineData("minWageKop", 0)]
+    [InlineData("minWageKop", 100_000_001)]
+    [InlineData("singleTaxRateBp", 10_001)]
+    [InlineData("militaryLevyRateBp", -1)]
+    [InlineData("esvRateBp", 10_001)]
+    [InlineData("excessRateBp", -1)]
+    [InlineData("incomeLimitMinWages", 0)]
+    [InlineData("declarationDays", 0)]
+    [InlineData("declarationDays", 367)]
+    [InlineData("taxPaymentDaysAfterDeclaration", -1)]
+    [InlineData("limitWarnThresholdsPct", 0)]
+    [InlineData("limitWarnThresholdsPct", 1_001)]
+    public async Task Put_rejects_a_field_outside_its_bounds(string field, long value)
+    {
+        using var client = await SignIn();
+        var body = new Dictionary<string, object?>
+        {
+            ["minWageKop"] = 800_000L,
+            ["singleTaxRateBp"] = 600,
+            ["militaryLevyRateBp"] = 200,
+            ["esvRateBp"] = 2100,
+            ["excessRateBp"] = 1600,
+            ["incomeLimitMinWages"] = 1200,
+            ["limitWarnThresholdsPct"] = new[] { 80, 95 },
+            ["esvDeadlineDay"] = 20,
+            ["declarationDays"] = 41,
+            ["taxPaymentDaysAfterDeclaration"] = 11,
+            ["advanceRecommendedDay"] = 16,
+            ["holidays"] = Array.Empty<DateOnly>(),
+            ["source"] = "a test source",
+        };
+        body[field] = field == "limitWarnThresholdsPct" ? new[] { value } : value;
+
+        var response = await client.PutAsJsonAsync("/api/tax-years/2044", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains(field, await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/tax-years/2044")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/api/tax-years/1999", "year")]
+    [InlineData("/api/tax-years/2101", "year")]
+    public async Task Put_rejects_a_year_outside_the_supported_range(string path, string field)
+    {
+        using var client = await SignIn();
+
+        var response = await client.PutAsJsonAsync(path, Request());
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains(field, await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Clone_rejects_a_target_year_outside_the_supported_range()
+    {
+        using var client = await SignIn();
+
+        var response = await client.PostAsync("/api/tax-years/2026/clone-to/2101", content: null);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("next", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_second_put_rederives_the_stored_esv_and_limit()
+    {
+        const int year = 2045;
+        const long raisedMinWageKop = 900_123L;
+        using var client = await SignIn();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/tax-years/{year}",
+            Request(minWageKop: raisedMinWageKop));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var config = await response.Content.ReadFromJsonAsync<TaxYearConfigResponse>();
+        Assert.Equal(raisedMinWageKop, config!.MinWageKop);
+        Assert.Equal(Money.ApplyBp(raisedMinWageKop, config.EsvRateBp), config.EsvMonthlyKop);
+        Assert.Equal(raisedMinWageKop * config.IncomeLimitMinWages, config.IncomeLimitKop);
+    }
+
+    // Pins the serializer options Program.cs sets: without them the omitted member arrives as null.
     [Fact]
     public async Task Put_rejects_a_body_that_omits_a_member()
     {
@@ -202,7 +289,7 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         var clone = await created.Content.ReadFromJsonAsync<TaxYearConfigResponse>();
         Assert.Null(clone!.VerifiedAt);
         Assert.Equal(
-            JsonSerializer.Serialize(source! with { Year = 2027 }),
+            JsonSerializer.Serialize(source! with { Year = 2027, VerifiedAt = null }),
             JsonSerializer.Serialize(clone));
 
         var again = await client.PostAsync("/api/tax-years/2026/clone-to/2027", content: null);

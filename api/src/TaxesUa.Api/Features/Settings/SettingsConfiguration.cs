@@ -8,8 +8,8 @@ internal sealed class SettingsConfiguration : IEntityTypeConfiguration<Settings>
 {
     public void Configure(EntityTypeBuilder<Settings> builder)
     {
-        // One row per owner, so the Identity user's id is also this row's key. No navigation
-        // property: nothing reads settings through the user.
+        // The Identity user's id is the key rather than a surrogate one, since there is exactly one
+        // row per owner. No navigation property either: nothing reads settings through the user.
         builder.HasKey(settings => settings.UserId);
 
         builder.HasOne<ApplicationUser>()

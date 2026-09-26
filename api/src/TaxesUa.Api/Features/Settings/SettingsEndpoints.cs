@@ -129,8 +129,9 @@ public static class SettingsEndpoints
         return errors.Count == 0 ? null : errors;
     }
 
-    // Derived rather than spelled twice, so the key the web reads an error under cannot drift from
-    // the member it is about. It is the same policy JsonSerializerDefaults.Web applies.
+    // Derived rather than spelled a second time, so the key the web reads an error under cannot drift
+    // from the member it is about. CamelCase is the policy JsonSerializerDefaults.Web applies to the
+    // same member.
     private static string Field(string name) => JsonNamingPolicy.CamelCase.ConvertName(name);
 }
 

@@ -10,10 +10,11 @@ public static class TaxYearEndpoints
 
     private const int MaxYear = 2100;
 
-    // The engine lands these two days in a month it derives: the month after a quarter for the ESV
-    // deadline, which is April at the earliest, and the month after any month for an advance, which
-    // can be February. 28 is the one bound that names a day every month has, so neither day needs a
-    // per-month special case and neither can reach the engine as an impossible date.
+    // 28 is the largest day of month every month has. AdvanceRecommendedDay lands in the month after
+    // any month, February included, so it needs that bound. EsvDeadlineDay lands in the month after a
+    // quarter, which always has 30 or 31 days, and shares the bound so there is one rule rather than a
+    // per-quarter one. The engine throws for a day its derived month lacks, so neither may be clamped,
+    // only rejected.
     private const int LastDayEveryMonthHas = 28;
 
     private const int MaxRateBp = 10_000;
@@ -22,7 +23,13 @@ public static class TaxYearEndpoints
 
     private const int MaxThresholdPct = 1_000;
 
-    private const long Unbounded = long.MaxValue;
+    // Money.ApplyBp multiplies unchecked and IncomeLimitKop is a plain product, so both inputs need a
+    // ceiling. Without one, a minimum wage near long.MaxValue answers 200 and stores a wrapped,
+    // negative EsvMonthlyKop. Both ceilings sit orders of magnitude above any figure a law could set
+    // and keep either product far inside long.
+    private const long MaxMinWageKop = 100_000_000;
+
+    private const int MaxIncomeLimitMinWages = 100_000;
 
     public static IEndpointRouteBuilder MapTaxYearsApi(this IEndpointRouteBuilder routes)
     {
@@ -182,18 +189,22 @@ public static class TaxYearEndpoints
     private static IEnumerable<Bound> Bounds(int year, TaxYearConfigRequest request)
     {
         yield return YearBound(nameof(TaxYearConfigResponse.Year), year);
-        yield return new(nameof(request.MinWageKop), request.MinWageKop, 1, Unbounded);
+        yield return new(nameof(request.MinWageKop), request.MinWageKop, 1, MaxMinWageKop);
         yield return new(nameof(request.SingleTaxRateBp), request.SingleTaxRateBp, 0, MaxRateBp);
         yield return new(nameof(request.MilitaryLevyRateBp), request.MilitaryLevyRateBp, 0, MaxRateBp);
         yield return new(nameof(request.EsvRateBp), request.EsvRateBp, 0, MaxRateBp);
         yield return new(nameof(request.ExcessRateBp), request.ExcessRateBp, 0, MaxRateBp);
-        yield return new(nameof(request.IncomeLimitMinWages), request.IncomeLimitMinWages, 1, Unbounded);
+        yield return new(
+            nameof(request.IncomeLimitMinWages),
+            request.IncomeLimitMinWages,
+            1,
+            MaxIncomeLimitMinWages);
         yield return new(
             nameof(request.EsvDeadlineDay),
             request.EsvDeadlineDay,
             1,
             LastDayEveryMonthHas,
-            "so the ESV deadline is a date the month after every quarter has");
+            "so the deadline is a day of month every month has");
         yield return new(nameof(request.DeclarationDays), request.DeclarationDays, 1, MaxDaysInYear);
         yield return new(
             nameof(request.TaxPaymentDaysAfterDeclaration),
@@ -205,7 +216,7 @@ public static class TaxYearEndpoints
             request.AdvanceRecommendedDay,
             1,
             LastDayEveryMonthHas,
-            "so the recommended advance date is a date every following month has");
+            "so the advance date is a day of month every month has, February included");
 
         for (var index = 0; index < request.LimitWarnThresholdsPct.Length; index++)
         {
@@ -251,20 +262,14 @@ public static class TaxYearEndpoints
         long Max,
         string Because = "")
     {
-        // Derived rather than spelled twice, so the key the web reads an error under cannot drift
-        // from the member it is about. It is the same policy JsonSerializerDefaults.Web applies.
+        // Derived rather than spelled a second time, so the key the web reads an error under cannot
+        // drift from the member it is about. CamelCase is the policy JsonSerializerDefaults.Web
+        // applies to the same member.
         public string Field => JsonNamingPolicy.CamelCase.ConvertName(Name);
 
-        public string Message
-        {
-            get
-            {
-                var range = Max == Unbounded ? $"at least {Min}" : $"between {Min} and {Max}";
-                return Because.Length == 0
-                    ? $"{Name} must be {range}."
-                    : $"{Name} must be {range}, {Because}.";
-            }
-        }
+        public string Message => Because.Length == 0
+            ? $"{Name} must be between {Min} and {Max}."
+            : $"{Name} must be between {Min} and {Max}, {Because}.";
     }
 }
 

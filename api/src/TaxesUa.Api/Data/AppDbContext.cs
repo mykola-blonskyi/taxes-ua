@@ -17,8 +17,7 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     {
         base.OnModelCreating(modelBuilder);
 
-        // Each feature owns its own IEntityTypeConfiguration next to its entity (ADR-008), so this
-        // context aggregates the sets and nothing else.
+        // Each feature owns its own IEntityTypeConfiguration next to its entity, per ADR-008.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
     }
 }

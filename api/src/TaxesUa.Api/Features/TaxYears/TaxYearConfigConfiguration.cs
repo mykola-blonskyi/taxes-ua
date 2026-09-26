@@ -15,10 +15,8 @@ internal sealed class TaxYearConfigConfiguration : IEntityTypeConfiguration<TaxY
         builder.HasData(Seed2026());
     }
 
-    // The values come from Rule 3, Rule 4 and Rule 5 of knowledge/business-rules.md. The derived
-    // pair is recomputed here so no migration carries a figure that was typed by hand, and the row
-    // starts unverified because nobody has checked it against the law yet, which is the state Rule
-    // 9's warning exists for.
+    // The values come from Rule 3, Rule 4 and Rule 5 of knowledge/business-rules.md. The derived pair
+    // is recomputed here so no migration carries a figure that was typed by hand.
     private static TaxYearConfig Seed2026()
     {
         var config = new TaxYearConfig
@@ -40,6 +38,10 @@ internal sealed class TaxYearConfigConfiguration : IEntityTypeConfiguration<TaxY
             // unknown.
             Holidays = [],
             Source = "ЗУ «Про Держбюджет України на 2026 рік»; ПКУ ст. 293, 295, 296; ЗУ «Про ЄСВ» ст. 8",
+
+            // Spelled out because it is a decision, not an omission: nobody has checked these values
+            // against the law, and Rule 9's warning only means something if the seed starts unverified.
+            VerifiedAt = null,
         };
 
         config.RecomputeDerived();
