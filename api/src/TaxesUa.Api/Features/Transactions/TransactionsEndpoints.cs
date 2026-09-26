@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Fx;
 using TaxesUa.Engine;
 using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
 
@@ -14,9 +15,13 @@ public static class TransactionsEndpoints
 
     private const int MaxYear = 2100;
 
-    // Money.ToUahKop multiplies AmountMinor by RateE4 (10^4) unchecked. 1e14 kop x 10^4 stays inside
-    // long, and 1e14 also stays inside JS Number.MAX_SAFE_INTEGER, which is what the web reads it as.
+    // Caps the hryvnia result as well as the amount. Money.ToUahKop multiplies AmountMinor by RateE4
+    // unchecked, and a result of at most 1e14 kop bounds that product by 1e14 x 10^4, inside long. 1e14
+    // also stays inside JS Number.MAX_SAFE_INTEGER, which is what the web reads both as.
     private const long MaxAmountMinor = 100_000_000_000_000;
+
+    // 1000.0000 UAH per unit.
+    private const int MaxRateE4 = 10_000_000;
 
     private const int MaxReasonLength = 1000;
 
@@ -77,6 +82,7 @@ public static class TransactionsEndpoints
                 TransactionRequest request,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                FxRates rates,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -92,25 +98,20 @@ public static class TransactionsEndpoints
                     return Results.Unauthorized();
                 }
 
-                var clientId = await ResolveClientAsync(database, user.Id, normalized.ClientName, cancellationToken);
-                var now = DateTimeOffset.UtcNow;
-                var row = new Transaction
+                var row = new Transaction { Id = Guid.NewGuid(), UserId = user.Id };
+                if (await ApplyAmountAsync(row, request, rates, cancellationToken) is { } rateProblem)
                 {
-                    Id = Guid.NewGuid(),
-                    UserId = user.Id,
-                    ValueDate = request.ValueDate,
-                    AmountMinor = request.AmountMinor,
-                    Currency = Currency.UAH,
-                    RateE4 = Money.RateScale,
-                    AmountUahKop = Money.ToUahKop(request.AmountMinor, Money.RateScale),
-                    Kind = request.Kind,
-                    NonIncomeReason = normalized.NonIncomeReason,
-                    ClientId = clientId,
-                    InvoiceNumber = normalized.InvoiceNumber,
-                    Description = normalized.Description,
-                    CreatedAt = now,
-                    UpdatedAt = now,
-                };
+                    return rateProblem;
+                }
+
+                var now = DateTimeOffset.UtcNow;
+                row.ClientId = await ResolveClientAsync(database, user.Id, normalized.ClientName, cancellationToken);
+                row.Kind = request.Kind;
+                row.NonIncomeReason = normalized.NonIncomeReason;
+                row.InvoiceNumber = normalized.InvoiceNumber;
+                row.Description = normalized.Description;
+                row.CreatedAt = now;
+                row.UpdatedAt = now;
                 database.Transactions.Add(row);
                 await database.SaveChangesAsync(cancellationToken);
 
@@ -123,13 +124,15 @@ public static class TransactionsEndpoints
             })
             .Produces<TransactionResponse>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
-            .Produces(StatusCodes.Status401Unauthorized);
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status502BadGateway);
 
         transactions.MapPut("/{id:guid}", async (
                 Guid id,
                 TransactionRequest request,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                FxRates rates,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -152,10 +155,12 @@ public static class TransactionsEndpoints
                     return Missing(id);
                 }
 
+                if (await ApplyAmountAsync(row, request, rates, cancellationToken) is { } rateProblem)
+                {
+                    return rateProblem;
+                }
+
                 row.ClientId = await ResolveClientAsync(database, user.Id, normalized.ClientName, cancellationToken);
-                row.ValueDate = request.ValueDate;
-                row.AmountMinor = request.AmountMinor;
-                row.AmountUahKop = Money.ToUahKop(request.AmountMinor, row.RateE4);
                 row.Kind = request.Kind;
                 row.NonIncomeReason = normalized.NonIncomeReason;
                 row.InvoiceNumber = normalized.InvoiceNumber;
@@ -171,7 +176,8 @@ public static class TransactionsEndpoints
             .Produces<TransactionResponse>()
             .ProducesValidationProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status502BadGateway);
 
         transactions.MapDelete("/{id:guid}", async (
                 Guid id,
@@ -260,6 +266,59 @@ public static class TransactionsEndpoints
     private static bool IsBeforeRegistration(Transaction row, SettingsEntity settings) =>
         RunLedger(row.ValueDate.Year, [row], settings).FlaggedDates.Contains(row.ValueDate);
 
+    // The one place POST and PUT fix the rate (Rule 2), so the two cannot diverge. It runs before any
+    // other change to the row or the context, since FxRates saves its cache row with its own
+    // SaveChanges. On PUT, row still holds the stored values it compares against.
+    private static async Task<IResult?> ApplyAmountAsync(
+        Transaction row, TransactionRequest request, FxRates rates, CancellationToken cancellationToken)
+    {
+        (int RateE4, DateOnly? RateDate, RateSource? Source) rate;
+        if (request.ManualRateE4 is { } manualRateE4)
+        {
+            rate = (manualRateE4, null, RateSource.Manual);
+        }
+        else if (request.Currency == Currency.UAH)
+        {
+            rate = (Money.RateScale, null, null);
+        }
+        else if (row.RateSource == RateSource.Nbu
+            && row.Currency == request.Currency
+            && row.ValueDate == request.ValueDate)
+        {
+            // The rate is fixed when recorded, so an edit of the other fields must not move it.
+            rate = (row.RateE4, row.RateDate, RateSource.Nbu);
+        }
+        else
+        {
+            var lookup = await rates.GetAsync(request.Currency, request.ValueDate, cancellationToken);
+            if (lookup is not NbuLookup.Found found)
+            {
+                return FxEndpoints.RateUnavailable(request.Currency, request.ValueDate, lookup);
+            }
+
+            rate = (found.RateE4, found.RateDate, RateSource.Nbu);
+        }
+
+        if ((Int128)request.AmountMinor * rate.RateE4 > (Int128)MaxAmountMinor * Money.RateScale)
+        {
+            return Results.ValidationProblem(new Dictionary<string, string[]>
+            {
+                [Field(nameof(request.AmountMinor))] =
+                    [$"amountMinor at this rate must not exceed {MaxAmountMinor} kopecks in hryvnia."],
+            });
+        }
+
+        row.ValueDate = request.ValueDate;
+        row.AmountMinor = request.AmountMinor;
+        row.Currency = request.Currency;
+        row.RateE4 = rate.RateE4;
+        row.RateDate = rate.RateDate;
+        row.RateSource = rate.Source;
+        row.AmountUahKop = Money.ToUahKop(request.AmountMinor, rate.RateE4);
+
+        return null;
+    }
+
     private static async Task<Guid?> ResolveClientAsync(
         AppDbContext database, string userId, string? name, CancellationToken cancellationToken)
     {
@@ -301,6 +360,9 @@ public static class TransactionsEndpoints
             row.ValueDate,
             row.AmountMinor,
             row.Currency,
+            row.RateE4,
+            row.RateDate,
+            row.RateSource,
             row.AmountUahKop,
             row.Kind,
             row.NonIncomeReason,
@@ -325,6 +387,18 @@ public static class TransactionsEndpoints
         else if (request.AmountMinor > MaxAmountMinor)
         {
             errors[Field(nameof(request.AmountMinor))] = [$"amountMinor must not exceed {MaxAmountMinor}."];
+        }
+
+        if (request.ManualRateE4 is { } manualRateE4)
+        {
+            if (request.Currency == Currency.UAH)
+            {
+                errors[Field(nameof(request.ManualRateE4))] = ["manualRateE4 must be empty for UAH."];
+            }
+            else if (manualRateE4 < 1 || manualRateE4 > MaxRateE4)
+            {
+                errors[Field(nameof(request.ManualRateE4))] = [$"manualRateE4 must be between 1 and {MaxRateE4}."];
+            }
         }
 
         if (request.ValueDate.Year < MinYear || request.ValueDate.Year > MaxYear)
@@ -386,6 +460,8 @@ public static class TransactionsEndpoints
 internal sealed record TransactionRequest(
     DateOnly ValueDate,
     long AmountMinor,
+    Currency Currency,
+    int? ManualRateE4,
     TransactionKind Kind,
     string? NonIncomeReason,
     string? ClientName,
@@ -397,6 +473,9 @@ internal sealed record TransactionResponse(
     DateOnly ValueDate,
     long AmountMinor,
     Currency Currency,
+    int RateE4,
+    DateOnly? RateDate,
+    RateSource? RateSource,
     long AmountUahKop,
     TransactionKind Kind,
     string? NonIncomeReason,

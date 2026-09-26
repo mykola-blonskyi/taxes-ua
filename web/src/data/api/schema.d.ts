@@ -913,6 +913,15 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description Bad Gateway */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -971,6 +980,15 @@ export interface paths {
                 };
                 /** @description Not Found */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Bad Gateway */
+                502: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1064,6 +1082,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/fx": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    currency: components["schemas"]["Currency"];
+                    date: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FxRateResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Gateway */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1080,6 +1161,15 @@ export interface components {
         };
         /** @enum {unknown} */
         EsvRegistrationMonthPolicy: "FullMonth" | "Prorated";
+        FxRateResponse: {
+            currency: components["schemas"]["Currency"];
+            /** Format: date */
+            date: string;
+            /** Format: int32 */
+            rateE4: number | string;
+            /** Format: date */
+            rateDate: string;
+        };
         HttpValidationProblemDetails: {
             type?: null | string;
             title?: null | string;
@@ -1126,6 +1216,8 @@ export interface components {
             quarter: number | string;
             deadlines: components["schemas"]["QuarterDeadlines"];
         };
+        /** @enum {unknown} */
+        RateSource: "Nbu" | "Manual" | null;
         SettingsRequest: {
             /** Format: date */
             fopRegistrationDate: null | string;
@@ -1226,6 +1318,9 @@ export interface components {
             valueDate: string;
             /** Format: int64 */
             amountMinor: number | string;
+            currency: components["schemas"]["Currency"];
+            /** Format: int32 */
+            manualRateE4: null | number | string;
             kind: components["schemas"]["TransactionKind"];
             nonIncomeReason: null | string;
             clientName: null | string;
@@ -1240,6 +1335,11 @@ export interface components {
             /** Format: int64 */
             amountMinor: number | string;
             currency: components["schemas"]["Currency"];
+            /** Format: int32 */
+            rateE4: number | string;
+            /** Format: date */
+            rateDate: null | string;
+            rateSource: null | components["schemas"]["RateSource"];
             /** Format: int64 */
             amountUahKop: number | string;
             kind: components["schemas"]["TransactionKind"];

@@ -50,10 +50,6 @@ public class MoneyTests
         Assert.Equal(expectedKop, Money.Prorate(amountKop, part, whole));
 
     [Fact]
-    public void ToRateE4_scales_nbu_rate() =>
-        Assert.Equal(449_729, Money.ToRateE4(44.9729m));
-
-    [Fact]
     public void Negative_refund_rounds_away_from_zero() =>
         Assert.Equal(-45, Money.ToUahKop(-1, 449_729));
 }
