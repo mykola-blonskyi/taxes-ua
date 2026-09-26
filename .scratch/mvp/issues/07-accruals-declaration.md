@@ -1,7 +1,7 @@
 # 07: Accruals and the declaration numbers
 
 GitHub: #8
-Status: ready-for-agent
+Status: ready-for-agent (engine half merged in PR #28; periods endpoint and web tables remain, blocked on #6)
 Blocked by: #6, #7
 
 ## Parent
