@@ -107,6 +107,10 @@ var api = app.MapGroup("/api");
 if (app.Environment.IsDevelopment())
 {
     api.MapOpenApi("/openapi/{documentName}.json");
+
+    // A deliberate auth bypass for obtaining a real session without a Google OAuth client. This
+    // Development check, plus the allowlist inside AuthEndpoints.CompleteSignIn, are what contain it.
+    api.MapDevelopmentSignIn();
 }
 
 api.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>

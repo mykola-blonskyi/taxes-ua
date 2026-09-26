@@ -122,7 +122,7 @@ public static class AuthEndpoints
         title: title,
         detail: string.Join(" ", result.Errors.Select(error => error.Description)));
 
-    private static string CallbackUrl(string? returnUrl) =>
+    internal static string CallbackUrl(string? returnUrl) =>
         $"/api/auth/callback?returnUrl={Uri.EscapeDataString(LocalPath(returnUrl))}";
 
     private static string LocalPath(string? returnUrl) =>

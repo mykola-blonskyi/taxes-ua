@@ -55,4 +55,37 @@ public sealed class StartupTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Production_does_not_serve_the_development_sign_in()
+    {
+        using var application = fixture.CreateApplication(builder =>
+        {
+            builder.UseEnvironment(Environments.Production);
+            builder.UseSetting("AllowedHosts", DeployedHost);
+        });
+        using var client = application.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri($"https://{DeployedHost}"),
+        });
+
+        var response = await client.GetAsync($"/api/auth/login/development?email={ApiFixture.AllowedEmail}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Development_serves_the_development_sign_in()
+    {
+        using var client = fixture.CreateClient();
+
+        var login = await client.GetAsync($"/api/auth/login/development?email={ApiFixture.AllowedEmail}");
+        Assert.Equal(HttpStatusCode.Found, login.StatusCode);
+
+        var callback = await client.GetAsync(login.Headers.Location);
+        Assert.Equal(HttpStatusCode.Found, callback.StatusCode);
+
+        var me = await client.GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.OK, me.StatusCode);
+    }
 }
