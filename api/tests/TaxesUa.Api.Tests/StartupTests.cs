@@ -27,6 +27,42 @@ public sealed class StartupTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Contains("ALLOWED_HOSTS", failure.ToString(), StringComparison.Ordinal);
     }
 
+    // An empty or misspelled ASPNETCORE_ENVIRONMENT is a third state that is neither Development nor
+    // Production, so IsProduction() skipped the check above and appsettings.json's "*" applied.
+    [Theory]
+    [InlineData("Developement")]
+    [InlineData(" Development ")]
+    [InlineData("Staging")]
+    public void An_unrecognised_environment_is_pinned_like_production(string environment)
+    {
+        using var application = fixture.CreateApplication(builder =>
+        {
+            builder.UseEnvironment(environment);
+            builder.UseSetting("AllowedHosts", "*");
+        });
+
+        var failure = Record.Exception(() => application.CreateClient());
+
+        Assert.NotNull(failure);
+        Assert.Contains("ALLOWED_HOSTS", failure.ToString(), StringComparison.Ordinal);
+    }
+
+    // Only docker-compose.local.yml selects Development, and it pins no domain. Reaching this state
+    // means the local override is running on a real host, which also publishes the sign-in seam.
+    [Fact]
+    public void Development_refuses_to_start_with_a_deployed_host_pinned()
+    {
+        using var application = fixture.CreateApplication(builder =>
+        {
+            builder.UseSetting("AllowedHosts", DeployedHost);
+        });
+
+        var failure = Record.Exception(() => application.CreateClient());
+
+        Assert.NotNull(failure);
+        Assert.Contains("Development", failure.ToString(), StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Production_does_not_serve_the_openapi_document()
     {

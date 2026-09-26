@@ -13,13 +13,26 @@ var allowedHosts = (builder.Configuration["AllowedHosts"] ?? string.Empty)
 
 // The proxy lists below trust every hop, so X-Forwarded-Host lets any caller choose the host the
 // Google redirect_uri is built from. Pinning the domain is the only defense, so a forgotten
-// variable has to stop the deployment instead of falling open.
-if (builder.Environment.IsProduction() && (allowedHosts.Length == 0 || allowedHosts.Contains("*")))
+// variable has to stop the deployment instead of falling open. The test is `!IsDevelopment()` and
+// not `IsProduction()`: an empty or misspelled ASPNETCORE_ENVIRONMENT is neither, and that third
+// state would skip this check and fall back to appsettings.json's wildcard.
+if (!builder.Environment.IsDevelopment() && (allowedHosts.Length == 0 || allowedHosts.Contains("*")))
 {
     throw new InvalidOperationException(
-        "ALLOWED_HOSTS must name the deployed domains, semicolon-separated, in Production. "
+        "ALLOWED_HOSTS must name the deployed domains, semicolon-separated, outside Development. "
         + "A missing or wildcard value lets any caller choose the host the Google redirect_uri is "
         + "built from. Use docker-compose.local.yml for a local run.");
+}
+
+// docker-compose.local.yml is the only thing that selects Development, and it pins no domain. A
+// process in this state is that local override running on a real host, where it would also publish
+// the Development-only sign-in seam registered further down.
+if (builder.Environment.IsDevelopment() && allowedHosts.Length > 0 && !allowedHosts.Contains("*"))
+{
+    throw new InvalidOperationException(
+        "ALLOWED_HOSTS pins a deployed domain while the environment is Development, which publishes "
+        + "the Development-only sign-in seam on that domain. Deploy docker-compose.yml without the "
+        + "local override, or leave ALLOWED_HOSTS unset for a local run.");
 }
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
@@ -81,6 +94,8 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Lax;
+    // Answering 401 rather than redirecting is also what stops web/src/proxy.ts looping: a 302 to a
+    // login path would come back through the Next rewrite as another gated request.
     options.Events.OnRedirectToLogin = context =>
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
