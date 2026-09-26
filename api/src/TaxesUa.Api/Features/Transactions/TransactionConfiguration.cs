@@ -24,6 +24,11 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
             .HasForeignKey(transaction => transaction.ClientId)
             .OnDelete(DeleteBehavior.SetNull);
 
+        builder.HasOne(transaction => transaction.RefundsTransaction)
+            .WithMany()
+            .HasForeignKey(transaction => transaction.RefundsTransactionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.Property(transaction => transaction.NonIncomeReason).HasMaxLength(1000);
         builder.Property(transaction => transaction.InvoiceNumber).HasMaxLength(100);
         builder.Property(transaction => transaction.Description).HasMaxLength(1000);
