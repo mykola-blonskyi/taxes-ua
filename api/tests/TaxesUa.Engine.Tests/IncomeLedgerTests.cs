@@ -137,6 +137,79 @@ public class IncomeLedgerTests
     }
 
     [Fact]
+    public void A_refund_linked_to_a_receipt_before_registration_is_excluded_with_it()
+    {
+        var actual = IncomeLedger.ForYear(
+            2026,
+            [
+                new TransactionInput.Income(Date("2026-02-10"), 10_000_000),
+                new TransactionInput.RefundToClient(Date("2026-04-15"), 10_000_000, Date("2026-02-10")),
+            ],
+            Settings(Date("2026-03-01")));
+
+        Assert.Equal((0, 0), (actual.TotalIncomeKop, actual.Quarters[1].IncomeKop));
+        Assert.Equal(
+            [
+                new EngineWarning.OperationBeforeRegistration(Date("2026-02-10"), Date("2026-03-01")),
+                new EngineWarning.RefundOfReceiptBeforeRegistration(
+                    Date("2026-04-15"), Date("2026-02-10"), Date("2026-03-01")),
+            ],
+            actual.Warnings);
+    }
+
+    [Fact]
+    public void An_unlinked_refund_of_a_receipt_before_registration_is_judged_by_its_own_date()
+    {
+        var actual = IncomeLedger.ForYear(
+            2026,
+            [
+                new TransactionInput.Income(Date("2026-02-10"), 10_000_000),
+                new TransactionInput.RefundToClient(Date("2026-04-15"), 10_000_000),
+            ],
+            Settings(Date("2026-03-01")));
+
+        Assert.Equal(-10_000_000, actual.Quarters[1].IncomeKop);
+    }
+
+    [Fact]
+    public void A_refund_linked_to_a_receipt_after_registration_counts_as_an_unlinked_one_does()
+    {
+        var receipt = new TransactionInput.Income(Date("2026-03-10"), 1_000_000);
+        var settings = Settings(Date("2026-03-01"));
+
+        var linked = IncomeLedger.ForYear(
+            2026,
+            [receipt, new TransactionInput.RefundToClient(Date("2026-05-20"), 400_000, Date("2026-03-10"))],
+            settings);
+        var unlinked = IncomeLedger.ForYear(
+            2026, [receipt, new TransactionInput.RefundToClient(Date("2026-05-20"), 400_000)], settings);
+
+        Assert.Equal(unlinked.Quarters, linked.Quarters);
+        Assert.Equal(unlinked.Warnings, linked.Warnings);
+        Assert.Equal(-400_000, linked.Quarters[1].IncomeKop);
+    }
+
+    [Fact]
+    public void A_refund_linked_to_a_receipt_before_registration_in_the_previous_year_is_excluded()
+    {
+        var actual = IncomeLedger.ForYear(
+            2026,
+            [
+                new TransactionInput.Income(Date("2025-11-20"), 500_000),
+                new TransactionInput.RefundToClient(Date("2026-01-10"), 500_000, Date("2025-11-20")),
+            ],
+            Settings(Date("2025-12-01")));
+
+        Assert.Equal(0, actual.TotalIncomeKop);
+        Assert.Equal(
+            [
+                new EngineWarning.RefundOfReceiptBeforeRegistration(
+                    Date("2026-01-10"), Date("2025-11-20"), Date("2025-12-01")),
+            ],
+            actual.Warnings);
+    }
+
+    [Fact]
     public void Without_a_registration_date_there_is_no_income_and_one_warning_says_why()
     {
         var actual = IncomeLedger.ForYear(

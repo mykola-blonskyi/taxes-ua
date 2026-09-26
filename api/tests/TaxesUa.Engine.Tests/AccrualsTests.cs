@@ -255,6 +255,24 @@ public class AccrualsTests
     }
 
     [Fact]
+    public void A_refund_of_a_receipt_before_registration_leaves_no_negative_tax_when_linked()
+    {
+        var actual = Accruals.ForYear(
+            2026,
+            [
+                new TransactionInput.Income(Date("2026-02-10"), 10_000_000),
+                new TransactionInput.RefundToClient(Date("2026-04-15"), 10_000_000, Date("2026-02-10")),
+            ],
+            Config2026,
+            Settings(Date("2026-03-01")));
+
+        Assert.Equal(
+            (0L, 0L),
+            (actual.Quarters[1].SingleTaxKop, actual.Quarters[1].MilitaryLevyKop));
+        Assert.DoesNotContain(actual.Warnings, warning => warning is EngineWarning.NegativeCumulativeTax);
+    }
+
+    [Fact]
     public void An_unknown_registration_month_policy_is_rejected()
     {
         var settings = Settings(Date("2026-02-15")) with
