@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTransactions, type TransactionResponse } from "@/data/transactions/useTransactions";
 import { formatMoney } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
+import { ExportButtons } from "./ExportButtons";
 import { TransactionForm } from "./TransactionForm";
 import { TransactionTable } from "./TransactionTable";
 
@@ -64,6 +65,8 @@ export function TransactionsScreen() {
             <span className="text-xl font-semibold">{formatMoney(Number(data.totalIncomeKop), locale)}</span>
             <span className="text-xs text-muted-foreground">{t("summary.hint")}</span>
           </div>
+
+          {data.items.length > 0 ? <ExportButtons year={year} /> : null}
 
           {data.fopRegistrationDate === null ? (
             <section className="flex flex-col gap-2 rounded-lg border bg-muted p-4">
