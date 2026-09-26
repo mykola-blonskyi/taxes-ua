@@ -1,1 +1,1 @@
-export { DeadlinesTable } from "./components/DeadlinesTable";
+export { PeriodsScreen } from "./components/PeriodsScreen";
