@@ -107,6 +107,17 @@ public sealed class SettingsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         await AssertRejectedWithoutStoring(body, "weekendDays");
     }
 
+    // The engine's NextBusinessDay scans forward looking for a day that is neither a weekend day nor
+    // a holiday and throws once it exhausts a year, which would turn a periods request into a 500.
+    [Fact]
+    public async Task Put_rejects_a_weekend_naming_every_day()
+    {
+        var body = Body();
+        body["weekendDays"] = Enum.GetValues<DayOfWeek>().Select(day => day.ToString()).ToArray();
+
+        await AssertRejectedWithoutStoring(body, "weekendDays");
+    }
+
     // The string converter still reads numbers unless allowIntegerValues is off, and the number path
     // checks no enum member, so this is the shape that would store an undefined PaymentMode.
     [Fact]

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/data/api/client";
 import type { components } from "@/data/api/schema";
+import { periodsQueryKey } from "@/data/periods/usePeriods";
 
 export type TaxYearConfigRequest = components["schemas"]["TaxYearConfigRequest"];
 export type TaxYearConfigResponse = components["schemas"]["TaxYearConfigResponse"];
@@ -34,6 +35,7 @@ export function useSaveTaxYear() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: taxYearsQueryKey });
+      queryClient.invalidateQueries({ queryKey: periodsQueryKey });
     },
   });
 }
@@ -58,6 +60,7 @@ export function useCloneTaxYear() {
       api.POST("/api/tax-years/{year}/clone-to/{next}", { params: { path: { year, next } } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: taxYearsQueryKey });
+      queryClient.invalidateQueries({ queryKey: periodsQueryKey });
     },
   });
 }

@@ -1,3 +1,6 @@
+using EngineEsvRegistrationMonthPolicy = TaxesUa.Engine.EsvRegistrationMonthPolicy;
+using TaxesUa.Engine;
+
 namespace TaxesUa.Api.Features.Settings;
 
 internal sealed class Settings
@@ -26,6 +29,20 @@ internal sealed class Settings
     public string Theme { get; set; } = "system";
 
     public string DefaultCurrency { get; set; } = "UAH";
+
+    public FopSettingsInput ToEngineInput() => new(
+        WeekendDays,
+        TaxPaymentCountsFromStatutoryDeclarationDate,
+        ShiftTaxPaymentFromWeekend,
+        FopRegistrationDate,
+        EsvRegistrationMonthPolicy switch
+        {
+            EsvRegistrationMonthPolicy.FullMonth => EngineEsvRegistrationMonthPolicy.FullMonth,
+            EsvRegistrationMonthPolicy.Prorated => EngineEsvRegistrationMonthPolicy.Prorated,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(EsvRegistrationMonthPolicy), EsvRegistrationMonthPolicy, message: null),
+        },
+        EsvExempt);
 }
 
 internal enum PaymentMode

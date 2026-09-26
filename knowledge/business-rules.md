@@ -77,12 +77,15 @@ the 2026 reference falls on a weekend or a holiday, so the table cannot settle t
 Q4's deadlines fall in January and February of the following year, and they shift against the
 holidays of the year the quarter belongs to, not the year the dates fall in (to confirm). Nothing
 distinguishes the two readings today, because the martial-law holiday list is empty. It starts to
-matter the first year holidays come back, and `GET /api/periods/{year}` will harden whichever
-reading it is built on, so this is the ambiguity to settle first.
+matter the first year holidays come back. `GET /api/periods/{year}` is built on this reading: it
+passes the quarter year's `TaxYearConfig` for all four quarters, so a Q4 date is shifted only by a
+holiday listed in that year's config. If the owner confirms the other reading, the endpoint is the
+one place to change.
 
 Whether the quarter *containing* `Settings.FopRegistrationDate` is shown at all is a display
-decision, not a rule. The engine returns every quarter of the year and leaves the choice to the
-screen.
+decision, not a rule. The engine returns every quarter of the year; `GET /api/periods/{year}` omits
+a quarter whose last day is before the registration date and keeps the quarter containing it, since
+that quarter carries obligations.
 
 2026 reference (ESV / declaration / tax):
 
