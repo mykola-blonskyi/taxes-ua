@@ -1353,7 +1353,15 @@ export interface components {
         PeriodsResponse: {
             /** Format: int32 */
             year: number | string;
+            warnings: components["schemas"]["PeriodWarnings"];
             quarters: components["schemas"]["QuarterPeriodResponse"][];
+        };
+        PeriodWarnings: {
+            taxYearUnverified: boolean;
+            fopRegistrationDateNotSet: boolean;
+            /** Format: int32 */
+            excludedOperationCount: number | string;
+            negativeCumulativeTaxQuarters: (number | string)[];
         };
         ProblemDetails: {
             type?: null | string;
@@ -1371,6 +1379,22 @@ export interface components {
         QuarterPeriodResponse: {
             /** Format: int32 */
             quarter: number | string;
+            /** Format: int64 */
+            incomeKop: number | string;
+            /** Format: int64 */
+            singleTaxKop: number | string;
+            /** Format: int64 */
+            militaryLevyKop: number | string;
+            /** Format: int64 */
+            esvKop: number | string;
+            /** Format: int64 */
+            totalKop: number | string;
+            /** Format: int64 */
+            cumulativeIncomeKop: number | string;
+            /** Format: int64 */
+            cumulativeSingleTaxKop: number | string;
+            /** Format: int64 */
+            cumulativeMilitaryLevyKop: number | string;
             deadlines: components["schemas"]["QuarterDeadlines"];
         };
         /** @enum {unknown} */

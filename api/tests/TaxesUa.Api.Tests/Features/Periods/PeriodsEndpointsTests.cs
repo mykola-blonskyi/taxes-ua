@@ -2,9 +2,13 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
+using TaxesUa.Api.Features.Transactions;
+using TaxesUa.Engine;
+using EsvRegistrationMonthPolicy = TaxesUa.Api.Features.Settings.EsvRegistrationMonthPolicy;
 
 namespace TaxesUa.Api.Tests.Features.Periods;
 
@@ -123,6 +127,149 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         }
     }
 
+    // Registration 2092-02-10 leaves Q1 two ESV months. The January receipt predates it, the Q3
+    // refund is smaller than the income already taxed, and the own transfer is not income.
+    [Fact]
+    public async Task Accruals_match_the_engine_on_the_same_data()
+    {
+        const int year = 2092;
+        using var client = await SignIn();
+        var config = TaxYearRequest(holidays: []);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", config)).StatusCode);
+        try
+        {
+            var settings = await SetRegistrationDate(client, Date("2092-02-10"));
+            await PostTransaction(client, "2092-01-20", 5_000_000, TransactionKind.Income);
+            await PostTransaction(client, "2092-02-15", 10_000_000, TransactionKind.Income);
+            await PostTransaction(client, "2092-05-05", 20_000_000, TransactionKind.Income);
+            await PostTransaction(client, "2092-08-01", 3_000_000, TransactionKind.RefundToClient);
+            await PostTransaction(client, "2092-08-02", 99_999, TransactionKind.OwnTransfer, "between my accounts");
+
+            var periods = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
+
+            var expected = Accruals.ForYear(
+                year,
+                [
+                    new TransactionInput.Income(Date("2092-01-20"), 5_000_000),
+                    new TransactionInput.Income(Date("2092-02-15"), 10_000_000),
+                    new TransactionInput.Income(Date("2092-05-05"), 20_000_000),
+                    new TransactionInput.RefundToClient(Date("2092-08-01"), 3_000_000),
+                    new TransactionInput.NonIncome(Date("2092-08-02"), 99_999, NonIncomeKind.OwnTransfer, "x"),
+                ],
+                new TaxYearConfigInput(
+                    config.MinWageKop,
+                    config.SingleTaxRateBp,
+                    config.MilitaryLevyRateBp,
+                    config.EsvRateBp,
+                    config.EsvDeadlineDay,
+                    config.DeclarationDays,
+                    config.TaxPaymentDaysAfterDeclaration,
+                    config.Holidays),
+                new FopSettingsInput(
+                    settings.WeekendDays,
+                    settings.TaxPaymentCountsFromStatutoryDeclarationDate,
+                    settings.ShiftTaxPaymentFromWeekend,
+                    Date("2092-02-10"),
+                    TaxesUa.Engine.EsvRegistrationMonthPolicy.FullMonth,
+                    EsvExempt: false));
+
+            Assert.Equal(4, periods!.Quarters.Length);
+            foreach (var engine in expected.Quarters)
+            {
+                var actual = Assert.Single(periods.Quarters, q => q.Quarter == engine.Income.Quarter);
+                Assert.Equal(engine.Income.IncomeKop, actual.IncomeKop);
+                Assert.Equal(engine.SingleTaxKop, actual.SingleTaxKop);
+                Assert.Equal(engine.MilitaryLevyKop, actual.MilitaryLevyKop);
+                Assert.Equal(engine.EsvKop, actual.EsvKop);
+                Assert.Equal(engine.TotalKop, actual.TotalKop);
+                Assert.Equal(engine.Income.CumulativeIncomeKop, actual.CumulativeIncomeKop);
+                Assert.Equal(engine.CumulativeSingleTaxKop, actual.CumulativeSingleTaxKop);
+                Assert.Equal(engine.CumulativeMilitaryLevyKop, actual.CumulativeMilitaryLevyKop);
+            }
+
+            // The same figures by hand, so a fault shared by the api and the engine still fails here.
+            // ESV is 21% of 8,000.00 = 1,680.00 a month.
+            var q1 = periods.Quarters[0];
+            Assert.Equal(
+                (10_000_000L, 600_000L, 200_000L, 336_000L, 1_136_000L),
+                (q1.IncomeKop, q1.SingleTaxKop, q1.MilitaryLevyKop, q1.EsvKop, q1.TotalKop));
+            var q3 = periods.Quarters[2];
+            Assert.Equal(
+                (-3_000_000L, -180_000L, -60_000L, 504_000L),
+                (q3.IncomeKop, q3.SingleTaxKop, q3.MilitaryLevyKop, q3.EsvKop));
+            var q4 = periods.Quarters[3];
+            Assert.Equal(
+                (27_000_000L, 1_620_000L, 540_000L),
+                (q4.CumulativeIncomeKop, q4.CumulativeSingleTaxKop, q4.CumulativeMilitaryLevyKop));
+            Assert.Equal(periods.Quarters.Sum(q => q.SingleTaxKop), q4.CumulativeSingleTaxKop);
+
+            Assert.True(periods.Warnings.TaxYearUnverified);
+            Assert.False(periods.Warnings.FopRegistrationDateNotSet);
+            Assert.Equal(1, periods.Warnings.ExcludedOperationCount);
+            Assert.Empty(periods.Warnings.NegativeCumulativeTaxQuarters);
+        }
+        finally
+        {
+            await DeleteTransactions(client, year);
+            await ResetSettings(client);
+        }
+    }
+
+    [Fact]
+    public async Task A_verified_year_carries_no_unverified_warning()
+    {
+        const int year = 2095;
+        using var client = await SignIn();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync($"/api/tax-years/{year}", TaxYearRequest(holidays: []))).StatusCode);
+
+        var before = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/tax-years/{year}/verify", null)).StatusCode);
+        var after = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
+
+        Assert.True(before!.Warnings.TaxYearUnverified);
+        Assert.False(after!.Warnings.TaxYearUnverified);
+    }
+
+    [Fact]
+    public async Task Without_a_registration_date_every_figure_is_zero_and_says_why()
+    {
+        using var client = await SignIn();
+
+        var periods = await client.GetFromJsonAsync<PeriodsResponse>("/api/periods/2026", Json);
+
+        Assert.True(periods!.Warnings.FopRegistrationDateNotSet);
+        Assert.All(periods.Quarters, quarter => Assert.Equal((0L, 0L), (quarter.TotalKop, quarter.CumulativeIncomeKop)));
+    }
+
+    [Fact]
+    public async Task A_refund_larger_than_the_income_so_far_names_the_negative_quarters()
+    {
+        const int year = 2094;
+        using var client = await SignIn();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync($"/api/tax-years/{year}", TaxYearRequest(holidays: []))).StatusCode);
+        try
+        {
+            await SetRegistrationDate(client, Date("2094-01-01"));
+            await PostTransaction(client, "2094-02-01", 1_000_000, TransactionKind.Income);
+            await PostTransaction(client, "2094-03-01", 3_000_000, TransactionKind.RefundToClient);
+            await PostTransaction(client, "2094-07-01", 5_000_000, TransactionKind.Income);
+
+            var periods = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
+
+            Assert.Equal(new[] { 1, 2 }, periods!.Warnings.NegativeCumulativeTaxQuarters);
+            Assert.Equal(-2_000_000, periods.Quarters[1].CumulativeIncomeKop);
+        }
+        finally
+        {
+            await DeleteTransactions(client, year);
+            await ResetSettings(client);
+        }
+    }
+
     [Fact]
     public async Task A_missing_year_is_not_found()
     {
@@ -190,6 +337,34 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         "a test source");
 
     private static DateOnly Date(string iso) => DateOnly.Parse(iso);
+
+    private static async Task<SettingsResponse> SetRegistrationDate(HttpClient client, DateOnly date)
+    {
+        var settings = await client.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
+        var request = ToRequest(settings!) with { FopRegistrationDate = date };
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/settings", request, Json)).StatusCode);
+        return settings!;
+    }
+
+    private static async Task PostTransaction(
+        HttpClient client, string valueDate, long amountMinor, TransactionKind kind, string? nonIncomeReason = null)
+    {
+        var response = await client.PostAsJsonAsync(
+            "/api/transactions",
+            new TransactionRequest(
+                Date(valueDate), amountMinor, Currency.UAH, null, kind, nonIncomeReason, null, null, null),
+            Json);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    private static async Task DeleteTransactions(HttpClient client, int year)
+    {
+        var list = await client.GetFromJsonAsync<TransactionListResponse>($"/api/transactions?year={year}", Json);
+        foreach (var item in list!.Items)
+        {
+            await client.DeleteAsync($"/api/transactions/{item.Id}");
+        }
+    }
 
     private async Task ResetSettings(HttpClient client)
     {
