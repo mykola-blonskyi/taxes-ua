@@ -179,12 +179,15 @@ src/
       hooks/    hooks on top of data: assemble queries and mutations for the feature's scenario
       tests/
       index.ts  the feature's single public entry point
-  shared/       the bottom layer, depends on nothing
+  shared/       the bottom layer. Imports nothing from app, features or data
     lib/        utilities: cn, money and date formatting
     ui/         shadcn/ui components (alias @/shared/ui in components.json)
     types/      hand-written types unrelated to the API
     constants/
-    theme/      color tokens from the prototype, ThemeProvider
+    shell/      app chrome shared by every route group: navigation, header, disclaimer, the
+                theme and language toggles
+    theme/      ThemeProvider and the theme toggle. The colour tokens themselves live in
+                app/globals.css, because Tailwind v4 keeps the theme in CSS
   i18n/         next-intl configuration, locale chosen from a cookie
 ```
 
@@ -216,15 +219,18 @@ imports` in eslint.
 ## Security
 
 Authentication: ASP.NET Core Identity, Google as the external sign-in, passkey as a second
-method. Sign-in is allowed only for the email in `Auth__AllowedEmails`. Cookie
-`HttpOnly; Secure; SameSite=Lax`.
+method. Sign-in requires an email listed in `Auth__AllowedEmails` that Google reports as verified.
+Both the session cookie and the external sign-in cookie are `HttpOnly; Secure; SameSite=Lax`. A
+session cannot be revoked server-side, which [ADR-009](decisions.md) explains.
 
 Authorization: every read and write is filtered by the `UserId` from the session.
 
 Secrets management: the bank-token encryption key lives only in the environment. Tokens are
 decrypted at the moment of the bank API call and never appear in logs, responses or the client.
 
-Other: HTTPS via Traefik. Anti-forgery for cookie auth via the `X-Requested-With` header and
+Other: HTTPS via Traefik. `ALLOWED_HOSTS` pins the host the Google redirect URI is built from, and
+the api refuses to start in Production without it. The OpenAPI document is served only in
+Development. Anti-forgery for cookie auth via the `X-Requested-With` header and
 SameSite. Change log `audit_log`. In-app disclaimer: the calculation is informational.
 
 ---

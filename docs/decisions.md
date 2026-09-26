@@ -267,3 +267,58 @@ One folder maps to one ticket and to the same mental model already used on the f
 to multiple developers or the API grows well past today's resource count, revisit: vertical
 slices scale per developer up to a point, and Clean Architecture's extra ceremony starts paying
 for itself past it. Not a concern at the current size.
+
+---
+
+## ADR-009. No server-side session revocation
+
+Date: 2026-09-26
+
+Status: Accepted
+
+### Context
+
+The api signs the owner in with `AddIdentityCore`, `AddIdentityCookies` and `AddSignInManager`,
+and registers no `ITicketStore`. The session cookie is therefore a self-contained encrypted
+ticket: the server keeps no record of it and authenticates a request by decrypting the cookie it
+carries. `POST /api/auth/logout` deletes the cookie from the browser and does nothing else, so a
+cookie copied off the machine beforehand keeps working until its own expiry, and there is no way
+to end every session from the server. Identity's security-stamp validator, which invalidates
+tickets after a credential change, is not on this path either. It comes with the full
+`AddIdentity` wiring, and `AddIdentityCore` does not add it.
+
+### Decision
+
+Session revocation stays absent. No ticket store, no session table, no security-stamp validation.
+
+The application has one user. The cookie is `HttpOnly; Secure; SameSite=Lax` and is read only by
+the api behind Traefik, so replaying it takes access to the owner's browser or machine, and that
+access already carries the owner's Google session. Sign-out-everywhere has no second device to
+serve and no second account to protect.
+
+### Alternatives Considered
+
+An `ITicketStore` over PostgreSQL or a distributed cache. Real revocation, paid for with a store
+read on every authenticated request, a table to expire, and a new failure mode where the store is
+unreachable and nobody can sign in.
+
+`AddIdentity` with security-stamp validation. Revalidates the ticket against the user's security
+stamp on an interval, which ends other sessions within that window. Cheaper than a ticket store,
+but it revokes only after a deliberate stamp change, which nothing in the application performs.
+
+A shorter cookie lifetime. Narrows the replay window with no machinery, at the cost of signing the
+owner in again on a schedule. The cookie is persistent on purpose, because the owner works from
+one machine.
+
+### Consequences
+
+A captured cookie replays until it expires. The only answer to a suspected theft is to rotate the
+data-protection keys, which invalidates every ticket at once.
+
+The key ring currently lives inside the container with no persistence configured, so every
+redeploy already invalidates every ticket. That is an accident of the deployment rather than a
+revocation mechanism, and it stops being true as soon as the keys are persisted.
+
+Revisit when a second account appears, when the api runs as more than one instance, or when the
+owner wants to end a session from the interface. A ticket store is the smaller of the two changes
+and the one to reach for then.

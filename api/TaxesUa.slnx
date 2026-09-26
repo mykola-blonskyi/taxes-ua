@@ -4,6 +4,7 @@
     <Project Path="src/TaxesUa.Engine/TaxesUa.Engine.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/TaxesUa.Api.Tests/TaxesUa.Api.Tests.csproj" />
     <Project Path="tests/TaxesUa.Engine.Tests/TaxesUa.Engine.Tests.csproj" />
   </Folder>
 </Solution>
