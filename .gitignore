@@ -149,6 +149,9 @@ reports/reviews/*.tmp.md
 reports/investigations/*.tmp.md
 reports/audits/*.tmp.md
 
+# Verification evidence from .claude/skills/verify-taxes-ua
+.verify/
+
 # ============================================================
 # Graphify
 # ============================================================

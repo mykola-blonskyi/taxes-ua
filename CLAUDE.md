@@ -80,3 +80,8 @@ Default vocabulary: needs-triage, needs-info, ready-for-agent, ready-for-human, 
 ### Domain docs
 
 Single-context. Glossary and rules in `knowledge/`, ADRs in `docs/decisions.md`. See `docs/agents/domain.md`.
+
+### Verification
+
+Prove any UI change in a real browser before calling it done: launch the stack, sign in through the
+Development seam, and measure every screen. See `.claude/skills/verify-taxes-ua/SKILL.md`.
