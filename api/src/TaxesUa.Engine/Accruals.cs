@@ -33,7 +33,26 @@ public sealed record YearAccrual(
     int Year,
     IReadOnlyList<MonthIncome> Months,
     IReadOnlyList<QuarterAccrual> Quarters,
-    IReadOnlyList<EngineWarning> Warnings);
+    IReadOnlyList<EngineWarning> Warnings)
+{
+    /// <summary>
+    /// Stops at <paramref name="quarter"/> because ESV accrues every month of the year up front: the
+    /// whole year's ESV over part of a year's income would overstate the rate until December.
+    /// </summary>
+    public TaxBurden BurdenThrough(int quarter) => new(
+        Quarters[quarter - 1].Income.CumulativeIncomeKop,
+        Quarters.Take(quarter).Sum(accrual => accrual.TotalKop));
+}
+
+/// <summary>
+/// Everything accrued against the income it was accrued on. A statistic, not a ledger: Rule 7 keeps
+/// balances apart by kind, and nothing here is paid or owed.
+/// </summary>
+public sealed record TaxBurden(long IncomeKop, long TaxKop)
+{
+    /// <summary>Null without income, where ESV alone has no rate to be a share of.</summary>
+    public long? RateBp => IncomeKop > 0 ? Money.ShareBp(TaxKop, IncomeKop) : null;
+}
 
 /// <summary>
 /// The single tax, the military levy and ESV for a year, per Rule 3 of

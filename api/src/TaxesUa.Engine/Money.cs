@@ -18,6 +18,9 @@ public static class Money
     public static long Prorate(long amountKop, int part, int whole) =>
         DivRoundHalfUp(amountKop * part, whole);
 
+    public static long ShareBp(long partKop, long wholeKop) =>
+        DivRoundHalfUp(partKop * BasisPointScale, wholeKop);
+
     private static long DivRoundHalfUp(long numerator, long denominator)
     {
         var (q, r) = Math.DivRem(numerator, denominator);

@@ -45,6 +45,10 @@ National Bank of Ukraine. Publishes the official exchange rate.
 ### Obligation
 A computed entity: what is owed, for which period, how much, and by when.
 
+### Next step
+The home screen's answer to "what do I pay, by when, how much": what is due or overdue, else the
+nearest open deadline, one figure per kind. Computed by `NextStep` in the engine (Rule 7).
+
 ### Advance
 A voluntary monthly payment under `MonthlyAdvance` mode, credited against the quarter.
 
