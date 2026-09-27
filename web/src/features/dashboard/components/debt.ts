@@ -4,11 +4,14 @@ import { parseDateOnly } from "@/shared/lib/dates";
 export function formatLongDate(value: string, today: string, locale: string): string {
   const sameYear = value.slice(0, 4) === today.slice(0, 4);
 
+  // A deadline read across two lines ("19 | лютого") is easy to misread on a phone.
   return new Intl.DateTimeFormat(locale, {
     day: "numeric",
     month: "long",
     year: sameYear ? undefined : "numeric",
-  }).format(parseDateOnly(value));
+  })
+    .format(parseDateOnly(value))
+    .replace(/ /g, " ");
 }
 
 export function periodOf(debt: KindDebt) {
