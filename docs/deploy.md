@@ -54,42 +54,34 @@ the domain answers 526 because Traefik has no route and no certificate for it ye
 
 ## 2. Database role and database
 
-Run the SQL in CloudBeaver (`db.blonskyi.dev`), connected to the instance as `postgres`. Its SQL
-editor has no `\password`, and a plain `PASSWORD 'secret'` is risky: with
-`log_min_error_statement = error`, a statement that fails, say because the role already exists, is
-written to the server log with the password in it. So the role gets a SCRAM verifier computed on
-the laptop, and the password itself never leaves the laptop.
-
 Generate a password and keep it in the password manager:
 
 ```bash
 openssl rand -base64 32 | tr -d '/+='
 ```
 
-Turn it into a SCRAM verifier. The command asks for the password without echoing it and prints a
-line starting with `SCRAM-SHA-256$4096:`:
-
-```bash
-python3 -c 'import getpass,hashlib,hmac,os,base64 as b;p=getpass.getpass().encode();s=os.urandom(16);i=4096;k=hashlib.pbkdf2_hmac("sha256",p,s,i);c=hmac.new(k,b"Client Key","sha256").digest();v=hmac.new(k,b"Server Key","sha256").digest();print(f"SCRAM-SHA-256${i}:{b.b64encode(s).decode()}${b.b64encode(hashlib.sha256(c).digest()).decode()}:{b.b64encode(v).decode()}")'
-```
-
-In CloudBeaver, with auto-commit on (`CREATE DATABASE` cannot run inside a transaction), run the
-two statements one at a time, pasting the verifier in place of `<verifier>`:
+In CloudBeaver (`db.blonskyi.dev`), connected to the instance as `postgres`, run this as a script
+(Alt+X) with auto-commit on, since `CREATE DATABASE` cannot run inside a transaction:
 
 ```sql
-CREATE ROLE taxes_ua_app LOGIN PASSWORD '<verifier>';
+CREATE ROLE taxes_ua_app WITH LOGIN PASSWORD '<password>';
 CREATE DATABASE taxes_ua OWNER taxes_ua_app;
 ```
 
-As the owner, the role can create the tables, function and trigger the api's migrations add to
-`public`. Like the other projects' roles, it can still connect to their databases, and they to
-this one, but none of them can read another's tables: each owns its own objects and grants
-nothing.
+That is all the rights the api needs. As the owner, the role creates the tables, function and
+trigger the migrations add to `public`. Like the other projects' roles, it can still connect to
+their databases, and they to this one, but none of them can read another's tables: each owns its
+own objects and grants nothing.
+
+Run it once. The instance logs the text of a failed statement (`log_min_error_statement =
+error`), so if `CREATE ROLE` fails, for example because the role already exists, the password
+lands in the server log. To change the password later, use
+`ALTER ROLE taxes_ua_app PASSWORD '<password>';`, which carries the same risk if it fails.
 
 **Check.** In CloudBeaver, create a connection with host `3p9qjnulllqn3bcjqokir0wq`, port `5432`,
-database `taxes_ua`, user `taxes_ua_app` and the password (not the verifier), and click Test. It
-connects. A connection over `127.0.0.1` inside the container proves nothing here: the image trusts
-local connections without a password.
+database `taxes_ua`, user `taxes_ua_app` and the password, and click Test. It connects. A
+connection over `127.0.0.1` inside the container proves nothing here: the image trusts local
+connections without a password.
 
 ## 3. The api's route to the database
 
