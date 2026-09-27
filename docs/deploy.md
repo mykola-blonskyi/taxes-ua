@@ -54,41 +54,42 @@ the domain answers 526 because Traefik has no route and no certificate for it ye
 
 ## 2. Database role and database
 
-Generate a password on your laptop and keep it in the password manager:
+Run the SQL in CloudBeaver (`db.blonskyi.dev`), connected to the instance as `postgres`. Its SQL
+editor has no `\password`, and a plain `PASSWORD 'secret'` is risky: with
+`log_min_error_statement = error`, a statement that fails, say because the role already exists, is
+written to the server log with the password in it. So the role gets a SCRAM verifier computed on
+the laptop, and the password itself never leaves the laptop.
+
+Generate a password and keep it in the password manager:
 
 ```bash
 openssl rand -base64 32 | tr -d '/+='
 ```
 
-Open psql on the instance:
+Turn it into a SCRAM verifier. The command asks for the password without echoing it and prints a
+line starting with `SCRAM-SHA-256$4096:`:
 
 ```bash
-ssh -t blonskyi "docker exec -it 3p9qjnulllqn3bcjqokir0wq psql -U postgres"
+python3 -c 'import getpass,hashlib,hmac,os,base64 as b;p=getpass.getpass().encode();s=os.urandom(16);i=4096;k=hashlib.pbkdf2_hmac("sha256",p,s,i);c=hmac.new(k,b"Client Key","sha256").digest();v=hmac.new(k,b"Server Key","sha256").digest();print(f"SCRAM-SHA-256${i}:{b.b64encode(s).decode()}${b.b64encode(hashlib.sha256(c).digest()).decode()}:{b.b64encode(v).decode()}")'
 ```
 
-and run:
+In CloudBeaver, with auto-commit on (`CREATE DATABASE` cannot run inside a transaction), run the
+two statements one at a time, pasting the verifier in place of `<verifier>`:
 
 ```sql
-CREATE ROLE taxes_ua_app LOGIN;
-\password taxes_ua_app
+CREATE ROLE taxes_ua_app LOGIN PASSWORD '<verifier>';
 CREATE DATABASE taxes_ua OWNER taxes_ua_app;
-\q
 ```
-
-`\password` sends only a SCRAM hash, so the secret never lands in shell history, the psql history
-or the server log. `CREATE ROLE ... PASSWORD '...'` would put it in all three.
 
 As the owner, the role can create the tables, function and trigger the api's migrations add to
 `public`. Like the other projects' roles, it can still connect to their databases, and they to
 this one, but none of them can read another's tables: each owns its own objects and grants
 nothing.
 
-**Check.** Over TCP with the new password, from inside the container. psql asks for the password
-and prints `1`:
-
-```bash
-ssh -t blonskyi "docker exec -it 3p9qjnulllqn3bcjqokir0wq psql 'host=127.0.0.1 user=taxes_ua_app dbname=taxes_ua' -c 'select 1'"
-```
+**Check.** In CloudBeaver, create a connection with host `3p9qjnulllqn3bcjqokir0wq`, port `5432`,
+database `taxes_ua`, user `taxes_ua_app` and the password (not the verifier), and click Test. It
+connects. A connection over `127.0.0.1` inside the container proves nothing here: the image trusts
+local connections without a password.
 
 ## 3. The api's route to the database
 
