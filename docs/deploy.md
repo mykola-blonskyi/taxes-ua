@@ -5,14 +5,16 @@ with a check; do not start the next step until the check passes.
 
 Facts this runbook relies on, established in #3 and #20:
 
-- Domain `taxes.blonskyi.dev`. VPS `23.88.118.219`, reached with `ssh blonskyi`.
+- Domain `taxes.blonskyi.dev`. The VPS is reached with `ssh blonskyi`; `<vps-ip>` below is its
+  public address.
 - `blonskyi.dev` is on Cloudflare. The subdomain record does not exist yet.
-- Google OAuth client in Google Cloud project `37938836769`. Its secret was exposed in an agent
-  transcript and must be rotated before production.
+- Google sign-in uses an OAuth client in the owner's Google Cloud project. taxes-ua gets a client
+  of its own with a fresh secret before production (step 4).
 - The database is a new role and database in the PostgreSQL instance already running on the VPS
   (ADR-006), not a new Coolify PostgreSQL resource.
 
-What the repository guarantees, checked in CI by `deploy/check-compose.sh`:
+What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
+`deploy/smoke-test.sh` (which runs this compose file the way Traefik reaches it):
 
 - `api` publishes no port and gets no domain. Only `web` is reachable, through Traefik.
 - `api` runs as `Production` and refuses to start while `DATABASE_URL`, `GOOGLE_CLIENT_ID`,
@@ -20,6 +22,10 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh`:
   Its log names the missing variables, and the container exits instead of staying up unhealthy.
 - The data-protection key ring lives in the `dataprotection-keys` volume, so a redeploy keeps the
   owner signed in (ADR-010).
+- `api` answers only for `ALLOWED_HOSTS`, as forwarded by `web`, plus its own internal names for
+  the healthcheck and the rewrite. A foreign host gets 400.
+- Every response carries HSTS, `nosniff`, `X-Frame-Options: DENY` and a referrer policy, and pages
+  carry a Content-Security-Policy.
 
 ## 0. Find the PostgreSQL instance
 
@@ -43,11 +49,11 @@ MinIO). Step 8 depends on the answer.
 
 ## 1. DNS
 
-In Cloudflare, add an `A` record `taxes` → `23.88.118.219`. Start with **DNS only** (grey cloud) so
+In Cloudflare, add an `A` record `taxes` → `<vps-ip>`. Start with **DNS only** (grey cloud) so
 Traefik can obtain its Let's Encrypt certificate over HTTP. Switch to proxied later only if the
 owner's other Coolify subdomains are proxied too, with SSL mode **Full (strict)**.
 
-**Check.** `dig +short taxes.blonskyi.dev` prints `23.88.118.219` (or Cloudflare addresses once
+**Check.** `dig +short taxes.blonskyi.dev` prints `<vps-ip>` (or Cloudflare addresses once
 proxied).
 
 ## 2. Database role and database
@@ -69,7 +75,8 @@ Generate a password on your laptop (`openssl rand -base64 32 | tr -d '/+='`), th
 interactively so it never lands in shell history or the server log:
 
 ```bash
-ssh -t blonskyi "docker exec -it <postgres-container> psql -U postgres -c '\password taxes_ua'"
+ssh -t blonskyi "docker exec -it <postgres-container> psql -U postgres -c '\password taxes_ua'"   # a container
+ssh -t blonskyi "sudo -u postgres psql -c '\password taxes_ua'"                                  # a host service
 ```
 
 The script ends by listing every other database the role can still connect to. PostgreSQL grants
@@ -117,20 +124,22 @@ Host=<host>;Port=5432;Database=taxes_ua;Username=taxes_ua;Password=<password fro
 
 ## 4. Google OAuth client and secret
 
-The current client is shared with two of the owner's other projects. Give taxes-ua its own:
+The client used during development is shared with two of the owner's other projects. Give
+taxes-ua its own:
 
-1. Google Cloud → project `37938836769` → APIs & Services → Credentials → Create OAuth client ID,
+1. Google Cloud → the owner's project → APIs & Services → Credentials → Create OAuth client ID,
    type Web application.
 2. Authorized redirect URI, exactly: `https://taxes.blonskyi.dev/api/auth/callback/google`. It ends
    in `/callback/google`. `/api/auth/callback` is the app's own landing step, and registering it
    instead is the usual cause of `redirect_uri_mismatch`.
 3. Copy the new client ID and secret into step 5.
 
-Then deal with the exposed secret on the shared client: add a new secret there, move the two other
-projects to it, and disable the old one. Keeping the shared client for taxes-ua instead works too,
-but the rotation is then mandatory before this deploy, and it touches the other two projects.
+Then rotate the secret on the shared client as routine hygiene: add a new secret there, move the
+two other projects to it, and disable the old one. Keeping the shared client for taxes-ua instead
+works too, but only with a freshly rotated secret, and the rotation touches the other two projects.
 
-**Check.** The client shows exactly that redirect URI, and the exposed secret is disabled.
+**Check.** The new client shows exactly that redirect URI, and the shared client's previous secret
+is disabled.
 
 ## 5. Coolify resource
 
@@ -175,8 +184,9 @@ curl -s "$D/api/health"                                                   # {"st
 curl -s -o /dev/null -w '%{http_code}\n' "$D/api/openapi/v1.json"         # 404
 curl -s -o /dev/null -w '%{http_code}\n' "$D/api/auth/login/development?email=<allowlisted email>"  # 404
 curl -s -o /dev/null -w '%{http_code}\n' "$D/api/auth/me"                 # 401
-curl -sI "$D/api/auth/login/google" | grep -i '^location'                 # accounts.google.com, redirect_uri=https%3A%2F%2Ftaxes.blonskyi.dev%2Fapi%2Fauth%2Fcallback%2Fgoogle
-curl -s -m 5 http://23.88.118.219:8080/api/health || echo unreachable     # unreachable
+curl -s -o /dev/null -D - "$D/api/auth/login/google" | grep -i '^location'  # accounts.google.com, redirect_uri=https%3A%2F%2Ftaxes.blonskyi.dev%2Fapi%2Fauth%2Fcallback%2Fgoogle
+curl -s -o /dev/null -D - "$D/" | grep -i -E '^(strict-transport|content-security|x-frame)'  # all three present
+curl -s -m 5 http://<vps-ip>:8080/api/health || echo unreachable          # unreachable
 ```
 
 On the VPS, `api` has no host port and no Traefik router:
@@ -207,7 +217,7 @@ dump succeeds.
 
 ```bash
 scp deploy/postgres/dump.sh blonskyi:/home/mykola/bin/taxes-ua-dump.sh
-ssh blonskyi 'sudo mkdir -p /var/backups/taxes-ua && sudo chown mykola /var/backups/taxes-ua'
+ssh blonskyi 'sudo install -d -m 700 -o mykola /var/backups/taxes-ua'
 ssh blonskyi 'crontab -e'
 ```
 
@@ -216,11 +226,20 @@ ssh blonskyi 'crontab -e'
 ```
 
 For a host service, replace `docker exec <postgres-container> pg_dump -U postgres` with
-`sudo -u postgres pg_dump`. The dumps sit on the same disk as the database; copy them off the VPS
-(MinIO or the laptop) for them to survive losing it.
+`sudo -u postgres pg_dump`. Cron cannot answer a sudo prompt, so that needs a sudoers rule letting
+`mykola` run exactly that command without a password, for example
+`mykola ALL=(postgres) NOPASSWD: /usr/bin/pg_dump` in `/etc/sudoers.d/taxes-ua-dump` (edit it with
+`visudo -f`). The dumps sit on the same disk as the database; copy them off the VPS (MinIO or the
+laptop) for them to survive losing it.
 
-**Check.** Run the cron line once by hand, then
-`pg_restore --list /var/backups/taxes-ua/<file>.dump | grep -c 'TABLE DATA'` prints a non-zero count.
+**Check.** Run the cron line once by hand, then list the newest dump's contents. It prints a
+non-zero count:
+
+```bash
+f=$(ls -t /var/backups/taxes-ua/*.dump | head -1)
+docker exec -i <postgres-container> pg_restore --list < "$f" | grep -c 'TABLE DATA'   # a container
+pg_restore --list "$f" | grep -c 'TABLE DATA'                                        # a host service
+```
 
 ## 9. Checks that need the real domain
 
@@ -237,14 +256,24 @@ domain. Do them now and tick them on their issues:
 
 ## Rollback
 
-**A bad release.** Revert the offending commit on `main` and deploy, or pick the previous
-deployment in Coolify and redeploy it. Migrations run on startup and only move forward, so before
-deploying a release that carries a migration, take a dump (step 8's command, run by hand). If the
-schema change must be undone, restore that dump into the database:
+**A bad release without a migration.** Revert the offending commit on `main` and deploy. That is
+the documented path for the Compose build pack: Coolify builds whatever `main` holds.
 
-```bash
-docker exec -i <postgres-container> pg_restore -U postgres --clean --if-exists -d taxes_ua < <file>.dump
-```
+**A bad release with a migration.** Migrations run when `api` starts and only move forward, so the
+old code may not run against the new schema. Take a dump before deploying any release that
+carries a migration (step 8's command, run by hand). To roll back:
+
+1. Stop the resource in Coolify, so nothing writes to the database while it is restored.
+2. Restore the dump taken before the release. **Everything written after that dump is lost.**
+
+   ```bash
+   docker exec -i <postgres-container> pg_restore -U postgres --clean --if-exists --no-owner --role=taxes_ua -d taxes_ua < <file>.dump
+   ```
+
+3. Revert the release on `main`.
+4. Deploy, which starts the old code against the restored schema.
+
+**Check.** Step 7's commands pass again.
 
 **Abandoning the first deploy.** Stop and delete the Coolify resource, remove the DNS record,
 remove the `pg_hba.conf` lines and reload, then drop what step 2 created. This deletes the data:

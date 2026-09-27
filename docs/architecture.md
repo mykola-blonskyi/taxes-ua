@@ -257,7 +257,11 @@ Secrets management: the bank-token encryption key lives only in the environment.
 decrypted at the moment of the bank API call and never appear in logs, responses or the client.
 
 Other: HTTPS via Traefik. `ALLOWED_HOSTS` pins the host the Google redirect URI is built from, and
-the api refuses to start in Production without it. `PASSKEY_SERVER_DOMAIN` pins the WebAuthn Relying
+the api refuses to start in Production without it. Host filtering sees the host the container was
+addressed by, so outside Development it also accepts `api` and `localhost`; the pin to the domain is
+`ForwardedHeadersOptions.AllowedHosts`, and a forwarded host outside it gets 400. `web/next.config.ts`
+sends HSTS, `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a Content-Security-Policy; the
+api sends the same headers except the CSP on `/api/*`, which Next passes through untouched. `PASSKEY_SERVER_DOMAIN` pins the WebAuthn Relying
 Party ID rather than letting Identity infer it from the host header, and the api refuses to start
 without it too; a passkey is bound to the RP ID it was registered against. The OpenAPI document is
 served only in Development. Anti-forgery for cookie auth via the `X-Requested-With` header and

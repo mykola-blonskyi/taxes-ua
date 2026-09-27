@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HostFiltering;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -59,7 +60,8 @@ string[] missing = builder.Environment.IsDevelopment()
             ("Authentication:Google:ClientSecret", "GOOGLE_CLIENT_SECRET"),
             ("Auth:AllowedEmails", "ALLOWED_EMAILS"),
         }
-        .Where(required => string.IsNullOrWhiteSpace(builder.Configuration[required.Key]))
+        .Where(required => builder.Configuration[required.Key]?.Split(
+            [',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) is not { Length: > 0 })
         .Select(required => required.Variable)];
 if (missing.Length > 0)
 {
@@ -85,6 +87,17 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
     options.AllowedHosts = allowedHosts;
 });
+
+// Host filtering runs as a startup filter, ahead of UseForwardedHeaders, so it sees the Host this
+// container was addressed by: `api:8080` from web's rewrite and `localhost:8080` from the
+// healthcheck, never the public domain. Pinned to the domain alone it answers 400 to both. The
+// domain pin that matters is ForwardedHeadersOptions.AllowedHosts above, and the check after
+// UseForwardedHeaders below refuses a forwarded host it did not accept.
+if (!builder.Environment.IsDevelopment())
+{
+    builder.Services.Configure<HostFilteringOptions>(options =>
+        options.AllowedHosts = [.. allowedHosts, "api", "localhost"]);
+}
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -182,6 +195,32 @@ builder.Services.AddAuthorization();
 var app = builder.Build();
 
 app.UseForwardedHeaders();
+
+if (!app.Environment.IsDevelopment())
+{
+    app.Use(async (context, next) =>
+    {
+        // UseForwardedHeaders removes X-Forwarded-Host once it applies it, and leaves it in place
+        // when the host is not in ALLOWED_HOSTS. A request still carrying it names a host this
+        // deployment does not serve, and would otherwise continue as `api` and build redirects
+        // from that.
+        if (context.Request.Headers.ContainsKey("X-Forwarded-Host"))
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
+        // web/next.config.ts sets these on its own pages, but Next passes a rewritten /api/*
+        // response through with only the headers this process wrote.
+        var headers = context.Response.Headers;
+        headers.StrictTransportSecurity = "max-age=31536000; includeSubDomains";
+        headers.XContentTypeOptions = "nosniff";
+        headers.XFrameOptions = "DENY";
+        headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+
+        await next();
+    });
+}
 app.UseAuthentication();
 app.UseAuthorization();
 
