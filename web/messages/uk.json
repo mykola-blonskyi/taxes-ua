@@ -143,7 +143,7 @@
     "singleTax": "ЄП",
     "militaryLevy": "ВЗ",
     "esv": "ЄСВ",
-    "total": "Разом",
+    "total": "Нараховано всього",
     "esvDue": "Сплата ЄСВ",
     "declaration": "Подання декларації",
     "taxPayment": "Сплата ЄП і ВЗ",
@@ -214,7 +214,8 @@
       "confirmDelete": "Видалити?",
       "confirmDeleteYes": "Так, видалити",
       "confirmDeleteCancel": "Скасувати",
-      "deleteFailed": "Не вдалося видалити:"
+      "deleteFailed": "Не вдалося видалити:",
+      "beforeRegistrationWarning": "дата оплати раніше дати реєстрації, перевірте"
     },
     "balances": {
       "title": "Баланси за {year} рік",

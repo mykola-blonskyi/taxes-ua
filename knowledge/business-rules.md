@@ -14,6 +14,10 @@ Not income: transfers between one's own accounts, hryvnia from selling one's own
 exchange-rate differences, top-ups from one's own funds, refunds of erroneous payments. Every
 such operation must carry a type and a reason. Expenses are not deductible.
 
+Income arises on the credit date, so a transaction cannot be dated after today in Kyiv. A
+`ValueDate` in the future is rejected with a field error, and the form does not let the owner pick
+one.
+
 ---
 
 ## Rule 2. Currency and exchange rate
@@ -35,7 +39,8 @@ Formula: `AmountUahKop = roundHalfUp(AmountMinor × RateE4 / 10000)`.
 - Military Levy: `MilitaryLevyRateBp` of income (2026: 1%).
 - ESV for oneself: `EsvRateBp` of the monthly minimum wage (2026: 22% × 8,647 = 1,902.34 UAH).
   Paid from the month of FOP registration, regardless of income.
-- Registration month: full amount by default. Setting `EsvRegistrationMonthPolicy`. To confirm.
+- Registration month: prorated by active days by default (`EsvRegistrationMonthPolicy.Prorated`),
+  confirmed by the owner. `EsvRegistrationMonthPolicy.FullMonth` stays available as a setting.
 - ESV exemption (`Settings.EsvExempt`) zeroes out the ESV accrual.
 
 The declaration is filed cumulatively. Quarter tax = tax on cumulative income minus tax already
@@ -134,6 +139,10 @@ by its own date only.
 Advice for the owner: file the Group 3 application together with the registration, so the single
 tax applies from the registration date. Otherwise the general tax system applies until the 1st of
 the following month.
+
+A budget payment whose `PaidOn` is before `FopRegistrationDate` is a different case: it is still
+saved and credited toward its kind's balance (unlike a receipt, a payment is never excluded), and
+the payments list only shows a soft warning on that row so the owner can double-check the date.
 
 ---
 

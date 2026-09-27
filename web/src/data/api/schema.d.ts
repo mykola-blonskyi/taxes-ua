@@ -1750,6 +1750,7 @@ export interface components {
             /** Format: int32 */
             periodMonth: null | number | string;
             note: null | string;
+            beforeRegistration: boolean;
         };
         PeriodsResponse: {
             /** Format: int32 */

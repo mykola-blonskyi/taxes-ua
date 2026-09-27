@@ -37,7 +37,7 @@ public sealed class ExportEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     [Fact]
     public async Task Csv_export_is_scoped_to_the_owner_and_the_year()
     {
-        const int year = 2031;
+        const int year = 2003;
         using var owner = await SignIn(ApiFixture.AllowedEmail);
         using var other = await SignIn(ApiFixture.SecondAllowedEmail);
 
@@ -66,7 +66,7 @@ public sealed class ExportEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     [Fact]
     public async Task Xlsx_export_is_scoped_to_the_owner_and_the_year()
     {
-        const int year = 2032;
+        const int year = 2005;
         using var owner = await SignIn(ApiFixture.AllowedEmail);
 
         await Create(owner, valueDate: new DateOnly(year, 1, 5));

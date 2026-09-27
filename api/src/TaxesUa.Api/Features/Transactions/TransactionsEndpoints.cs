@@ -85,11 +85,12 @@ public static class TransactionsEndpoints
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 FxRates rates,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
                 var normalized = Normalize(request);
-                if (Validate(request, normalized) is { } errors)
+                if (Validate(request, normalized, time.TodayInKyiv()) is { } errors)
                 {
                     return Results.ValidationProblem(errors);
                 }
@@ -141,11 +142,12 @@ public static class TransactionsEndpoints
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 FxRates rates,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
                 var normalized = Normalize(request);
-                if (Validate(request, normalized) is { } errors)
+                if (Validate(request, normalized, time.TodayInKyiv()) is { } errors)
                 {
                     return Results.ValidationProblem(errors);
                 }
@@ -514,7 +516,8 @@ public static class TransactionsEndpoints
         ["year"] = [$"year must be between {MinYear} and {MaxYear}."],
     };
 
-    internal static Dictionary<string, string[]>? Validate(TransactionRequest request, NormalizedText normalized)
+    internal static Dictionary<string, string[]>? Validate(
+        TransactionRequest request, NormalizedText normalized, DateOnly today)
     {
         var errors = new Dictionary<string, string[]>();
 
@@ -543,6 +546,12 @@ public static class TransactionsEndpoints
         {
             errors[Field(nameof(request.ValueDate))] =
                 [$"valueDate year must be between {MinYear} and {MaxYear}."];
+        }
+        else if (request.ValueDate > today)
+        {
+            // Income arises on the credit date (Rule 2), so a real operation cannot be dated after
+            // today in Kyiv.
+            errors[Field(nameof(request.ValueDate))] = ["valueDate must not be after today."];
         }
 
         var isIncomeKind = request.Kind is TransactionKind.Income or TransactionKind.RefundToClient;

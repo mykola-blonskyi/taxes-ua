@@ -143,7 +143,7 @@
     "singleTax": "ЕН",
     "militaryLevy": "ВС",
     "esv": "ЕСВ",
-    "total": "Итого",
+    "total": "Начислено всего",
     "esvDue": "Уплата ЕСВ",
     "declaration": "Подача декларации",
     "taxPayment": "Уплата ЕН и ВС",
@@ -214,7 +214,8 @@
       "confirmDelete": "Удалить?",
       "confirmDeleteYes": "Да, удалить",
       "confirmDeleteCancel": "Отмена",
-      "deleteFailed": "Не удалось удалить:"
+      "deleteFailed": "Не удалось удалить:",
+      "beforeRegistrationWarning": "дата оплаты раньше даты регистрации, проверьте"
     },
     "balances": {
       "title": "Балансы за {year} год",

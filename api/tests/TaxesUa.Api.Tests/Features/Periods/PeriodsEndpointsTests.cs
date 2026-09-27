@@ -62,25 +62,25 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         }
     }
 
-    // 2093-04-20 (a Monday) is the Q1 ESV statutory date TaxYearRequest's EsvDeadlineDay=20 produces
+    // 2009-04-20 (a Monday) is the Q1 ESV statutory date TaxYearRequest's EsvDeadlineDay=20 produces
     // for this year. Naming it as a holiday pushes the due date to the next weekday, Tuesday the 21st.
     [Fact]
     public async Task A_configured_holiday_shifts_a_deadline()
     {
-        const int year = 2093;
+        const int year = 2009;
         using var client = await SignIn();
 
         Assert.Equal(
             HttpStatusCode.OK,
             (await client.PutAsJsonAsync(
                 $"/api/tax-years/{year}",
-                TaxYearRequest(holidays: [Date("2093-04-20")]))).StatusCode);
+                TaxYearRequest(holidays: [Date("2009-04-20")]))).StatusCode);
 
         var periods = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
 
         var q1 = Assert.Single(periods!.Quarters, quarter => quarter.Quarter == 1);
-        Assert.Equal(Date("2093-04-20"), q1.Deadlines.Esv.Statutory);
-        Assert.Equal(Date("2093-04-21"), q1.Deadlines.Esv.Due);
+        Assert.Equal(Date("2009-04-20"), q1.Deadlines.Esv.Statutory);
+        Assert.Equal(Date("2009-04-21"), q1.Deadlines.Esv.Due);
     }
 
     [Fact]
@@ -127,34 +127,34 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         }
     }
 
-    // Registration 2092-02-10 leaves Q1 two ESV months. The January receipt predates it, the Q3
+    // Registration 2012-02-10 leaves Q1 two ESV months. The January receipt predates it, the Q3
     // refund is smaller than the income already taxed, and the own transfer is not income.
     [Fact]
     public async Task Accruals_match_the_engine_on_the_same_data()
     {
-        const int year = 2092;
+        const int year = 2012;
         using var client = await SignIn();
         var config = TaxYearRequest(holidays: []);
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", config)).StatusCode);
         try
         {
-            var settings = await SetRegistrationDate(client, Date("2092-02-10"));
-            await PostTransaction(client, "2092-01-20", 5_000_000, TransactionKind.Income);
-            await PostTransaction(client, "2092-02-15", 10_000_000, TransactionKind.Income);
-            await PostTransaction(client, "2092-05-05", 20_000_000, TransactionKind.Income);
-            await PostTransaction(client, "2092-08-01", 3_000_000, TransactionKind.RefundToClient);
-            await PostTransaction(client, "2092-08-02", 99_999, TransactionKind.OwnTransfer, "between my accounts");
+            var settings = await SetRegistrationDate(client, Date("2012-02-10"));
+            await PostTransaction(client, "2012-01-20", 5_000_000, TransactionKind.Income);
+            await PostTransaction(client, "2012-02-15", 10_000_000, TransactionKind.Income);
+            await PostTransaction(client, "2012-05-05", 20_000_000, TransactionKind.Income);
+            await PostTransaction(client, "2012-08-01", 3_000_000, TransactionKind.RefundToClient);
+            await PostTransaction(client, "2012-08-02", 99_999, TransactionKind.OwnTransfer, "between my accounts");
 
             var periods = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
 
             var expected = Accruals.ForYear(
                 year,
                 [
-                    new TransactionInput.Income(Date("2092-01-20"), 5_000_000),
-                    new TransactionInput.Income(Date("2092-02-15"), 10_000_000),
-                    new TransactionInput.Income(Date("2092-05-05"), 20_000_000),
-                    new TransactionInput.RefundToClient(Date("2092-08-01"), 3_000_000),
-                    new TransactionInput.NonIncome(Date("2092-08-02"), 99_999, NonIncomeKind.OwnTransfer, "x"),
+                    new TransactionInput.Income(Date("2012-01-20"), 5_000_000),
+                    new TransactionInput.Income(Date("2012-02-15"), 10_000_000),
+                    new TransactionInput.Income(Date("2012-05-05"), 20_000_000),
+                    new TransactionInput.RefundToClient(Date("2012-08-01"), 3_000_000),
+                    new TransactionInput.NonIncome(Date("2012-08-02"), 99_999, NonIncomeKind.OwnTransfer, "x"),
                 ],
                 new TaxYearConfigInput(
                     config.MinWageKop,
@@ -169,7 +169,7 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
                     settings.WeekendDays,
                     settings.TaxPaymentCountsFromStatutoryDeclarationDate,
                     settings.ShiftTaxPaymentFromWeekend,
-                    Date("2092-02-10"),
+                    Date("2012-02-10"),
                     TaxesUa.Engine.EsvRegistrationMonthPolicy.FullMonth,
                     EsvExempt: false));
 
@@ -218,7 +218,7 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
     [Fact]
     public async Task A_verified_year_carries_no_unverified_warning()
     {
-        const int year = 2095;
+        const int year = 2015;
         using var client = await SignIn();
         Assert.Equal(
             HttpStatusCode.OK,
@@ -246,17 +246,17 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
     [Fact]
     public async Task A_refund_larger_than_the_income_so_far_names_the_negative_quarters()
     {
-        const int year = 2094;
+        const int year = 2014;
         using var client = await SignIn();
         Assert.Equal(
             HttpStatusCode.OK,
             (await client.PutAsJsonAsync($"/api/tax-years/{year}", TaxYearRequest(holidays: []))).StatusCode);
         try
         {
-            await SetRegistrationDate(client, Date("2094-01-01"));
-            await PostTransaction(client, "2094-02-01", 1_000_000, TransactionKind.Income);
-            await PostTransaction(client, "2094-03-01", 3_000_000, TransactionKind.RefundToClient);
-            await PostTransaction(client, "2094-07-01", 5_000_000, TransactionKind.Income);
+            await SetRegistrationDate(client, Date("2014-01-01"));
+            await PostTransaction(client, "2014-02-01", 1_000_000, TransactionKind.Income);
+            await PostTransaction(client, "2014-03-01", 3_000_000, TransactionKind.RefundToClient);
+            await PostTransaction(client, "2014-07-01", 5_000_000, TransactionKind.Income);
 
             var periods = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
 
@@ -273,17 +273,17 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
     [Fact]
     public async Task A_refund_of_a_pre_registration_receipt_manufactures_no_tax_credit()
     {
-        const int year = 2091;
+        const int year = 2011;
         using var client = await SignIn();
         Assert.Equal(
             HttpStatusCode.OK,
             (await client.PutAsJsonAsync($"/api/tax-years/{year}", TaxYearRequest(holidays: []))).StatusCode);
         try
         {
-            await SetRegistrationDate(client, Date("2091-03-01"));
-            var receipt = await PostTransaction(client, "2091-02-10", 10_000_000, TransactionKind.Income);
+            await SetRegistrationDate(client, Date("2011-03-01"));
+            var receipt = await PostTransaction(client, "2011-02-10", 10_000_000, TransactionKind.Income);
             await PostTransaction(
-                client, "2091-04-15", 10_000_000, TransactionKind.RefundToClient, refundsTransactionId: receipt);
+                client, "2011-04-15", 10_000_000, TransactionKind.RefundToClient, refundsTransactionId: receipt);
 
             var periods = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
 
@@ -302,16 +302,16 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
     [Fact]
     public async Task An_unlinked_refund_after_registration_still_reduces_income()
     {
-        const int year = 2090;
+        const int year = 2010;
         using var client = await SignIn();
         Assert.Equal(
             HttpStatusCode.OK,
             (await client.PutAsJsonAsync($"/api/tax-years/{year}", TaxYearRequest(holidays: []))).StatusCode);
         try
         {
-            await SetRegistrationDate(client, Date("2090-03-01"));
-            await PostTransaction(client, "2090-02-10", 10_000_000, TransactionKind.Income);
-            await PostTransaction(client, "2090-04-15", 10_000_000, TransactionKind.RefundToClient);
+            await SetRegistrationDate(client, Date("2010-03-01"));
+            await PostTransaction(client, "2010-02-10", 10_000_000, TransactionKind.Income);
+            await PostTransaction(client, "2010-04-15", 10_000_000, TransactionKind.RefundToClient);
 
             var periods = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
 
@@ -333,7 +333,7 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
     {
         using var client = await SignIn();
 
-        var response = await client.GetAsync("/api/periods/2097");
+        var response = await client.GetAsync("/api/periods/2017");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }

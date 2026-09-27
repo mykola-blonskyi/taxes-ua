@@ -50,6 +50,7 @@ public static class BackupEndpoints
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 IOptions<HttpJsonOptions> json,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -81,7 +82,7 @@ public static class BackupEndpoints
                     return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: reason);
                 }
 
-                if (document.Validate() is { } errors)
+                if (document.Validate(time.TodayInKyiv()) is { } errors)
                 {
                     return Results.ValidationProblem(errors, title: "The backup file breaks the rules below.");
                 }

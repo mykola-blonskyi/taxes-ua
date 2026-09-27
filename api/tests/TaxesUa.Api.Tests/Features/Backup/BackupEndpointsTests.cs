@@ -128,6 +128,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "null row", "file" },
         { "refunds linking each other", "transactions[2].refundsTransactionId" },
         { "NBU rate dated after the transaction", "transactions[1].rateDate" },
+        { "future-dated transaction", "transactions[0].valueDate" },
         { "unknown field", null },
         { "missing field", null },
         { "numeric enum", null },
@@ -417,6 +418,10 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             case "NBU rate dated after the transaction":
                 transactions[1]!["rateSource"] = "Nbu";
                 transactions[1]!["rateDate"] = "2031-02-03";
+                break;
+            case "future-dated transaction":
+                // Today is 2031-06-01 for this test class (see CreateApplication), so this is a day after.
+                transactions[0]!["valueDate"] = "2031-06-02";
                 break;
             case "unknown field":
                 transactions[0]!["amountKop"] = 1;
