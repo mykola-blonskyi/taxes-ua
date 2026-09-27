@@ -79,6 +79,7 @@ public static class PeriodsEndpoints
                     fopRegistrationDateNotSet = true;
                     break;
                 case EngineWarning.OperationBeforeRegistration:
+                case EngineWarning.RefundOfReceiptBeforeRegistration:
                     excludedOperationCount++;
                     break;
                 case EngineWarning.NegativeCumulativeTax negative:

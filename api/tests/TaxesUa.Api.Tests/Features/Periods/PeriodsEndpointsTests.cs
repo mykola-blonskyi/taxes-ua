@@ -271,6 +271,64 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
     }
 
     [Fact]
+    public async Task A_refund_of_a_pre_registration_receipt_manufactures_no_tax_credit()
+    {
+        const int year = 2091;
+        using var client = await SignIn();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync($"/api/tax-years/{year}", TaxYearRequest(holidays: []))).StatusCode);
+        try
+        {
+            await SetRegistrationDate(client, Date("2091-03-01"));
+            var receipt = await PostTransaction(client, "2091-02-10", 10_000_000, TransactionKind.Income);
+            await PostTransaction(
+                client, "2091-04-15", 10_000_000, TransactionKind.RefundToClient, refundsTransactionId: receipt);
+
+            var periods = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
+
+            var q2 = periods!.Quarters[1];
+            Assert.Equal((0L, 0L, 0L), (q2.IncomeKop, q2.SingleTaxKop, q2.MilitaryLevyKop));
+            Assert.Empty(periods.Warnings.NegativeCumulativeTaxQuarters);
+            Assert.Equal(2, periods.Warnings.ExcludedOperationCount);
+        }
+        finally
+        {
+            await DeleteTransactions(client, year);
+            await ResetSettings(client);
+        }
+    }
+
+    [Fact]
+    public async Task An_unlinked_refund_after_registration_still_reduces_income()
+    {
+        const int year = 2090;
+        using var client = await SignIn();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await client.PutAsJsonAsync($"/api/tax-years/{year}", TaxYearRequest(holidays: []))).StatusCode);
+        try
+        {
+            await SetRegistrationDate(client, Date("2090-03-01"));
+            await PostTransaction(client, "2090-02-10", 10_000_000, TransactionKind.Income);
+            await PostTransaction(client, "2090-04-15", 10_000_000, TransactionKind.RefundToClient);
+
+            var periods = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
+
+            var q2 = periods!.Quarters[1];
+            Assert.Equal(-10_000_000, q2.IncomeKop);
+            Assert.True(q2.SingleTaxKop < 0);
+            Assert.Equal(new[] { 2, 3, 4 }, periods.Warnings.NegativeCumulativeTaxQuarters);
+            Assert.Equal(1, periods.Warnings.ExcludedOperationCount);
+        }
+        finally
+        {
+            await DeleteTransactions(client, year);
+            await ResetSettings(client);
+        }
+    }
+
+    [Fact]
     public async Task A_missing_year_is_not_found()
     {
         using var client = await SignIn();
@@ -346,15 +404,30 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         return settings!;
     }
 
-    private static async Task PostTransaction(
-        HttpClient client, string valueDate, long amountMinor, TransactionKind kind, string? nonIncomeReason = null)
+    private static async Task<Guid> PostTransaction(
+        HttpClient client,
+        string valueDate,
+        long amountMinor,
+        TransactionKind kind,
+        string? nonIncomeReason = null,
+        Guid? refundsTransactionId = null)
     {
         var response = await client.PostAsJsonAsync(
             "/api/transactions",
             new TransactionRequest(
-                Date(valueDate), amountMinor, Currency.UAH, null, kind, nonIncomeReason, null, null, null),
+                Date(valueDate),
+                amountMinor,
+                Currency.UAH,
+                null,
+                kind,
+                nonIncomeReason,
+                null,
+                null,
+                null,
+                refundsTransactionId),
             Json);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<TransactionResponse>(Json))!.Id;
     }
 
     private static async Task DeleteTransactions(HttpClient client, int year)

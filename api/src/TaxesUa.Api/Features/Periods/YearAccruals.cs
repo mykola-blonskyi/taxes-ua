@@ -28,6 +28,7 @@ internal sealed record YearAccruals(TaxYearConfig Config, SettingsEntity Setting
             ?? new SettingsEntity { UserId = userId };
 
         var transactions = await database.Transactions
+            .Include(row => row.RefundsTransaction)
             .Where(row => row.UserId == userId
                 && row.ValueDate >= new DateOnly(year, 1, 1)
                 && row.ValueDate < new DateOnly(year + 1, 1, 1))
