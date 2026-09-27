@@ -90,7 +90,7 @@ dependencies). Run `snippets/frontier.sh` for the live frontier instead of readi
 - **#47 FIFO allocation and cross-year balances. Closed.** PR #55. Landed inside
   `Balances.ForYears`; there is no separate `ObligationBuilder.cs` any more; see the #9 and #10
   sections in Phase 1 below.
-- **#48 the other three owner decisions (prorated default, renamed column, soft warning, future-date
+- **#48 the other four owner decisions (prorated default, renamed column, soft warning, future-date
   rejection). Closed.** PR #56.
 - **#49 PDF export. Closed.** PR #57. `Features/Export/TransactionPdf.cs`, same column table as the
   XLSX export, an embedded font for Cyrillic, A4 landscape.
