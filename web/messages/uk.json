@@ -350,7 +350,11 @@
     "values": {
       "yes": "Так",
       "no": "Ні",
-      "none": "—"
+      "none": "—",
+      "rateSource": {
+        "Nbu": "НБУ",
+        "Manual": "Вручну"
+      }
     },
     "fields": {
       "valueDate": "Дата зарахування",

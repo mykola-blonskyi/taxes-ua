@@ -36,6 +36,8 @@ internal sealed class AuditSaveChangesInterceptor(
         [typeof(TaxYearConfig)] = AuditedEntity.TaxYearConfig,
     };
 
+    internal static IReadOnlyCollection<Type> AuditedTypes => Audited.Keys;
+
     // The entry carries the owner and the time itself, and a bumped UpdatedAt alone is not a change.
     private static readonly HashSet<string> Omitted = ["UserId", "CreatedAt", "UpdatedAt"];
 

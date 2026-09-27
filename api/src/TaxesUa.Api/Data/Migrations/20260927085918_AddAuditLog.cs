@@ -42,9 +42,10 @@ namespace TaxesUa.Api.Data.Migrations
                 table: "AuditLog",
                 columns: new[] { "UserId", "Entity", "EntityId", "At" });
 
-            // Append-only against every code path, not only the api's: an entry that could be edited
-            // would not be a record of what happened. AuditLogTests fails if a regenerated migration
-            // drops this.
+            // An entry that could be edited would not be a record of what happened, so no statement may
+            // change or remove one, whichever code path sends it. The table owner could still disable
+            // the trigger; this guards against mistakes, not against the owner. AuditLogTests fails if
+            // a regenerated migration drops it.
             migrationBuilder.Sql("""
                 CREATE FUNCTION audit_log_append_only() RETURNS trigger LANGUAGE plpgsql AS $$
                 BEGIN
@@ -54,6 +55,10 @@ namespace TaxesUa.Api.Data.Migrations
 
                 CREATE TRIGGER audit_log_append_only
                     BEFORE UPDATE OR DELETE ON "AuditLog"
+                    FOR EACH STATEMENT EXECUTE FUNCTION audit_log_append_only();
+
+                CREATE TRIGGER audit_log_no_truncate
+                    BEFORE TRUNCATE ON "AuditLog"
                     FOR EACH STATEMENT EXECUTE FUNCTION audit_log_append_only();
                 """);
         }

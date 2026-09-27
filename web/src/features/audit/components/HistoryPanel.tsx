@@ -43,22 +43,23 @@ function HistoryEntryCard({ entry }: { entry: AuditEntryResponse }) {
   const t = useTranslations("audit");
   const tTransactionKinds = useTranslations("transactions.kinds");
   const tPaymentKinds = useTranslations("payments.kinds");
+  const tFop = useTranslations("settings.fop");
   const locale = useLocale();
 
   const dynamicTransactionKinds = asDynamic(tTransactionKinds);
   const dynamicPaymentKinds = asDynamic(tPaymentKinds);
+  const dynamicFop = asDynamic(tFop);
   const dynamicT = asDynamic(t);
 
-  function kindLabel(kind: string): string | null {
-    if (entry.entity === "Transaction") {
-      return dynamicTransactionKinds.has(kind) ? dynamicTransactionKinds(kind) : null;
-    }
+  function enumLabel(key: string, value: string): string | null {
+    const [translator, messageKey] =
+      key === "kind"
+        ? [entry.entity === "Transaction" ? dynamicTransactionKinds : dynamicPaymentKinds, value]
+        : key === "rateSource"
+          ? [dynamicT, `values.rateSource.${value}`]
+          : [dynamicFop, `${key}${value}`];
 
-    if (entry.entity === "BudgetPayment") {
-      return dynamicPaymentKinds.has(kind) ? dynamicPaymentKinds(kind) : null;
-    }
-
-    return null;
+    return translator.has(messageKey) ? translator(messageKey) : null;
   }
 
   function fieldLabel(key: string): string {
@@ -76,7 +77,7 @@ function HistoryEntryCard({ entry }: { entry: AuditEntryResponse }) {
       none: t("values.none"),
       yes: t("values.yes"),
       no: t("values.no"),
-      kindLabel,
+      enumLabel,
     });
   }
 

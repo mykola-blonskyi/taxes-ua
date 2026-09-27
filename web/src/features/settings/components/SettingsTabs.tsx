@@ -11,7 +11,7 @@ export function SettingsTabs() {
 
   return (
     <Tabs.Root defaultValue="fop" className="flex min-w-0 flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Tabs.List className="flex gap-1 border-b">
           <Tabs.Trigger
             value="fop"

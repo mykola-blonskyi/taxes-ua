@@ -92,10 +92,12 @@ export type FieldFormatContext = {
   none: string;
   yes: string;
   no: string;
-  kindLabel: (kind: string) => string | null;
+  enumLabel: (key: string, value: string) => string | null;
 };
 
 type FieldFormatter = (context: FieldFormatContext) => string;
+
+const enumValue: FieldFormatter = ({ key, value, enumLabel }) => enumLabel(key, String(value)) ?? String(value);
 
 // Formatters keyed by the exact field name. Checked before the suffix table below.
 const exactFormatters: Record<string, FieldFormatter> = {
@@ -111,7 +113,10 @@ const exactFormatters: Record<string, FieldFormatter> = {
   weekendDays: ({ value, locale }) =>
     Array.isArray(value) ? value.map((entry) => weekdayName(String(entry), locale)).join(", ") : String(value),
   refundsTransactionId: ({ value }) => String(value).slice(0, 8),
-  kind: ({ value, kindLabel }) => kindLabel(String(value)) ?? String(value),
+  kind: enumValue,
+  paymentMode: enumValue,
+  esvRegistrationMonthPolicy: enumValue,
+  rateSource: enumValue,
 };
 
 // Formatters keyed by field-name suffix, checked when no exact match applies.

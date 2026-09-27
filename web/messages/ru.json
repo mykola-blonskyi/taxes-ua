@@ -350,7 +350,11 @@
     "values": {
       "yes": "Да",
       "no": "Нет",
-      "none": "—"
+      "none": "—",
+      "rateSource": {
+        "Nbu": "НБУ",
+        "Manual": "Вручную"
+      }
     },
     "fields": {
       "valueDate": "Дата зачисления",

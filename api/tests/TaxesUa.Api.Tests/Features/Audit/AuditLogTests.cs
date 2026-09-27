@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
+using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
@@ -170,6 +171,7 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
     [Theory]
     [InlineData("""UPDATE "AuditLog" SET "EntityId" = 'x'""")]
     [InlineData("""DELETE FROM "AuditLog" """)]
+    [InlineData("""TRUNCATE "AuditLog" """)]
     public async Task The_database_refuses_to_change_or_remove_an_entry(string sql)
     {
         using var client = await SignIn(ApiFixture.AllowedEmail);
@@ -180,6 +182,25 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
 
         var error = await Assert.ThrowsAsync<PostgresException>(() => database.Database.ExecuteSqlRawAsync(sql));
         Assert.Contains("append-only", error.MessageText);
+    }
+
+    // The next feature's table is logged only if someone adds it to the interceptor. This makes that a
+    // decision the build asks for instead of one a reviewer has to remember.
+    [Fact]
+    public async Task Every_entity_is_either_audited_or_named_here_as_not_audited()
+    {
+        Type[] notAudited = [typeof(Client), typeof(FxRate), typeof(AuditEntry), typeof(ApplicationUser)];
+
+        await using var scope = fixture.CreateScope();
+        var model = scope.ServiceProvider.GetRequiredService<AppDbContext>().Model;
+
+        var unclassified = model.GetEntityTypes()
+            .Select(type => type.ClrType)
+            .Where(type => type.Namespace?.StartsWith("Microsoft.AspNetCore.Identity", StringComparison.Ordinal) != true)
+            .Except(AuditSaveChangesInterceptor.AuditedTypes)
+            .Except(notAudited);
+
+        Assert.Empty(unclassified);
     }
 
     private static TransactionRequest Transaction(
