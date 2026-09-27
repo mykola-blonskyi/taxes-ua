@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
-using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Engine;
-using FopSettings = TaxesUa.Api.Features.Settings.Settings;
 
 namespace TaxesUa.Api.Features.Periods;
 
@@ -20,44 +18,83 @@ public static class PeriodsEndpoints
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
-                var config = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
-                if (config is null)
-                {
-                    return Missing(year);
-                }
-
                 var user = await users.GetUserAsync(http.User);
                 if (user is null)
                 {
                     return Results.Unauthorized();
                 }
 
-                var stored = await database.Settings.FindAsync([user.Id], cancellationToken);
-                var settings = stored ?? new FopSettings { UserId = user.Id };
-
-                var configInput = config.ToEngineInput();
-                var settingsInput = settings.ToEngineInput();
-                var registrationDate = settingsInput.FopRegistrationDate;
-
-                var quarters = new List<QuarterPeriodResponse>();
-                for (var quarter = 1; quarter <= 4; quarter++)
+                var loaded = await YearAccruals.LoadAsync(database, user.Id, year, cancellationToken);
+                if (loaded is null)
                 {
-                    if (registrationDate is { } registered && QuarterEnd(year, quarter) < registered)
-                    {
-                        continue;
-                    }
-
-                    var deadlines = DeadlineCalendar.ForQuarter(year, quarter, configInput, settingsInput);
-                    quarters.Add(new QuarterPeriodResponse(quarter, deadlines));
+                    return Missing(year);
                 }
 
-                return Results.Ok(new PeriodsResponse(year, [.. quarters]));
+                return Results.Ok(ToResponse(year, loaded));
             })
             .Produces<PeriodsResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
         return routes;
+    }
+
+    private static PeriodsResponse ToResponse(int year, YearAccruals loaded)
+    {
+        var configInput = loaded.Config.ToEngineInput();
+        var settingsInput = loaded.Settings.ToEngineInput();
+        var registrationDate = settingsInput.FopRegistrationDate;
+
+        var quarters = loaded.Accrual.Quarters
+            .Where(accrual => registrationDate is not { } registered
+                || QuarterEnd(year, accrual.Income.Quarter) >= registered)
+            .Select(accrual => new QuarterPeriodResponse(
+                accrual.Income.Quarter,
+                accrual.Income.IncomeKop,
+                accrual.SingleTaxKop,
+                accrual.MilitaryLevyKop,
+                accrual.EsvKop,
+                accrual.TotalKop,
+                accrual.Income.CumulativeIncomeKop,
+                accrual.CumulativeSingleTaxKop,
+                accrual.CumulativeMilitaryLevyKop,
+                DeadlineCalendar.ForQuarter(year, accrual.Income.Quarter, configInput, settingsInput)))
+            .ToArray();
+
+        return new PeriodsResponse(year, ToWarnings(loaded), quarters);
+    }
+
+    // Folds the engine's per-operation list into one flag or count per kind: the transactions screen
+    // already marks each excluded row, so this screen only has to say that some exist.
+    private static PeriodWarnings ToWarnings(YearAccruals loaded)
+    {
+        var fopRegistrationDateNotSet = false;
+        var excludedOperationCount = 0;
+        var negativeQuarters = new List<int>();
+        foreach (var warning in loaded.Accrual.Warnings)
+        {
+            switch (warning)
+            {
+                case EngineWarning.FopRegistrationDateNotSet:
+                    fopRegistrationDateNotSet = true;
+                    break;
+                case EngineWarning.OperationBeforeRegistration:
+                case EngineWarning.RefundOfReceiptBeforeRegistration:
+                    excludedOperationCount++;
+                    break;
+                case EngineWarning.NegativeCumulativeTax negative:
+                    negativeQuarters.Add(negative.Quarter);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(loaded), warning, "Unmapped engine warning.");
+            }
+        }
+
+        return new PeriodWarnings(
+            loaded.Config.VerifiedAt is null,
+            fopRegistrationDateNotSet,
+            excludedOperationCount,
+            [.. negativeQuarters]);
     }
 
     private static DateOnly QuarterEnd(int year, int quarter) =>
@@ -68,6 +105,30 @@ public static class PeriodsEndpoints
         title: $"No tax year configuration exists for {year}.");
 }
 
-internal sealed record PeriodsResponse(int Year, QuarterPeriodResponse[] Quarters);
+internal sealed record PeriodsResponse(int Year, PeriodWarnings Warnings, QuarterPeriodResponse[] Quarters);
 
-internal sealed record QuarterPeriodResponse(int Quarter, QuarterDeadlines Deadlines);
+/// <summary>
+/// Rule 9 and Rule 8 as the screen needs them. Each field is one sentence the interface writes; the
+/// api sends no text, per ADR-002.
+/// </summary>
+internal sealed record PeriodWarnings(
+    bool TaxYearUnverified,
+    bool FopRegistrationDateNotSet,
+    int ExcludedOperationCount,
+    int[] NegativeCumulativeTaxQuarters);
+
+/// <summary>
+/// One quarter's own accruals and the year-to-date figures through it. The cumulative three are the
+/// declaration's numbers: Q1 is the quarter, Q2 the half-year, Q3 nine months, Q4 the year.
+/// </summary>
+internal sealed record QuarterPeriodResponse(
+    int Quarter,
+    long IncomeKop,
+    long SingleTaxKop,
+    long MilitaryLevyKop,
+    long EsvKop,
+    long TotalKop,
+    long CumulativeIncomeKop,
+    long CumulativeSingleTaxKop,
+    long CumulativeMilitaryLevyKop,
+    QuarterDeadlines Deadlines);

@@ -48,6 +48,7 @@ export function useVerifyTaxYear() {
       api.POST("/api/tax-years/{year}/verify", { params: { path: { year } } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: taxYearsQueryKey });
+      queryClient.invalidateQueries({ queryKey: periodsQueryKey });
     },
   });
 }

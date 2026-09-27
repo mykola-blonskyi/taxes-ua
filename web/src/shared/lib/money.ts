@@ -4,7 +4,7 @@ export function formatMoney(kopecks: number, locale: string) {
     maximumFractionDigits: 2,
   }).format(kopecks / 100);
 
-  return `${formatted} ₴`;
+  return `${formatted} ₴`;
 }
 
 export function formatRate(basisPoints: number, locale: string) {
