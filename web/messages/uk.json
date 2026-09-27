@@ -339,13 +339,15 @@
     "actions": {
       "Create": "Створено",
       "Update": "Змінено",
-      "Delete": "Видалено"
+      "Delete": "Видалено",
+      "Restore": "Відновлено"
     },
     "entities": {
       "Transaction": "Надходження",
       "BudgetPayment": "Платіж",
       "Settings": "Налаштування",
-      "TaxYearConfig": "Податковий рік"
+      "TaxYearConfig": "Податковий рік",
+      "Backup": "Резервна копія"
     },
     "values": {
       "yes": "Так",
@@ -401,7 +403,10 @@
       "advanceRecommendedDay": "Рекомендований день авансу",
       "holidays": "Святкові дні",
       "source": "Джерело",
-      "verifiedAt": "Перевірено"
+      "verifiedAt": "Перевірено",
+      "clients": "Клієнтів",
+      "transactions": "Надходжень",
+      "budgetPayments": "Платежів"
     }
   }
 }

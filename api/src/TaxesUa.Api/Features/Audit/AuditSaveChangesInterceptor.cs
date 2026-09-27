@@ -68,6 +68,12 @@ internal sealed class AuditSaveChangesInterceptor(
             return result;
         }
 
+        if (context.ChangeTracker.Entries<AuditEntry>().Any(entry =>
+                entry.State == EntityState.Added && entry.Entity.Action == AuditAction.Restore))
+        {
+            return result;
+        }
+
         var at = time.GetUtcNow();
         var log = new List<AuditEntry>();
         foreach (var (entry, entity) in Pending(context).ToList())

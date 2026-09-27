@@ -95,7 +95,7 @@ function HistoryEntryCard({ entry }: { entry: AuditEntryResponse }) {
         <span className="shrink-0 text-xs text-muted-foreground">{time}</span>
       </div>
 
-      {entry.action === "Create" && entry.after ? (
+      {(entry.action === "Create" || entry.action === "Restore") && entry.after ? (
         <SnapshotFields snapshot={entry.after} fieldLabel={fieldLabel} format={format} entity={entry.entity} />
       ) : null}
 

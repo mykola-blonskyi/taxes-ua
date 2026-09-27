@@ -1693,9 +1693,9 @@ export interface components {
             name: string;
         };
         /** @enum {unknown} */
-        AuditAction: "Create" | "Update" | "Delete";
+        AuditAction: "Create" | "Update" | "Delete" | "Restore";
         /** @enum {unknown} */
-        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "TaxYearConfig";
+        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "TaxYearConfig" | "Backup";
         AuditEntryResponse: {
             /** Format: int64 */
             id: number | string;

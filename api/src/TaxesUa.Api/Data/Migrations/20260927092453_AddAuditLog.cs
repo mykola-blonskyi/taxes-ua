@@ -29,7 +29,7 @@ namespace TaxesUa.Api.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AuditLog", x => x.Id);
-                    table.CheckConstraint("CK_AuditLog_Snapshots", "(\"Action\" = 'Create' AND \"Before\" IS NULL AND \"After\" IS NOT NULL) OR (\"Action\" = 'Update' AND \"Before\" IS NOT NULL AND \"After\" IS NOT NULL) OR (\"Action\" = 'Delete' AND \"Before\" IS NOT NULL AND \"After\" IS NULL)");
+                    table.CheckConstraint("CK_AuditLog_Snapshots", "(\"Action\" = 'Create' AND \"Before\" IS NULL AND \"After\" IS NOT NULL) OR (\"Action\" = 'Update' AND \"Before\" IS NOT NULL AND \"After\" IS NOT NULL) OR (\"Action\" = 'Delete' AND \"Before\" IS NOT NULL AND \"After\" IS NULL) OR (\"Action\" = 'Restore' AND \"Before\" IS NULL AND \"After\" IS NOT NULL)");
                 });
 
             migrationBuilder.CreateIndex(

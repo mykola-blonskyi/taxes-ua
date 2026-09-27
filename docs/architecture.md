@@ -176,6 +176,11 @@ stamps, passkeys) never reach the log. Because it reads the change tracker, an a
 written through tracked entities: `ExecuteUpdate`, `ExecuteDelete` or raw SQL against one of these
 tables bypasses the log. A database trigger makes `AuditLog` append-only.
 
+A restore from backup is not the owner's edits, so it writes one summary entry
+(`AuditEntry.Restored`, entity `Backup`, action `Restore`, with the restored counts) in the same
+save as the rows it inserts. A save that carries that summary gets no per-row entries. The log is
+history, not state: a backup does not carry it and a restore does not replace it.
+
 ### web layers
 
 ```

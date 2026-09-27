@@ -51,6 +51,7 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
     "source",
     "verifiedAt",
   ],
+  Backup: ["clients", "transactions", "budgetPayments"],
 };
 
 export function orderFields(entity: AuditedEntity, keys: string[]): string[] {

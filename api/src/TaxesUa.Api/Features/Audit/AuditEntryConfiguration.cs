@@ -27,6 +27,7 @@ internal sealed class AuditEntryConfiguration : IEntityTypeConfiguration<AuditEn
             "CK_AuditLog_Snapshots",
             "(\"Action\" = 'Create' AND \"Before\" IS NULL AND \"After\" IS NOT NULL) OR "
             + "(\"Action\" = 'Update' AND \"Before\" IS NOT NULL AND \"After\" IS NOT NULL) OR "
-            + "(\"Action\" = 'Delete' AND \"Before\" IS NOT NULL AND \"After\" IS NULL)"));
+            + "(\"Action\" = 'Delete' AND \"Before\" IS NOT NULL AND \"After\" IS NULL) OR "
+            + "(\"Action\" = 'Restore' AND \"Before\" IS NULL AND \"After\" IS NOT NULL)"));
     }
 }

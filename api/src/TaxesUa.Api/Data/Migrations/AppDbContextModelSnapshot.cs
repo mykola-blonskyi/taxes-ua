@@ -219,7 +219,7 @@ namespace TaxesUa.Api.Data.Migrations
 
                     b.ToTable("AuditLog", t =>
                         {
-                            t.HasCheckConstraint("CK_AuditLog_Snapshots", "(\"Action\" = 'Create' AND \"Before\" IS NULL AND \"After\" IS NOT NULL) OR (\"Action\" = 'Update' AND \"Before\" IS NOT NULL AND \"After\" IS NOT NULL) OR (\"Action\" = 'Delete' AND \"Before\" IS NOT NULL AND \"After\" IS NULL)");
+                            t.HasCheckConstraint("CK_AuditLog_Snapshots", "(\"Action\" = 'Create' AND \"Before\" IS NULL AND \"After\" IS NOT NULL) OR (\"Action\" = 'Update' AND \"Before\" IS NOT NULL AND \"After\" IS NOT NULL) OR (\"Action\" = 'Delete' AND \"Before\" IS NOT NULL AND \"After\" IS NULL) OR (\"Action\" = 'Restore' AND \"Before\" IS NULL AND \"After\" IS NOT NULL)");
                         });
                 });
 

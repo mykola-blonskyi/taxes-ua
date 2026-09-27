@@ -184,6 +184,39 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
         Assert.Contains("append-only", error.MessageText);
     }
 
+    [Fact]
+    public async Task A_save_that_carries_a_restore_summary_is_logged_by_that_summary_alone()
+    {
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+        var restored = Guid.NewGuid();
+
+        await using (var scope = fixture.CreateScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userId = await database.Users
+                .Where(user => user.Email == ApiFixture.AllowedEmail)
+                .Select(user => user.Id)
+                .SingleAsync();
+
+            database.Transactions.Add(new Transaction
+            {
+                Id = restored,
+                UserId = userId,
+                ValueDate = new DateOnly(2036, 1, 1),
+                AmountMinor = 100_00,
+                AmountUahKop = 100_00,
+            });
+            database.AuditLog.Add(AuditEntry.Restored(userId, DateTimeOffset.UtcNow, clients: 0, transactions: 1, budgetPayments: 0));
+            await database.SaveChangesAsync();
+        }
+
+        Assert.Empty(await History(client, AuditedEntity.Transaction, restored.ToString()));
+        var summary = (await History(client, AuditedEntity.Backup, id: null))[0];
+        Assert.Equal(AuditAction.Restore, summary.Action);
+        Assert.Null(summary.Before);
+        Assert.Equal(1, summary.After!["transactions"].GetInt32());
+    }
+
     // The next feature's table is logged only if someone adds it to the interceptor. This makes that a
     // decision the build asks for instead of one a reviewer has to remember.
     [Fact]

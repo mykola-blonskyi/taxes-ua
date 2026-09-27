@@ -339,13 +339,15 @@
     "actions": {
       "Create": "Создано",
       "Update": "Изменено",
-      "Delete": "Удалено"
+      "Delete": "Удалено",
+      "Restore": "Восстановлено"
     },
     "entities": {
       "Transaction": "Поступление",
       "BudgetPayment": "Платёж",
       "Settings": "Настройки",
-      "TaxYearConfig": "Налоговый год"
+      "TaxYearConfig": "Налоговый год",
+      "Backup": "Резервная копия"
     },
     "values": {
       "yes": "Да",
@@ -401,7 +403,10 @@
       "advanceRecommendedDay": "Рекомендуемый день аванса",
       "holidays": "Праздничные дни",
       "source": "Источник",
-      "verifiedAt": "Проверено"
+      "verifiedAt": "Проверено",
+      "clients": "Клиентов",
+      "transactions": "Поступлений",
+      "budgetPayments": "Платежей"
     }
   }
 }

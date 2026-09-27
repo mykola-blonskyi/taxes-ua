@@ -174,8 +174,9 @@ holds one of the ids, every id in the file is replaced by a fresh one and the li
 Responsibilities: change log for transactions, budget payments, settings and year parameters. One
 row (`AuditEntry`, table `AuditLog`) per created, changed or deleted record. Append-only.
 
-Fields: `Entity: Transaction | BudgetPayment | Settings | TaxYearConfig`, `EntityId` (the record's
-key: a GUID, the year, or the owner's id for Settings), `Action: Create | Update | Delete`,
+Fields: `Entity: Transaction | BudgetPayment | Settings | TaxYearConfig | Backup`, `EntityId` (the
+record's key: a GUID, the year, or the owner's id for Settings; empty for Backup),
+`Action: Create | Update | Delete | Restore`,
 `Before: jsonb` (null on Create), `After: jsonb` (null on Delete), `At` (UTC instant, shown in
 Kyiv time), `UserId`.
 
@@ -185,6 +186,9 @@ instead of `clientId`. A save that changes nothing but `UpdatedAt` writes no ent
 
 `UserId` is the record's owner. `TaxYearConfig` is shared by every allowlisted user, so its entry
 belongs to the user who changed it. Nobody reads another user's entries.
+
+A restore from backup writes one `Backup`/`Restore` entry with the restored counts instead of one
+entry per inserted row. The log is not part of a backup and a restore never replaces it.
 
 ---
 
