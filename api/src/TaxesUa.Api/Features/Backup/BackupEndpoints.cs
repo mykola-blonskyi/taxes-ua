@@ -13,8 +13,9 @@ namespace TaxesUa.Api.Features.Backup;
 public static class BackupEndpoints
 {
     // Years of an owner's ledger serialize to well under a megabyte, so this only keeps a wrong or
-    // hostile file from being buffered whole.
-    internal const int MaxRestoreBytes = 10 * 1024 * 1024;
+    // hostile file from being buffered whole. It sits below the web proxy's 10 MB body cap, so an
+    // oversized file reaches this check and gets a 413 instead of a proxy 500.
+    internal const int MaxRestoreBytes = 8 * 1024 * 1024;
 
     public static IEndpointRouteBuilder MapBackupApi(this IEndpointRouteBuilder routes)
     {

@@ -11,7 +11,7 @@ export const backupUrl: BackupPath = "/api/backup";
 
 // The api's own limit (BackupEndpoints.MaxRestoreBytes), checked here so a huge file is refused before
 // the browser reads it into memory.
-const maxBackupBytes = 10 * 1024 * 1024;
+const maxBackupBytes = 8 * 1024 * 1024;
 
 export class TooLargeError extends Error {
   constructor() {
