@@ -1,7 +1,7 @@
 # 12: CSV and XLSX export
 
 GitHub: #13
-Status: API and download buttons in a PR on branch ticket-13
+Status: closed, done (PR #44). A PDF export was added alongside CSV/XLSX by #49 (PR #57).
 Blocked by: #6
 
 ## Parent

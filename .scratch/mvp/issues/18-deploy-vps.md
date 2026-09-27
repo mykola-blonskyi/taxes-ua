@@ -1,8 +1,12 @@
 # 18: Deploy to Coolify on the VPS
 
 GitHub: #20
-Status: in-review (repository side; the deploy itself is the owner's, per docs/deploy.md)
-Blocked by: #4, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14, #15, #16, #17, #18, #19
+Status: repository side closed in PR #62 (host filtering, security headers, persisted
+data-protection keys, fail-fast startup, `deploy/postgres/` scripts, `docs/deploy.md`). Open for
+the deploy itself: DNS, the Coolify resource, the Google client, the database role, and the first
+release, all by hand per docs/deploy.md, followed by the #15/#16/#18 checks on the real domain.
+Blocked by: #3, #4, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14, #15, #17, #41, #47, #48, #49, #53
+(#16 and #18 are verified against the production domain after this ticket, not before it)
 
 ## Parent
 

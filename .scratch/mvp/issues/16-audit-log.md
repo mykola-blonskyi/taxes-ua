@@ -1,7 +1,7 @@
 # 16: Change log
 
 GitHub: #17
-Status: in-review
+Status: closed, done (PR #51)
 Blocked by: #9
 
 ## Parent

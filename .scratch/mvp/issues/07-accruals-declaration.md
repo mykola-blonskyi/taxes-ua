@@ -1,7 +1,7 @@
 # 07: Accruals and the declaration numbers
 
 GitHub: #8
-Status: in review (engine half merged in PR #28; periods endpoint and web tables on branch ticket-8)
+Status: closed, done (engine half PR #28; API and web half PR #45)
 Blocked by: #6, #7
 
 ## Parent

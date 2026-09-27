@@ -1,7 +1,7 @@
 # 10: Income limit
 
 GitHub: #11
-Status: ready-for-agent
+Status: closed, done (PR #60)
 Blocked by: #10
 
 ## Parent

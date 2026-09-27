@@ -9,8 +9,9 @@ frontend on Next.js, deployed to Coolify.
 Implementation runs as agent lanes, one ticket slice per branch and worktree, verified
 independently before merge. Tickets are approved and
 published to GitHub Issues in `mykola-blonskyi/taxes-ua`: spec
-[#1](https://github.com/mykola-blonskyi/taxes-ua/issues/1), tickets #2–#18 and #20, index in
-[tickets.md](tickets.md), mirror in `.scratch/mvp/`. Below is each ticket unpacked into steps:
+[#1](https://github.com/mykola-blonskyi/taxes-ua/issues/1), tickets #2–#18 and #20, plus #41, #47,
+#48, #49 and #53 added after owner decisions on 2026-09-27, index in [tickets.md](tickets.md),
+mirror in `.scratch/mvp/`. Below is each ticket unpacked into steps:
 files, types, verification commands. Order follows the dependency graph (native GitHub
 dependencies). Run `snippets/frontier.sh` for the live frontier instead of reading the order here.
 
@@ -46,12 +47,82 @@ dependencies). Run `snippets/frontier.sh` for the live frontier instead of readi
   through the Development-only sign-in seam instead of asserting a screen works. Note its limit: it
   checks overflow, not usability. #4's first build measured clean while squeezing every number input
   in the tax-year table to a few pixels.
-- **Test counts on `main`:** 165 engine, 106 api.
 - Issue bodies now carry a Status block and checked-off criteria with their evidence. Findings that
   belong to a later ticket are filed as criteria on that ticket, not left in a comment thread.
 - Three Rule 5 readings the 2026 reference table cannot settle are now written down in
   `knowledge/business-rules.md` (PR #26). The Q4 holiday-year question needs the owner's answer
   before #4 seeds holidays for a post-martial-law year.
+- **#5 receipts in hryvnia. Closed.** PR #40. Create/edit/delete, the year list and total, the
+  pre-registration warning.
+- **#6 currency receipts and the NBU rate. Closed.** PR #42. Independent verification of the
+  engine found `decimal` had crept into `TaxesUa.Engine` through a rate-conversion helper with no
+  caller yet; `Money.ToRateE4` moved to `Features/Fx/` and the engine stayed free of
+  `decimal`/`double`/`float`, which `.claude/CLAUDE.local.md` forbids there.
+- **#7 deadline calendar. Closed.** PR #39 added the API and the Periods table on top of the
+  engine half (PR #23/#24); quarters before `FopRegistrationDate` are hidden, and the shifted date
+  shows the statutory one as a hint when they differ.
+- **#8 accruals and the declaration numbers. Closed.** PR #45. One open reading for the owner
+  remained at the time (whether `EsvRegistrationMonthPolicy.Prorated` scales by active days), later
+  confirmed by the 2026-09-27 decisions below and settled in #48.
+- **#41 refund linked to its receipt. Closed.** PR #43. `Transaction.RefundsTransactionId`; a
+  refund of a pre-registration receipt is excluded from period income exactly like the receipt it
+  reverses, closing the phantom-tax-credit gap #9 depended on.
+- **#9 budget payments and balances. Closed.** PR #46, on top of the engine half (PR #30).
+  Per-kind balances, paid/remaining columns, obligation statuses.
+- **#10 home screen: the next step. Closed.** PR #52. `NextStep.Find(today, ...)` reads the
+  per-kind ledger directly, so "all done" can never fire while one kind is still owed.
+- **#13 CSV and XLSX export. Closed.** PR #44.
+- **#14 JSON backup and restore. Closed.** PR #50. Its own verification surfaced #53 (below).
+- **#17 change log. Closed.** PR #51. Before/after snapshots for transactions, payments, settings
+  and tax years.
+- **Owner decisions, 2026-09-27.** Eight calls that unblocked the remaining tickets and two new
+  ones:
+  - ESV `Prorated` (active-day scaling) becomes the default registration-month policy.
+  - Payments allocate FIFO, oldest debt first, within a kind (Tax Code art. 87.9).
+  - An overpayment or an unpaid balance carries across years, still never across kinds.
+  - The Periods "Разом"/"Итого" column is renamed "Нараховано всього"/"Начислено всего": it sums
+    accruals across kinds, not a balance.
+  - A budget payment dated before `FopRegistrationDate` is still saved, with a soft warning on the
+    row instead of a hard block.
+  - A transaction dated in the future (Kyiv time) is rejected with a 400 field error.
+  - A PDF export joins CSV/XLSX.
+  - The refund-to-receipt link (#41, already closed above) was this same 2026-09-27 sitting.
+- **#47 FIFO allocation and cross-year balances. Closed.** PR #55. Landed inside
+  `Balances.ForYears`; there is no separate `ObligationBuilder.cs` any more; see the #9 and #10
+  sections in Phase 1 below.
+- **#48 the other three owner decisions (prorated default, renamed column, soft warning, future-date
+  rejection). Closed.** PR #56.
+- **#49 PDF export. Closed.** PR #57. `Features/Export/TransactionPdf.cs`, same column table as the
+  XLSX export, an embedded font for Cyrillic, A4 landscape.
+- **#53 reject bad input at the API boundary. Closed.** PR #58. A comma-joined enum value (e.g.
+  `"currency": "USD, EUR"`) and a NUL character in a text field used to reach PostgreSQL and answer
+  500; both are now rejected with 400 at the shared boundary, found by #14's own verification (PR
+  #50).
+- **#11 income limit. Closed.** PR #60.
+- **#12 monthly advances. Closed.** PR #59.
+- **#15 prototype JSON import. Merged, issue stays open.** PR #61. Open for one criterion: the
+  owner checking a real prototype export, which needs a real export to check against.
+- **#16 passkey, #18 PWA. Still open for device checks.** Both need `taxes.blonskyi.dev` to exist
+  (see #20) — a phone can't reach `localhost`, and a passkey is bound to the Relying Party ID it
+  registered against.
+- **#20 deploy to Coolify, repository side. Closed the repo work in PR #62; the deploy stays open.**
+  Host filtering, security headers, the persisted data-protection key ring (ADR-010), fail-fast
+  startup on any missing production variable, `deploy/postgres/` scripts, and the full runbook in
+  `docs/deploy.md`. The deploy itself — DNS, the Coolify resource, the Google client, the first
+  release, and then the #15/#16/#18 checks against the real domain — is the owner's, by hand, per
+  that runbook.
+- PR #54 rewrote the README's local-run instructions step by step, with and without Docker.
+- **Test counts on `main`:** 155 engine, 366 api.
+
+## What remains
+
+- The owner's deploy: DNS for `taxes.blonskyi.dev`, the Coolify resource, a dedicated Google OAuth
+  client with a rotated secret, the database role/database on the VPS Postgres, and the first
+  release — all in `docs/deploy.md`, none of it in this repository's automation.
+- Three post-deploy checks against the production domain, all blocked on that deploy:
+  - #15: the owner's own check of the prototype import against a real export.
+  - #16: passkey registration and sign-in on iOS Safari and Android Chrome.
+  - #18: PWA install and standalone launch on iOS and Android.
 
 ## Two chains, not one
 
@@ -63,7 +134,8 @@ with the plumbing instead of behind it.
 half, then #13, #14, #15, #16, #17, #18.
 
 **Chain B, engine.** #7 `DeadlineCalendar`, then #8 `IncomeLedger` and `Accruals`, then #9
-`Balances` and `ObligationBuilder`, then #11 `LimitMonitor`. Each waits on its predecessor only
+`Balances` (obligations and, since #47, FIFO allocation across years), then #11 `LimitMonitor`.
+Each waits on its predecessor only
 because they share the Engine's input records, never for an API or database reason.
 
 A ticket closes when both its slices have landed. Splitting this way puts the tax arithmetic under
@@ -237,10 +309,12 @@ Relies on: Rule 1, Rule 3, Rule 8, ADR-002, ADR-008.
 `api/src/TaxesUa.Api/Features/Payments/BudgetPayment.cs` (new: `Kind`, `AmountKop`,
 `PeriodYear`, `PeriodQuarter?`, `PeriodMonth?`), `Features/Payments/PaymentsEndpoints.cs`: CRUD
 `/api/payments`, period validation. `api/src/TaxesUa.Engine/Balances.cs` (new): accrued
-cumulative minus paid per kind, overpayment carried forward within a kind, kinds never mixed.
-`Engine/ObligationBuilder.cs` (new): assembles `Obligation[]` with statuses relative to `today`
-(a parameter, not `DateTime.Now`). Tests: an ESV overpayment covers the next quarter; an EP
-overpayment never offsets an ESV debt; statuses `Upcoming`/`Due`/`Overdue`/`Done`.
+cumulative minus paid per kind, overpayment carried forward within a kind, kinds never mixed;
+assembles `Obligation[]` with statuses relative to `today` (a parameter, not `DateTime.Now`).
+There is no separate `ObligationBuilder.cs`: #47 folded FIFO allocation and obligation status
+into `Balances.ForYears` itself, since both read the same per-kind ledger. Tests: an ESV
+overpayment covers the next quarter; an EP overpayment never offsets an ESV debt; statuses
+`Upcoming`/`Due`/`Overdue`/`Done`.
 
 `web/src/features/payments/` — form, list, balances panel. `web/src/app/(app)/payments/page.tsx`;
 "paid"/"remaining" columns in `QuartersTable`.
@@ -254,7 +328,9 @@ Relies on: Rule 7, ADR-008, domain-model `BudgetPayment`/`Obligation`.
 
 ### #10. Home screen: the next step — blocked by #9
 
-`api/src/TaxesUa.Engine/ObligationBuilder.cs` (extension) — `NextStep(today)`.
+`api/src/TaxesUa.Engine/NextStep.cs` (new): a closed union (`RegistrationDateNotSet`,
+`BeforeRegistration`, `AllDone`, `Pay`) with `NextStep.Find(today, ...)`, reading `Balances`'
+per-kind ledger rather than a pooled total.
 `api/src/TaxesUa.Api/Features/Dashboard/DashboardEndpoints.cs`: `GET /api/dashboard`, "today"
 computed by `Europe/Kyiv` via `TimeZoneInfo` (not UTC). Tests: picking the next step with several
 obligations/an overdue item/an empty list/a date before registration; the Kyiv-midnight vs UTC
