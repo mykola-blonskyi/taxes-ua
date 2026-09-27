@@ -1,5 +1,13 @@
-import { ScreenPlaceholder } from "@/shared/shell/ScreenPlaceholder";
+import { getTranslations } from "next-intl/server";
+import { PaymentsScreen } from "@/features/payments";
 
-export default function PaymentsPage() {
-  return <ScreenPlaceholder screen="payments" />;
+export default async function PaymentsPage() {
+  const t = await getTranslations("payments");
+
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="text-lg font-semibold md:text-xl">{t("title")}</h2>
+      <PaymentsScreen />
+    </section>
+  );
 }

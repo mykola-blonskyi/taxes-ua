@@ -6,8 +6,6 @@ namespace TaxesUa.Api.Features.Fx;
 
 internal sealed class FxRates(AppDbContext database, NbuRateClient nbu, TimeProvider time, ILogger<FxRates> logger)
 {
-    private static readonly TimeZoneInfo Kyiv = TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv");
-
     // Saves the cache row with its own SaveChanges, so a caller must call this before it changes
     // anything else in the shared AppDbContext.
     public async Task<NbuLookup> GetAsync(Currency currency, DateOnly date, CancellationToken cancellationToken)
@@ -25,7 +23,7 @@ internal sealed class FxRates(AppDbContext database, NbuRateClient nbu, TimeProv
         {
             // NBU answers [] for a date it has not published yet, so a fallback for a future date is
             // provisional and must not be frozen in the cache.
-            case NbuLookup.Found found when date <= Today():
+            case NbuLookup.Found found when date <= time.TodayInKyiv():
                 await StoreAsync(new FxRate
                 {
                     Currency = currency,
@@ -49,8 +47,6 @@ internal sealed class FxRates(AppDbContext database, NbuRateClient nbu, TimeProv
 
         return lookup;
     }
-
-    private DateOnly Today() => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), Kyiv).DateTime);
 
     private async Task StoreAsync(FxRate row, CancellationToken cancellationToken)
     {

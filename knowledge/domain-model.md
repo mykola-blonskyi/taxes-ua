@@ -122,8 +122,14 @@ Relationships: belongs to `User`, optionally `BankAccount`, `Client`, `Invoice`,
 
 Responsibilities: an actual payment into the budget.
 
-Fields: `PaidOn: DateOnly`, `Kind: SingleTax | MilitaryLevy | Esv`, `AmountKop`, `PeriodYear`,
-`PeriodQuarter?` (1–4), `PeriodMonth?` (1–12, for advances), `Note`, `CreatedAt`.
+Fields: `PaidOn: DateOnly`, `Kind: SingleTax | MilitaryLevy | Esv`, `AmountKop` (positive),
+`PeriodYear`, `PeriodQuarter?` (1–4), `PeriodMonth?` (1–12, for advances), `Note?`, `CreatedAt`,
+`UpdatedAt`.
+
+Rule: exactly one of `PeriodQuarter` and `PeriodMonth` is set, held by validation and by a database
+check constraint. A payment belongs to the year and quarter of its period, never of `PaidOn`: a Q4
+payment made the next February settles Q4. A monthly payment credits the quarter containing the
+month.
 
 Relationships: belongs to `User`.
 

@@ -8,6 +8,7 @@ using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Export;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
@@ -171,6 +172,7 @@ api.MapPeriodsApi();
 api.MapTransactionsApi();
 api.MapExportApi();
 api.MapFxApi();
+api.MapPaymentsApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

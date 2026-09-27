@@ -50,7 +50,7 @@ export function formatMinor(amountMinor: number, currency: string, locale: strin
     maximumFractionDigits: 2,
   }).format(amountMinor / 100);
 
-  return `${formatted} ${currency}`;
+  return `${formatted}\u00a0${currency}`;
 }
 
 export function formatAmount(amountMinor: number, currency: string, locale: string) {

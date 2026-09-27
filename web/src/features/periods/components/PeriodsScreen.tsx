@@ -5,15 +5,10 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useTaxYears } from "@/data/tax-years/useTaxYears";
 import { usePeriods } from "@/data/periods/usePeriods";
+import { currentYearInKyiv } from "@/shared/lib/dates";
 import { DeclarationNumbers } from "./DeclarationNumbers";
 import { PeriodWarnings } from "./PeriodWarnings";
 import { QuartersTable } from "./QuartersTable";
-
-function currentYearInKyiv(): number {
-  return Number(
-    new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone: "Europe/Kyiv" }).format(new Date()),
-  );
-}
 
 function defaultYear(configuredYears: number[]): number | undefined {
   if (configuredYears.length === 0) {
