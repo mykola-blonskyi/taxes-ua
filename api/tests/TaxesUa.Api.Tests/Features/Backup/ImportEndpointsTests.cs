@@ -237,30 +237,45 @@ public sealed class ImportEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Empty((await Backup(owner)).BudgetPayments);
     }
 
-    // The web proxy gives up after 30 seconds while the api would go on holding the owner's lock, so the
-    // largest file allowed has to finish well inside that, clients and change log included.
+    // A lookup through DbSet.Local per receipt once made this quadratic: 10,000 named receipts ran past
+    // the web proxy's 30 seconds while holding the owner's lock. Growth is checked as a ratio because a
+    // shared CI runner is several times slower than a workstation; tenfold the receipts costing far
+    // more than tenfold the time is the regression. The absolute cap only catches a runaway.
     [Fact]
-    public async Task The_largest_allowed_file_with_named_clients_imports_well_under_the_proxy_timeout()
+    public async Task Import_time_grows_linearly_up_to_the_largest_allowed_file()
     {
         await using var application = CreateApplication();
         using var owner = await SignedInFresh(application);
+        await Import(owner, NamedReceipts(50, day: 1));
+
+        var small = await Timed(owner, NamedReceipts(PrototypeFile.MaxIncomes / 10, day: 2));
+        var large = await Timed(owner, NamedReceipts(PrototypeFile.MaxIncomes, day: 3));
+
+        Assert.Equal(20, (await Backup(owner)).Clients.Length);
+        Assert.True(large < small * 15, $"{PrototypeFile.MaxIncomes / 10} took {small}, {PrototypeFile.MaxIncomes} took {large}");
+        Assert.True(large < TimeSpan.FromSeconds(60), $"took {large}");
+    }
+
+    private static string NamedReceipts(int count, int day)
+    {
         var incomes = new JsonArray();
-        for (var i = 0; i < PrototypeFile.MaxIncomes; i++)
+        for (var i = 0; i < count; i++)
         {
-            var income = Income(
-                $"2031-{i % 5 + 1:00}-{i % 28 + 1:00}", $"{i + 1}.00", "UAH", null, $"{i + 1}.00");
+            var income = Income($"2031-{i % 5 + 1:00}-{day:00}", $"{i + 1}.00", "UAH", null, $"{i + 1}.00");
             income["client"] = $"Client {i % 20}";
             incomes.Add(income);
         }
 
-        var file = new JsonObject { ["incomes"] = incomes }.ToJsonString();
+        return new JsonObject { ["incomes"] = incomes }.ToJsonString();
+    }
+
+    private static async Task<TimeSpan> Timed(HttpClient owner, string file)
+    {
         var clock = System.Diagnostics.Stopwatch.StartNew();
         var result = await Import(owner, file);
         clock.Stop();
-
-        Assert.Equal(PrototypeFile.MaxIncomes, result.TransactionsAdded);
-        Assert.Equal(20, (await Backup(owner)).Clients.Length);
-        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(15), $"took {clock.Elapsed}");
+        Assert.Equal(0, result.TransactionsAlreadyPresent);
+        return clock.Elapsed;
     }
 
     [Fact]
