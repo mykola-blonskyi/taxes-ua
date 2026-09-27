@@ -84,10 +84,26 @@ public static class PeriodsEndpoints
                 ToObligations(obligations, year, accrual.Income.Quarter)))
             .ToArray();
 
+        var months = ledger is null
+            ? null
+            : loadedYears.AdvancesOf(ledger)?
+                .Where(advance => advance.Year == year
+                    && (registrationDate is not { } registered || MonthEnd(year, advance.Month) >= registered))
+                .Select(advance => new MonthPeriodResponse(
+                    advance.Month,
+                    advance.IncomeKop,
+                    advance.SingleTax.AccruedKop,
+                    advance.MilitaryLevy.AccruedKop,
+                    advance.Esv.AccruedKop,
+                    advance.RecommendedKop,
+                    advance.RecommendedDate))
+                .ToArray();
+
         return new PeriodsResponse(
             year,
             ToWarnings(loadedYears),
             quarters,
+            months,
             ledger is null
                 ? null
                 : new YearBalancesResponse(
@@ -160,19 +176,40 @@ public static class PeriodsEndpoints
             loadedYears.MissingTaxYear);
     }
 
-    private static DateOnly QuarterEnd(int year, int quarter) =>
-        new DateOnly(year, 3 * quarter, 1).AddMonths(1).AddDays(-1);
+    private static DateOnly QuarterEnd(int year, int quarter) => MonthEnd(year, 3 * quarter);
+
+    private static DateOnly MonthEnd(int year, int month) =>
+        new DateOnly(year, month, 1).AddMonths(1).AddDays(-1);
 
     private static IResult Missing(int year) => Results.Problem(
         statusCode: StatusCodes.Status404NotFound,
         title: $"No tax year configuration exists for {year}.");
 }
 
+/// <summary>
+/// <c>Months</c> is sent only in <c>MonthlyAdvance</c> mode and only for a year the ledger covers;
+/// the mode changes nothing else in this response (Rule 6).
+/// </summary>
 internal sealed record PeriodsResponse(
     int Year,
     PeriodWarnings Warnings,
     QuarterPeriodResponse[] Quarters,
+    MonthPeriodResponse[]? Months,
     YearBalancesResponse? Balances);
+
+/// <summary>
+/// One month's accruals and Rule 6's advance for it. <c>RecommendedKop</c> is what of the month's
+/// three accruals the oldest-first allocation left unpaid, to pay by <c>RecommendedDate</c>; zero once
+/// paid.
+/// </summary>
+internal sealed record MonthPeriodResponse(
+    int Month,
+    long IncomeKop,
+    long SingleTaxKop,
+    long MilitaryLevyKop,
+    long EsvKop,
+    long RecommendedKop,
+    DateOnly RecommendedDate);
 
 /// <summary>
 /// Rule 7's three ledgers for the year, one named field per kind like the engine's

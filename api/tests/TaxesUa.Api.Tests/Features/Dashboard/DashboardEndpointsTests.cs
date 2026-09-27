@@ -49,7 +49,7 @@ public sealed class DashboardEndpointsTests(ApiFixture fixture) : IClassFixture<
         Assert.Equal(DateOnly.Parse(kyivToday), dashboard.Today);
         Assert.Equal(NextStepState.Pay, dashboard.NextStep.State);
         Assert.Equal(
-            new KindDebtResponse(PaymentKind.Esv, Year, 1, Year, 1, EsvQuarterKop, new DateOnly(Year, 4, 19), status, daysLeft),
+            new KindDebtResponse(PaymentKind.Esv, Year, 1, Year, 1, EsvQuarterKop, new DateOnly(Year, 4, 19), status, daysLeft, null),
             Assert.Single(dashboard.NextStep.Now));
     }
 
@@ -64,7 +64,7 @@ public sealed class DashboardEndpointsTests(ApiFixture fixture) : IClassFixture<
         var before = await Get(client);
 
         Assert.Equal(
-            [new KindDebtResponse(PaymentKind.Esv, Year, 1, Year, 1, EsvQuarterKop, new DateOnly(Year, 4, 19), ObligationStatus.Overdue, -12)],
+            [new KindDebtResponse(PaymentKind.Esv, Year, 1, Year, 1, EsvQuarterKop, new DateOnly(Year, 4, 19), ObligationStatus.Overdue, -12, null)],
             before.NextStep.Now);
         Assert.Equal(
             [(PaymentKind.SingleTax, 50_000L, 19), (PaymentKind.MilitaryLevy, 10_000L, 19)],
@@ -83,7 +83,7 @@ public sealed class DashboardEndpointsTests(ApiFixture fixture) : IClassFixture<
             [(PaymentKind.SingleTax, 50_000L), (PaymentKind.MilitaryLevy, 10_000L)],
             after.NextStep.Now.Select(debt => (debt.Kind, debt.AmountKop)));
         Assert.Equal(
-            [new KindDebtResponse(PaymentKind.Esv, Year, 2, Year, 2, EsvQuarterKop, new DateOnly(Year, 7, 19), ObligationStatus.Upcoming, 79)],
+            [new KindDebtResponse(PaymentKind.Esv, Year, 2, Year, 2, EsvQuarterKop, new DateOnly(Year, 7, 19), ObligationStatus.Upcoming, 79, null)],
             after.NextStep.Later);
         Assert.Empty(after.Credits);
 

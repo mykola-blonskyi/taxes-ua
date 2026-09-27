@@ -28,10 +28,26 @@ public sealed record QuarterAccrual(
     public long TotalKop => SingleTaxKop + MilitaryLevyKop + EsvKop;
 }
 
-/// <summary>A year of accruals, with the ledger's monthly income beside the quarterly figures.</summary>
+/// <summary>
+/// One month's share of its quarter's accruals, for the monthly advances of Rule 6. The single tax and
+/// the levy are the year-to-date tax through this month minus that through the month before, the way
+/// the declaration splits quarters, so a quarter's three months add up to its accrual to the kopeck:
+/// advances paid in full clear the quarter without a rounding remainder.
+/// </summary>
+public sealed record MonthAccrual(
+    int Month,
+    long IncomeKop,
+    long SingleTaxKop,
+    long MilitaryLevyKop,
+    long EsvKop)
+{
+    public int Quarter => (Month + 2) / 3;
+}
+
+/// <summary>A year of accruals, per month and per quarter.</summary>
 public sealed record YearAccrual(
     int Year,
-    IReadOnlyList<MonthIncome> Months,
+    IReadOnlyList<MonthAccrual> Months,
     IReadOnlyList<QuarterAccrual> Quarters,
     IReadOnlyList<EngineWarning> Warnings)
 {
@@ -98,7 +114,31 @@ public static class Accruals
             accruedMilitaryLevyKop = cumulativeMilitaryLevyKop;
         }
 
-        return new YearAccrual(year, income.Months, quarters, warnings);
+        return new YearAccrual(year, MonthsOf(income, esvByMonthKop, config), quarters, warnings);
+    }
+
+    private static MonthAccrual[] MonthsOf(YearIncome income, long[] esvByMonthKop, TaxYearConfigInput config)
+    {
+        var months = new MonthAccrual[12];
+        var cumulativeIncomeKop = 0L;
+        var accruedSingleTaxKop = 0L;
+        var accruedMilitaryLevyKop = 0L;
+        foreach (var month in income.Months)
+        {
+            cumulativeIncomeKop += month.IncomeKop;
+            var cumulativeSingleTaxKop = Money.ApplyBp(cumulativeIncomeKop, config.SingleTaxRateBp);
+            var cumulativeMilitaryLevyKop = Money.ApplyBp(cumulativeIncomeKop, config.MilitaryLevyRateBp);
+            months[month.Month - 1] = new MonthAccrual(
+                month.Month,
+                month.IncomeKop,
+                cumulativeSingleTaxKop - accruedSingleTaxKop,
+                cumulativeMilitaryLevyKop - accruedMilitaryLevyKop,
+                esvByMonthKop[month.Month - 1]);
+            accruedSingleTaxKop = cumulativeSingleTaxKop;
+            accruedMilitaryLevyKop = cumulativeMilitaryLevyKop;
+        }
+
+        return months;
     }
 
     private static long[] EsvByMonth(

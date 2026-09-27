@@ -120,7 +120,7 @@ public class NextStepTests
         var settings = RegisteredIn2025 with { EsvExempt = true };
         var ledger = Ledger(settings, Date("2026-06-01"), [Year(2026, [], settings)], []);
 
-        Assert.IsType<NextStep.AllDone>(NextStep.Find(ledger, settings.FopRegistrationDate, Date("2026-06-01")));
+        Assert.IsType<NextStep.AllDone>(NextStep.Find(ledger, settings.FopRegistrationDate, Date("2026-06-01"), advances: null));
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class NextStepTests
         var settings = Settings(registered);
         var ledger = Ledger(settings, Date("2026-09-30"), [Year(2026, [], settings)], []);
 
-        Assert.Equal(new NextStep.BeforeRegistration(registered), NextStep.Find(ledger, registered, Date("2026-09-30")));
+        Assert.Equal(new NextStep.BeforeRegistration(registered), NextStep.Find(ledger, registered, Date("2026-09-30"), advances: null));
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class NextStepTests
         var settings = Settings(registered);
         var ledger = Ledger(settings, registered, [Year(2026, [], settings)], []);
 
-        var step = Assert.IsType<NextStep.Pay>(NextStep.Find(ledger, registered, registered));
+        var step = Assert.IsType<NextStep.Pay>(NextStep.Find(ledger, registered, registered, advances: null));
 
         Assert.Equal([Debt(PaymentKind.Esv, 2026, 4, 2026, 4, EsvQuarterKop, "2027-01-19", ObligationStatus.Upcoming)], step.Now);
     }
@@ -151,7 +151,7 @@ public class NextStepTests
         var settings = Settings(null);
         var ledger = Ledger(settings, Date("2026-06-01"), [Year(2026, OneReceipt, settings)], []);
 
-        Assert.IsType<NextStep.RegistrationDateNotSet>(NextStep.Find(ledger, null, Date("2026-06-01")));
+        Assert.IsType<NextStep.RegistrationDateNotSet>(NextStep.Find(ledger, null, Date("2026-06-01"), advances: null));
     }
 
     [Fact]
@@ -197,7 +197,7 @@ public class NextStepTests
                 Paid(PaymentKind.Esv, 3 * EsvQuarterKop, 2026, 1),
             ]);
 
-        var step = Assert.IsType<NextStep.Pay>(NextStep.Find(ledger, RegisteredIn2025.FopRegistrationDate, today));
+        var step = Assert.IsType<NextStep.Pay>(NextStep.Find(ledger, RegisteredIn2025.FopRegistrationDate, today, advances: null));
 
         Assert.Equal([Debt(PaymentKind.Esv, 2026, 4, 2026, 4, EsvQuarterKop, "2027-01-19", ObligationStatus.Upcoming)], step.Now);
         Assert.Empty(step.Later);
@@ -248,7 +248,8 @@ public class NextStepTests
         NextStep.Find(
             Ledger(RegisteredIn2025, today, [Year(2026, OneReceipt, RegisteredIn2025)], payments),
             RegisteredIn2025.FopRegistrationDate,
-            today);
+            today,
+            advances: null);
 
     private static NextStep TwoYears(DateOnly today, BudgetPaymentInput[] payments) =>
         NextStep.Find(
@@ -258,7 +259,8 @@ public class NextStepTests
                 [Year(2025, [], RegisteredIn2025), Year(2026, OneReceipt, RegisteredIn2025)],
                 payments),
             RegisteredIn2025.FopRegistrationDate,
-            today);
+            today,
+            advances: null);
 
     private static BudgetPaymentInput[] Paid2025ThroughQ3() => [Paid(PaymentKind.Esv, 3 * EsvQuarterKop, 2025, 1)];
 
@@ -271,7 +273,7 @@ public class NextStepTests
 
     private static KindDebt Debt(
         PaymentKind kind, int fromYear, int fromQuarter, int toYear, int toQuarter, long amountKop, string dueDate, ObligationStatus status) =>
-        new(kind, fromYear, fromQuarter, toYear, toQuarter, amountKop, Date(dueDate), status);
+        new(kind, fromYear, fromQuarter, toYear, toQuarter, amountKop, Date(dueDate), status, AdvanceMonth: null);
 
     private static BudgetPaymentInput Paid(PaymentKind kind, long amountKop, int year, int quarter) =>
         new(kind, amountKop, year, new PaymentPeriod.Quarterly(quarter));

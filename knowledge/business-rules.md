@@ -113,6 +113,28 @@ The annual declaration (for Q4) includes the ESV attachment.
   month, recommended date `AdvanceRecommendedDay` (15th) of the following month. Advances are
   credited against the quarterly obligations.
 
+The mode changes recommendations only, never an accrual or a balance: obligations stay quarterly,
+and Rule 7 allocates every payment the same way in both modes.
+
+A month's EP and VZ are the year-to-date tax through the month minus that through the month before,
+the way the declaration splits quarters, so a quarter's three months add up to its accrual to the
+kopeck; taxing the month's income alone could leave a one-kopeck remainder after every advance was
+paid. A month's ESV is the month's ESV accrual (Rule 3).
+
+The recommended advance is what the allocation left unpaid of the month's three accruals. Rule 7
+settles each quarter first; what it paid on a quarter is then split over that quarter's months,
+oldest month first, and a refund month's negative accrual is credit to the quarter's other months.
+The months' remainders therefore add up to the quarter's remainder, and nothing already paid is
+recommended again. A paid-up month recommends zero. The "By month" table (income, EP, VZ, ESV, the
+advance and its date) is shown in this mode only.
+
+On the home screen, in this mode, a kind with nothing yet fallen due shows the advance instead of
+the quarter when the advance's date comes before the quarter's deadline: the first of the nearest
+open quarter's advances dated today or later that has anything left, with the unpaid remainder of
+the quarter's earlier months added to it, so a missed advance is caught up rather than dropped. An
+advance is a recommendation, so it is never overdue. Once the quarter's last advance date has passed,
+the quarterly deadline is the step again. Anything already overdue is the step in both modes.
+
 ---
 
 ## Rule 7. Payment balances

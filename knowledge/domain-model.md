@@ -147,6 +147,17 @@ the declaration.
 
 ---
 
+### MonthlyAdvance (computed)
+
+Responsibilities: Rule 6's recommendation for one month in `MonthlyAdvance` mode. Not stored and
+not an obligation; read off the Rule 7 allocation.
+
+Fields: `Year`, `Month`, `IncomeKop`, per kind (`SingleTax`, `MilitaryLevy`, `Esv`) the month's
+`AccruedKop` and the `RemainingKop` its quarter's allocation left on it, `RecommendedKop` (the three
+remainders added, a figure to read like the tax burden), `RecommendedDate`.
+
+---
+
 ### FxRate
 
 Responsibilities: a cache of NBU exchange rates.
