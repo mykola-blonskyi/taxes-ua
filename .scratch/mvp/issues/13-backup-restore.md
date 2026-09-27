@@ -1,7 +1,7 @@
 # 13: JSON backup and restore
 
 GitHub: #14
-Status: API and screen in a PR on branch ticket-14
+Status: closed, done (PR #50). Its own verification found the two 500s fixed by #53 (PR #58).
 Blocked by: #9
 
 ## Parent

@@ -1,7 +1,7 @@
 # 11: Monthly advances
 
 GitHub: #12
-Status: in a PR on branch ticket-12
+Status: closed, done (PR #59)
 Blocked by: #10
 
 ## Parent

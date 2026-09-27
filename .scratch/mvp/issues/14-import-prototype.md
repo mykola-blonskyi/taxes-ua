@@ -1,7 +1,7 @@
 # 14: Prototype JSON import
 
 GitHub: #15
-Status: API and screen in a PR on branch ticket-15
+Status: ready-for-human (merged in PR #61; open for the owner's check against a real prototype export)
 Blocked by: #12
 
 ## Parent
@@ -14,10 +14,10 @@ The owner uploads the JSON from the current prototype (settings, incomes, mpaid,
 
 ## Acceptance criteria
 
-- [ ] Every `incomes` record becomes a transaction with `RateSource: Manual` and a kopeck amount equal to the prototype's `uah` value.
-- [ ] `mpaid` records become three payments (EP, VZ, ESV) with a "month" period.
-- [ ] Re-importing the same file doesn't change the record count.
-- [ ] API test for idempotence.
+- [x] Every `incomes` record becomes a transaction with `RateSource: Manual` and a kopeck amount equal to the prototype's `uah` value.
+- [x] `mpaid` records become three payments (EP, VZ, ESV) with a "month" period.
+- [x] Re-importing the same file doesn't change the record count.
+- [x] API test for idempotence.
 
 ## Blocked by
 

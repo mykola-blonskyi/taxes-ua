@@ -152,6 +152,9 @@ reports/audits/*.tmp.md
 # Verification evidence from .claude/skills/verify-taxes-ua
 .verify/
 
+# Playwright MCP scratch folder (console logs, page snapshots)
+.playwright-mcp/
+
 # ============================================================
 # Graphify
 # ============================================================

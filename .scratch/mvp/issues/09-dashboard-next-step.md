@@ -1,7 +1,7 @@
 # 09: Home screen: the next step
 
 GitHub: #10
-Status: in review (ticket-10 PR; merges after #47)
+Status: closed, done (PR #52)
 Blocked by: #9
 
 ## Parent
@@ -14,10 +14,16 @@ Opening the app, the owner sees the single nearest unfinished step: what to do, 
 
 ## Acceptance criteria
 
-- [ ] Engine tests for choosing the next step with several obligations/overdue/an empty list/a date before registration.
-- [ ] The dashboard API computes "today" by Kyiv time, not UTC; a test for the midnight boundary.
-- [ ] The hero matches the prototype: a large date, the step's name, the amount, the days, the actions.
-- [ ] Marking a payment moves the step forward without a reload.
+- [x] Engine tests for choosing the next step with several obligations/overdue/an empty list/a date before registration.
+- [x] The dashboard API computes "today" by Kyiv time, not UTC; a test for the midnight boundary.
+- [x] The hero matches the prototype: a large date, the step's name, the amount, the days, the actions.
+- [x] Marking a payment moves the step forward without a reload.
+
+Inherited from #9's engine half, for whoever took this ticket:
+
+- [x] The home screen does not render a `Declaration` obligation.
+- [x] The `Upcoming`/`Due` boundary matches the owner's confirmation on #9.
+- [x] "All done" is driven by per-kind balances, never by a pooled total.
 
 ## Blocked by
 
