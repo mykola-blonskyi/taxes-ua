@@ -3,18 +3,21 @@ using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Transactions;
+using TaxesUa.Engine;
+using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
 
 namespace TaxesUa.Api.Features.Export;
 
 public static class ExportEndpoints
 {
     private sealed record ExportFormat(
-        string Extension, string ContentType, Func<IReadOnlyList<Transaction>, byte[]> Write);
+        string Extension, string ContentType, Func<ExportedYear, byte[]> Write);
 
     private static readonly ExportFormat[] Formats =
     [
-        new("csv", "text/csv; charset=utf-8", TransactionExport.ToCsv),
-        new("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", TransactionExport.ToXlsx),
+        new("csv", "text/csv; charset=utf-8", year => TransactionExport.ToCsv(year.Rows)),
+        new("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", year => TransactionExport.ToXlsx(year.Rows)),
+        new("pdf", "application/pdf", TransactionPdf.ToPdf),
     ];
 
     public static IEndpointRouteBuilder MapExportApi(this IEndpointRouteBuilder routes)
@@ -29,6 +32,7 @@ public static class ExportEndpoints
                     int year,
                     UserManager<ApplicationUser> users,
                     AppDbContext database,
+                    TimeProvider time,
                     HttpContext http,
                     CancellationToken cancellationToken) =>
                 {
@@ -44,9 +48,14 @@ public static class ExportEndpoints
                     }
 
                     var rows = await LoadRowsAsync(database, user.Id, year, cancellationToken);
+                    var settings = await database.Settings.FindAsync([user.Id], cancellationToken)
+                        ?? new SettingsEntity { UserId = user.Id };
+                    var totalIncomeKop = IncomeLedger.ForYear(
+                        year, rows.Select(row => row.ToEngineInput()).ToList(), settings.ToEngineInput()).TotalIncomeKop;
+                    var exported = new ExportedYear(year, rows, totalIncomeKop, time.NowInKyiv());
 
                     return Results.File(
-                        format.Write(rows), format.ContentType, $"transactions-{year}.{format.Extension}");
+                        format.Write(exported), format.ContentType, $"transactions-{year}.{format.Extension}");
                 })
                 .Produces<byte[]>(StatusCodes.Status200OK, format.ContentType)
                 .ProducesValidationProblem()
@@ -61,6 +70,7 @@ public static class ExportEndpoints
         AppDbContext database, string userId, int year, CancellationToken cancellationToken) =>
         database.Transactions
             .Include(row => row.Client)
+            .Include(row => row.RefundsTransaction)
             .Where(row => row.UserId == userId
                 && row.ValueDate >= new DateOnly(year, 1, 1)
                 && row.ValueDate < new DateOnly(year + 1, 1, 1))

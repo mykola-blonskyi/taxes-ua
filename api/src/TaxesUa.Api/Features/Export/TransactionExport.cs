@@ -19,7 +19,14 @@ internal abstract record ExportCell
 
 internal sealed record ExportColumn(string Header, double Width, Func<Transaction, ExportCell> Cell);
 
-// Both writers iterate Columns, so the two files cannot drift apart on order, headers or values.
+/// <summary>
+/// One owner's year as every export format receives it. <see cref="TotalIncomeKop"/> is the
+/// <c>IncomeLedger</c> total the receipts screen shows, not a sum of the hryvnia column, which also
+/// carries own transfers and other non-income rows.
+/// </summary>
+internal sealed record ExportedYear(int Year, IReadOnlyList<Transaction> Rows, long TotalIncomeKop, DateTime GeneratedAtKyiv);
+
+// Every writer iterates Columns, so the files cannot drift apart on order, headers or values.
 internal static class TransactionExport
 {
     private const uint MoneyStyleIndex = 1;
@@ -29,6 +36,8 @@ internal static class TransactionExport
 
     // Serial 0 is 1899-12-30 rather than 1900-01-00 because Excel keeps Lotus's fictitious 1900-02-29.
     private static readonly DateOnly ExcelEpoch = new(1899, 12, 30);
+
+    internal const string DateFormat = "dd.MM.yyyy";
 
     private static readonly char[] FormulaTriggers = ['=', '+', '-', '@', '\t', '\r'];
 
@@ -125,8 +134,8 @@ internal static class TransactionExport
     private static string RenderCsvValue(ExportCell cell) => cell switch
     {
         ExportCell.Text(var value) => EscapeFormula(value ?? string.Empty),
-        ExportCell.Date(var value) => value?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? string.Empty,
-        ExportCell.Scaled(var units, var decimals) => FormatScaled(units, decimals, ','),
+        ExportCell.Date(var value) => value?.ToString(DateFormat, CultureInfo.InvariantCulture) ?? string.Empty,
+        ExportCell.Scaled(var units, var decimals) => FormatScaled(units, decimals, ',', string.Empty),
         _ => throw new ArgumentOutOfRangeException(nameof(cell)),
     };
 
@@ -193,7 +202,7 @@ internal static class TransactionExport
         {
             CellReference = reference,
             StyleIndex = decimals == 4 ? RateStyleIndex : MoneyStyleIndex,
-            CellValue = new Ox.CellValue(FormatScaled(units, decimals, '.')),
+            CellValue = new Ox.CellValue(FormatScaled(units, decimals, '.', string.Empty)),
         },
         _ => throw new ArgumentOutOfRangeException(nameof(cell)),
     };
@@ -282,16 +291,17 @@ internal static class TransactionExport
 
     // Integer arithmetic only, so no binary fraction ever stands in for an amount. Negation cannot
     // overflow: the endpoints cap every amount at 1e14 and every rate at 1e7.
-    private static string FormatScaled(long units, int decimals, char separator)
+    internal static string FormatScaled(long units, int decimals, char decimalSeparator, string groupSeparator)
     {
         var scale = Scale(decimals);
         var negative = units < 0;
         var magnitude = negative ? -units : units;
         var whole = magnitude / scale;
         var fraction = magnitude % scale;
+        var wholeText = whole.ToString("#,0", new NumberFormatInfo { NumberGroupSeparator = groupSeparator });
         var fractionText = fraction.ToString(CultureInfo.InvariantCulture).PadLeft(decimals, '0');
 
-        return (negative ? "-" : string.Empty) + whole.ToString(CultureInfo.InvariantCulture) + separator + fractionText;
+        return (negative ? "-" : string.Empty) + wholeText + decimalSeparator + fractionText;
     }
 
     private static long Scale(int decimals) => decimals switch

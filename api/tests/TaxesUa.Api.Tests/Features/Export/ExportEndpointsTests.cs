@@ -13,22 +13,26 @@ public sealed class ExportEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly JsonSerializerOptions Json =
         new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
-    [Fact]
-    public async Task Unauthenticated_request_is_rejected()
+    [Theory]
+    [InlineData("csv")]
+    [InlineData("pdf")]
+    public async Task Unauthenticated_request_is_rejected(string format)
     {
         var client = fixture.CreateClient();
 
-        var response = await client.GetAsync("/api/export/transactions.csv?year=2030");
+        var response = await client.GetAsync($"/api/export/transactions.{format}?year=2030");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    [Fact]
-    public async Task Year_out_of_range_is_rejected()
+    [Theory]
+    [InlineData("csv")]
+    [InlineData("pdf")]
+    public async Task Year_out_of_range_is_rejected(string format)
     {
         using var client = await SignIn(ApiFixture.AllowedEmail);
 
-        var response = await client.GetAsync("/api/export/transactions.csv?year=1999");
+        var response = await client.GetAsync($"/api/export/transactions.{format}?year=1999");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         await AssertErrorKey(response, "year");
@@ -87,6 +91,40 @@ public sealed class ExportEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             .Elements<DocumentFormat.OpenXml.Spreadsheet.SheetData>().Single();
 
         Assert.Equal(4, sheetData.Elements<DocumentFormat.OpenXml.Spreadsheet.Row>().Count());
+    }
+
+    [Fact]
+    public async Task Pdf_export_is_scoped_to_the_owner_and_the_year_and_totals_income_only()
+    {
+        const int year = 2007;
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        using var other = await SignIn(ApiFixture.SecondAllowedEmail);
+
+        await Create(owner, amountMinor: 12_345, valueDate: new DateOnly(year, 1, 5));
+        await Create(owner, kind: TransactionKind.RefundToClient, amountMinor: 2_345, valueDate: new DateOnly(year, 2, 5));
+        await Create(owner, kind: TransactionKind.OwnTransfer, amountMinor: 77_700, valueDate: new DateOnly(year, 3, 5), nonIncomeReason: "З картки ПриватБанку");
+        await Create(owner, valueDate: new DateOnly(year + 1, 1, 5));
+        await Create(other, amountMinor: 99_900, valueDate: new DateOnly(year, 4, 5));
+
+        var response = await owner.GetAsync($"/api/export/transactions.pdf?year={year}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/pdf", response.Content.Headers.ContentType!.MediaType);
+        Assert.Equal($"transactions-{year}.pdf", response.Content.Headers.ContentDisposition!.FileName);
+
+        using var pdf = UglyToad.PdfPig.PdfDocument.Open(await response.Content.ReadAsByteArrayAsync());
+        Assert.Equal(1, pdf.NumberOfPages);
+        var text = string.Join(' ', pdf.GetPage(1).GetWords().Select(word => word.Text.Replace('\u00A0', ' ')));
+        var screen = await owner.GetFromJsonAsync<JsonElement>($"/api/transactions?year={year}", Json);
+        var screenTotalKop = screen.GetProperty("totalIncomeKop").GetInt64();
+        Assert.NotEqual(12_345 - 2_345 + 77_700, screenTotalKop);
+        Assert.Contains($"Дохід за {year}: {screenTotalKop / 100},{screenTotalKop % 100:00} грн", text);
+        Assert.Contains("123,45", text);
+        Assert.Contains("-23,45", text);
+        Assert.Contains("777,00", text);
+        Assert.Contains($"05.03.{year}", text);
+        Assert.DoesNotContain($"05.01.{year + 1}", text);
+        Assert.DoesNotContain("999,00", text);
     }
 
     private static async Task AssertErrorKey(HttpResponseMessage response, string key)

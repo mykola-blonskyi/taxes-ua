@@ -8,6 +8,7 @@ internal static class KyivTime
 {
     private static readonly TimeZoneInfo Kyiv = TimeZoneInfo.FindSystemTimeZoneById("Europe/Kyiv");
 
-    public static DateOnly TodayInKyiv(this TimeProvider time) =>
-        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), Kyiv).DateTime);
+    public static DateOnly TodayInKyiv(this TimeProvider time) => DateOnly.FromDateTime(time.NowInKyiv());
+
+    public static DateTime NowInKyiv(this TimeProvider time) => TimeZoneInfo.ConvertTime(time.GetUtcNow(), Kyiv).DateTime;
 }
