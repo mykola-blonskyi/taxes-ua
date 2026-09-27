@@ -13,6 +13,39 @@ namespace TaxesUa.Api.Features.Periods;
 /// </summary>
 internal sealed record YearAccruals(TaxYearConfig Config, SettingsEntity Settings, YearAccrual Accrual)
 {
+    /// <summary>
+    /// Every configured year from the registration year onward, oldest first, so that Rule 7 can settle
+    /// a kind's oldest debt with any later payment and carry balances across years. Years after
+    /// <paramref name="year"/> are included because a payment named for them still settles an older
+    /// debt, and every year's screen must agree on which quarters are paid. Years before registration
+    /// accrue nothing and are left out unless <paramref name="year"/> is one of them; a year with no
+    /// <see cref="TaxYearConfig"/> row cannot be computed. Empty when <paramref name="year"/> itself has
+    /// no row.
+    /// </summary>
+    public static async Task<IReadOnlyList<YearAccruals>> LoadLedgerAsync(
+        AppDbContext database, string userId, int year, CancellationToken cancellationToken)
+    {
+        var settings = await database.Settings.FindAsync([userId], cancellationToken);
+        var fromYear = Math.Min(settings?.FopRegistrationDate?.Year ?? year, year);
+        var configured = await database.TaxYearConfigs
+            .Where(config => config.Year >= fromYear)
+            .OrderBy(config => config.Year)
+            .Select(config => config.Year)
+            .ToListAsync(cancellationToken);
+        if (!configured.Contains(year))
+        {
+            return [];
+        }
+
+        var years = new List<YearAccruals>(configured.Count);
+        foreach (var configuredYear in configured)
+        {
+            years.Add((await LoadAsync(database, userId, configuredYear, cancellationToken))!);
+        }
+
+        return years;
+    }
+
     /// <summary>Null when the year has no <see cref="TaxYearConfig"/> row.</summary>
     public static async Task<YearAccruals?> LoadAsync(
         AppDbContext database, string userId, int year, CancellationToken cancellationToken)

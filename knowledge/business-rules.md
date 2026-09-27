@@ -117,13 +117,21 @@ The annual declaration (for Q4) includes the ESV attachment.
 
 ## Rule 7. Payment balances
 
-Per kind (EP, VZ, ESV) independently: accrued cumulatively minus paid = owed or overpaid. An
-overpayment carries forward to the next period of the same kind. Kinds are never mixed.
+Per kind (EP, VZ, ESV) independently: accrued cumulatively minus paid = owed or overpaid. Kinds are
+never mixed: an overpayment of one kind never reduces another kind's debt.
 
-A quarter's balance is cumulative: it opens with the same kind's previous balance, so an unpaid Q1
-levy still shows as owed in Q2, Q3 and Q4, and it is one debt, not four. The carry-forward runs
-inside one year. An overpayment larger than the year's liability for its kind stays on that year's
-closing balance and does not open the next year (to confirm).
+Within a kind, money paid settles the oldest outstanding obligation first, by due date, whatever
+quarter or month the payment names (owner decision 2026-09-27; this is how the tax office credits
+payments against debt, Tax Code art. 87.9). Q1 levy 1,000.00 unpaid, Q2 levy 1,000.00 accrued and
+2,000.00 paid "for Q2" leaves both quarters settled. The period a payment names is kept and shown;
+it no longer decides which obligation the payment settles. A refund that turns a quarter's accrual
+negative adds that amount to the kind's credit in the same way.
+
+The allocation runs across years (owner decision 2026-09-27). An unpaid balance of year Y is still
+owed, and still overdue, in Y+1; an overpayment at the end of Y settles Y+1's obligations of the same
+kind. A year's figures open with what earlier years left for that kind. The ledger starts at the
+registration year, or at the first configured tax year if that is later: payments named for an
+earlier year are not counted.
 
 ---
 

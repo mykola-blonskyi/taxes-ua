@@ -140,8 +140,9 @@ Relationships: belongs to `User`.
 Responsibilities: what is due and when. Not stored, computed by the engine.
 
 Fields: `Year`, `Quarter`, `Kind: SingleTax | MilitaryLevy | Esv | Declaration | MonthlyAdvance`,
-`Month?`, `AccruedKop`, `StatutoryDate`, `DueDate` (shifted), `PaidKop`, `BalanceKop` (positive =
-owed, negative = overpaid), `Status: Upcoming | Due | Overdue | Done`, `CumulativeIncomeKop` for
+`Month?`, `AccruedKop`, `StatutoryDate`, `DueDate` (shifted), `PaidKop` (what the kind's
+payments settled, oldest debt first, Rule 7), `RemainingKop` (never negative; a kind's overpayment
+is credit on its ledger, not on one obligation), `Status: Upcoming | Due | Overdue | Done`, `CumulativeIncomeKop` for
 the declaration.
 
 ---

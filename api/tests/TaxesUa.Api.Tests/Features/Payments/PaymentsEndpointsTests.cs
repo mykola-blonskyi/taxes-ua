@@ -13,6 +13,7 @@ using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Api.Tests.Features.Fx;
 using TaxesUa.Engine;
+using KindYearBalance = TaxesUa.Api.Features.Periods.KindYearBalance;
 
 namespace TaxesUa.Api.Tests.Features.Payments;
 
@@ -218,8 +219,7 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
                 new ObligationResponse(
                     obligation.AccruedKop,
                     obligation.PaidKop,
-                    obligation.OpeningBalanceKop,
-                    obligation.BalanceKop,
+                    obligation.RemainingKop,
                     obligation.DueDate,
                     obligation.Status),
                 actual);
@@ -229,18 +229,63 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         var q2 = periods.Quarters[1].Obligations!;
         var q3 = periods.Quarters[2].Obligations!;
 
-        Assert.Equal((-504_000L, ObligationStatus.Done), (q1.Esv.BalanceKop, q1.Esv.Status));
-        Assert.Equal((-504_000L, 0L, ObligationStatus.Done), (q2.Esv.OpeningBalanceKop, q2.Esv.BalanceKop, q2.Esv.Status));
-        Assert.Equal((168_000L, 336_000L, ObligationStatus.Upcoming), (q3.Esv.PaidKop, q3.Esv.BalanceKop, q3.Esv.Status));
+        Assert.Equal((504_000L, 0L, ObligationStatus.Done), (q1.Esv.PaidKop, q1.Esv.RemainingKop, q1.Esv.Status));
+        Assert.Equal((504_000L, 0L, ObligationStatus.Done), (q2.Esv.PaidKop, q2.Esv.RemainingKop, q2.Esv.Status));
+        Assert.Equal((168_000L, 336_000L, ObligationStatus.Upcoming), (q3.Esv.PaidKop, q3.Esv.RemainingKop, q3.Esv.Status));
 
-        Assert.Equal((-400_000L, ObligationStatus.Done), (q1.SingleTax.BalanceKop, q1.SingleTax.Status));
-        Assert.Equal((200_000L, ObligationStatus.Overdue), (q1.MilitaryLevy.BalanceKop, q1.MilitaryLevy.Status));
-        Assert.Equal((200_000L, ObligationStatus.Upcoming), (q2.MilitaryLevy.BalanceKop, q2.MilitaryLevy.Status));
+        Assert.Equal((600_000L, 0L, ObligationStatus.Done), (q1.SingleTax.PaidKop, q1.SingleTax.RemainingKop, q1.SingleTax.Status));
+        Assert.Equal((200_000L, ObligationStatus.Overdue), (q1.MilitaryLevy.RemainingKop, q1.MilitaryLevy.Status));
+        Assert.Equal((0L, ObligationStatus.Done), (q2.MilitaryLevy.RemainingKop, q2.MilitaryLevy.Status));
 
         Assert.NotNull(periods.Balances);
-        Assert.Equal(new KindYearBalance(600_000, 1_000_000, -400_000), periods.Balances.SingleTax);
-        Assert.Equal(new KindYearBalance(200_000, 0, 200_000), periods.Balances.MilitaryLevy);
-        Assert.Equal(new KindYearBalance(2_016_000, 1_176_000, 840_000), periods.Balances.Esv);
+        Assert.Equal(new KindYearBalance(0, 600_000, 1_000_000, -400_000), periods.Balances.SingleTax);
+        Assert.Equal(new KindYearBalance(0, 200_000, 0, 200_000), periods.Balances.MilitaryLevy);
+        Assert.Equal(new KindYearBalance(0, 2_016_000, 1_176_000, 840_000), periods.Balances.Esv);
+    }
+
+    // Registered 2082-01-01. Q4 2082 and Q1 2083 each take a 100,000.00 receipt: 6,000.00 single tax and
+    // 2,000.00 levy apiece. 2082 overpays the single tax by 4,000.00, leaves the levy unpaid and pays
+    // ESV in full. A 2,000.00 levy payment named for Q2 2083 settles the older Q4 2082 levy instead.
+    // On 2083-06-30 the Q1 2083 payment deadline has passed.
+    [Fact]
+    public async Task A_years_debt_and_overpayment_carry_into_the_next_year_of_the_same_kind_only()
+    {
+        var today = new DateOnly(2083, 6, 30);
+        await using var application = fixture.CreateApplication(
+            new StubNbuHandler(_ => throw new InvalidOperationException("NBU called")), today);
+        // The second owner, because the ledger reaches every later year and the first owner's 2080 test
+        // would otherwise pool these payments.
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
+        foreach (var configured in new[] { 2082, 2083 })
+        {
+            Assert.Equal(
+                HttpStatusCode.OK,
+                (await owner.PutAsJsonAsync($"/api/tax-years/{configured}", TaxYearRequest(), Json)).StatusCode);
+        }
+
+        await SetRegistrationDate(owner, new DateOnly(2082, 1, 1));
+        await PostIncome(owner, new DateOnly(2082, 11, 1), 10_000_000);
+        await PostIncome(owner, new DateOnly(2083, 2, 1), 10_000_000);
+        await Post(owner, Body(2082, PaymentKind.SingleTax, 1_000_000, quarter: 4));
+        await Post(owner, Body(2082, PaymentKind.Esv, 2_016_000, quarter: 4));
+        await Post(owner, Body(2083, PaymentKind.MilitaryLevy, 200_000, quarter: 2));
+
+        var periods = await owner.GetFromJsonAsync<PeriodsResponse>("/api/periods/2083", Json);
+
+        Assert.Equal(new KindYearBalance(-400_000, 600_000, 0, 200_000), periods!.Balances!.SingleTax);
+        Assert.Equal(new KindYearBalance(200_000, 200_000, 200_000, 200_000), periods.Balances.MilitaryLevy);
+        Assert.Equal(new KindYearBalance(0, 2_016_000, 0, 2_016_000), periods.Balances.Esv);
+
+        var q1 = periods.Quarters[0].Obligations!;
+        Assert.Equal((400_000L, 200_000L, ObligationStatus.Overdue), (q1.SingleTax.PaidKop, q1.SingleTax.RemainingKop, q1.SingleTax.Status));
+        Assert.Equal((0L, 200_000L, ObligationStatus.Overdue), (q1.MilitaryLevy.PaidKop, q1.MilitaryLevy.RemainingKop, q1.MilitaryLevy.Status));
+        Assert.Equal((0L, 504_000L), (q1.Esv.PaidKop, q1.Esv.RemainingKop));
+
+        var earlier = await owner.GetFromJsonAsync<PeriodsResponse>("/api/periods/2082", Json);
+        var levyQ4 = earlier!.Quarters[3].Obligations!.MilitaryLevy;
+        Assert.Equal((200_000L, 0L, ObligationStatus.Done), (levyQ4.PaidKop, levyQ4.RemainingKop, levyQ4.Status));
+        Assert.Equal(new KindYearBalance(0, 200_000, 0, 200_000), earlier.Balances!.MilitaryLevy);
+        Assert.Equal(new KindYearBalance(0, 600_000, 1_000_000, -400_000), earlier.Balances.SingleTax);
     }
 
     [Fact]
@@ -267,14 +312,19 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         await using var scope = application.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var userId = database.Users.Single(user => user.Email == email).Id;
-        var loaded = (await YearAccruals.LoadAsync(database, userId, year, CancellationToken.None))!;
-        var payments = await PaymentsEndpoints.LoadEngineInputAsync(database, userId, year, CancellationToken.None);
+        var years = await YearAccruals.LoadLedgerAsync(database, userId, year, CancellationToken.None);
+        var payments = await PaymentsEndpoints.LoadEngineInputAsync(
+            database, userId, years[0].Accrual.Year, years[^1].Accrual.Year, CancellationToken.None);
 
-        return ObligationBuilder.ForYear(
-            Balances.ForYear(loaded.Accrual, payments),
-            loaded.Config.ToEngineInput(),
-            loaded.Settings.ToEngineInput(),
+        var ledger = Balances.ForYears(
+            [.. years.Select(each => new LedgerYear(each.Accrual, each.Config.ToEngineInput()))],
+            years[^1].Settings.ToEngineInput(),
+            payments,
             today);
+        return
+        [
+            .. ledger.SingleTax.Obligations, .. ledger.MilitaryLevy.Obligations, .. ledger.Esv.Obligations,
+        ];
     }
 
     private static PaymentRequest Body(
