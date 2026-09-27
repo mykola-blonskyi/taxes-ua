@@ -81,7 +81,7 @@ function MarkPaid({ now, busy }: { now: KindDebt[]; busy: boolean }) {
   const t = useTranslations("dashboard");
   const recordPayments = useRecordPayments();
   const recording = useRef(false);
-  const step = now.map((debt) => `${debt.kind}-${debt.fromYear}-${debt.fromQuarter}-${debt.amountKop}`).join();
+  const step = now.map((debt) => `${debt.kind}-${debt.fromYear}-${debt.fromQuarter}-${debt.advanceMonth}-${debt.amountKop}`).join();
   // Confirmation belongs to the step it was opened for, so a background refetch that changes the step
   // closes it rather than letting it record the new amounts.
   const [confirmingStep, setConfirmingStep] = useState<string | null>(null);
@@ -97,15 +97,16 @@ function MarkPaid({ now, busy }: { now: KindDebt[]; busy: boolean }) {
     recordPayments.mutate(
       now.map((debt) => {
         // Allocation settles the oldest debt first whatever period a payment names, so naming the
-        // oldest open quarter only keeps the record readable.
+        // oldest open quarter, or the advance's month, only keeps the record readable.
         const { fromYear, fromQuarter } = periodOf(debt);
+        const advance = debt.advanceMonth !== null;
         return {
           paidOn,
           kind: debt.kind,
           amountKop: debt.amountKop,
           periodYear: fromYear,
-          periodQuarter: fromQuarter,
-          periodMonth: null,
+          periodQuarter: advance ? null : fromQuarter,
+          periodMonth: advance ? debt.advanceMonth : null,
           note: null,
         };
       }),
