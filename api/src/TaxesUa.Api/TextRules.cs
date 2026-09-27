@@ -7,7 +7,8 @@ namespace TaxesUa.Api;
 internal static class TextRules
 {
     /// <summary>
-    /// True if <paramref name="value"/> contains a NUL or another disallowed C0 control character.
+    /// True if <paramref name="value"/> contains a NUL or another disallowed control character (C0,
+    /// DEL or C1).
     /// PostgreSQL's <c>text</c> columns reject an embedded NUL outright, which without this check
     /// surfaces as a 500 once the row is saved rather than a 400 the caller can act on. The rest of
     /// C0 (U+0001-U+001F, e.g. backspace, form feed, escape) is rejected too: none of them has a
@@ -20,7 +21,7 @@ internal static class TextRules
     {
         foreach (var c in value)
         {
-            if (c <= '\u001f' && c is not '\t' and not '\n' and not '\r')
+            if (char.IsControl(c) && c is not '\t' and not '\n' and not '\r')
             {
                 return true;
             }

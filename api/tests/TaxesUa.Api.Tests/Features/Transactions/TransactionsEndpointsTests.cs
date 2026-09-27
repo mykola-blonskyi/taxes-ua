@@ -112,6 +112,49 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Theory]
+    [InlineData("1")]
+    [InlineData("0")]
+    [InlineData(" Income")]
+    [InlineData("Income ")]
+    [InlineData("")]
+    public async Task A_kind_that_is_not_exactly_a_member_name_is_rejected(string kind)
+    {
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+        var body = Body(valueDate: new DateOnly(2024, 1, 12));
+        body["kind"] = kind;
+
+        var response = await client.PostAsJsonAsync("/api/transactions", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_lowercase_kind_still_binds()
+    {
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+        var body = Body(valueDate: new DateOnly(2024, 1, 14));
+        body["kind"] = "income";
+
+        var response = await client.PostAsJsonAsync("/api/transactions", body);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Ann\u007fa")]
+    [InlineData("Ann\u0085a")]
+    public async Task A_DEL_or_C1_control_in_a_text_field_is_rejected(string clientName)
+    {
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+        var body = Body(valueDate: new DateOnly(2024, 1, 15), clientName: clientName);
+
+        var response = await client.PostAsJsonAsync("/api/transactions", body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await AssertErrorKey(response, "clientName");
+    }
+
     [Fact]
     public async Task A_NUL_in_a_text_field_is_rejected()
     {

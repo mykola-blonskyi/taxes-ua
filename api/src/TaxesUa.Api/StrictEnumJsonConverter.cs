@@ -11,10 +11,11 @@ namespace TaxesUa.Api;
 /// <see cref="JsonStringEnumConverter"/> everywhere: <c>Enum.TryParse</c> accepts a comma-separated
 /// list of member names for any enum, flags or not, and ORs their values together, so
 /// <c>"Income, RefundToClient"</c> parses as the single value of whichever name that combination
-/// happens to equal (here, <c>RefundToClient</c>) instead of failing. A caller cannot see that from
-/// the response, so it stores the wrong value silently. This converter rejects any string containing
-/// a comma outright, plus anything that is not a string (so an integer is rejected the way the
-/// replaced converter's <c>allowIntegerValues: false</c> did) or not a declared member name.
+/// happens to equal (here, <c>RefundToClient</c>) instead of failing. It also parses a digit string such
+/// as <c>"1"</c> as that ordinal and trims surrounding whitespace, so both bind to a real member
+/// silently. A caller cannot see any of that from the response. This converter therefore never calls
+/// <c>Enum.TryParse</c>: it looks the string up among the declared member names, and rejects anything
+/// else, including a JSON number (as the replaced converter's <c>allowIntegerValues: false</c> did).
 /// </summary>
 internal sealed class StrictEnumJsonConverterFactory : JsonConverterFactory
 {
@@ -36,7 +37,7 @@ internal sealed class StrictEnumJsonConverter<TEnum> : JsonConverter<TEnum>
         }
 
         var value = reader.GetString()!;
-        if (value.Contains(',') || !Enum.TryParse<TEnum>(value, ignoreCase: true, out var result) || !Enum.IsDefined(result))
+        if (!ByName.TryGetValue(value, out var result))
         {
             throw new JsonException(
                 $"\"{value}\" is not a member of {typeToConvert.Name}. Expected one of: "
@@ -45,6 +46,9 @@ internal sealed class StrictEnumJsonConverter<TEnum> : JsonConverter<TEnum>
 
         return result;
     }
+
+    private static readonly Dictionary<string, TEnum> ByName =
+        Enum.GetNames<TEnum>().ToDictionary(n => n, Enum.Parse<TEnum>, StringComparer.OrdinalIgnoreCase);
 
     public override void Write(Utf8JsonWriter writer, TEnum value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value.ToString());
