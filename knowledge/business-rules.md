@@ -14,6 +14,10 @@ Not income: transfers between one's own accounts, hryvnia from selling one's own
 exchange-rate differences, top-ups from one's own funds, refunds of erroneous payments. Every
 such operation must carry a type and a reason. Expenses are not deductible.
 
+Income arises on the credit date, so a transaction cannot be dated after today in Kyiv. A
+`ValueDate` in the future is rejected with a field error, and the form does not let the owner pick
+one.
+
 ---
 
 ## Rule 2. Currency and exchange rate

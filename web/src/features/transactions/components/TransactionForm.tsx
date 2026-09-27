@@ -247,6 +247,7 @@ export function TransactionForm({
           id="transaction-value-date"
           label={t("valueDate")}
           type="date"
+          max={todayInKyiv()}
           value={form.valueDate}
           onChange={(value) => setForm((current) => ({ ...current, valueDate: value }))}
           errors={fieldErrors?.valueDate}

@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using TaxesUa.Api;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Transactions;
@@ -146,6 +147,14 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
             kind: TransactionKind.Income,
             amountMinor: 7_000,
             valueDate: new DateOnly(year, 2, 10));
+        // A refund linked to an excluded receipt is excluded too, whatever its own date (Rule 8), even
+        // though it lands on the same day as the ordinary income row above, which is not excluded.
+        var transitiveRefund = await Create(
+            client,
+            kind: TransactionKind.RefundToClient,
+            amountMinor: 3_000,
+            valueDate: new DateOnly(year, 4, 1),
+            refundsTransactionId: beforeRegistration.Id);
 
         var listed = await client.GetFromJsonAsync<TransactionListResponse>(
             $"/api/transactions?year={year}", Json);
@@ -159,6 +168,36 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
         Assert.False(byId[refund.Id].BeforeRegistration);
         Assert.False(byId[nonIncome.Id].BeforeRegistration);
         Assert.True(byId[beforeRegistration.Id].BeforeRegistration);
+        Assert.True(byId[transitiveRefund.Id].BeforeRegistration);
+        Assert.Equal(beforeRegistration.Id, byId[transitiveRefund.Id].RefundsReceipt?.Id);
+    }
+
+    [Fact]
+    public async Task A_receipt_dated_after_today_in_kyiv_is_rejected()
+    {
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+        var tomorrow = TimeProvider.System.TodayInKyiv().AddDays(1);
+        var body = Body(valueDate: tomorrow);
+
+        var response = await client.PostAsJsonAsync("/api/transactions", body, Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await AssertErrorKey(response, "valueDate");
+    }
+
+    [Fact]
+    public async Task A_row_dated_today_in_kyiv_is_accepted()
+    {
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+
+        // Non-income and dated today: this shares the fixture's database with
+        // Year_total_excludes_non_income_and_pre_registration_rows, which asserts an exact income total
+        // for the current calendar year, so this row must never count toward that sum.
+        await Create(
+            client,
+            kind: TransactionKind.OwnDeposit,
+            nonIncomeReason: "boundary check",
+            valueDate: TimeProvider.System.TodayInKyiv());
     }
 
     [Fact]
@@ -217,7 +256,7 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     [Fact]
     public async Task The_same_client_name_on_two_receipts_creates_one_client()
     {
-        const int year = 2028;
+        const int year = 2016;
         using var client = await SignIn(ApiFixture.AllowedEmail);
         const string clientName = "Acme LLC";
 
@@ -234,7 +273,7 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     public async Task A_client_name_longer_than_its_column_is_rejected()
     {
         using var client = await SignIn(ApiFixture.AllowedEmail);
-        var body = Body(valueDate: new DateOnly(2029, 1, 1), clientName: new string('a', 201));
+        var body = Body(valueDate: new DateOnly(2010, 1, 1), clientName: new string('a', 201));
 
         var response = await client.PostAsJsonAsync("/api/transactions", body, Json);
 
@@ -256,56 +295,44 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     [Fact]
     public async Task A_refund_linked_to_a_receipt_names_it_and_still_reduces_income()
     {
-        const int year = 2031;
-        using var client = await SignIn(ApiFixture.AllowedEmail);
-        var receipt = await Create(client, amountMinor: 50_000, valueDate: new DateOnly(year, 2, 1));
+        // SecondAllowedEmail, not AllowedEmail: AllowedEmail's registration date (set by other tests in
+        // this class) is 2026-03-01, which would leave no year both after that date and before today for
+        // an exact-total assertion (Rule 8, Rule 10). SecondAllowedEmail otherwise stays unregistered for
+        // this class (An_owner_without_a_registration_date_has_no_income_and_a_null_date depends on that),
+        // so this test registers it and resets it back to null when done.
+        const int year = 2026;
+        using var client = await SignIn(ApiFixture.SecondAllowedEmail);
+        await SetFopRegistrationDate(new DateOnly(year, 1, 1), ApiFixture.SecondAllowedEmail);
+        try
+        {
+            var receipt = await Create(client, amountMinor: 50_000, valueDate: new DateOnly(year, 2, 1));
 
-        var refund = await Create(
-            client,
-            kind: TransactionKind.RefundToClient,
-            amountMinor: 20_000,
-            valueDate: new DateOnly(year, 3, 1),
-            refundsTransactionId: receipt.Id);
+            var refund = await Create(
+                client,
+                kind: TransactionKind.RefundToClient,
+                amountMinor: 20_000,
+                valueDate: new DateOnly(year, 3, 1),
+                refundsTransactionId: receipt.Id);
 
-        var expected = new RefundedReceipt(receipt.Id, receipt.ValueDate, 50_000, Currency.UAH);
-        Assert.Equal(expected, refund.RefundsReceipt);
-        var listed = await client.GetFromJsonAsync<TransactionListResponse>(
-            $"/api/transactions?year={year}", Json);
-        Assert.Equal(30_000, listed!.TotalIncomeKop);
-        Assert.Equal(expected, listed.Items.Single(item => item.Id == refund.Id).RefundsReceipt);
-    }
-
-    [Fact]
-    public async Task A_refund_of_a_receipt_before_registration_does_not_count_whatever_its_own_date()
-    {
-        const int year = 2027;
-        using var client = await SignIn(ApiFixture.AllowedEmail);
-        await SetFopRegistrationDate(FopRegistrationDate);
-        var receipt = await Create(client, amountMinor: 10_000_000, valueDate: new DateOnly(2017, 2, 10));
-        var refund = await Create(
-            client,
-            kind: TransactionKind.RefundToClient,
-            amountMinor: 10_000_000,
-            valueDate: new DateOnly(year, 4, 15),
-            refundsTransactionId: receipt.Id);
-        var sameDayIncome = await Create(client, amountMinor: 40_000, valueDate: new DateOnly(year, 4, 15));
-
-        var listed = await client.GetFromJsonAsync<TransactionListResponse>(
-            $"/api/transactions?year={year}", Json);
-
-        Assert.Equal(40_000, listed!.TotalIncomeKop);
-        var byId = listed.Items.ToDictionary(item => item.Id);
-        Assert.True(byId[refund.Id].BeforeRegistration);
-        Assert.Equal(receipt.Id, byId[refund.Id].RefundsReceipt?.Id);
-        Assert.False(byId[sameDayIncome.Id].BeforeRegistration);
+            var expected = new RefundedReceipt(receipt.Id, receipt.ValueDate, 50_000, Currency.UAH);
+            Assert.Equal(expected, refund.RefundsReceipt);
+            var listed = await client.GetFromJsonAsync<TransactionListResponse>(
+                $"/api/transactions?year={year}", Json);
+            Assert.Equal(30_000, listed!.TotalIncomeKop);
+            Assert.Equal(expected, listed.Items.Single(item => item.Id == refund.Id).RefundsReceipt);
+        }
+        finally
+        {
+            await SetFopRegistrationDate(null, ApiFixture.SecondAllowedEmail);
+        }
     }
 
     [Fact]
     public async Task A_link_on_anything_but_a_refund_is_rejected()
     {
         using var client = await SignIn(ApiFixture.AllowedEmail);
-        var receipt = await Create(client, valueDate: new DateOnly(2035, 1, 1));
-        var body = Body(valueDate: new DateOnly(2035, 1, 2), refundsTransactionId: receipt.Id);
+        var receipt = await Create(client, valueDate: new DateOnly(2020, 1, 1));
+        var body = Body(valueDate: new DateOnly(2020, 1, 2), refundsTransactionId: receipt.Id);
 
         var response = await client.PostAsJsonAsync("/api/transactions", body, Json);
 
@@ -318,13 +345,13 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     {
         using var owner = await SignIn(ApiFixture.AllowedEmail);
         using var other = await SignIn(ApiFixture.SecondAllowedEmail);
-        var othersReceipt = await Create(other, valueDate: new DateOnly(2035, 2, 1));
-        var ownRefund = await Create(owner, kind: TransactionKind.RefundToClient, valueDate: new DateOnly(2035, 2, 2));
-        var ownReceipt = await Create(owner, valueDate: new DateOnly(2035, 2, 3));
+        var othersReceipt = await Create(other, valueDate: new DateOnly(2021, 2, 1));
+        var ownRefund = await Create(owner, kind: TransactionKind.RefundToClient, valueDate: new DateOnly(2021, 2, 2));
+        var ownReceipt = await Create(owner, valueDate: new DateOnly(2021, 2, 3));
 
         foreach (var target in new[] { othersReceipt.Id, ownRefund.Id })
         {
-            var body = RefundBody(valueDate: new DateOnly(2035, 2, 4), refundsTransactionId: target);
+            var body = RefundBody(valueDate: new DateOnly(2021, 2, 4), refundsTransactionId: target);
 
             var response = await owner.PostAsJsonAsync("/api/transactions", body, Json);
 
@@ -334,7 +361,7 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
 
         var selfLink = await owner.PutAsJsonAsync(
             $"/api/transactions/{ownReceipt.Id}",
-            RefundBody(valueDate: new DateOnly(2035, 2, 3), refundsTransactionId: ownReceipt.Id),
+            RefundBody(valueDate: new DateOnly(2021, 2, 3), refundsTransactionId: ownReceipt.Id),
             Json);
         Assert.Equal(HttpStatusCode.BadRequest, selfLink.StatusCode);
         await AssertErrorKey(selfLink, "refundsTransactionId");
@@ -343,7 +370,7 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     [Fact]
     public async Task Refunds_linked_to_one_receipt_cannot_add_up_to_more_than_it()
     {
-        const int year = 2032;
+        const int year = 2012;
         using var client = await SignIn(ApiFixture.AllowedEmail);
         var receipt = await Create(client, amountMinor: 10_000, valueDate: new DateOnly(year, 1, 1));
         var first = await Create(
@@ -370,7 +397,7 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     [Fact]
     public async Task A_receipt_with_linked_refunds_stays_income_and_covers_them()
     {
-        const int year = 2033;
+        const int year = 2013;
         using var client = await SignIn(ApiFixture.AllowedEmail);
         var receipt = await Create(client, amountMinor: 10_000, valueDate: new DateOnly(year, 1, 1));
         await Create(
@@ -399,7 +426,7 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     [Fact]
     public async Task A_receipt_with_a_linked_refund_cannot_be_deleted_until_it_is_unlinked()
     {
-        const int year = 2034;
+        const int year = 2014;
         using var client = await SignIn(ApiFixture.AllowedEmail);
         var receipt = await Create(client, amountMinor: 10_000, valueDate: new DateOnly(year, 1, 1));
         var refund = await Create(
@@ -430,7 +457,7 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     [Fact]
     public async Task Receipts_lists_only_the_owners_income_rows()
     {
-        const int year = 2036;
+        const int year = 2022;
         using var owner = await SignIn(ApiFixture.AllowedEmail);
         using var other = await SignIn(ApiFixture.SecondAllowedEmail);
         var receipt = await Create(owner, valueDate: new DateOnly(year, 1, 1), clientName: "Initech");
@@ -468,7 +495,7 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
         var body = Body(
             kind: kind,
             amountMinor: amountMinor,
-            valueDate: valueDate ?? new DateOnly(2030, 1, 1),
+            valueDate: valueDate ?? new DateOnly(2000, 1, 1),
             nonIncomeReason: nonIncomeReason,
             clientName: clientName,
             refundsTransactionId: refundsTransactionId);
@@ -479,12 +506,12 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
         return (await response.Content.ReadFromJsonAsync<TransactionResponse>(Json))!;
     }
 
-    private async Task SetFopRegistrationDate(DateOnly date)
+    private async Task SetFopRegistrationDate(DateOnly? date, string email = ApiFixture.AllowedEmail)
     {
         await using var scope = fixture.CreateScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var userId = await database.Users
-            .Where(user => user.Email == ApiFixture.AllowedEmail)
+            .Where(user => user.Email == email)
             .Select(user => user.Id)
             .SingleAsync();
 
@@ -509,7 +536,7 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
         string? description = null,
         Guid? refundsTransactionId = null) => new()
     {
-        ["valueDate"] = (valueDate == default ? new DateOnly(2030, 1, 1) : valueDate).ToString("yyyy-MM-dd"),
+        ["valueDate"] = (valueDate == default ? new DateOnly(2000, 1, 1) : valueDate).ToString("yyyy-MM-dd"),
         ["amountMinor"] = amountMinor,
         ["currency"] = "UAH",
         ["manualRateE4"] = null,

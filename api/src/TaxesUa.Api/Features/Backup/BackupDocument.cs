@@ -46,7 +46,7 @@ internal sealed record BackupDocument(
     /// endpoints run. The refund links need the receipts' stored state, so
     /// <see cref="TransactionsEndpoints.ValidateLinksAsync"/> checks them after the rows are written.
     /// </summary>
-    public Dictionary<string, string[]>? Validate()
+    public Dictionary<string, string[]>? Validate(DateOnly today)
     {
         // RespectNullableAnnotations checks members, not array elements.
         if (Array.Exists(Clients, row => row is null)
@@ -138,7 +138,7 @@ internal sealed record BackupDocument(
             Undefined(at, transaction.UndefinedEnums());
 
             var request = transaction.ToRequest(clientName);
-            var requestErrors = TransactionsEndpoints.Validate(request, TransactionsEndpoints.Normalize(request));
+            var requestErrors = TransactionsEndpoints.Validate(request, TransactionsEndpoints.Normalize(request), today);
             Merge(at, requestErrors);
 
             if (requestErrors is null && transaction.RateError() is var (key, message))
