@@ -14,7 +14,7 @@ internal sealed class Settings
     public PaymentMode PaymentMode { get; set; } = PaymentMode.Quarterly;
 
     public EsvRegistrationMonthPolicy EsvRegistrationMonthPolicy { get; set; } =
-        EsvRegistrationMonthPolicy.FullMonth;
+        EsvRegistrationMonthPolicy.Prorated;
 
     public bool EsvExempt { get; set; }
 

@@ -60,5 +60,5 @@ English. The interface is Ukrainian by default, with Russian as a second languag
 ## Known Limitations
 
 - The owner's FOP is not registered yet. There is no real bank data.
-- The EP/VZ payment-deadline interpretation and the ESV registration-month policy are not
-  confirmed yet; both are configurable.
+- The EP/VZ payment-deadline interpretation is not confirmed yet; it is configurable. The ESV
+  registration-month policy is confirmed (prorated by default) but stays configurable.

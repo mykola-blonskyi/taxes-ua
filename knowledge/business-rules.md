@@ -35,7 +35,8 @@ Formula: `AmountUahKop = roundHalfUp(AmountMinor × RateE4 / 10000)`.
 - Military Levy: `MilitaryLevyRateBp` of income (2026: 1%).
 - ESV for oneself: `EsvRateBp` of the monthly minimum wage (2026: 22% × 8,647 = 1,902.34 UAH).
   Paid from the month of FOP registration, regardless of income.
-- Registration month: full amount by default. Setting `EsvRegistrationMonthPolicy`. To confirm.
+- Registration month: prorated by active days by default (`EsvRegistrationMonthPolicy.Prorated`),
+  confirmed by the owner. `EsvRegistrationMonthPolicy.FullMonth` stays available as a setting.
 - ESV exemption (`Settings.EsvExempt`) zeroes out the ESV accrual.
 
 The declaration is filed cumulatively. Quarter tax = tax on cumulative income minus tax already

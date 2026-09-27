@@ -203,7 +203,7 @@ public sealed class SettingsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         Assert.NotNull(settings);
         Assert.Null(settings.FopRegistrationDate);
         Assert.Equal(PaymentMode.Quarterly, settings.PaymentMode);
-        Assert.Equal(EsvRegistrationMonthPolicy.FullMonth, settings.EsvRegistrationMonthPolicy);
+        Assert.Equal(EsvRegistrationMonthPolicy.Prorated, settings.EsvRegistrationMonthPolicy);
         Assert.False(settings.EsvExempt);
         Assert.True(settings.TaxPaymentCountsFromStatutoryDeclarationDate);
         Assert.True(settings.ShiftTaxPaymentFromWeekend);
