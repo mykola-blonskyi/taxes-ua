@@ -127,9 +127,9 @@ Fields: `PaidOn: DateOnly`, `Kind: SingleTax | MilitaryLevy | Esv`, `AmountKop` 
 `UpdatedAt`.
 
 Rule: exactly one of `PeriodQuarter` and `PeriodMonth` is set, held by validation and by a database
-check constraint. A payment belongs to the year and quarter of its period, never of `PaidOn`: a Q4
-payment made the next February settles Q4. A monthly payment credits the quarter containing the
-month.
+check constraint. The period is the one the owner names and is kept and shown, never taken from
+`PaidOn`: a Q4 payment made the next February still names Q4. Which obligation a payment settles is
+Rule 7's allocation, oldest debt of its kind first, whatever quarter or month it names.
 
 Relationships: belongs to `User`.
 
@@ -181,6 +181,50 @@ holds one of the ids, every id in the file is replaced by a fresh one and the li
 
 ---
 
+### Prototype file
+
+Responsibilities: the owner's export from the prototype this app replaces, merged in once. Not
+stored. No sample of the export exists in the repository, so this shape is derived from the spec and
+the ticket and read strictly: any other shape is refused with an error naming the field.
+
+Fields: an object with `incomes` and/or `mpaid`; `settings` and `done` are accepted and ignored; any
+other key is refused.
+
+- `incomes`: an array (at most 10,000) of `{ date, amount, currency, rate?, uah, client?, invoice?,
+  comment? }`. `date` is `YYYY-MM-DD`; `currency` is `UAH`, `USD` or `EUR`; `amount`, `rate` and
+  `uah` are JSON numbers or numeric strings, read from their text, never through a double. `amount`
+  has at most 2 decimals; `rate` (required for USD/EUR, absent or 1 for UAH) and `uah` are rounded
+  half away from zero to 4 and 2 decimals. `uah` must equal `amount × rate` by Rule 2's formula.
+- `mpaid`: an object of `YYYY-MM` keys to `true` or `false`, the prototype's "paid" checkmark per
+  month. A month marked `true` cannot be after the current one; a `false` month writes nothing and
+  is not checked.
+
+Mapping: an income becomes an `Income` transaction with `AmountUahKop` = `uah` in kopecks and a
+`Manual` rate (a UAH income has no rate source, as every UAH row). It passes the transaction
+endpoint's own validation, so a future date, a NUL or an over-long text is refused. A month marked
+`true` becomes one month-period payment per kind (EP, VZ, ESV) for what that month accrued (Rule 6's
+year-to-date split), dated on the month's recommended advance date, or today if that is later. A kind
+that accrued nothing is skipped. The amount is the app's own accrual for the month, not what the
+owner actually paid: the prototype stores only a checkmark. If the owner paid a different sum, they
+correct it on Payments. A kind that already has a payment naming that month is skipped, whatever its
+amount. This needs `Settings.FopRegistrationDate` and the year's
+`TaxYearConfig`; without them the import is refused.
+
+Idempotence: an import never edits or deletes. An income is already present when the owner has as
+many `Income` rows with the same date, currency, amount, hryvnia amount and client as the file
+holds; a month's kind is already present when any payment names that kind and month. Re-importing a
+file adds nothing; a file with one more record adds exactly that one. A prototype record changed
+between imports (another amount or date) no longer matches, so it is added beside the old one, which
+the owner deletes by hand. A text-only change (invoice, comment) is not a new record. The prototype's
+`settings` are not applied: their names are unknown, the tax parameters in them belong to the shared
+`TaxYearConfig`, and a wrong guess would move every accrual. `done` holds the prototype's quarterly
+checkmarks, which this app derives from payments instead.
+
+`POST /api/import/prototype?dryRun=true` runs the same import and rolls it back, so the counts the
+owner confirms are the counts the import writes.
+
+---
+
 ### AuditLog
 
 Responsibilities: change log for transactions, budget payments, settings and year parameters. One
@@ -201,6 +245,9 @@ belongs to the user who changed it. Nobody reads another user's entries.
 
 A restore from backup writes one `Backup`/`Restore` entry with the restored counts instead of one
 entry per inserted row. The log is not part of a backup and a restore never replaces it.
+
+A prototype import writes the usual `Create` entry per inserted row: it adds to the owner's data
+rather than replacing it, so each imported record keeps its own history from its first edit on.
 
 ---
 

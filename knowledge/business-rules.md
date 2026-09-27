@@ -123,9 +123,9 @@ The annual declaration (for Q4) includes the ESV attachment.
 ## Rule 6. Payment modes
 
 - `Quarterly`: payments on the official deadlines.
-- `MonthlyAdvance`: recommended monthly advance = EP + VZ on the month's income + ESV for the
-  month, recommended date `AdvanceRecommendedDay` (15th) of the following month. Advances are
-  credited against the quarterly obligations.
+- `MonthlyAdvance`: recommended monthly advance = the month's EP and VZ (the year-to-date
+  difference defined below) + ESV for the month, recommended date `AdvanceRecommendedDay` (15th)
+  of the following month. Advances are credited against the quarterly obligations.
 
 The mode changes recommendations only, never an accrual or a balance: obligations stay quarterly,
 and Rule 7 allocates every payment the same way in both modes.

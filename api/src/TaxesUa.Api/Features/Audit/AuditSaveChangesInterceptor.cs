@@ -76,9 +76,15 @@ internal sealed class AuditSaveChangesInterceptor(
 
         var at = time.GetUtcNow();
         var log = new List<AuditEntry>();
-        foreach (var (entry, entity) in Pending(context).ToList())
+        var pending = Pending(context).ToList();
+
+        // Read once per save: DbSet.Local runs change detection over every tracked row on each access,
+        // which made a save of many receipts quadratic.
+        var trackedClients = context.ChangeTracker.Entries<Client>()
+            .ToDictionary(client => client.Entity.Id, client => client.Entity.Name);
+        foreach (var (entry, entity) in pending)
         {
-            if (await ToAuditEntryAsync(context, entry, entity, at, cancellationToken) is { } audit)
+            if (await ToAuditEntryAsync(context, entry, entity, at, trackedClients, cancellationToken) is { } audit)
             {
                 log.Add(audit);
             }
@@ -105,6 +111,7 @@ internal sealed class AuditSaveChangesInterceptor(
         EntityEntry entry,
         AuditedEntity entity,
         DateTimeOffset at,
+        IReadOnlyDictionary<Guid, string> trackedClients,
         CancellationToken cancellationToken)
     {
         var (action, before, after) = entry.State switch
@@ -114,8 +121,12 @@ internal sealed class AuditSaveChangesInterceptor(
             _ => (AuditAction.Delete, entry.OriginalValues, (PropertyValues?)null),
         };
 
-        var beforeJson = before is null ? null : await SnapshotAsync(context, entry, before, cancellationToken);
-        var afterJson = after is null ? null : await SnapshotAsync(context, entry, after, cancellationToken);
+        var beforeJson = before is null
+            ? null
+            : await SnapshotAsync(context, entry, before, trackedClients, cancellationToken);
+        var afterJson = after is null
+            ? null
+            : await SnapshotAsync(context, entry, after, trackedClients, cancellationToken);
         if (action == AuditAction.Update && beforeJson == afterJson)
         {
             return null;
@@ -137,7 +148,11 @@ internal sealed class AuditSaveChangesInterceptor(
     }
 
     private static async Task<string> SnapshotAsync(
-        DbContext context, EntityEntry entry, PropertyValues values, CancellationToken cancellationToken)
+        DbContext context,
+        EntityEntry entry,
+        PropertyValues values,
+        IReadOnlyDictionary<Guid, string> trackedClients,
+        CancellationToken cancellationToken)
     {
         var key = entry.Metadata.FindPrimaryKey()!.Properties;
         var snapshot = new JsonObject();
@@ -152,7 +167,8 @@ internal sealed class AuditSaveChangesInterceptor(
             // A client id means nothing to the owner reading the log; the name is what they typed.
             if (entry.Entity is Transaction && property.Name == nameof(Transaction.ClientId))
             {
-                snapshot["clientName"] = await ClientNameAsync(context, (Guid?)values[property], cancellationToken);
+                snapshot["clientName"] = await ClientNameAsync(
+                    context, (Guid?)values[property], trackedClients, cancellationToken);
                 continue;
             }
 
@@ -164,16 +180,17 @@ internal sealed class AuditSaveChangesInterceptor(
     }
 
     private static async Task<string?> ClientNameAsync(
-        DbContext context, Guid? clientId, CancellationToken cancellationToken)
+        DbContext context,
+        Guid? clientId,
+        IReadOnlyDictionary<Guid, string> trackedClients,
+        CancellationToken cancellationToken)
     {
         if (clientId is null)
         {
             return null;
         }
 
-        var added = context.Set<Client>().Local.FirstOrDefault(client => client.Id == clientId);
-
-        return added?.Name ?? await context.Set<Client>()
+        return trackedClients.TryGetValue(clientId.Value, out var name) ? name : await context.Set<Client>()
             .AsNoTracking()
             .Where(client => client.Id == clientId)
             .Select(client => client.Name)

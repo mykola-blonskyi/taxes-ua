@@ -37,6 +37,81 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/import/prototype": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: {
+                    dryRun?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonElement"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Payload Too Large */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unsupported Media Type */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/audit": {
         parameters: {
             query?: never;
@@ -1840,6 +1915,20 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        ImportResponse: {
+            dryRun: boolean;
+            /** Format: int32 */
+            transactionsAdded: number | string;
+            /** Format: int32 */
+            transactionsAlreadyPresent: number | string;
+            /** Format: int32 */
+            paymentsAdded: number | string;
+            /** Format: int32 */
+            paymentsAlreadyPresent: number | string;
+            /** Format: int32 */
+            paymentsNothingDue: number | string;
+        };
+        JsonElement: unknown;
         KindCreditResponse: {
             kind: components["schemas"]["PaymentKind"];
             /** Format: int64 */

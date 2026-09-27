@@ -181,6 +181,10 @@ A restore from backup is not the owner's edits, so it writes one summary entry
 save as the rows it inserts. A save that carries that summary gets no per-row entries. The log is
 history, not state: a backup does not carry it and a restore does not replace it.
 
+A prototype import (`POST /api/import/prototype`) merges rather than replaces, so it takes the
+ordinary path: one `Create` entry per inserted row. It shares the restore's per-owner advisory lock,
+and its dry run is the same code in a transaction that is rolled back.
+
 ### web layers
 
 ```

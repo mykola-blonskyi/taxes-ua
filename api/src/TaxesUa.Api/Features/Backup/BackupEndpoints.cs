@@ -221,7 +221,7 @@ public static class BackupEndpoints
         return fileId => fresh[fileId];
     }
 
-    private static async Task<byte[]?> ReadBoundedAsync(Stream body, CancellationToken cancellationToken)
+    internal static async Task<byte[]?> ReadBoundedAsync(Stream body, CancellationToken cancellationToken)
     {
         using var buffer = new MemoryStream();
         var chunk = new byte[81920];
