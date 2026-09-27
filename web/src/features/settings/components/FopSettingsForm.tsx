@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
 import { useSaveSettings, useSettings, type SettingsRequest } from "@/data/settings/useSettings";
@@ -242,9 +243,12 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
         <p className="text-sm text-destructive">{`${t("saveFailed")} ${failure.message}`}</p>
       ) : null}
 
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" disabled={saveSettings.isPending}>
           {saveSettings.isPending ? t("saving") : t("save")}
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/history?entity=Settings">{tFop("history")}</Link>
         </Button>
       </div>
     </form>

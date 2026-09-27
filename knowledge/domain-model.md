@@ -171,10 +171,20 @@ holds one of the ids, every id in the file is replaced by a fresh one and the li
 
 ### AuditLog
 
-Responsibilities: change log for transactions, payments and settings.
+Responsibilities: change log for transactions, budget payments, settings and year parameters. One
+row (`AuditEntry`, table `AuditLog`) per created, changed or deleted record. Append-only.
 
-Fields: `Entity`, `EntityId`, `Action: Create | Update | Delete`, `Before: jsonb`, `After: jsonb`,
-`At`, `UserId`.
+Fields: `Entity: Transaction | BudgetPayment | Settings | TaxYearConfig`, `EntityId` (the record's
+key: a GUID, the year, or the owner's id for Settings), `Action: Create | Update | Delete`,
+`Before: jsonb` (null on Create), `After: jsonb` (null on Delete), `At` (UTC instant, shown in
+Kyiv time), `UserId`.
+
+A snapshot holds the record's fields by their API names; money stays integer kopecks. It leaves out
+the key, `UserId`, `CreatedAt` and `UpdatedAt`, and a transaction's snapshot carries `clientName`
+instead of `clientId`. A save that changes nothing but `UpdatedAt` writes no entry.
+
+`UserId` is the record's owner. `TaxYearConfig` is shared by every allowlisted user, so its entry
+belongs to the user who changed it. Nobody reads another user's entries.
 
 ---
 

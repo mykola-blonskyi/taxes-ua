@@ -82,6 +82,7 @@
       "confirmDeleteYes": "Так, видалити",
       "confirmDeleteCancel": "Скасувати",
       "deleteFailed": "Не вдалося видалити:",
+      "history": "Історія",
       "rateNbu": "НБУ {date}",
       "rateManual": "вручну",
       "reversesReceipt": "Повернення надходження від {date}, {amount}",
@@ -215,7 +216,8 @@
       "confirmDeleteYes": "Так, видалити",
       "confirmDeleteCancel": "Скасувати",
       "deleteFailed": "Не вдалося видалити:",
-      "beforeRegistrationWarning": "дата оплати раніше дати реєстрації, перевірте"
+      "beforeRegistrationWarning": "дата оплати раніше дати реєстрації, перевірте",
+      "history": "Історія"
     },
     "balances": {
       "title": "Баланси за {year} рік",
@@ -246,7 +248,9 @@
     "saving": "Збереження…",
     "saveFailed": "Не вдалося зберегти. Спробуйте ще раз.",
     "validationError": "Перевірте введені дані:",
+    "changeLog": "Журнал змін",
     "fop": {
+      "history": "Історія",
       "fopRegistrationDate": "Дата реєстрації ФОП",
       "paymentMode": "Режим сплати",
       "paymentModeQuarterly": "Щоквартально",
@@ -272,6 +276,7 @@
       "defaultCurrency": "Валюта за замовчуванням"
     },
     "taxYears": {
+      "history": "Історія",
       "empty": "Податкових років ще немає.",
       "year": "Рік",
       "minWageKop": "Мінімальна зарплата",
@@ -322,5 +327,77 @@
     "errorsMore": "{count, plural, one {ще # помилка} few {ще # помилки} many {ще # помилок} other {ще # помилки}}",
     "tooLarge": "Файл завеликий: резервна копія не може перевищувати 8 МБ.",
     "failed": "Не вдалося відновити дані з цього файлу."
+  },
+  "audit": {
+    "title": "Журнал змін",
+    "historyTitle": "Історія",
+    "subtitle": "Історія змін: {entity}",
+    "viewFullLog": "Переглянути весь журнал змін",
+    "loading": "Завантаження…",
+    "loadFailed": "Не вдалося завантажити журнал змін.",
+    "empty": "Змін ще немає.",
+    "actions": {
+      "Create": "Створено",
+      "Update": "Змінено",
+      "Delete": "Видалено"
+    },
+    "entities": {
+      "Transaction": "Надходження",
+      "BudgetPayment": "Платіж",
+      "Settings": "Налаштування",
+      "TaxYearConfig": "Податковий рік"
+    },
+    "values": {
+      "yes": "Так",
+      "no": "Ні",
+      "none": "—"
+    },
+    "fields": {
+      "valueDate": "Дата зарахування",
+      "amountMinor": "Сума у валюті",
+      "currency": "Валюта",
+      "rateE4": "Курс",
+      "rateDate": "Дата курсу",
+      "rateSource": "Джерело курсу",
+      "amountUahKop": "Сума в гривнях",
+      "kind": "Тип",
+      "nonIncomeReason": "Причина",
+      "clientName": "Клієнт",
+      "refundsTransactionId": "Повертає надходження",
+      "invoiceNumber": "Номер інвойсу",
+      "description": "Коментар",
+      "paidOn": "Дата сплати",
+      "amountKop": "Сума",
+      "periodYear": "Рік періоду",
+      "periodQuarter": "Квартал періоду",
+      "periodMonth": "Місяць періоду",
+      "note": "Примітка",
+      "fopRegistrationDate": "Дата реєстрації ФОП",
+      "paymentMode": "Режим сплати",
+      "esvRegistrationMonthPolicy": "Місяць реєстрації ЄСВ",
+      "esvExempt": "Звільнення від ЄСВ",
+      "taxPaymentCountsFromStatutoryDeclarationDate": "Термін сплати від встановленої дати декларації",
+      "shiftTaxPaymentFromWeekend": "Переносити сплату з вихідного",
+      "weekendDays": "Вихідні дні",
+      "locale": "Мова інтерфейсу",
+      "theme": "Тема",
+      "defaultCurrency": "Валюта за замовчуванням",
+      "minWageKop": "Мінімальна зарплата",
+      "singleTaxRateBp": "Єдиний податок",
+      "militaryLevyRateBp": "Військовий збір",
+      "esvRateBp": "Ставка ЄСВ",
+      "excessRateBp": "Ставка понад ліміт",
+      "esvMonthlyKop": "ЄСВ на місяць",
+      "incomeLimitMinWages": "Ліміт доходу (у мін. зарплатах)",
+      "incomeLimitKop": "Ліміт доходу",
+      "limitWarnThresholdsPct": "Пороги попередження",
+      "esvDeadlineDay": "Термін сплати ЄСВ",
+      "declarationDays": "Днів на подання декларації",
+      "taxPaymentDaysAfterDeclaration": "Днів на сплату після декларації",
+      "advanceRecommendedDay": "Рекомендований день авансу",
+      "holidays": "Святкові дні",
+      "source": "Джерело",
+      "verifiedAt": "Перевірено"
+    }
   }
 }

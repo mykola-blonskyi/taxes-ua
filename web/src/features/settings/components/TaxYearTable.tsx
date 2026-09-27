@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
 import {
@@ -344,6 +345,9 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
             onClick={() => cloneTaxYear.mutate({ year, next })}
           >
             {cloneTaxYear.isPending ? tYears("cloning") : tYears("cloneToNext", { next })}
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/history?entity=TaxYearConfig&id=${year}`}>{tYears("history")}</Link>
           </Button>
           {saveFailure && Object.keys(saveFailure.errors).length === 0 ? (
             <p className="text-xs text-destructive">{`${t("saveFailed")} ${saveFailure.message}`}</p>

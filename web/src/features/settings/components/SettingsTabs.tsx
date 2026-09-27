@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Tabs } from "radix-ui";
 import { FopSettingsForm } from "./FopSettingsForm";
@@ -10,20 +11,25 @@ export function SettingsTabs() {
 
   return (
     <Tabs.Root defaultValue="fop" className="flex min-w-0 flex-col gap-4">
-      <Tabs.List className="flex gap-1 border-b">
-        <Tabs.Trigger
-          value="fop"
-          className="px-3 py-2 text-sm text-muted-foreground data-[state=active]:border-b-2 data-[state=active]:border-foreground data-[state=active]:text-foreground"
-        >
-          {t("tabs.fop")}
-        </Tabs.Trigger>
-        <Tabs.Trigger
-          value="taxYears"
-          className="px-3 py-2 text-sm text-muted-foreground data-[state=active]:border-b-2 data-[state=active]:border-foreground data-[state=active]:text-foreground"
-        >
-          {t("tabs.taxYears")}
-        </Tabs.Trigger>
-      </Tabs.List>
+      <div className="flex items-center justify-between gap-2">
+        <Tabs.List className="flex gap-1 border-b">
+          <Tabs.Trigger
+            value="fop"
+            className="px-3 py-2 text-sm text-muted-foreground data-[state=active]:border-b-2 data-[state=active]:border-foreground data-[state=active]:text-foreground"
+          >
+            {t("tabs.fop")}
+          </Tabs.Trigger>
+          <Tabs.Trigger
+            value="taxYears"
+            className="px-3 py-2 text-sm text-muted-foreground data-[state=active]:border-b-2 data-[state=active]:border-foreground data-[state=active]:text-foreground"
+          >
+            {t("tabs.taxYears")}
+          </Tabs.Trigger>
+        </Tabs.List>
+        <Link href="/history" className="shrink-0 text-sm text-primary underline-offset-4 hover:underline">
+          {t("changeLog")}
+        </Link>
+      </div>
       <Tabs.Content value="fop">
         <FopSettingsForm />
       </Tabs.Content>
