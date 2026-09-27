@@ -1,0 +1,7 @@
+# taxes-ua: the role reaches its own database and nothing else. These lines must come before any
+# line that would also match it, such as `host all all all scram-sha-256`, because pg_hba.conf
+# stops at the first match. Rename both columns if the role or database is not taxes_ua.
+local   taxes_ua  taxes_ua                scram-sha-256
+host    taxes_ua  taxes_ua  all           scram-sha-256
+local   all       taxes_ua                reject
+host    all       taxes_ua  all           reject

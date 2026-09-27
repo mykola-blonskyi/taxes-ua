@@ -63,14 +63,108 @@ public sealed class StartupTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Contains("Development", failure.ToString(), StringComparison.Ordinal);
     }
 
-    [Fact]
-    public async Task Production_does_not_serve_the_openapi_document()
+    [Theory]
+    [InlineData("ConnectionStrings:Default", "DATABASE_URL")]
+    [InlineData("Authentication:Google:ClientId", "GOOGLE_CLIENT_ID")]
+    [InlineData("Authentication:Google:ClientSecret", "GOOGLE_CLIENT_SECRET")]
+    [InlineData("Auth:AllowedEmails", "ALLOWED_EMAILS")]
+    public void Production_refuses_to_start_without_a_required_variable(string key, string variable)
     {
         using var application = fixture.CreateApplication(builder =>
         {
-            builder.UseEnvironment(Environments.Production);
-            builder.UseSetting("AllowedHosts", DeployedHost);
+            Deployed(builder);
+            builder.UseSetting(key, "");
         });
+
+        var failure = Record.Exception(() => application.CreateClient());
+
+        Assert.NotNull(failure);
+        Assert.Contains(variable, failure.ToString(), StringComparison.Ordinal);
+    }
+
+    // The allowlist splits on both separators, so a value made only of them allows nobody.
+    [Theory]
+    [InlineData("   ")]
+    [InlineData(" , ")]
+    [InlineData(";\t,")]
+    public void Production_refuses_an_allowlist_that_names_nobody(string allowedEmails)
+    {
+        using var application = fixture.CreateApplication(builder =>
+        {
+            Deployed(builder);
+            builder.UseSetting("Auth:AllowedEmails", allowedEmails);
+        });
+
+        var failure = Record.Exception(() => application.CreateClient());
+
+        Assert.NotNull(failure);
+        Assert.Contains("ALLOWED_EMAILS", failure.ToString(), StringComparison.Ordinal);
+    }
+
+    // Traefik reaches web by the domain; web's rewrite reaches api as `api:8080` and forwards the
+    // domain in X-Forwarded-Host; the healthcheck asks `localhost:8080` directly.
+    [Theory]
+    [InlineData("https://localhost:8080", null, HttpStatusCode.OK)]
+    [InlineData("http://api:8080", DeployedHost, HttpStatusCode.OK)]
+    [InlineData("http://api:8080", "evil.example", HttpStatusCode.BadRequest)]
+    [InlineData("http://api:8080", "localhost", HttpStatusCode.BadRequest)]
+    [InlineData("https://evil.example", null, HttpStatusCode.BadRequest)]
+    public async Task Production_accepts_only_the_domain_and_its_own_internal_names(
+        string address, string? forwardedHost, HttpStatusCode expected)
+    {
+        using var application = fixture.CreateApplication(Deployed);
+        using var client = ApiFixture.CreateClient(application, address);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/health");
+        if (forwardedHost is not null)
+        {
+            request.Headers.Add("X-Forwarded-Host", forwardedHost);
+        }
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_session_survives_a_restart_when_the_key_ring_is_persisted()
+    {
+        var keys = Directory.CreateTempSubdirectory("taxes-ua-keys-");
+        try
+        {
+            string sessionCookie;
+            using (var before = fixture.CreateApplication(builder =>
+                builder.UseSetting("DataProtection:KeysPath", keys.FullName)))
+            {
+                using var client = ApiFixture.CreateClient(before);
+                var login = await client.GetAsync($"/api/auth/login/development?email={ApiFixture.AllowedEmail}");
+                var callback = await client.GetAsync(login.Headers.Location);
+                sessionCookie = callback.Headers.GetValues("Set-Cookie")
+                    .Single(header => header.StartsWith("taxesua.auth=", StringComparison.Ordinal))
+                    .Split(';')[0];
+            }
+
+            Assert.NotEmpty(keys.GetFiles("key-*.xml"));
+
+            using var after = fixture.CreateApplication(builder =>
+                builder.UseSetting("DataProtection:KeysPath", keys.FullName));
+            using var restarted = new HttpClient(after.Server.CreateHandler()) { BaseAddress = new Uri("https://localhost") };
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/api/auth/me");
+            request.Headers.Add("Cookie", sessionCookie);
+
+            var me = await restarted.SendAsync(request);
+
+            Assert.Equal(HttpStatusCode.OK, me.StatusCode);
+        }
+        finally
+        {
+            keys.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Production_does_not_serve_the_openapi_document()
+    {
+        using var application = fixture.CreateApplication(Deployed);
         using var client = application.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri($"https://{DeployedHost}"),
@@ -95,11 +189,7 @@ public sealed class StartupTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     [Fact]
     public async Task Production_does_not_serve_the_development_sign_in()
     {
-        using var application = fixture.CreateApplication(builder =>
-        {
-            builder.UseEnvironment(Environments.Production);
-            builder.UseSetting("AllowedHosts", DeployedHost);
-        });
+        using var application = fixture.CreateApplication(Deployed);
         using var client = application.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri($"https://{DeployedHost}"),
@@ -108,6 +198,14 @@ public sealed class StartupTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         var response = await client.GetAsync($"/api/auth/login/development?email={ApiFixture.AllowedEmail}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    private static void Deployed(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment(Environments.Production);
+        builder.UseSetting("AllowedHosts", DeployedHost);
+        builder.UseSetting("Authentication:Google:ClientId", "test-client-id");
+        builder.UseSetting("Authentication:Google:ClientSecret", "test-client-secret");
     }
 
     [Fact]

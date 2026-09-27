@@ -1,0 +1,26 @@
+# Used only by deploy/smoke-test.sh: the production compose plus a throwaway database, with the
+# variables Coolify would set. Nothing is published; the test reaches web over the stack network.
+services:
+  api:
+    environment:
+      ConnectionStrings__Default: Host=db;Port=5432;Database=taxes_ua;Username=taxes_ua;Password=smoke
+      Authentication__Google__ClientId: smoke-client-id
+      Authentication__Google__ClientSecret: smoke-client-secret
+      Auth__AllowedEmails: owner@example.com
+      AllowedHosts: taxes.test
+      Auth__Passkey__ServerDomain: taxes.test
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: taxes_ua
+      POSTGRES_USER: taxes_ua
+      POSTGRES_PASSWORD: smoke
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taxes_ua -d taxes_ua"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

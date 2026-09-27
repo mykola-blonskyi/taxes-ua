@@ -11,6 +11,9 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:8080 TZ=Europe/Kyiv
 RUN apt-get update && apt-get install -y --no-install-recommends curl tzdata && rm -rf /var/lib/apt/lists/*
+# A fresh named volume copies the ownership of the directory it is mounted over, so the non-root
+# app user can write the data-protection key ring into it.
+RUN install -d -m 700 -o "$APP_UID" /var/lib/taxes-ua/keys
 COPY --from=build /app .
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD curl -fsS http://localhost:8080/api/health || exit 1

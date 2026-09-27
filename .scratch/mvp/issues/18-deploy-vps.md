@@ -1,7 +1,7 @@
 # 18: Deploy to Coolify on the VPS
 
 GitHub: #20
-Status: ready-for-agent
+Status: in-review (repository side; the deploy itself is the owner's, per docs/deploy.md)
 Blocked by: #4, #5, #6, #7, #8, #9, #10, #11, #12, #13, #14, #15, #16, #17, #18, #19
 
 ## Parent
