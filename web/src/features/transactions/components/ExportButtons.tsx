@@ -3,7 +3,7 @@ import { Download } from "lucide-react";
 import { transactionsExportUrl, type ExportFormat } from "@/data/transactions/exportUrl";
 import { Button } from "@/shared/ui/button";
 
-const formats: readonly ExportFormat[] = ["xlsx", "csv"];
+const formats: readonly ExportFormat[] = ["xlsx", "csv", "pdf"];
 
 export function ExportButtons({ year }: { year: number }) {
   const t = useTranslations("transactions.export");

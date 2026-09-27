@@ -1,6 +1,6 @@
 import type { paths } from "@/data/api/schema";
 
-export type ExportFormat = "csv" | "xlsx";
+export type ExportFormat = "csv" | "xlsx" | "pdf";
 
 type ExportPath = Extract<keyof paths, `/api/export/transactions.${ExportFormat}`>;
 

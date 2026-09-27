@@ -16,6 +16,11 @@
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="DocumentFormat.OpenXml" />
+    <PackageReference Include="PDFsharp-MigraDoc" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Features/Export/Fonts/*.ttf" LogicalName="TaxesUa.Api.Fonts.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
