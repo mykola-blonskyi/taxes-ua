@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -44,6 +45,37 @@ if (builder.Environment.IsDevelopment() && allowedHosts.Length > 0 && !allowedHo
         "ALLOWED_HOSTS pins a deployed domain while the environment is Development, which publishes "
         + "the Development-only sign-in seam on that domain. Deploy docker-compose.yml without the "
         + "local override, or leave ALLOWED_HOSTS unset for a local run.");
+}
+
+// Without any one of these a deployment cannot reach its database or cannot sign anybody in. The
+// sign-in gaps would otherwise pass the health check and surface only at the first login.
+// Development runs without the Google client.
+string[] missing = builder.Environment.IsDevelopment()
+    ? []
+    : [.. new (string Key, string Variable)[]
+        {
+            ("ConnectionStrings:Default", "DATABASE_URL"),
+            ("Authentication:Google:ClientId", "GOOGLE_CLIENT_ID"),
+            ("Authentication:Google:ClientSecret", "GOOGLE_CLIENT_SECRET"),
+            ("Auth:AllowedEmails", "ALLOWED_EMAILS"),
+        }
+        .Where(required => string.IsNullOrWhiteSpace(builder.Configuration[required.Key]))
+        .Select(required => required.Variable)];
+if (missing.Length > 0)
+{
+    throw new InvalidOperationException(
+        $"Missing required configuration outside Development: {string.Join(", ", missing)}. "
+        + "Set them as environment variables; .env.example lists every one.");
+}
+
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("taxes-ua");
+
+// The session cookie is a ticket encrypted with this key ring (ADR-009). Kept inside the container
+// it dies with every redeploy and signs the owner out; docker-compose.yml mounts a volume here.
+var keysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(keysPath))
+{
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
 }
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>

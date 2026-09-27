@@ -230,7 +230,11 @@ imports` in eslint.
   resource. Backups: whatever backup mechanism already covers that instance, plus the project's
   own scheduled logical dump if that instance has none.
 - Cron: hosted services inside `api`. No external scheduler is needed.
-- Secrets: Coolify environment variables. `.env.example` in the repository holds no values.
+- Secrets: Coolify environment variables. `.env.example` in the repository holds no values, and
+  the api refuses to start outside Development while a required one is empty.
+- Sessions: the data-protection key ring is persisted in the `dataprotection-keys` volume, so a
+  redeploy keeps the owner signed in ([ADR-010](decisions.md)).
+- Runbook: [`docs/deploy.md`](deploy.md). Database and backup scripts live in `deploy/postgres/`.
 - Cost: 0.
 
 ---

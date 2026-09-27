@@ -151,6 +151,10 @@ TOTP. Requires storing hashes and recovery codes, an unneeded responsibility.
 Opening the product to other FOPs comes down to removing the allowlist. The frontend makes
 WebAuthn calls through the standard `navigator.credentials`, getting its options from the API.
 
+Direct Google until the `login.blonskyi.dev` broker ships, then an OIDC client of that broker.
+The broker is designed as the sign-in for every `*.blonskyi.dev` project and is not built yet, so
+the Google handler here is the current step, not the permanent one.
+
 ---
 
 ## ADR-006. Deploy via Coolify on the existing VPS, reusing the existing PostgreSQL instance
@@ -315,10 +319,57 @@ one machine.
 A captured cookie replays until it expires. The only answer to a suspected theft is to rotate the
 data-protection keys, which invalidates every ticket at once.
 
-The key ring currently lives inside the container with no persistence configured, so every
-redeploy already invalidates every ticket. That is an accident of the deployment rather than a
-revocation mechanism, and it stops being true as soon as the keys are persisted.
+The key ring is persisted to a volume (ADR-010), so a redeploy no longer invalidates tickets.
+Rotating the keys is now a deliberate step, and `docs/deploy.md` says how.
 
 Revisit when a second account appears, when the api runs as more than one instance, or when the
 owner wants to end a session from the interface. A ticket store is the smaller of the two changes
 and the one to reach for then.
+
+---
+
+## ADR-010. Persist the data-protection key ring to a volume
+
+Date: 2026-09-27
+
+Status: Accepted
+
+### Context
+
+The session cookie, the external Google sign-in cookie and the passkey ceremony cookie are all
+encrypted with ASP.NET Core's data-protection key ring (ADR-009). With nothing configured, the
+key ring lives in the container's filesystem and a new container generates a new one. Every
+redeploy then invalidates every cookie and signs the owner out, and a sign-in or passkey ceremony
+in flight during a deploy fails.
+
+### Decision
+
+`Program.cs` persists the key ring to the directory in `DataProtection:KeysPath` when it is set,
+with the application name fixed to `taxes-ua` so the keys do not depend on the container's content
+root. `docker-compose.yml` sets it to `/var/lib/taxes-ua/keys` and mounts the named volume
+`dataprotection-keys` there. The image creates that directory owned by the non-root app user, and
+a fresh volume inherits that ownership.
+
+The keys are stored unencrypted at rest, and the api logs a warning to that effect at startup.
+Anyone who can read the volume can forge a session, but reading it takes root on the VPS, which
+already reaches the database directly.
+
+### Alternatives Considered
+
+Accept a sign-in per deploy. No moving parts, but a deploy interrupts the owner, and the passkey
+and Google ceremonies in flight fail with an opaque error.
+
+Keys in PostgreSQL through `PersistKeysToDbContext`. Survives the api volume being lost, but adds
+a table and a migration and ties the key ring to the shared instance and its backups, which would
+then carry the means to forge a session.
+
+`ProtectKeysWithCertificate`. Encrypts the keys at rest, but the certificate needs a home that
+the volume is not, which only moves the secret.
+
+### Consequences
+
+A redeploy keeps the owner signed in. Deleting the volume, or the `key-*.xml` files in it, and
+restarting the api rotates the keys and ends every session at once, which is ADR-009's answer to
+a stolen cookie. `deploy/check-compose.sh` fails CI if the mount and the configured path drift
+apart. A local Docker run persists its keys in the same volume under its own project.
+

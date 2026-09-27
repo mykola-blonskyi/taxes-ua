@@ -53,3 +53,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build ./web
+
+  deploy-checks:
+    name: Deploy checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: deploy/check-compose.sh
+      - run: deploy/postgres/test-create-role.sh

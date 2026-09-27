@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
@@ -37,16 +36,11 @@ public sealed class ApiFixture : IAsyncLifetime
     public WebApplicationFactory<Program> CreateApplication(Action<IWebHostBuilder> configure) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
-            // Program.cs reads this one while it is still registering services, which is before a
-            // ConfigureAppConfiguration source is attached, so it has to be a host setting.
+            // Program.cs reads these while it is still registering services, which is before a
+            // ConfigureAppConfiguration source is attached, so they have to be host settings.
             builder.UseSetting("Auth:Passkey:ServerDomain", "localhost");
-
-            builder.ConfigureAppConfiguration(configuration => configuration.AddInMemoryCollection(
-                new Dictionary<string, string?>
-                {
-                    ["ConnectionStrings:Default"] = _database.GetConnectionString(),
-                    ["Auth:AllowedEmails"] = $" {AllowedEmail} ; {SecondAllowedEmail}",
-                }));
+            builder.UseSetting("ConnectionStrings:Default", _database.GetConnectionString());
+            builder.UseSetting("Auth:AllowedEmails", $" {AllowedEmail} ; {SecondAllowedEmail}");
 
             builder.ConfigureTestServices(services =>
             {

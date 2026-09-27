@@ -9,7 +9,7 @@ A personal application for tracking income and taxes of a Group 3 FOP. Documenta
   tests.
 - `web/` Next.js, UI only. `/api/*` is proxied to the backend.
 - `docker-compose.yml` for Coolify; `docker-compose.local.yml` adds Postgres and ports for a
-  local run.
+  local run. Deploying is manual and follows `docs/deploy.md`.
 
 The app has three parts: a PostgreSQL database, the api (talks to the database), and the web UI
 (talks to the api). You can run them all in Docker with one command, or run each one yourself.
