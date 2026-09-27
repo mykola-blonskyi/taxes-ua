@@ -25,7 +25,7 @@ public static class TransactionsEndpoints
 
     private const int MaxReasonLength = 1000;
 
-    private const int MaxClientNameLength = 200;
+    internal const int MaxClientNameLength = 200;
 
     private const int MaxInvoiceNumberLength = 100;
 
@@ -316,7 +316,7 @@ public static class TransactionsEndpoints
     // Rule 8 follows a refund to its receipt, so a link has to point at a receipt that can carry it:
     // the owner's own Income row in the refund's currency, not over-refunded (compared in that
     // currency's minor units), and not turned into something else later.
-    private static async Task<Dictionary<string, string[]>?> ValidateLinksAsync(
+    internal static async Task<Dictionary<string, string[]>?> ValidateLinksAsync(
         AppDbContext database,
         string userId,
         Transaction? row,
@@ -431,7 +431,7 @@ public static class TransactionsEndpoints
             rate = (found.RateE4, found.RateDate, RateSource.Nbu);
         }
 
-        if ((Int128)request.AmountMinor * rate.RateE4 > (Int128)MaxAmountMinor * Money.RateScale)
+        if (ExceedsUahBound(request.AmountMinor, rate.RateE4))
         {
             return Results.ValidationProblem(new Dictionary<string, string[]>
             {
@@ -450,6 +450,9 @@ public static class TransactionsEndpoints
 
         return null;
     }
+
+    internal static bool ExceedsUahBound(long amountMinor, int rateE4) =>
+        (Int128)amountMinor * rateE4 > (Int128)MaxAmountMinor * Money.RateScale;
 
     private static async Task<Guid?> ResolveClientAsync(
         AppDbContext database, string userId, string? name, CancellationToken cancellationToken)
@@ -474,7 +477,7 @@ public static class TransactionsEndpoints
         return client.Id;
     }
 
-    private static NormalizedText Normalize(TransactionRequest request) => new(
+    internal static NormalizedText Normalize(TransactionRequest request) => new(
         Trim(request.NonIncomeReason),
         Trim(request.ClientName),
         Trim(request.InvoiceNumber),
@@ -511,7 +514,7 @@ public static class TransactionsEndpoints
         ["year"] = [$"year must be between {MinYear} and {MaxYear}."],
     };
 
-    private static Dictionary<string, string[]>? Validate(TransactionRequest request, NormalizedText normalized)
+    internal static Dictionary<string, string[]>? Validate(TransactionRequest request, NormalizedText normalized)
     {
         var errors = new Dictionary<string, string[]>();
 
@@ -591,7 +594,7 @@ public static class TransactionsEndpoints
     // same member.
     private static string Field(string name) => JsonNamingPolicy.CamelCase.ConvertName(name);
 
-    private readonly record struct NormalizedText(
+    internal readonly record struct NormalizedText(
         string? NonIncomeReason,
         string? ClientName,
         string? InvoiceNumber,

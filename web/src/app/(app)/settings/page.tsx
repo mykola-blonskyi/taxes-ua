@@ -1,4 +1,5 @@
 import { getTranslations } from "next-intl/server";
+import { BackupPanel } from "@/features/backup";
 import { SettingsTabs } from "@/features/settings";
 
 export default async function SettingsPage() {
@@ -8,6 +9,7 @@ export default async function SettingsPage() {
     <section className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold md:text-xl">{t("title")}</h2>
       <SettingsTabs />
+      <BackupPanel />
     </section>
   );
 }
