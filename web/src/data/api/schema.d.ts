@@ -1302,6 +1302,199 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    year: number | string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PaymentListResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PaymentRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PaymentResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["PaymentRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PaymentResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1338,6 +1531,14 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        KindYearBalance: {
+            /** Format: int64 */
+            accruedKop: number | string;
+            /** Format: int64 */
+            paidKop: number | string;
+            /** Format: int64 */
+            balanceKop: number | string;
+        };
         MeResponse: {
             id: string;
             email: string;
@@ -1345,16 +1546,69 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        ObligationResponse: {
+            /** Format: int64 */
+            accruedKop: number | string;
+            /** Format: int64 */
+            paidKop: number | string;
+            /** Format: int64 */
+            openingBalanceKop: number | string;
+            /** Format: int64 */
+            balanceKop: number | string;
+            /** Format: date */
+            dueDate: string;
+            status: components["schemas"]["ObligationStatus"];
+        };
+        /** @enum {unknown} */
+        ObligationStatus: "Upcoming" | "Due" | "Overdue" | "Done";
         PasskeyCredentialSubmission: {
             credentialJson: null | string;
         };
         /** @enum {unknown} */
+        PaymentKind: "SingleTax" | "MilitaryLevy" | "Esv";
+        PaymentListResponse: {
+            /** Format: int32 */
+            year: number | string;
+            items: components["schemas"]["PaymentResponse"][];
+        };
+        /** @enum {unknown} */
         PaymentMode: "Quarterly" | "MonthlyAdvance";
+        PaymentRequest: {
+            /** Format: date */
+            paidOn: string;
+            kind: components["schemas"]["PaymentKind"];
+            /** Format: int64 */
+            amountKop: number | string;
+            /** Format: int32 */
+            periodYear: number | string;
+            /** Format: int32 */
+            periodQuarter: null | number | string;
+            /** Format: int32 */
+            periodMonth: null | number | string;
+            note: null | string;
+        };
+        PaymentResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            paidOn: string;
+            kind: components["schemas"]["PaymentKind"];
+            /** Format: int64 */
+            amountKop: number | string;
+            /** Format: int32 */
+            periodYear: number | string;
+            /** Format: int32 */
+            periodQuarter: null | number | string;
+            /** Format: int32 */
+            periodMonth: null | number | string;
+            note: null | string;
+        };
         PeriodsResponse: {
             /** Format: int32 */
             year: number | string;
             warnings: components["schemas"]["PeriodWarnings"];
             quarters: components["schemas"]["QuarterPeriodResponse"][];
+            balances: components["schemas"]["YearBalancesResponse"];
         };
         PeriodWarnings: {
             taxYearUnverified: boolean;
@@ -1376,6 +1630,11 @@ export interface components {
             declaration: components["schemas"]["Deadline"];
             taxPayment: components["schemas"]["Deadline"];
         };
+        QuarterObligations: {
+            singleTax: components["schemas"]["ObligationResponse"];
+            militaryLevy: components["schemas"]["ObligationResponse"];
+            esv: components["schemas"]["ObligationResponse"];
+        };
         QuarterPeriodResponse: {
             /** Format: int32 */
             quarter: number | string;
@@ -1396,6 +1655,7 @@ export interface components {
             /** Format: int64 */
             cumulativeMilitaryLevyKop: number | string;
             deadlines: components["schemas"]["QuarterDeadlines"];
+            obligations: null | components["schemas"]["QuarterObligations"];
         };
         /** @enum {unknown} */
         RateSource: "Nbu" | "Manual" | null;
@@ -1551,6 +1811,11 @@ export interface components {
             description: null | string;
             beforeRegistration: boolean;
             refundsReceipt: null | components["schemas"]["RefundedReceipt"];
+        };
+        YearBalancesResponse: {
+            singleTax: components["schemas"]["KindYearBalance"];
+            militaryLevy: components["schemas"]["KindYearBalance"];
+            esv: components["schemas"]["KindYearBalance"];
         };
     };
     responses: never;

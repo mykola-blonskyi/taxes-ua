@@ -5,9 +5,9 @@ import { useLocale, useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import { ApiError } from "@/data/api/client";
 import { useDeleteTransaction, type TransactionResponse } from "@/data/transactions/useTransactions";
+import { formatDateOnly, formatNumericDate } from "@/shared/lib/dates";
 import { formatAmount, formatMinor, formatMoney, formatRateE4 } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
-import { formatDateOnly, formatNumericDate } from "../dates";
 import { isNonIncomeKind } from "../kinds";
 
 export function TransactionTable({

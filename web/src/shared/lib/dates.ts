@@ -18,3 +18,12 @@ export function formatNumericDate(value: string, locale: string, withWeekday = f
 export function formatDateOnly(value: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(parseDateOnly(value));
 }
+
+// Rule 10 dates every operation in Europe/Kyiv, so "today" is the Kyiv calendar day, not the browser's.
+export function todayInKyiv(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Kyiv" }).format(new Date());
+}
+
+export function currentYearInKyiv(): number {
+  return Number(todayInKyiv().slice(0, 4));
+}

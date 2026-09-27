@@ -5,17 +5,12 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTransactions, type TransactionResponse } from "@/data/transactions/useTransactions";
+import { currentYearInKyiv } from "@/shared/lib/dates";
 import { formatMoney } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
 import { ExportButtons } from "./ExportButtons";
 import { TransactionForm } from "./TransactionForm";
 import { TransactionTable } from "./TransactionTable";
-
-function currentYearInKyiv(): number {
-  const isoDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Kyiv" }).format(new Date());
-
-  return Number(isoDate.slice(0, 4));
-}
 
 export function TransactionsScreen() {
   const t = useTranslations("transactions");

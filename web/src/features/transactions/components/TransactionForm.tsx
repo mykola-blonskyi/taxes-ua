@@ -13,15 +13,11 @@ import {
   type TransactionRequest,
   type TransactionResponse,
 } from "@/data/transactions/useTransactions";
+import { formatDateOnly, formatNumericDate, todayInKyiv } from "@/shared/lib/dates";
 import { formatAmount, formatMinor, formatMoney, parseHryvnia, parseRate, toUahKop } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
 import { SelectField, TextField } from "@/shared/ui/fields";
-import { formatDateOnly, formatNumericDate } from "../dates";
 import { isNonIncomeKind, kindOptions } from "../kinds";
-
-function todayInKyiv(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Kyiv" }).format(new Date());
-}
 
 function kopecksToAmountText(kopecks: number): string {
   const digits = String(kopecks).padStart(3, "0");
