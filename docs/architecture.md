@@ -225,16 +225,17 @@ imports` in eslint.
 - Host: VPS `blonskyi-dev`, Ubuntu 24.04, 4 vCPU, 7.7 GB RAM, Docker 29, Coolify with Traefik v3.
 - Application: a Coolify Docker Compose resource built from the GitHub repository, services `web`
   and `api`. The domain points at `web`. `api` is not published externally.
-- Database: a PostgreSQL instance already running on the VPS is reused. A dedicated role and
-  database are created for this project instead of provisioning a new Coolify PostgreSQL
-  resource. Backups: whatever backup mechanism already covers that instance, plus the project's
-  own scheduled logical dump if that instance has none.
+- Database: Coolify's `shared-database` PostgreSQL instance, already running on the VPS, is
+  reused. The login role `taxes_ua_app` owns the database `taxes_ua`, the convention every
+  project on that instance follows ([ADR-006](decisions.md)). Backups: whatever backup mechanism
+  already covers that instance, plus the project's own scheduled logical dump if that instance has
+  none.
 - Cron: hosted services inside `api`. No external scheduler is needed.
 - Secrets: Coolify environment variables. `.env.example` in the repository holds no values, and
   the api refuses to start outside Development while a required one is empty.
 - Sessions: the data-protection key ring is persisted in the `dataprotection-keys` volume, so a
   redeploy keeps the owner signed in ([ADR-010](decisions.md)).
-- Runbook: [`docs/deploy.md`](deploy.md). Database and backup scripts live in `deploy/postgres/`.
+- Runbook: [`docs/deploy.md`](deploy.md). The backup script lives in `deploy/postgres/`.
 - Cost: 0.
 
 ---

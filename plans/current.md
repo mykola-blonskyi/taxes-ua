@@ -464,8 +464,8 @@ at it. If that instance has no backup already, add the project's own scheduled l
 (ADR-006).
 
 Verify: `curl https://<domain>/api/health` → `{"status":"ok","database":true}`; `api` is not
-reachable from outside; the new role can connect only to its own database; every MVP screen
-(transactions, payments, dashboard, periods, settings, export, backup) works end to end against
+reachable from outside; the new role owns its database, as every other project's role on the
+instance does; every MVP screen (transactions, payments, dashboard, periods, settings, export, backup) works end to end against
 the production deployment, matching what was already verified locally.
 
 Relies on: ADR-006, ADR-001.

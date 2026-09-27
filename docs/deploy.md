@@ -7,11 +7,14 @@ Facts this runbook relies on, established in #3 and #20:
 
 - Domain `taxes.blonskyi.dev`. The VPS is reached with `ssh blonskyi`; `<vps-ip>` below is its
   public address.
-- `blonskyi.dev` is on Cloudflare. The subdomain record does not exist yet.
+- `blonskyi.dev` is on Cloudflare with a proxied wildcard record, so `taxes.blonskyi.dev` already
+  resolves. Traefik obtains certificates through the Cloudflare DNS challenge, so none of this
+  needs HTTP to reach the VPS.
 - Google sign-in uses an OAuth client in the owner's Google Cloud project. taxes-ua gets a client
   of its own with a fresh secret before production (step 4).
-- The database is a new role and database in the PostgreSQL instance already running on the VPS
-  (ADR-006), not a new Coolify PostgreSQL resource.
+- The database is a new role and database in Coolify's `shared-database` resource (ADR-006): the
+  container `3p9qjnulllqn3bcjqokir0wq`, PostgreSQL 18, admin role `postgres`, on the `coolify`
+  network. It already holds `fitness`, `todo`, `hub`, `plane` and `login`.
 
 What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
 `deploy/smoke-test.sh` (which runs this compose file the way Traefik reaches it):
@@ -27,97 +30,75 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
 - Every response carries HSTS, `nosniff`, `X-Frame-Options: DENY` and a referrer policy, and pages
   carry a Content-Security-Policy.
 
-## 0. Find the PostgreSQL instance
+## 0. The PostgreSQL instance
 
-On the VPS, find out how the instance runs:
+Every project on `shared-database` follows one convention, and taxes-ua follows it too: a login
+role `<project>_app` with no other attributes owns the database `<project>`, keeps the default
+privileges, and has no lines of its own in `pg_hba.conf`. ADR-006 records why.
+
+Find out whether the instance is backed up (a Coolify scheduled backup, a cron job, a copy to
+MinIO). Step 8 depends on the answer. On 2026-09-27 it had none.
+
+**Check.** The instance answers:
 
 ```bash
-ssh blonskyi 'docker ps --format "{{.Names}}\t{{.Image}}\t{{.Networks}}" | grep -i postgres; systemctl is-active postgresql'
+ssh blonskyi 'docker exec 3p9qjnulllqn3bcjqokir0wq psql -U postgres -Atc "select version()"'
 ```
-
-Pick the admin command the rest of this runbook calls `$PSQL`, and set it in your shell on the VPS:
-
-```bash
-PSQL='docker exec -i <postgres-container> psql -U postgres'   # a container
-PSQL='sudo -u postgres psql'                                  # a host service
-```
-
-Also find out whether that instance is already backed up (a cron job, a Coolify backup, a copy to
-MinIO). Step 8 depends on the answer.
-
-**Check.** `$PSQL -c 'select version()'` prints the server version.
 
 ## 1. DNS
 
-In Cloudflare, add an `A` record `taxes` → `<vps-ip>`. Start with **DNS only** (grey cloud) so
-Traefik can obtain its Let's Encrypt certificate over HTTP. Switch to proxied later only if the
-owner's other Coolify subdomains are proxied too, with SSL mode **Full (strict)**.
+Nothing to do: the wildcard record already covers `taxes.blonskyi.dev`. Until step 6 deploys,
+the domain answers 526 because Traefik has no route and no certificate for it yet.
 
-**Check.** `dig +short taxes.blonskyi.dev` prints `<vps-ip>` (or Cloudflare addresses once
-proxied).
+**Check.** `dig +short taxes.blonskyi.dev` prints Cloudflare addresses.
 
 ## 2. Database role and database
 
-Copy the script to the VPS and run it as the admin. It is safe to run again.
+Generate a password on your laptop and keep it in the password manager:
 
 ```bash
-scp deploy/postgres/create-role.sql blonskyi:/tmp/
-ssh blonskyi
-$PSQL -v role=taxes_ua -v db=taxes_ua < /tmp/create-role.sql
+openssl rand -base64 32 | tr -d '/+='
 ```
 
-It creates the role `taxes_ua` (login, no other attributes) and the database `taxes_ua` owned by
-the admin, revokes `CONNECT` on it from `PUBLIC`, and grants the role only `CONNECT` plus
-`USAGE, CREATE` on schema `public`. That is what the api's migrations need: they create tables, a
-function and a trigger in `public`. The role cannot drop the database or create schemas.
-
-Generate a password on your laptop (`openssl rand -base64 32 | tr -d '/+='`), then set it
-interactively so it never lands in shell history or the server log:
+Open psql on the instance:
 
 ```bash
-ssh -t blonskyi "docker exec -it <postgres-container> psql -U postgres -c '\password taxes_ua'"   # a container
-ssh -t blonskyi "sudo -u postgres psql -c '\password taxes_ua'"                                  # a host service
+ssh -t blonskyi "docker exec -it 3p9qjnulllqn3bcjqokir0wq psql -U postgres"
 ```
 
-The script ends by listing every other database the role can still connect to. PostgreSQL grants
-`CONNECT` to `PUBLIC` on every new database and has no per-role deny, so this list is usually not
-empty (`postgres`, `template1` and every other project's database). Close it in `pg_hba.conf`
-rather than by revoking `PUBLIC` on databases other projects rely on:
+and run:
 
-1. Find the file with `$PSQL -tAc 'show hba_file'`.
-2. Put the four lines of `deploy/postgres/pg_hba.conf.snippet` at the **top** of it. The file stops
-   at the first matching line, so they must come before any `all all` line.
-3. Reload with `$PSQL -c 'select pg_reload_conf()'`, then confirm
-   `$PSQL -c 'select line_number, error from pg_hba_file_rules where error is not null'` returns
-   no rows.
+```sql
+CREATE ROLE taxes_ua_app LOGIN;
+\password taxes_ua_app
+CREATE DATABASE taxes_ua OWNER taxes_ua_app;
+\q
+```
 
-**Check.** From inside the instance's host or container, over TCP with the new password:
+`\password` sends only a SCRAM hash, so the secret never lands in shell history, the psql history
+or the server log. `CREATE ROLE ... PASSWORD '...'` would put it in all three.
+
+As the owner, the role can create the tables, function and trigger the api's migrations add to
+`public`. Like the other projects' roles, it can still connect to their databases, and they to
+this one, but none of them can read another's tables: each owns its own objects and grants
+nothing.
+
+**Check.** Over TCP with the new password, from inside the container. psql asks for the password
+and prints `1`:
 
 ```bash
-psql "host=127.0.0.1 user=taxes_ua dbname=taxes_ua" -c 'select 1'   # succeeds
-psql "host=127.0.0.1 user=taxes_ua dbname=postgres" -c 'select 1'   # fails: pg_hba.conf rejects
+ssh -t blonskyi "docker exec -it 3p9qjnulllqn3bcjqokir0wq psql 'host=127.0.0.1 user=taxes_ua_app dbname=taxes_ua' -c 'select 1'"
 ```
-
-`deploy/postgres/test-create-role.sh` runs this whole step against a throwaway container, with a
-second project's database next to it, and is the reference for what "passes" looks like.
 
 ## 3. The api's route to the database
 
-`DATABASE_URL` needs a host the `api` container can reach. It depends on step 0:
-
-- **The instance is a container.** Enable **Connect To Predefined Network** on the Coolify resource
-  (step 5), and make sure the PostgreSQL container is on the `coolify` network too
-  (`docker network connect coolify <postgres-container>` if it is not). The host is the container
-  name.
-- **The instance is a host service.** Enable **Connect To Predefined Network**, use the `coolify`
-  network's gateway as the host
-  (`docker network inspect coolify -f '{{(index .IPAM.Config 0).Gateway}}'`), and make sure
-  `listen_addresses` includes that address.
+The instance is on the `coolify` network, so the `api` container reaches it by container name once
+**Connect To Predefined Network** is enabled on the Coolify resource (step 5).
 
 The connection string is Npgsql's format, not a URL:
 
 ```
-Host=<host>;Port=5432;Database=taxes_ua;Username=taxes_ua;Password=<password from step 2>
+Host=3p9qjnulllqn3bcjqokir0wq;Port=5432;Database=taxes_ua;Username=taxes_ua_app;Password=<password from step 2>
 ```
 
 **Check.** Deferred to step 7, where `/api/health` reports `"database":true` only if this works.
@@ -147,7 +128,7 @@ is disabled.
    **Docker Compose**, compose file `/docker-compose.yml`. Do not add `docker-compose.local.yml`.
 2. Domain on the `web` service: `https://taxes.blonskyi.dev:3000`. The `:3000` is the container
    port Traefik forwards to; the public side stays on 443. Leave `api` without a domain.
-3. Enable **Connect To Predefined Network** if step 3 needs it.
+3. Enable **Connect To Predefined Network** (step 3).
 4. Environment variables (Coolify lists them from the compose file):
 
    | Variable | Value |
@@ -222,14 +203,10 @@ ssh blonskyi 'crontab -e'
 ```
 
 ```
-30 3 * * * BACKUP_DIR=/var/backups/taxes-ua /home/mykola/bin/taxes-ua-dump.sh docker exec <postgres-container> pg_dump -U postgres -Fc taxes_ua >> /var/backups/taxes-ua/cron.log 2>&1
+30 3 * * * BACKUP_DIR=/var/backups/taxes-ua /home/mykola/bin/taxes-ua-dump.sh docker exec 3p9qjnulllqn3bcjqokir0wq pg_dump -U postgres -Fc taxes_ua >> /var/backups/taxes-ua/cron.log 2>&1
 ```
 
-For a host service, replace `docker exec <postgres-container> pg_dump -U postgres` with
-`sudo -u postgres pg_dump`. Cron cannot answer a sudo prompt, so that needs a sudoers rule letting
-`mykola` run exactly that command without a password, for example
-`mykola ALL=(postgres) NOPASSWD: /usr/bin/pg_dump` in `/etc/sudoers.d/taxes-ua-dump` (edit it with
-`visudo -f`). The dumps sit on the same disk as the database; copy them off the VPS (MinIO or the
+The dumps sit on the same disk as the database; copy them off the VPS (MinIO or the
 laptop) for them to survive losing it.
 
 **Check.** Run the cron line once by hand, then list the newest dump's contents. It prints a
@@ -237,8 +214,7 @@ non-zero count:
 
 ```bash
 f=$(ls -t /var/backups/taxes-ua/*.dump | head -1)
-docker exec -i <postgres-container> pg_restore --list < "$f" | grep -c 'TABLE DATA'   # a container
-pg_restore --list "$f" | grep -c 'TABLE DATA'                                        # a host service
+docker exec -i 3p9qjnulllqn3bcjqokir0wq pg_restore --list < "$f" | grep -c 'TABLE DATA'
 ```
 
 ## 9. Checks that need the real domain
@@ -267,7 +243,7 @@ carries a migration (step 8's command, run by hand). To roll back:
 2. Restore the dump taken before the release. **Everything written after that dump is lost.**
 
    ```bash
-   docker exec -i <postgres-container> pg_restore -U postgres --clean --if-exists --no-owner --role=taxes_ua -d taxes_ua < <file>.dump
+   docker exec -i 3p9qjnulllqn3bcjqokir0wq pg_restore -U postgres --clean --if-exists --no-owner --role=taxes_ua_app -d taxes_ua < <file>.dump
    ```
 
 3. Revert the release on `main`.
@@ -276,10 +252,10 @@ carries a migration (step 8's command, run by hand). To roll back:
 **Check.** Step 7's commands pass again.
 
 **Abandoning the first deploy.** Stop and delete the Coolify resource, remove the DNS record,
-remove the `pg_hba.conf` lines and reload, then drop what step 2 created. This deletes the data:
+then drop what step 2 created. This deletes the data:
 
 ```bash
-$PSQL -c 'DROP DATABASE taxes_ua' -c 'DROP ROLE taxes_ua'
+ssh blonskyi 'docker exec 3p9qjnulllqn3bcjqokir0wq psql -U postgres -c "DROP DATABASE taxes_ua" -c "DROP ROLE taxes_ua_app"'
 ```
 
 **Ending every session.** A stolen session cookie cannot be revoked one by one (ADR-009). Rotate

@@ -60,5 +60,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: deploy/check-compose.sh
-      - run: deploy/postgres/test-create-role.sh
       - run: deploy/smoke-test.sh
