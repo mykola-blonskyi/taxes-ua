@@ -8,8 +8,8 @@ namespace TaxesUa.Api.Features.Periods;
 
 /// <summary>
 /// One owner's year run through <see cref="Accruals"/>: the stored rows, compiled to engine input and
-/// computed once. The periods screen reads it, and the export reads it too, so the two cannot show
-/// different numbers for the same year.
+/// computed once. Every caller that shows a year's tax figures loads them here, so no two screens can
+/// show different numbers for the same year.
 /// </summary>
 internal sealed record YearAccruals(TaxYearConfig Config, SettingsEntity Settings, YearAccrual Accrual)
 {
