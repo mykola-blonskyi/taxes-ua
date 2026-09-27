@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Backup;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Payments;
@@ -104,6 +105,29 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             BudgetPayments = [.. original.BudgetPayments.Select(row => row with { Id = ids[row.Id] })],
         };
         Assert.Equal(JsonSerializer.Serialize(expected, Json), JsonSerializer.Serialize(copy, Json));
+    }
+
+    [Fact]
+    public async Task A_restore_logs_exactly_one_summary_entry_and_no_per_row_entries()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Restore(owner, Empty);
+        await SeedThroughTheApi(owner);
+        var backup = await Backup(owner);
+        var before = await History(owner, entity: null, id: null);
+
+        var restored = await Restore(owner, backup);
+
+        var log = await History(owner, entity: null, id: null);
+        var newEntries = log.ExceptBy(before.Select(entry => entry.Id), entry => entry.Id).ToArray();
+        var summary = Assert.Single(newEntries);
+        Assert.Equal(AuditedEntity.Backup, summary.Entity);
+        Assert.Equal(AuditAction.Restore, summary.Action);
+        Assert.Null(summary.Before);
+        Assert.Equal(restored.Clients, summary.After!["clients"].GetInt32());
+        Assert.Equal(restored.Transactions, summary.After["transactions"].GetInt32());
+        Assert.Equal(restored.BudgetPayments, summary.After["budgetPayments"].GetInt32());
     }
 
     public static TheoryData<string, string?> InvalidFiles() => new()
@@ -230,13 +254,16 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [typeof(BudgetPayment)] = typeof(BudgetPaymentBackup),
         };
         Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(FxRate)];
+        // The change log is history, not state: a restore does not replay it and does not carry it.
+        Type[] historyNotState = [typeof(AuditEntry)];
 
         var featureTables = model.GetEntityTypes()
             .Select(type => type.ClrType)
             .Where(type => type.Namespace!.StartsWith("TaxesUa.Api.Features.", StringComparison.Ordinal)
                 && type.Namespace != "TaxesUa.Api.Features.Auth")
             .ToHashSet();
-        Assert.Equal(backedUp.Keys.Concat(sharedByEveryOwner).ToHashSet(), featureTables);
+        Assert.Equal(
+            backedUp.Keys.Concat(sharedByEveryOwner).Concat(historyNotState).ToHashSet(), featureTables);
 
         foreach (var (entity, record) in backedUp)
         {
@@ -455,6 +482,24 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var response = await Post(owner, file);
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         return (await response.Content.ReadFromJsonAsync<RestoreResponse>(Json))!;
+    }
+
+    private static async Task<AuditEntryResponse[]> History(HttpClient owner, AuditedEntity? entity, string? id)
+    {
+        var query = new List<string>();
+        if (entity is not null)
+        {
+            query.Add($"entity={entity}");
+        }
+
+        if (id is not null)
+        {
+            query.Add($"id={Uri.EscapeDataString(id)}");
+        }
+
+        var response = await owner.GetAsync($"/api/audit?{string.Join('&', query)}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<AuditEntryResponse[]>(Json))!;
     }
 
     private static async Task<string> Backup(HttpClient owner)

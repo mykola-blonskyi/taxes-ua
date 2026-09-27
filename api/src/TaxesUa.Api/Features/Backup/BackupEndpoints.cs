@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Transactions;
 using HttpJsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
@@ -87,7 +88,7 @@ public static class BackupEndpoints
                     return Results.ValidationProblem(errors, title: "The backup file breaks the rules below.");
                 }
 
-                if (await ReplaceAsync(database, user.Id, document, cancellationToken) is { } linkErrors)
+                if (await ReplaceAsync(database, user.Id, document, time, cancellationToken) is { } linkErrors)
                 {
                     return Results.ValidationProblem(linkErrors, title: "The backup file breaks the rules below.");
                 }
@@ -135,7 +136,11 @@ public static class BackupEndpoints
     // replaced. Every statement is scoped to userId, and inserts never overwrite: an id another owner
     // already holds sends the whole file through fresh ids instead.
     private static async Task<Dictionary<string, string[]>?> ReplaceAsync(
-        AppDbContext database, string userId, BackupDocument document, CancellationToken cancellationToken)
+        AppDbContext database,
+        string userId,
+        BackupDocument document,
+        TimeProvider time,
+        CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
 
@@ -161,6 +166,12 @@ public static class BackupEndpoints
         var transactions = document.Transactions.Select(row => row.ToEntity(userId, id)).ToArray();
         database.Transactions.AddRange(transactions);
         database.BudgetPayments.AddRange(document.BudgetPayments.Select(payment => payment.ToEntity(userId, id)));
+        database.AuditLog.Add(AuditEntry.Restored(
+            userId,
+            time.GetUtcNow(),
+            document.Clients.Length,
+            transactions.Length,
+            document.BudgetPayments.Length));
         await database.SaveChangesAsync(cancellationToken);
 
         var errors = new Dictionary<string, string[]>();
