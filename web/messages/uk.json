@@ -122,6 +122,10 @@
       "UAH": "Гривня (UAH)",
       "USD": "Долар США (USD)",
       "EUR": "Євро (EUR)"
+    },
+    "export": {
+      "title": "Експорт для бухгалтера:",
+      "download": "Завантажити {format} за {year}"
     }
   },
   "periods": {

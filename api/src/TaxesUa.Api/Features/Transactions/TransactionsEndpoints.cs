@@ -11,9 +11,9 @@ namespace TaxesUa.Api.Features.Transactions;
 
 public static class TransactionsEndpoints
 {
-    private const int MinYear = 2000;
+    internal const int MinYear = 2000;
 
-    private const int MaxYear = 2100;
+    internal const int MaxYear = 2100;
 
     // Caps the hryvnia result as well as the amount. Money.ToUahKop multiplies AmountMinor by RateE4
     // unchecked, and a result of at most 1e14 kop bounds that product by 1e14 x 10^4, inside long. 1e14

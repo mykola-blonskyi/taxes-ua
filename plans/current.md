@@ -299,7 +299,8 @@ Relies on: Rule 6.
 ### #13. CSV and XLSX export — blocked by #6
 
 `api/src/TaxesUa.Api/Features/Export/ExportEndpoints.cs`:
-`GET /api/export/transactions.csv|xlsx` (ClosedXML, add to `Directory.Packages.props`).
+`GET /api/export/transactions.csv|xlsx`. XLSX through DocumentFormat.OpenXml rather than ClosedXML:
+MIT, Microsoft-maintained, no dependency beyond System.IO.Packaging.
 `web/src/features/transactions/components/ExportButtons.tsx`.
 
 Verify: both files open cleanly in Excel/Numbers, Cyrillic survives (BOM for CSV), hryvnia

@@ -1,7 +1,7 @@
 # 12: CSV and XLSX export
 
 GitHub: #13
-Status: ready-for-agent
+Status: API and download buttons in a PR on branch ticket-13
 Blocked by: #6
 
 ## Parent
