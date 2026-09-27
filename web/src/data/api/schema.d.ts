@@ -1712,9 +1712,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditAction: "Create" | "Update" | "Delete" | "Restore";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "TaxYearConfig" | "Backup";
         AuditEntryResponse: {
             /** Format: int64 */
