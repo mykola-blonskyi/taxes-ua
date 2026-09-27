@@ -140,11 +140,17 @@ public static class PaymentsEndpoints
                     return Results.Unauthorized();
                 }
 
-                var deleted = await database.BudgetPayments
-                    .Where(p => p.Id == id && p.UserId == user.Id)
-                    .ExecuteDeleteAsync(cancellationToken);
+                var row = await database.BudgetPayments
+                    .FirstOrDefaultAsync(p => p.Id == id && p.UserId == user.Id, cancellationToken);
+                if (row is null)
+                {
+                    return Missing(id);
+                }
 
-                return deleted == 0 ? Missing(id) : Results.NoContent();
+                database.BudgetPayments.Remove(row);
+                await database.SaveChangesAsync(cancellationToken);
+
+                return Results.NoContent();
             })
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status401Unauthorized)

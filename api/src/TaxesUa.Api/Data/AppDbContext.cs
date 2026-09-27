@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Payments;
@@ -23,6 +24,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<FxRate> FxRates => Set<FxRate>();
 
     public DbSet<BudgetPayment> BudgetPayments => Set<BudgetPayment>();
+
+    public DbSet<AuditEntry> AuditLog => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
