@@ -125,6 +125,7 @@ public sealed class ExportEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         ["clientName"] = null,
         ["invoiceNumber"] = null,
         ["description"] = null,
+        ["refundsTransactionId"] = null,
     };
 
     private async Task<HttpClient> SignIn(string email)
