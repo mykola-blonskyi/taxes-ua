@@ -1,9 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 
@@ -164,6 +167,29 @@ public sealed class AuthEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFi
         Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
         var callback = await client.GetAsync("/api/auth/callback");
         Assert.Equal(HttpStatusCode.Unauthorized, callback.StatusCode);
+    }
+
+    // The stub in ApiFixture writes the LoginProvider item itself, so only the real challenge shows
+    // whether the state Google hands back carries it into the external cookie.
+    [Fact]
+    public async Task Google_challenge_carries_the_login_provider_into_the_external_sign_in()
+    {
+        using var application = fixture.CreateApplication(builder =>
+        {
+            builder.UseSetting("Authentication:Google:ClientId", "test-client-id");
+            builder.UseSetting("Authentication:Google:ClientSecret", "test-client-secret");
+        });
+        using var client = ApiFixture.CreateClient(application);
+
+        var challenge = await client.GetAsync("/api/auth/login/google?returnUrl=%2Fpayments");
+
+        Assert.Equal(HttpStatusCode.Found, challenge.StatusCode);
+        var state = QueryHelpers.ParseQuery(challenge.Headers.Location!.Query)["state"].ToString();
+        var properties = application.Services.GetRequiredService<IOptionsMonitor<GoogleOptions>>()
+            .Get(GoogleDefaults.AuthenticationScheme).StateDataFormat.Unprotect(state);
+        Assert.NotNull(properties);
+        Assert.Equal(GoogleDefaults.AuthenticationScheme, properties.Items["LoginProvider"]);
+        Assert.Equal("/api/auth/callback?returnUrl=%2Fpayments", properties.RedirectUri);
     }
 
     // "True" is what the Google handler's claim mapping writes for a JSON boolean, pinned by

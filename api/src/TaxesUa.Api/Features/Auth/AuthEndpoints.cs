@@ -13,13 +13,20 @@ public static class AuthEndpoints
     {
         var auth = routes.MapGroup("/auth").WithTags("Auth");
 
-        auth.MapGet("/login/google", async (string? returnUrl, IAuthenticationSchemeProvider schemes) =>
+        auth.MapGet("/login/google", async (
+                string? returnUrl,
+                IAuthenticationSchemeProvider schemes,
+                SignInManager<ApplicationUser> signInManager) =>
                 await schemes.GetSchemeAsync(GoogleDefaults.AuthenticationScheme) is null
                     ? Results.Problem(
                         statusCode: StatusCodes.Status503ServiceUnavailable,
                         title: "Google sign-in is not configured on this deployment.")
                     : Results.Challenge(
-                        new AuthenticationProperties { RedirectUri = CallbackUrl(returnUrl) },
+                        // Writes the LoginProvider item that GetExternalLoginInfoAsync needs to find
+                        // the external sign-in on the callback.
+                        signInManager.ConfigureExternalAuthenticationProperties(
+                            GoogleDefaults.AuthenticationScheme,
+                            CallbackUrl(returnUrl)),
                         [GoogleDefaults.AuthenticationScheme]))
             .Produces(StatusCodes.Status302Found)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
