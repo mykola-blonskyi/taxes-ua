@@ -56,7 +56,10 @@ internal sealed class TaxYearConfig
         EsvDeadlineDay,
         DeclarationDays,
         TaxPaymentDaysAfterDeclaration,
-        Holidays);
+        Holidays,
+        IncomeLimitKop,
+        ExcessRateBp,
+        LimitWarnThresholdsPct);
 
     // VerifiedAt is left unset on purpose: a verification attests to the numbers someone compared
     // against the law, and nobody has compared the copy.

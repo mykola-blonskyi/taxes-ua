@@ -109,6 +109,9 @@ public sealed class DashboardEndpointsTests(ApiFixture fixture) : IClassFixture<
             (NextStepState.MissingTaxYear, (int?)(Year - 1)),
             (dashboard.NextStep.State, dashboard.NextStep.MissingTaxYear));
         Assert.Null(dashboard.Burden);
+
+        // A gap year makes every figure unreliable, so the limit bar must not show one either.
+        Assert.Null(dashboard.Limit);
     }
 
     [Fact]
@@ -123,6 +126,32 @@ public sealed class DashboardEndpointsTests(ApiFixture fixture) : IClassFixture<
         Assert.Equal(NextStepState.RegistrationDateNotSet, dashboard.NextStep.State);
         Assert.Empty(dashboard.NextStep.Now);
         Assert.Null(dashboard.Burden);
+
+        // Nothing counts as income yet, so the bar reads a real (zero) figure, not a made-up one.
+        Assert.Equal(0, dashboard.Limit?.IncomeKop);
+        Assert.Equal(LimitLevel.Ok, dashboard.Limit?.Level);
+    }
+
+    [Fact]
+    public async Task The_limit_bar_matches_the_engine_as_income_approaches_the_limit()
+    {
+        await using var application = At(new DateTimeOffset(Year, 5, 1, 9, 0, 0, TimeSpan.Zero));
+        using var client = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(client, new DateOnly(Year, 1, 1));
+
+        // MinWageKop 864_700 x IncomeLimitMinWages 1_167 = 1_009_104_900 (SetUp's config).
+        const long limitKop = 864_700 * 1_167;
+        const long incomeAt85Percent = limitKop * 85 / 100;
+        await PostIncome(client, new DateOnly(Year, 2, 10), incomeAt85Percent);
+
+        var dashboard = await Get(client);
+
+        Assert.NotNull(dashboard.Limit);
+        Assert.Equal(limitKop, dashboard.Limit!.LimitKop);
+        Assert.Equal(incomeAt85Percent, dashboard.Limit.IncomeKop);
+        Assert.Equal(LimitLevel.Warn, dashboard.Limit.Level);
+        Assert.Equal(limitKop - incomeAt85Percent, dashboard.Limit.RemainingKop);
+        Assert.Equal(0, dashboard.Limit.ExcessKop);
     }
 
     [Fact]

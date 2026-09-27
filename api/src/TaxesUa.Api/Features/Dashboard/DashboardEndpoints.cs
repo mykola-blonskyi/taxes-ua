@@ -38,6 +38,7 @@ public static class DashboardEndpoints
                             MissingTaxYear = loaded?.MissingTaxYear ?? today.Year,
                         },
                         [],
+                        null,
                         null));
                 }
 
@@ -59,11 +60,19 @@ public static class DashboardEndpoints
                 var burden = step is NextStep.Pay or NextStep.AllDone
                     ? loaded.Viewed.Accrual.BurdenThrough((today.Month + 2) / 3)
                     : null;
+
+                // Unconditional, unlike burden: the limit bar should show even before there is any
+                // next-step debt.
+                var limit = LimitMonitor.Evaluate(
+                    loaded.Viewed.Accrual.Quarters[^1].Income.CumulativeIncomeKop,
+                    loaded.Viewed.Config.ToEngineInput());
+
                 return Results.Ok(new DashboardResponse(
                     today,
                     ToStep(step, today),
                     ledger is null ? [] : Credits(ledger),
-                    burden is null ? null : new TaxBurdenResponse(burden.IncomeKop, burden.TaxKop, burden.RateBp)));
+                    burden is null ? null : new TaxBurdenResponse(burden.IncomeKop, burden.TaxKop, burden.RateBp),
+                    ToLimit(limit)));
             })
             .WithTags("Dashboard")
             .RequireAuthorization()
@@ -105,17 +114,29 @@ public static class DashboardEndpoints
         debt.Status,
         debt.DueDate.DayNumber - today.DayNumber,
         debt.AdvanceMonth);
+
+    private static LimitStatusResponse ToLimit(LimitStatus limit) => new(
+        limit.IncomeKop,
+        limit.LimitKop,
+        limit.PercentBp,
+        limit.Level,
+        limit.RemainingKop,
+        limit.ExcessKop,
+        limit.ExcessTaxKop);
 }
 
 /// <summary>
 /// <c>Credits</c> lists each kind with unspent credit, which the ledger only holds once nothing of that
-/// kind is owed. <c>Burden</c> is sent only for a year the ledger covers.
+/// kind is owed. <c>Burden</c> is sent only for a year the ledger covers. <c>Limit</c> is sent
+/// whenever a tax year is configured, unlike <c>Burden</c>, since the limit bar should show even
+/// before there is any next-step debt.
 /// </summary>
 internal sealed record DashboardResponse(
     DateOnly Today,
     NextStepResponse NextStep,
     KindCreditResponse[] Credits,
-    TaxBurdenResponse? Burden);
+    TaxBurdenResponse? Burden,
+    LimitStatusResponse? Limit);
 
 internal enum NextStepState
 {
@@ -163,3 +184,16 @@ internal sealed record KindCreditResponse(PaymentKind Kind, long CreditKop);
 
 /// <summary>Year to date through the current quarter. <c>RateBp</c> is null without income.</summary>
 internal sealed record TaxBurdenResponse(long IncomeKop, long TaxKop, long? RateBp);
+
+/// <summary>
+/// As <see cref="LimitStatus"/>. <c>RemainingKop</c> is 0 once <c>Level</c> is <c>Exceeded</c>, where
+/// <c>ExcessKop</c>/<c>ExcessTaxKop</c> apply instead.
+/// </summary>
+internal sealed record LimitStatusResponse(
+    long IncomeKop,
+    long LimitKop,
+    int PercentBp,
+    LimitLevel Level,
+    long RemainingKop,
+    long ExcessKop,
+    long ExcessTaxKop);

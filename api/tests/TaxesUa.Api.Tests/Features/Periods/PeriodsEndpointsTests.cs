@@ -164,7 +164,10 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
                     config.EsvDeadlineDay,
                     config.DeclarationDays,
                     config.TaxPaymentDaysAfterDeclaration,
-                    config.Holidays),
+                    config.Holidays,
+                    config.MinWageKop * config.IncomeLimitMinWages,
+                    config.ExcessRateBp,
+                    config.LimitWarnThresholdsPct),
                 new FopSettingsInput(
                     settings.WeekendDays,
                     settings.TaxPaymentCountsFromStatutoryDeclarationDate,

@@ -8,6 +8,7 @@ import { formatMoney, formatRate } from "@/shared/lib/money";
 import { formatLongDate } from "./debt";
 import { DaysLeft, DebtPeriod } from "./DebtParts";
 import { HeroCard } from "./HeroCard";
+import { LimitBar } from "./LimitBar";
 
 export function DashboardScreen() {
   const t = useTranslations("dashboard");
@@ -35,6 +36,7 @@ export function DashboardScreen() {
       )}
       {data.credits.length > 0 ? <Credits credits={data.credits} /> : null}
       {data.burden ? <Burden burden={data.burden} /> : null}
+      {data.limit ? <LimitBar limit={data.limit} /> : null}
     </div>
   );
 }

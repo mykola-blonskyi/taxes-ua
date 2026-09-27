@@ -6,7 +6,10 @@ namespace TaxesUa.Engine;
 /// <c>EsvMonthlyKop</c> is absent for the same reason: it is <c>MinWageKop</c> at <c>EsvRateBp</c>,
 /// and a second copy could contradict the two it comes from. <c>DeclarationDays</c> and
 /// <c>TaxPaymentDaysAfterDeclaration</c> count calendar days. <c>Holidays</c> is empty during
-/// martial law, when holidays are business days.
+/// martial law, when holidays are business days. <c>IncomeLimitKop</c> is Rule 4's annual limit as
+/// of Jan 1, not prorated for a partial year. <c>LimitWarnThresholdsPct</c> are ascending warn
+/// thresholds strictly below 100; the 100% line itself is not configurable here because it is a
+/// tax-system-switch fact, not a UI warning.
 /// </summary>
 public sealed record TaxYearConfigInput(
     long MinWageKop,
@@ -16,7 +19,10 @@ public sealed record TaxYearConfigInput(
     int EsvDeadlineDay,
     int DeclarationDays,
     int TaxPaymentDaysAfterDeclaration,
-    IReadOnlyList<DateOnly> Holidays);
+    IReadOnlyList<DateOnly> Holidays,
+    long IncomeLimitKop,
+    int ExcessRateBp,
+    IReadOnlyList<int> LimitWarnThresholdsPct);
 
 /// <summary>
 /// The FOP settings the engine reads, mirroring the <c>Settings</c> entity. Both shifting flags are
