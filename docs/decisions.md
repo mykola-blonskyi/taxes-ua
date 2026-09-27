@@ -176,6 +176,11 @@ The application as a Coolify Docker Compose resource from the repository (servic
 for this project are created in the PostgreSQL instance the owner already runs on the VPS. Cron
 runs inside `api` as hosted services.
 
+That instance is Coolify's `shared-database`, and its other projects (`fitness`, `todo`, `hub`,
+`plane`, `login`) share one convention: a login role `<project>_app` with no other attributes owns
+the database `<project>`, with default privileges and no `pg_hba.conf` lines of its own. taxes-ua
+follows it: `taxes_ua_app` owns `taxes_ua`.
+
 ### Alternatives Considered
 
 A new Coolify PostgreSQL resource per project. Simplest to wire up, but adds another PostgreSQL
@@ -183,11 +188,19 @@ process on a VPS that already runs one the owner maintains — unnecessary dupli
 single-user app. Docker Compose by hand with Caddy. Duplicates what Coolify already does. Fly.io
 or Railway. Paid at this memory footprint and add an external dependency.
 
+A role that does not own its database, with `pg_hba.conf` lines refusing it every other database.
+Stricter, but it would be the only project on the instance set up differently, and it edits a
+`pg_hba.conf` every other project depends on.
+
 ### Consequences
 
 Zero cost and no new database process. The application depends on Coolify for TLS and on however
 the owner already backs up that PostgreSQL instance; if that instance has no backup in place, the
 project adds its own scheduled logical dump.
+
+The role can drop its own database and create schemas in it. Like every other project's role, it
+can connect to the other databases on the instance, and they to this one, but no role can read
+another's tables: each owns its objects and grants nothing on them.
 
 ---
 
