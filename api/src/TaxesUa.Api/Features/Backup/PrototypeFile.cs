@@ -266,11 +266,15 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
             {
                 errors[at] = [$"The year must be between {TransactionsEndpoints.MinYear} and {TransactionsEndpoints.MaxYear}."];
             }
+            else if (property.Value.ValueKind == JsonValueKind.False)
+            {
+                continue;
+            }
             else if (new DateOnly(year, month, 1) > today)
             {
                 errors[at] = ["A month after the current one cannot have been paid."];
             }
-            else if (property.Value.ValueKind == JsonValueKind.True)
+            else
             {
                 months.Add(new PaidMonth(year, month));
             }

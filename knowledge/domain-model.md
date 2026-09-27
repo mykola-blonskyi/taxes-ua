@@ -196,14 +196,18 @@ other key is refused.
   has at most 2 decimals; `rate` (required for USD/EUR, absent or 1 for UAH) and `uah` are rounded
   half away from zero to 4 and 2 decimals. `uah` must equal `amount × rate` by Rule 2's formula.
 - `mpaid`: an object of `YYYY-MM` keys to `true` or `false`, the prototype's "paid" checkmark per
-  month. A month cannot be after the current one.
+  month. A month marked `true` cannot be after the current one; a `false` month writes nothing and
+  is not checked.
 
 Mapping: an income becomes an `Income` transaction with `AmountUahKop` = `uah` in kopecks and a
 `Manual` rate (a UAH income has no rate source, as every UAH row). It passes the transaction
 endpoint's own validation, so a future date, a NUL or an over-long text is refused. A month marked
 `true` becomes one month-period payment per kind (EP, VZ, ESV) for what that month accrued (Rule 6's
 year-to-date split), dated on the month's recommended advance date, or today if that is later. A kind
-that accrued nothing is skipped. This needs `Settings.FopRegistrationDate` and the year's
+that accrued nothing is skipped. The amount is the app's own accrual for the month, not what the
+owner actually paid: the prototype stores only a checkmark. If the owner paid a different sum, they
+correct it on Payments. A kind that already has a payment naming that month is skipped, whatever its
+amount. This needs `Settings.FopRegistrationDate` and the year's
 `TaxYearConfig`; without them the import is refused.
 
 Idempotence: an import never edits or deletes. An income is already present when the owner has as

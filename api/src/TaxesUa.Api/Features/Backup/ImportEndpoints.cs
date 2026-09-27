@@ -166,9 +166,16 @@ public static class ImportEndpoints
             .ToListAsync(cancellationToken);
         var remaining = stored.CountBy(key => key).ToDictionary();
 
+        // Loaded once and tracked: a lookup per receipt through the context would run change detection
+        // over every row already added, and the change log finds tracked clients without a query.
+        var clients = await database.Clients
+            .Where(client => client.UserId == userId)
+            .ToDictionaryAsync(client => client.Name, StringComparer.Ordinal, cancellationToken);
+
         var added = 0;
         foreach (var income in incomes)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var request = income.ToRequest();
             var text = TransactionsEndpoints.Normalize(request);
             var key = new IncomeKey(income.Date, income.Currency, income.AmountMinor, income.UahKop, text.ClientName);
@@ -176,6 +183,19 @@ public static class ImportEndpoints
             {
                 remaining[key] = count - 1;
                 continue;
+            }
+
+            Guid? clientId = null;
+            if (text.ClientName is { } name)
+            {
+                if (!clients.TryGetValue(name, out var client))
+                {
+                    client = new Client { Id = Guid.NewGuid(), UserId = userId, Name = name };
+                    database.Clients.Add(client);
+                    clients[name] = client;
+                }
+
+                clientId = client.Id;
             }
 
             database.Transactions.Add(new Transaction
@@ -189,7 +209,7 @@ public static class ImportEndpoints
                 RateSource = income.Currency == Currency.UAH ? null : RateSource.Manual,
                 AmountUahKop = income.UahKop,
                 Kind = TransactionKind.Income,
-                ClientId = await TransactionsEndpoints.ResolveClientAsync(database, userId, text.ClientName, cancellationToken),
+                ClientId = clientId,
                 InvoiceNumber = text.InvoiceNumber,
                 Description = text.Description,
                 CreatedAt = now,
@@ -241,6 +261,7 @@ public static class ImportEndpoints
 
             foreach (var month in months.Where(month => month.Year == year))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var accrued = loaded.Viewed.Accrual.Months[month.Month - 1];
                 var recommended = new DateOnly(year, month.Month, 1).AddMonths(1)
                     .AddDays(loaded.Viewed.Config.AdvanceRecommendedDay - 1);

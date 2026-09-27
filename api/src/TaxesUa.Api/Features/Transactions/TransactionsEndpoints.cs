@@ -451,19 +451,12 @@ public static class TransactionsEndpoints
     internal static bool ExceedsUahBound(long amountMinor, int rateE4) =>
         (Int128)amountMinor * rateE4 > (Int128)MaxAmountMinor * Money.RateScale;
 
-    // Looks at clients added but not yet saved first, so an import naming one new client on many
-    // receipts creates it once.
-    internal static async Task<Guid?> ResolveClientAsync(
+    private static async Task<Guid?> ResolveClientAsync(
         AppDbContext database, string userId, string? name, CancellationToken cancellationToken)
     {
         if (name is null)
         {
             return null;
-        }
-
-        if (database.Clients.Local.FirstOrDefault(client => client.UserId == userId && client.Name == name) is { } pending)
-        {
-            return pending.Id;
         }
 
         var existingId = await database.Clients

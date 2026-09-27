@@ -226,6 +226,44 @@ public sealed class ImportEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task A_future_month_marked_unpaid_is_accepted_and_writes_nothing()
+    {
+        await using var application = CreateApplication();
+        using var owner = await SignedInFresh(application);
+
+        var result = await Import(owner, """{"mpaid":{"2031-01":false,"2031-12":false}}""");
+
+        Assert.Equal(new ImportResponse(false, 0, 0, 0, 0, 0), result);
+        Assert.Empty((await Backup(owner)).BudgetPayments);
+    }
+
+    // The web proxy gives up after 30 seconds while the api would go on holding the owner's lock, so the
+    // largest file allowed has to finish well inside that, clients and change log included.
+    [Fact]
+    public async Task The_largest_allowed_file_with_named_clients_imports_well_under_the_proxy_timeout()
+    {
+        await using var application = CreateApplication();
+        using var owner = await SignedInFresh(application);
+        var incomes = new JsonArray();
+        for (var i = 0; i < PrototypeFile.MaxIncomes; i++)
+        {
+            var income = Income(
+                $"2031-{i % 5 + 1:00}-{i % 28 + 1:00}", $"{i + 1}.00", "UAH", null, $"{i + 1}.00");
+            income["client"] = $"Client {i % 20}";
+            incomes.Add(income);
+        }
+
+        var file = new JsonObject { ["incomes"] = incomes }.ToJsonString();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var result = await Import(owner, file);
+        clock.Stop();
+
+        Assert.Equal(PrototypeFile.MaxIncomes, result.TransactionsAdded);
+        Assert.Equal(20, (await Backup(owner)).Clients.Length);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(15), $"took {clock.Elapsed}");
+    }
+
+    [Fact]
     public async Task A_file_over_the_size_limit_is_refused()
     {
         await using var application = CreateApplication();
