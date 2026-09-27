@@ -2,7 +2,7 @@
 
 Money: `long` in the minor unit of the currency (kopecks, cents). Rate: `int RateE4` = rate × 10⁴.
 Percentages: basis points (`int`, 5% = 500). Operation dates: `DateOnly` by Europe/Kyiv.
-Every entity except `TaxYearConfig` has a `UserId`.
+Every entity except `TaxYearConfig` and `FxRate` has a `UserId`. Those two are shared by every owner.
 
 ## Entities
 
@@ -153,6 +153,19 @@ Responsibilities: a cache of NBU exchange rates.
 Fields: `Currency`, `Date` (the requested date), `RateE4`, `RateDate` (the NBU date the rate belongs
 to, earlier than `Date` after a fallback), `FetchedAt`. Key (`Currency`, `Date`). A future `Date` is
 never cached.
+
+---
+
+### Backup file
+
+Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
+
+Fields: `SchemaVersion` (1), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`, each row with
+its id and every stored column except `UserId`. `TaxYearConfig` and `FxRate` are left out because
+they are shared. A restore replaces the owner's four tables in one database transaction and passes
+every row through the endpoints' own validation, refund links included; any violation changes
+nothing. Ids are kept, so a restore after a wipe reproduces the same file. When another owner still
+holds one of the ids, every id in the file is replaced by a fresh one and the links follow.
 
 ---
 
