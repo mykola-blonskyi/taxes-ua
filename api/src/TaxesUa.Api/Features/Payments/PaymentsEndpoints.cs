@@ -160,16 +160,16 @@ public static class PaymentsEndpoints
     }
 
     /// <summary>
-    /// The owner's payments recorded against <paramref name="year"/>, as the engine reads them. A
-    /// payment belongs to the year of its period and not of <c>PaidOn</c>, so a Q4 payment made the
-    /// next February still settles Q4.
+    /// The owner's payments named for any year from <paramref name="fromYear"/> through
+    /// <paramref name="toYear"/>, as the engine reads them. A payment belongs to the year of its period
+    /// and not of <c>PaidOn</c>; within its kind it settles the oldest debt first (Rule 7).
     /// </summary>
     internal static async Task<IReadOnlyList<BudgetPaymentInput>> LoadEngineInputAsync(
-        AppDbContext database, string userId, int year, CancellationToken cancellationToken)
+        AppDbContext database, string userId, int fromYear, int toYear, CancellationToken cancellationToken)
     {
         var rows = await database.BudgetPayments
             .AsNoTracking()
-            .Where(row => row.UserId == userId && row.PeriodYear == year)
+            .Where(row => row.UserId == userId && row.PeriodYear >= fromYear && row.PeriodYear <= toYear)
             .ToListAsync(cancellationToken);
 
         return [.. rows.Select(row => row.ToEngineInput())];

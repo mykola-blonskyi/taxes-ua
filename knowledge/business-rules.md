@@ -117,13 +117,29 @@ The annual declaration (for Q4) includes the ESV attachment.
 
 ## Rule 7. Payment balances
 
-Per kind (EP, VZ, ESV) independently: accrued cumulatively minus paid = owed or overpaid. An
-overpayment carries forward to the next period of the same kind. Kinds are never mixed.
+Per kind (EP, VZ, ESV) independently: accrued cumulatively minus paid = owed or overpaid. Kinds are
+never mixed: an overpayment of one kind never reduces another kind's debt.
 
-A quarter's balance is cumulative: it opens with the same kind's previous balance, so an unpaid Q1
-levy still shows as owed in Q2, Q3 and Q4, and it is one debt, not four. The carry-forward runs
-inside one year. An overpayment larger than the year's liability for its kind stays on that year's
-closing balance and does not open the next year (to confirm).
+Within a kind, money paid settles the oldest outstanding obligation first, by due date, whatever
+quarter or month the payment names (owner decision 2026-09-27; this is how the tax office credits
+payments against debt, Tax Code art. 87.9). Q1 levy 1,000.00 unpaid, Q2 levy 1,000.00 accrued and
+2,000.00 paid "for Q2" leaves both quarters settled. The period a payment names is kept and shown;
+it no longer decides which obligation the payment settles. A refund that turns a quarter's accrual
+negative adds that amount to the kind's credit in the same way.
+
+The allocation runs across years (owner decision 2026-09-27). An unpaid balance of year Y is still
+owed, and still overdue, in Y+1; an overpayment at the end of Y settles Y+1's obligations of the same
+kind. A year's figures follow the allocation, not the period payments name: paid is what was
+allocated to that year's quarters, owed is what every quarter up to and including that year still
+owes, and an overpayment is shown only when the kind's whole ledger is in credit. A year whose debt a
+later-named payment settled reads as settled.
+
+The ledger always starts at the registration year, whichever year is viewed; payments named for an
+earlier year are not counted, and a year before registration shows no obligations. It runs through
+consecutive configured tax years and stops at the first year without one, because that year's
+accruals are unknown: a year after the gap shows no obligations until the missing year is
+configured. Both cases say so on screen: the api names the reason (year before registration, or the
+missing year) as a warning, never as text.
 
 ---
 

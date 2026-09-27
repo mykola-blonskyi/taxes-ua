@@ -89,14 +89,19 @@ export function PaymentsScreen() {
 
       {periods.data?.balances ? <BalancesPanel year={year} balances={periods.data.balances} /> : null}
 
-      {periods.data && periods.data.balances === null ? (
-        <section className="flex flex-col gap-2 rounded-lg border bg-muted p-4">
-          <h3 className="text-sm font-semibold text-destructive">{t("registrationWarning.title")}</h3>
-          <p className="text-sm text-muted-foreground">{t("registrationWarning.message")}</p>
-          <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
-            {t("registrationWarning.cta")}
-          </Link>
-        </section>
+      {periods.data?.warnings.fopRegistrationDateNotSet ? (
+        <LedgerNotice title={t("registrationWarning.title")} message={t("registrationWarning.message")} cta={t("registrationWarning.cta")} />
+      ) : null}
+
+      {periods.data?.warnings.yearBeforeRegistration ? (
+        <LedgerNotice message={t("ledgerWarning.yearBeforeRegistration", { year })} />
+      ) : null}
+
+      {periods.data && periods.data.warnings.missingTaxYear !== null ? (
+        <LedgerNotice
+          message={t("ledgerWarning.missingTaxYear", { year: Number(periods.data.warnings.missingTaxYear) })}
+          cta={t("registrationWarning.cta")}
+        />
       ) : null}
 
       <div ref={formRef}>
@@ -117,5 +122,19 @@ export function PaymentsScreen() {
         )
       ) : null}
     </div>
+  );
+}
+
+function LedgerNotice({ title, message, cta }: { title?: string; message: string; cta?: string }) {
+  return (
+    <section className="flex flex-col gap-2 rounded-lg border bg-muted p-4">
+      {title ? <h3 className="text-sm font-semibold text-destructive">{title}</h3> : null}
+      <p className="text-sm text-muted-foreground">{message}</p>
+      {cta ? (
+        <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          {cta}
+        </Link>
+      ) : null}
+    </section>
   );
 }

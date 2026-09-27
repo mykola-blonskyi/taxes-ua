@@ -1741,11 +1741,15 @@ export interface components {
         };
         KindYearBalance: {
             /** Format: int64 */
+            earlierOwedKop: number | string;
+            /** Format: int64 */
             accruedKop: number | string;
             /** Format: int64 */
             paidKop: number | string;
             /** Format: int64 */
-            balanceKop: number | string;
+            owedKop: number | string;
+            /** Format: int64 */
+            creditKop: number | string;
         };
         MeResponse: {
             id: string;
@@ -1760,9 +1764,7 @@ export interface components {
             /** Format: int64 */
             paidKop: number | string;
             /** Format: int64 */
-            openingBalanceKop: number | string;
-            /** Format: int64 */
-            balanceKop: number | string;
+            remainingKop: number | string;
             /** Format: date */
             dueDate: string;
             status: components["schemas"]["ObligationStatus"];
@@ -1825,6 +1827,9 @@ export interface components {
             /** Format: int32 */
             excludedOperationCount: number | string;
             negativeCumulativeTaxQuarters: (number | string)[];
+            yearBeforeRegistration: boolean;
+            /** Format: int32 */
+            missingTaxYear: null | number | string;
         };
         ProblemDetails: {
             type?: null | string;

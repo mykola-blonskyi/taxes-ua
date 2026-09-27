@@ -32,10 +32,12 @@ public static class PeriodsEndpoints
                     return Missing(year);
                 }
 
-                var payments = await PaymentsEndpoints.LoadEngineInputAsync(
-                    database, user.Id, year, cancellationToken);
+                IReadOnlyList<BudgetPaymentInput> payments = loaded.Ledger is [var first, ..]
+                    ? await PaymentsEndpoints.LoadEngineInputAsync(
+                        database, user.Id, first.Accrual.Year, loaded.Ledger[^1].Accrual.Year, cancellationToken)
+                    : [];
 
-                return Results.Ok(ToResponse(year, loaded, payments, time.TodayInKyiv()));
+                return Results.Ok(ToResponse(loaded, payments, time.TodayInKyiv()));
             })
             .Produces<PeriodsResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -45,13 +47,25 @@ public static class PeriodsEndpoints
     }
 
     private static PeriodsResponse ToResponse(
-        int year, YearAccruals loaded, IReadOnlyList<BudgetPaymentInput> payments, DateOnly today)
+        LoadedYears loadedYears, IReadOnlyList<BudgetPaymentInput> payments, DateOnly today)
     {
+        var loaded = loadedYears.Viewed;
+        var year = loaded.Accrual.Year;
         var configInput = loaded.Config.ToEngineInput();
         var settingsInput = loaded.Settings.ToEngineInput();
         var registrationDate = settingsInput.FopRegistrationDate;
-        var balances = Balances.ForYear(loaded.Accrual, payments);
-        var obligations = ObligationBuilder.ForYear(balances, configInput, settingsInput, today);
+        // Outside the ledger (no registration date, a year before it, or past a missing year) nothing
+        // can be allocated honestly, so no obligation and no balance is sent rather than a wrong one.
+        var ledger = loadedYears.ViewedIsInLedger
+            ? Balances.ForYears(
+                [.. loadedYears.Ledger.Select(each => new LedgerYear(each.Accrual, each.Config.ToEngineInput()))],
+                settingsInput,
+                payments,
+                today)
+            : null;
+        IReadOnlyList<Obligation> obligations = ledger is null
+            ? []
+            : [.. ledger.SingleTax.Obligations, .. ledger.MilitaryLevy.Obligations, .. ledger.Esv.Obligations];
 
         var quarters = loaded.Accrual.Quarters
             .Where(accrual => registrationDate is not { } registered
@@ -67,27 +81,27 @@ public static class PeriodsEndpoints
                 accrual.CumulativeSingleTaxKop,
                 accrual.CumulativeMilitaryLevyKop,
                 DeadlineCalendar.ForQuarter(year, accrual.Income.Quarter, configInput, settingsInput),
-                ToObligations(obligations, accrual.Income.Quarter)))
+                ToObligations(obligations, year, accrual.Income.Quarter)))
             .ToArray();
 
         return new PeriodsResponse(
             year,
-            ToWarnings(loaded),
+            ToWarnings(loadedYears),
             quarters,
-            // Without a registration date nothing accrues (Rule 8), so every payment would read as an
-            // overpayment. No balance is sent rather than a wrong one.
-            registrationDate is null
+            ledger is null
                 ? null
                 : new YearBalancesResponse(
-                    ToYearBalance(balances.SingleTax),
-                    ToYearBalance(balances.MilitaryLevy),
-                    ToYearBalance(balances.Esv)));
+                    ToYearBalance(ledger.SingleTax.ForYear(year)),
+                    ToYearBalance(ledger.MilitaryLevy.ForYear(year)),
+                    ToYearBalance(ledger.Esv.ForYear(year))));
     }
 
-    // The builder emits nothing without a registration date (Rule 8), so neither does the quarter.
-    private static QuarterObligations? ToObligations(IReadOnlyList<Obligation> obligations, int quarter)
+    private static QuarterObligations? ToObligations(
+        IReadOnlyList<Obligation> obligations, int year, int quarter)
     {
-        var ofQuarter = obligations.Where(obligation => obligation.Quarter == quarter).ToArray();
+        var ofQuarter = obligations
+            .Where(obligation => obligation.Year == year && obligation.Quarter == quarter)
+            .ToArray();
         return ofQuarter.Length == 0
             ? null
             : new QuarterObligations(
@@ -99,21 +113,22 @@ public static class PeriodsEndpoints
     private static ObligationResponse ToObligation(Obligation obligation) => new(
         obligation.AccruedKop,
         obligation.PaidKop,
-        obligation.OpeningBalanceKop,
-        obligation.BalanceKop,
+        obligation.RemainingKop,
         obligation.DueDate,
         obligation.Status);
 
-    // Sums one kind's own quarters, never across kinds (Rule 7). The closing balance is the engine's.
-    private static KindYearBalance ToYearBalance(KindBalance kind) => new(
-        kind.Quarters.Sum(quarter => quarter.AccruedKop),
-        kind.Quarters.Sum(quarter => quarter.PaidKop),
-        kind.ClosingBalanceKop);
+    private static KindYearBalance ToYearBalance(TaxesUa.Engine.KindYearBalance balance) => new(
+        balance.EarlierOwedKop,
+        balance.AccruedKop,
+        balance.PaidKop,
+        balance.OwedKop,
+        balance.CreditKop);
 
     // Folds the engine's per-operation list into one flag or count per kind: the transactions screen
     // already marks each excluded row, so this screen only has to say that some exist.
-    private static PeriodWarnings ToWarnings(YearAccruals loaded)
+    private static PeriodWarnings ToWarnings(LoadedYears loadedYears)
     {
+        var loaded = loadedYears.Viewed;
         var fopRegistrationDateNotSet = false;
         var excludedOperationCount = 0;
         var negativeQuarters = new List<int>();
@@ -140,7 +155,9 @@ public static class PeriodsEndpoints
             loaded.Config.VerifiedAt is null,
             fopRegistrationDateNotSet,
             excludedOperationCount,
-            [.. negativeQuarters]);
+            [.. negativeQuarters],
+            loaded.Settings.FopRegistrationDate is { } registered && loaded.Accrual.Year < registered.Year,
+            loadedYears.MissingTaxYear);
     }
 
     private static DateOnly QuarterEnd(int year, int quarter) =>
@@ -159,15 +176,21 @@ internal sealed record PeriodsResponse(
 
 /// <summary>
 /// Rule 7's three ledgers for the year, one named field per kind like the engine's
-/// <see cref="YearBalances"/>, so the web has no collection to pool into one figure either.
+/// <see cref="PaymentLedger"/>, so the web has no collection to pool into one figure either.
 /// </summary>
 internal sealed record YearBalancesResponse(
     KindYearBalance SingleTax,
     KindYearBalance MilitaryLevy,
     KindYearBalance Esv);
 
-/// <summary>Positive <c>BalanceKop</c> is owed, negative is overpaid.</summary>
-internal sealed record KindYearBalance(long AccruedKop, long PaidKop, long BalanceKop);
+/// <summary>
+/// One kind's year as the oldest-first allocation left it (Rule 7). <c>EarlierOwedKop</c> is what
+/// earlier years still owe, <c>PaidKop</c> what was allocated to this year's quarters, <c>OwedKop</c>
+/// what every quarter up to and including this year still owes, and <c>CreditKop</c> the kind's
+/// unspent overpayment, nonzero only when nothing is owed anywhere.
+/// </summary>
+internal sealed record KindYearBalance(
+    long EarlierOwedKop, long AccruedKop, long PaidKop, long OwedKop, long CreditKop);
 
 internal sealed record QuarterObligations(
     ObligationResponse SingleTax,
@@ -175,26 +198,28 @@ internal sealed record QuarterObligations(
     ObligationResponse Esv);
 
 /// <summary>
-/// One kind's obligation for one quarter, as <see cref="ObligationBuilder"/> built it.
-/// <c>OpeningBalanceKop</c> is the carry-forward from the same kind's previous quarter.
+/// One kind's obligation for one quarter, as <see cref="Balances"/> allocated it.
 /// </summary>
 internal sealed record ObligationResponse(
     long AccruedKop,
     long PaidKop,
-    long OpeningBalanceKop,
-    long BalanceKop,
+    long RemainingKop,
     DateOnly DueDate,
     ObligationStatus Status);
 
 /// <summary>
-/// Rule 9 and Rule 8 as the screen needs them. Each field is one sentence the interface writes; the
-/// api sends no text, per ADR-002.
+/// Rule 9, Rule 8 and Rule 7 as the screen needs them. Each field is one sentence the interface
+/// writes; the api sends no text, per ADR-002. <c>YearBeforeRegistration</c> and
+/// <c>MissingTaxYear</c> say why a year with a registration date still has no balances: the year
+/// precedes the Rule 7 ledger, or the ledger stopped at that unconfigured year.
 /// </summary>
 internal sealed record PeriodWarnings(
     bool TaxYearUnverified,
     bool FopRegistrationDateNotSet,
     int ExcludedOperationCount,
-    int[] NegativeCumulativeTaxQuarters);
+    int[] NegativeCumulativeTaxQuarters,
+    bool YearBeforeRegistration,
+    int? MissingTaxYear);
 
 /// <summary>
 /// One quarter's own accruals and the year-to-date figures through it. The cumulative three are the

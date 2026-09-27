@@ -104,12 +104,10 @@ export function QuartersTable({ quarters }: { quarters: Quarter[] }) {
           render={(obligation) => (
             <span className="flex flex-col items-end">
               <span className={obligation.status === "Done" ? "text-muted-foreground" : "font-medium"}>
-                {formatMoney(Number(obligation.balanceKop), locale)}
+                {formatMoney(Number(obligation.remainingKop), locale)}
               </span>
               {obligation.status !== "Done" ? (
                 <span className={`text-xs ${statusClass[obligation.status]}`}>{t(`status.${obligation.status}`)}</span>
-              ) : Number(obligation.balanceKop) < 0 ? (
-                <span className="text-xs text-muted-foreground">{t("overpaid")}</span>
               ) : null}
             </span>
           )}
