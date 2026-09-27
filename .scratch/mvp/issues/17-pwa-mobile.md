@@ -14,9 +14,10 @@ The app installs on iOS and Android as a PWA with an icon and its own name, resp
 
 ## Acceptance criteria
 
-- [ ] Lighthouse marks the app installable.
-- [ ] Installation on iOS and Android succeeds; the app opens in standalone mode.
-- [ ] No screen scrolls horizontally at 375px.
+- [x] Lighthouse marks the app installable. Verified 2026-09-28 by installing from Chrome on Android, which applies the same installability check.
+- [x] Installation on Android succeeds; the app opens in standalone mode, without the address bar (owner, Galaxy S24 Ultra, 2026-09-28).
+- ~~Installation on iOS~~: dropped by the owner on 2026-09-28, iOS is not a target.
+- [ ] No screen scrolls horizontally at 375px. Settings → Tax years overflowed on the phone; fixed in #67, pending a Redeploy and a check on the device.
 
 ## Blocked by
 
