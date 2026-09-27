@@ -7,6 +7,7 @@ import { useTaxYears } from "@/data/tax-years/useTaxYears";
 import { usePeriods } from "@/data/periods/usePeriods";
 import { currentYearInKyiv } from "@/shared/lib/dates";
 import { DeclarationNumbers } from "./DeclarationNumbers";
+import { MonthsTable } from "./MonthsTable";
 import { PeriodWarnings } from "./PeriodWarnings";
 import { QuartersTable } from "./QuartersTable";
 
@@ -87,6 +88,13 @@ export function PeriodsScreen() {
             <h3 className="text-base font-semibold">{t("quartersTitle")}</h3>
             <QuartersTable quarters={periods.quarters} />
           </section>
+
+          {periods.months ? (
+            <section className="flex flex-col gap-2">
+              <h3 className="text-base font-semibold">{t("monthsTitle")}</h3>
+              <MonthsTable months={periods.months} />
+            </section>
+          ) : null}
 
           <section className="flex flex-col gap-2">
             <h3 className="text-base font-semibold">{t("declarationTitle")}</h3>

@@ -1861,6 +1861,8 @@ export interface components {
             status: components["schemas"]["ObligationStatus"];
             /** Format: int32 */
             daysLeft: number | string;
+            /** Format: int32 */
+            advanceMonth: null | number | string;
         };
         KindYearBalance: {
             /** Format: int64 */
@@ -1880,6 +1882,22 @@ export interface components {
             displayName: null | string;
             /** Format: date-time */
             createdAt: string;
+        };
+        MonthPeriodResponse: {
+            /** Format: int32 */
+            month: number | string;
+            /** Format: int64 */
+            incomeKop: number | string;
+            /** Format: int64 */
+            singleTaxKop: number | string;
+            /** Format: int64 */
+            militaryLevyKop: number | string;
+            /** Format: int64 */
+            esvKop: number | string;
+            /** Format: int64 */
+            recommendedKop: number | string;
+            /** Format: date */
+            recommendedDate: string;
         };
         NextStepResponse: {
             state: components["schemas"]["NextStepState"];
@@ -1953,6 +1971,7 @@ export interface components {
             year: number | string;
             warnings: components["schemas"]["PeriodWarnings"];
             quarters: components["schemas"]["QuarterPeriodResponse"][];
+            months: null | components["schemas"]["MonthPeriodResponse"][];
             balances: null | components["schemas"]["YearBalancesResponse"];
         };
         PeriodWarnings: {

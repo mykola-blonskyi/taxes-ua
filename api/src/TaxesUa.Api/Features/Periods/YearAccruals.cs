@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Engine;
+using PaymentMode = TaxesUa.Api.Features.Settings.PaymentMode;
 using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
 
 namespace TaxesUa.Api.Features.Periods;
@@ -97,4 +98,13 @@ internal sealed record YearAccruals(TaxYearConfig Config, SettingsEntity Setting
 internal sealed record LoadedYears(YearAccruals Viewed, IReadOnlyList<YearAccruals> Ledger, int? MissingTaxYear)
 {
     public bool ViewedIsInLedger => Ledger.Contains(Viewed);
+
+    /// <summary>
+    /// Rule 6's advances over every ledger year, or null in <c>Quarterly</c> mode. They are read off
+    /// <paramref name="ledger"/>, never fed back into it: the mode changes recommendations only.
+    /// </summary>
+    public IReadOnlyList<MonthlyAdvance>? AdvancesOf(PaymentLedger ledger) =>
+        Viewed.Settings.PaymentMode == PaymentMode.MonthlyAdvance
+            ? [.. Ledger.SelectMany(year => MonthlyAdvances.ForYear(year.Accrual, ledger, year.Config.AdvanceRecommendedDay))]
+            : null;
 }

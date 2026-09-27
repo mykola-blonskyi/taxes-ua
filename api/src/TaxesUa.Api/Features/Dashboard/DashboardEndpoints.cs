@@ -54,7 +54,8 @@ public static class DashboardEndpoints
                         today);
                 }
 
-                var step = NextStep.Find(ledger, settings.FopRegistrationDate, today);
+                var step = NextStep.Find(
+                    ledger, settings.FopRegistrationDate, today, ledger is null ? null : loaded.AdvancesOf(ledger));
                 var burden = step is NextStep.Pay or NextStep.AllDone
                     ? loaded.Viewed.Accrual.BurdenThrough((today.Month + 2) / 3)
                     : null;
@@ -102,7 +103,8 @@ public static class DashboardEndpoints
         debt.AmountKop,
         debt.DueDate,
         debt.Status,
-        debt.DueDate.DayNumber - today.DayNumber);
+        debt.DueDate.DayNumber - today.DayNumber,
+        debt.AdvanceMonth);
 }
 
 /// <summary>
@@ -142,7 +144,8 @@ internal sealed record NextStepResponse(
 
 /// <summary>
 /// One kind's debt, as <see cref="KindDebt"/>. <c>DaysLeft</c> counts Kyiv days to <c>DueDate</c>:
-/// zero on the day itself, negative once overdue.
+/// zero on the day itself, negative once overdue. <c>AdvanceMonth</c> is set when the step is Rule 6's
+/// monthly advance through that month rather than the quarter's deadline.
 /// </summary>
 internal sealed record KindDebtResponse(
     PaymentKind Kind,
@@ -153,7 +156,8 @@ internal sealed record KindDebtResponse(
     long AmountKop,
     DateOnly DueDate,
     ObligationStatus Status,
-    int DaysLeft);
+    int DaysLeft,
+    int? AdvanceMonth);
 
 internal sealed record KindCreditResponse(PaymentKind Kind, long CreditKop);
 

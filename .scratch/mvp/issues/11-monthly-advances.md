@@ -1,7 +1,7 @@
 # 11: Monthly advances
 
 GitHub: #12
-Status: ready-for-agent
+Status: in a PR on branch ticket-12
 Blocked by: #10
 
 ## Parent

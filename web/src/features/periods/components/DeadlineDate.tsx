@@ -3,7 +3,7 @@ import type { PeriodsResponse } from "@/data/periods/usePeriods";
 
 type Deadline = PeriodsResponse["quarters"][number]["deadlines"]["esv"];
 
-function formatDate(value: string, locale: string): string {
+export function formatDate(value: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" }).format(
     new Date(`${value}T00:00:00Z`),
   );
