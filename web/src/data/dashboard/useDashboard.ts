@@ -7,6 +7,7 @@ import { periodsQueryKey } from "@/data/periods/usePeriods";
 
 export type DashboardResponse = components["schemas"]["DashboardResponse"];
 export type KindDebt = components["schemas"]["KindDebtResponse"];
+export type LimitStatus = components["schemas"]["LimitStatusResponse"];
 
 // Nested under the periods key: the dashboard is computed from the same receipts, payments, settings
 // and tax years, so every write that invalidates the periods also moves the next step.

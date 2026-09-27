@@ -88,7 +88,13 @@
       "title": "Переплата",
       "hint": "Зарахується в наступні платежі того самого виду."
     },
-    "advance": "аванс по {month} {year} включно"
+    "advance": "аванс по {month} {year} включно",
+    "limit": {
+      "title": "Ліміт доходу",
+      "remainingBeforeWarn": "Залишилося {amount} до попередження про ліміт.",
+      "remainingBeforeLimit": "Залишилося {amount} до річного ліміту.",
+      "exceeded": "Перевищення ліміту становить {excess}, податок з нього — {tax}."
+    }
   },
   "transactions": {
     "title": "Надходження",

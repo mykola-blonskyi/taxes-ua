@@ -1810,6 +1810,7 @@ export interface components {
             nextStep: components["schemas"]["NextStepResponse"];
             credits: components["schemas"]["KindCreditResponse"][];
             burden: null | components["schemas"]["TaxBurdenResponse"];
+            limit: null | components["schemas"]["LimitStatusResponse"];
         };
         Deadline: {
             /** Format: date */
@@ -1875,6 +1876,23 @@ export interface components {
             owedKop: number | string;
             /** Format: int64 */
             creditKop: number | string;
+        };
+        /** @enum {unknown} */
+        LimitLevel: "Ok" | "Warn" | "Exceeded";
+        LimitStatusResponse: {
+            /** Format: int64 */
+            incomeKop: number | string;
+            /** Format: int64 */
+            limitKop: number | string;
+            /** Format: int32 */
+            percentBp: number | string;
+            level: components["schemas"]["LimitLevel"];
+            /** Format: int64 */
+            remainingKop: number | string;
+            /** Format: int64 */
+            excessKop: number | string;
+            /** Format: int64 */
+            excessTaxKop: number | string;
         };
         MeResponse: {
             id: string;

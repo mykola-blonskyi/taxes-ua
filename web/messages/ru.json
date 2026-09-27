@@ -88,7 +88,13 @@
       "title": "Переплата",
       "hint": "Зачтётся в следующие платежи того же вида."
     },
-    "advance": "аванс по {month} {year} включительно"
+    "advance": "аванс по {month} {year} включительно",
+    "limit": {
+      "title": "Лимит дохода",
+      "remainingBeforeWarn": "Осталось {amount} до предупреждения о лимите.",
+      "remainingBeforeLimit": "Осталось {amount} до годового лимита.",
+      "exceeded": "Превышение лимита составляет {excess}, налог с него — {tax}."
+    }
   },
   "transactions": {
     "title": "Поступления",
