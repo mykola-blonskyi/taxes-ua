@@ -1,0 +1,190 @@
+"use client";
+
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
+import { useDashboard, type DashboardResponse, type KindDebt } from "@/data/dashboard/useDashboard";
+import { formatMoney, formatRate } from "@/shared/lib/money";
+import { formatLongDate } from "./debt";
+import { DaysLeft, DebtPeriod } from "./DebtParts";
+import { HeroCard } from "./HeroCard";
+
+export function DashboardScreen() {
+  const t = useTranslations("dashboard");
+  const { data, isLoading, isError, isFetching } = useDashboard();
+
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
+  }
+
+  if (isError || !data) {
+    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  }
+
+  const { nextStep, today } = data;
+
+  return (
+    <div className="flex flex-col gap-6">
+      {nextStep.state === "Pay" ? (
+        <>
+          <HeroCard now={nextStep.now} today={today} busy={isFetching} />
+          {nextStep.later.length > 0 ? <LaterDebts debts={nextStep.later} today={today} /> : null}
+        </>
+      ) : (
+        <StateCard response={data} />
+      )}
+      {data.credits.length > 0 ? <Credits credits={data.credits} /> : null}
+      {data.burden ? <Burden burden={data.burden} /> : null}
+    </div>
+  );
+}
+
+function StateCard({ response }: { response: DashboardResponse }) {
+  const t = useTranslations("dashboard");
+  const tPeriods = useTranslations("periods");
+  const locale = useLocale();
+  const { nextStep } = response;
+
+  switch (nextStep.state) {
+    case "AllDone":
+      return <Card title={t("allDone.title")} text={t("allDone.text")} tone="clear" />;
+    case "BeforeRegistration":
+      return (
+        <Card
+          title={t("beforeRegistration.title")}
+          text={t("beforeRegistration.text", { date: formatLongDate(nextStep.registrationDate!, response.today, locale) })}
+        />
+      );
+    case "RegistrationDateNotSet":
+      return (
+        <Card title={t("registrationDateNotSet.title")} text={t("registrationDateNotSet.text")}>
+          <SettingsLink />
+        </Card>
+      );
+    case "MissingTaxYear":
+      return (
+        <Card title={t("missingTaxYear")} text={tPeriods("warnings.missingTaxYear", { year: Number(nextStep.missingTaxYear) })}>
+          <SettingsLink />
+        </Card>
+      );
+    case "Pay":
+      return null;
+  }
+}
+
+function Card({
+  title,
+  text,
+  tone,
+  children,
+}: {
+  title: string;
+  text: string;
+  tone?: "clear";
+  children?: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-2 rounded-xl border bg-card p-4 md:p-6">
+      <h3
+        className={
+          tone === "clear"
+            ? "text-2xl font-semibold text-emerald-700 dark:text-emerald-400"
+            : "text-lg font-semibold"
+        }
+      >
+        {title}
+      </h3>
+      <p className="text-sm text-muted-foreground">{text}</p>
+      {children}
+    </section>
+  );
+}
+
+function SettingsLink() {
+  const t = useTranslations("dashboard");
+
+  return (
+    <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+      {t("settingsCta")}
+    </Link>
+  );
+}
+
+function LaterDebts({ debts, today }: { debts: KindDebt[]; today: string }) {
+  const t = useTranslations("dashboard");
+  const tKinds = useTranslations("payments.kinds");
+  const locale = useLocale();
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-base font-semibold">{t("later")}</h3>
+      <ul className="flex flex-col divide-y rounded-lg border">
+        {debts.map((debt) => (
+          <li
+            key={debt.kind}
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 p-3"
+          >
+            <div className="flex min-w-0 flex-col">
+              <span className="text-sm font-medium">
+                {tKinds(debt.kind)}, <DebtPeriod debt={debt} />
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {formatLongDate(debt.dueDate, today, locale)}
+                {" · "}
+                <DaysLeft days={Number(debt.daysLeft)} />
+              </span>
+            </div>
+            <span className="font-semibold tabular-nums">{formatMoney(Number(debt.amountKop), locale)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function Burden({ burden }: { burden: NonNullable<DashboardResponse["burden"]> }) {
+  const t = useTranslations("dashboard.burden");
+  const locale = useLocale();
+
+  return (
+    <section className="flex flex-col gap-1">
+      <h3 className="text-base font-semibold">{t("title")}</h3>
+      {burden.rateBp === null ? (
+        <p className="text-sm text-muted-foreground">{t("noIncome")}</p>
+      ) : (
+        <>
+          <p className="text-3xl font-semibold tabular-nums">{formatRate(Number(burden.rateBp), locale)}</p>
+          <p className="text-sm text-muted-foreground">
+            {t("detail", {
+              tax: formatMoney(Number(burden.taxKop), locale),
+              income: formatMoney(Number(burden.incomeKop), locale),
+            })}
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function Credits({ credits }: { credits: DashboardResponse["credits"] }) {
+  const t = useTranslations("dashboard.credit");
+  const tKinds = useTranslations("payments.kinds");
+  const locale = useLocale();
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-base font-semibold">{t("title")}</h3>
+      <ul className="flex flex-col divide-y rounded-lg border">
+        {credits.map((credit) => (
+          <li key={credit.kind} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 p-3">
+            <span className="text-sm font-medium">{tKinds(credit.kind)}</span>
+            <span className="font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+              {formatMoney(Number(credit.creditKop), locale)}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-muted-foreground">{t("hint")}</p>
+    </section>
+  );
+}

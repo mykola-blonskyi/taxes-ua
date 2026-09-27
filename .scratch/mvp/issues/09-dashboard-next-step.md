@@ -1,7 +1,7 @@
 # 09: Home screen: the next step
 
 GitHub: #10
-Status: ready-for-agent
+Status: in review (ticket-10 PR; merges after #47)
 Blocked by: #9
 
 ## Parent
