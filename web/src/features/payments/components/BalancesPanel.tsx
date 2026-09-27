@@ -27,11 +27,18 @@ export function BalancesPanel({ year, balances }: { year: number; balances: Bala
         {paymentKinds.map((kind) => {
           const balance = balances[kindField[kind]];
           const balanceKop = Number(balance.balanceKop);
+          const openingKop = Number(balance.openingBalanceKop);
 
           return (
             <li key={kind} className="flex min-w-0 flex-col gap-2 rounded-lg border p-3">
               <h4 className="text-sm font-semibold">{tKinds(kind)}</h4>
               <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-sm">
+                {openingKop !== 0 ? (
+                  <>
+                    <dt className="text-muted-foreground">{openingKop > 0 ? t("openingOwed") : t("openingOverpaid")}</dt>
+                    <dd className="text-right tabular-nums">{formatMoney(openingKop, locale)}</dd>
+                  </>
+                ) : null}
                 <dt className="text-muted-foreground">{t("accrued")}</dt>
                 <dd className="text-right tabular-nums">{formatMoney(Number(balance.accruedKop), locale)}</dd>
                 <dt className="text-muted-foreground">{t("paid")}</dt>
@@ -51,7 +58,7 @@ export function BalancesPanel({ year, balances }: { year: number; balances: Bala
               {balanceKop === 0 && Number(balance.accruedKop) > 0 ? (
                 <p className="text-xs text-muted-foreground">{t("settled")}</p>
               ) : null}
-              {balanceKop < 0 ? <p className="text-xs text-muted-foreground">{t("carryForward", { year })}</p> : null}
+              {balanceKop < 0 ? <p className="text-xs text-muted-foreground">{t("carryForward")}</p> : null}
             </li>
           );
         })}

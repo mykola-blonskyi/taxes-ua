@@ -1741,6 +1741,8 @@ export interface components {
         };
         KindYearBalance: {
             /** Format: int64 */
+            openingBalanceKop: number | string;
+            /** Format: int64 */
             accruedKop: number | string;
             /** Format: int64 */
             paidKop: number | string;
@@ -1760,9 +1762,7 @@ export interface components {
             /** Format: int64 */
             paidKop: number | string;
             /** Format: int64 */
-            openingBalanceKop: number | string;
-            /** Format: int64 */
-            balanceKop: number | string;
+            remainingKop: number | string;
             /** Format: date */
             dueDate: string;
             status: components["schemas"]["ObligationStatus"];
