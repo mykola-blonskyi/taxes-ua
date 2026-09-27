@@ -137,6 +137,11 @@ public static class BackupEndpoints
     {
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
 
+        // Serializes restores per owner. Without it a second restore's delete misses the first one's
+        // uncommitted rows, then sees them as another owner's ids and inserts the file a second time.
+        await database.Database.ExecuteSqlAsync(
+            $"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
+
         // One statement takes receipts and their refunds together: PostgreSQL checks the RESTRICT link
         // at the end of the statement, when neither side is left.
         await database.Transactions.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
@@ -185,7 +190,8 @@ public static class BackupEndpoints
         return null;
     }
 
-    // Runs after the owner's own rows are deleted, so any id still present belongs to another owner.
+    // Runs after the owner's own rows are deleted under the owner's lock, so any id still present
+    // belongs to another owner.
     private static async Task<Func<Guid, Guid>> IdMappingAsync(
         AppDbContext database, BackupDocument document, CancellationToken cancellationToken)
     {

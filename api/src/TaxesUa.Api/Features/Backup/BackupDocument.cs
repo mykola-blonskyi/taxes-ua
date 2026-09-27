@@ -48,7 +48,23 @@ internal sealed record BackupDocument(
     /// </summary>
     public Dictionary<string, string[]>? Validate()
     {
+        // RespectNullableAnnotations checks members, not array elements.
+        if (Array.Exists(Clients, row => row is null)
+            || Array.Exists(Transactions, row => row is null)
+            || Array.Exists(BudgetPayments, row => row is null))
+        {
+            return new() { ["file"] = ["clients, transactions and budgetPayments must not contain null."] };
+        }
+
         var errors = new Dictionary<string, string[]>();
+
+        void Undefined(string prefix, IEnumerable<string> fields)
+        {
+            foreach (var field in fields)
+            {
+                errors[$"{prefix}.{field}"] = [$"{field} is not a known value."];
+            }
+        }
 
         void Merge(string prefix, Dictionary<string, string[]>? found)
         {
@@ -61,6 +77,7 @@ internal sealed record BackupDocument(
         if (Settings is { } settings)
         {
             Merge("settings", SettingsEndpoints.Validate(settings.ToRequest()));
+            Undefined("settings", settings.UndefinedEnums());
         }
 
         var clientNames = new Dictionary<Guid, string>();
@@ -86,6 +103,10 @@ internal sealed record BackupDocument(
         }
 
         var transactionIds = Transactions.Select(transaction => transaction.Id).ToHashSet();
+        var receiptIds = Transactions
+            .Where(transaction => transaction.Kind == TransactionKind.Income)
+            .Select(transaction => transaction.Id)
+            .ToHashSet();
         var seenTransactionIds = new HashSet<Guid>();
         for (var i = 0; i < Transactions.Length; i++)
         {
@@ -107,6 +128,14 @@ internal sealed record BackupDocument(
                 errors[$"{at}.refundsTransactionId"] =
                     ["refundsTransactionId must be the id of one of the transactions."];
             }
+            else if (transaction.RefundsTransactionId is { } linkedId && !receiptIds.Contains(linkedId))
+            {
+                // ValidateLinksAsync says the same after the insert, but two refunds linking each other
+                // are a cycle EF cannot order, so the insert itself would fail first.
+                errors[$"{at}.refundsTransactionId"] = ["refundsTransactionId must be the id of an Income transaction."];
+            }
+
+            Undefined(at, transaction.UndefinedEnums());
 
             var request = transaction.ToRequest(clientName);
             var requestErrors = TransactionsEndpoints.Validate(request, TransactionsEndpoints.Normalize(request));
@@ -128,6 +157,10 @@ internal sealed record BackupDocument(
             }
 
             Merge($"budgetPayments[{i}]", PaymentsEndpoints.Validate(payment.ToRequest()));
+            if (!Enum.IsDefined(payment.Kind))
+            {
+                Undefined($"budgetPayments[{i}]", ["kind"]);
+            }
         }
 
         return errors.Count == 0 ? null : errors;
@@ -170,6 +203,25 @@ internal sealed record SettingsBackup(
         Locale,
         Theme,
         DefaultCurrency);
+
+    // The enum converter accepts a comma list such as "Friday, Saturday" as a flags value no member has.
+    public IEnumerable<string> UndefinedEnums()
+    {
+        if (!Enum.IsDefined(PaymentMode))
+        {
+            yield return "paymentMode";
+        }
+
+        if (!Enum.IsDefined(EsvRegistrationMonthPolicy))
+        {
+            yield return "esvRegistrationMonthPolicy";
+        }
+
+        if (!WeekendDays.All(Enum.IsDefined))
+        {
+            yield return "weekendDays";
+        }
+    }
 
     public SettingsEntity ToEntity(string userId)
     {
@@ -246,6 +298,9 @@ internal sealed record TransactionBackup(
             ("rateSource", "A foreign-currency transaction needs a rateSource."),
         { RateSource: Fx.RateSource.Nbu, RateDate: null } =>
             ("rateDate", "An NBU rate needs the rateDate NBU published it for."),
+        { RateSource: Fx.RateSource.Nbu, RateDate: { } rateDate } when rateDate > ValueDate
+            || rateDate.Year < TransactionsEndpoints.MinYear =>
+            ("rateDate", "An NBU rateDate must be on or before valueDate."),
         { RateSource: Fx.RateSource.Manual, RateDate: not null } =>
             ("rateDate", "A manual rate has no rateDate."),
         _ when TransactionsEndpoints.ExceedsUahBound(AmountMinor, RateE4) =>
@@ -254,6 +309,24 @@ internal sealed record TransactionBackup(
             ("amountUahKop", $"amountUahKop must be {Money.ToUahKop(AmountMinor, RateE4)}, amountMinor at rateE4."),
         _ => null,
     };
+
+    public IEnumerable<string> UndefinedEnums()
+    {
+        if (!Enum.IsDefined(Currency))
+        {
+            yield return "currency";
+        }
+
+        if (!Enum.IsDefined(Kind))
+        {
+            yield return "kind";
+        }
+
+        if (RateSource is { } source && !Enum.IsDefined(source))
+        {
+            yield return "rateSource";
+        }
+    }
 
     public Transaction ToEntity(string userId, Func<Guid, Guid> id)
     {

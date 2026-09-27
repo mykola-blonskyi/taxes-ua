@@ -4,7 +4,7 @@ import { useRef, useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Download } from "lucide-react";
 import { ApiError } from "@/data/api/client";
-import { backupUrl, NotJsonError, useRestoreBackup } from "@/data/backup/backup";
+import { backupUrl, NotJsonError, TooLargeError, useRestoreBackup } from "@/data/backup/backup";
 import { Button } from "@/shared/ui/button";
 
 const MAX_SHOWN_ERRORS = 10;
@@ -24,7 +24,7 @@ export function BackupPanel() {
   const moreErrors = errorEntries.length - shownErrors.length;
   const failureMessage = notJson
     ? t("notJson")
-    : apiFailure?.status === 413
+    : restoreBackup.error instanceof TooLargeError || apiFailure?.status === 413
       ? t("tooLarge")
       : restoreBackup.isError
         ? t("failed")

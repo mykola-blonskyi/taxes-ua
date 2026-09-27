@@ -9,6 +9,17 @@ type BackupPath = Extract<keyof paths, "/api/backup">;
 // Typed against the generated schema, so a renamed or removed backup endpoint fails the build.
 export const backupUrl: BackupPath = "/api/backup";
 
+// The api's own limit (BackupEndpoints.MaxRestoreBytes), checked here so a huge file is refused before
+// the browser reads it into memory.
+const maxBackupBytes = 10 * 1024 * 1024;
+
+export class TooLargeError extends Error {
+  constructor() {
+    super("Backup file too large");
+    this.name = "TooLargeError";
+  }
+}
+
 export class NotJsonError extends Error {
   constructor() {
     super("Not a JSON file");
@@ -21,6 +32,10 @@ export function useRestoreBackup() {
 
   return useMutation({
     mutationFn: async (file: File) => {
+      if (file.size > maxBackupBytes) {
+        throw new TooLargeError();
+      }
+
       const text = await file.text();
       let body;
 

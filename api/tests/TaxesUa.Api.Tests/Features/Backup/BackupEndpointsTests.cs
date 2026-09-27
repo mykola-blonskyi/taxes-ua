@@ -123,6 +123,11 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "UAH with a rate source", "transactions[0].rateE4" },
         { "manual rate with a date", "transactions[1].rateDate" },
         { "invalid settings", "settings.locale" },
+        { "comma-joined currency", "transactions[1].currency" },
+        { "comma-joined weekend day", "settings.weekendDays" },
+        { "null row", "file" },
+        { "refunds linking each other", "transactions[2].refundsTransactionId" },
+        { "NBU rate dated after the transaction", "transactions[1].rateDate" },
         { "unknown field", null },
         { "missing field", null },
         { "numeric enum", null },
@@ -151,6 +156,23 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         }
 
         Assert.Equal(before, await Backup(owner));
+    }
+
+    [Fact]
+    public async Task Two_restores_at_once_leave_exactly_the_files_rows()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Restore(owner, Empty);
+        var file = Baseline().ToJsonString();
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Post(owner, file)));
+
+        Assert.All(responses, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
+        var document = JsonSerializer.Deserialize<BackupDocument>(await Backup(owner), Json)!;
+        Assert.Equal(
+            (2, 4, 2),
+            (document.Clients.Length, document.Transactions.Length, document.BudgetPayments.Length));
     }
 
     [Fact]
@@ -378,6 +400,23 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "invalid settings":
                 file["settings"]!["locale"] = "en";
+                break;
+            case "comma-joined currency":
+                transactions[1]!["currency"] = "USD, EUR";
+                break;
+            case "comma-joined weekend day":
+                file["settings"]!["weekendDays"] = new JsonArray("Friday, Saturday");
+                break;
+            case "null row":
+                file["clients"]!.AsArray().Add(null);
+                break;
+            case "refunds linking each other":
+                transactions[1]!["kind"] = "RefundToClient";
+                transactions[1]!["refundsTransactionId"] = UsdRefundId;
+                break;
+            case "NBU rate dated after the transaction":
+                transactions[1]!["rateSource"] = "Nbu";
+                transactions[1]!["rateDate"] = "2031-02-03";
                 break;
             case "unknown field":
                 transactions[0]!["amountKop"] = 1;
