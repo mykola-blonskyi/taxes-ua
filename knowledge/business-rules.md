@@ -51,8 +51,22 @@ accrued for prior quarters of the year.
 ## Rule 4. Income limit
 
 Annual limit = `IncomeLimitMinWages` × minimum wage as of January 1 (2026: 10,091,049 UAH). The
-limit is not prorated for a partial year. Warnings at 85% and 100%. Excess is taxed at
-`ExcessRateBp` (15%) and requires switching to another tax system.
+limit is not prorated for a partial year, whatever the registration date or the length of the year
+already elapsed. Income before `FopRegistrationDate` is excluded the same way it is from every
+other accrual (Rule 8), so the limit bar never counts it.
+
+Warnings at 85% and 100% of the limit: at or above 85% of the limit is `Warn`, at or above the
+limit itself is `Exceeded`. Both boundaries are inclusive, so income at exactly 85.00% is already
+`Warn` and income at exactly 100.00% is already `Exceeded`; one kopeck under either line stays at
+the level below it. `Exceeded` is a business fact, not a display threshold: it marks that a
+switch to another tax system is required, whatever warn thresholds happen to be configured.
+
+`RemainingKop` is the amount left before the next boundary not yet crossed: while below 85%, the
+amount left to 85%; from 85% up to the limit, the amount left to the limit; once `Exceeded`, 0
+(the excess figures below apply instead).
+
+Excess is taxed at `ExcessRateBp` (15%), computed on the excess over the limit only (not on the
+whole income), with the same integer half-up rounding as every other tax figure (Rule 10).
 
 ---
 

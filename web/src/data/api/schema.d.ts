@@ -1877,7 +1877,7 @@ export interface components {
             /** Format: int64 */
             creditKop: number | string;
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         LimitLevel: "Ok" | "Warn" | "Exceeded";
         LimitStatusResponse: {
             /** Format: int64 */
