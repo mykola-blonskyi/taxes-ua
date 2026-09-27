@@ -31,14 +31,14 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
 
         var createdResponse = await client.PostAsJsonAsync(
             "/api/transactions",
-            Transaction(new DateOnly(2031, 2, 3), 1_234_56, clientName: "Acme"),
+            Transaction(new DateOnly(2021, 2, 3), 1_234_56, clientName: "Acme"),
             Json);
         Assert.Equal(HttpStatusCode.Created, createdResponse.StatusCode);
         var created = (await createdResponse.Content.ReadFromJsonAsync<TransactionResponse>(Json))!;
 
         var edited = await client.PutAsJsonAsync(
             $"/api/transactions/{created.Id}",
-            Transaction(new DateOnly(2031, 2, 4), 2_000_00, clientName: "Globex", description: "fixed"),
+            Transaction(new DateOnly(2021, 2, 4), 2_000_00, clientName: "Globex", description: "fixed"),
             Json);
         Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
 
@@ -55,7 +55,7 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
         Assert.Null(create.Before);
         Assert.Equal(1_234_56, create.After!["amountUahKop"].GetInt64());
         Assert.Equal(JsonValueKind.Number, create.After["amountMinor"].ValueKind);
-        Assert.Equal("2031-02-03", create.After["valueDate"].GetString());
+        Assert.Equal("2021-02-03", create.After["valueDate"].GetString());
         Assert.Equal("Income", create.After["kind"].GetString());
         Assert.Equal("Acme", create.After["clientName"].GetString());
         Assert.DoesNotContain("userId", create.After.Keys);
@@ -65,7 +65,7 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
         Assert.Equal(1_234_56, update.Before!["amountUahKop"].GetInt64());
         Assert.Equal("Acme", update.Before["clientName"].GetString());
         Assert.Equal(2_000_00, update.After!["amountUahKop"].GetInt64());
-        Assert.Equal("2031-02-04", update.After["valueDate"].GetString());
+        Assert.Equal("2021-02-04", update.After["valueDate"].GetString());
         Assert.Equal("Globex", update.After["clientName"].GetString());
         Assert.Equal("fixed", update.After["description"].GetString());
 
@@ -78,7 +78,7 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
     public async Task Saving_a_transaction_unchanged_logs_nothing()
     {
         using var client = await SignIn(ApiFixture.AllowedEmail);
-        var body = Transaction(new DateOnly(2032, 5, 6), 500_00);
+        var body = Transaction(new DateOnly(2022, 5, 6), 500_00);
         var created = (await (await client.PostAsJsonAsync("/api/transactions", body, Json))
             .Content.ReadFromJsonAsync<TransactionResponse>(Json))!;
 
@@ -152,7 +152,7 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
     {
         using var owner = await SignIn(ApiFixture.AllowedEmail);
         using var other = await SignIn(ApiFixture.SecondAllowedEmail);
-        var created = (await (await owner.PostAsJsonAsync("/api/transactions", Transaction(new DateOnly(2034, 1, 1), 100_00), Json))
+        var created = (await (await owner.PostAsJsonAsync("/api/transactions", Transaction(new DateOnly(2014, 1, 1), 100_00), Json))
             .Content.ReadFromJsonAsync<TransactionResponse>(Json))!;
 
         Assert.Single(await History(owner, AuditedEntity.Transaction, created.Id.ToString()));
@@ -175,7 +175,7 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
     public async Task The_database_refuses_to_change_or_remove_an_entry(string sql)
     {
         using var client = await SignIn(ApiFixture.AllowedEmail);
-        await client.PostAsJsonAsync("/api/transactions", Transaction(new DateOnly(2035, 1, 1), 100_00), Json);
+        await client.PostAsJsonAsync("/api/transactions", Transaction(new DateOnly(2015, 1, 1), 100_00), Json);
 
         await using var scope = fixture.CreateScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();

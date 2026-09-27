@@ -1659,6 +1659,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {unknown} */
+        AuditAction: "Create" | "Update" | "Delete" | "Restore";
+        /** @enum {unknown} */
+        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "TaxYearConfig" | "Backup";
+        AuditEntryResponse: {
+            /** Format: int64 */
+            id: number | string;
+            /** Format: date-time */
+            at: string;
+            entity: components["schemas"]["AuditedEntity"];
+            entityId: string;
+            action: components["schemas"]["AuditAction"];
+            before: null | Record<string, never>;
+            after: null | Record<string, never>;
+        };
         BackupDocument: {
             /** Format: int32 */
             schemaVersion: number | string;
@@ -1691,21 +1706,6 @@ export interface components {
             /** Format: uuid */
             id: string;
             name: string;
-        };
-        /** @enum {unknown} */
-        AuditAction: "Create" | "Update" | "Delete" | "Restore";
-        /** @enum {unknown} */
-        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "TaxYearConfig" | "Backup";
-        AuditEntryResponse: {
-            /** Format: int64 */
-            id: number | string;
-            /** Format: date-time */
-            at: string;
-            entity: components["schemas"]["AuditedEntity"];
-            entityId: string;
-            action: components["schemas"]["AuditAction"];
-            before: null | Record<string, never>;
-            after: null | Record<string, never>;
         };
         /** @enum {unknown} */
         Currency: "UAH" | "USD" | "EUR";
