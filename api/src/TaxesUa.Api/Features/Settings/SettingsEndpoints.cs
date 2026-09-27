@@ -76,7 +76,7 @@ public static class SettingsEndpoints
         return routes;
     }
 
-    private static void Apply(Settings settings, SettingsRequest request)
+    internal static void Apply(Settings settings, SettingsRequest request)
     {
         settings.FopRegistrationDate = request.FopRegistrationDate;
         settings.PaymentMode = request.PaymentMode;
@@ -103,7 +103,7 @@ public static class SettingsEndpoints
         settings.Theme,
         settings.DefaultCurrency);
 
-    private static Dictionary<string, string[]>? Validate(SettingsRequest request)
+    internal static Dictionary<string, string[]>? Validate(SettingsRequest request)
     {
         var errors = new Dictionary<string, string[]>();
 

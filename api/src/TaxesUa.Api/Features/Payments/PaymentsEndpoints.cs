@@ -161,7 +161,7 @@ public static class PaymentsEndpoints
         return [.. rows.Select(row => row.ToEngineInput())];
     }
 
-    private static void Apply(BudgetPayment row, PaymentRequest request, DateTimeOffset now)
+    internal static void Apply(BudgetPayment row, PaymentRequest request, DateTimeOffset now)
     {
         row.PaidOn = request.PaidOn;
         row.Kind = request.Kind;
@@ -187,7 +187,7 @@ public static class PaymentsEndpoints
         statusCode: StatusCodes.Status404NotFound,
         title: $"No payment exists with id {id}.");
 
-    private static Dictionary<string, string[]>? Validate(PaymentRequest request)
+    internal static Dictionary<string, string[]>? Validate(PaymentRequest request)
     {
         var errors = new Dictionary<string, string[]>();
 

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Backup;
 using TaxesUa.Api.Features.Export;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Payments;
@@ -173,6 +174,7 @@ api.MapTransactionsApi();
 api.MapExportApi();
 api.MapFxApi();
 api.MapPaymentsApi();
+api.MapBackupApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

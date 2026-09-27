@@ -1495,10 +1495,158 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["BackupDocument"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["BackupDocument"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RestoreResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Payload Too Large */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unsupported Media Type */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        BackupDocument: {
+            /** Format: int32 */
+            schemaVersion: number | string;
+            settings: null | components["schemas"]["SettingsBackup"];
+            clients: components["schemas"]["ClientBackup"][];
+            transactions: components["schemas"]["TransactionBackup"][];
+            budgetPayments: components["schemas"]["BudgetPaymentBackup"][];
+        };
+        BudgetPaymentBackup: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            paidOn: string;
+            kind: components["schemas"]["PaymentKind"];
+            /** Format: int64 */
+            amountKop: number | string;
+            /** Format: int32 */
+            periodYear: number | string;
+            /** Format: int32 */
+            periodQuarter: null | number | string;
+            /** Format: int32 */
+            periodMonth: null | number | string;
+            note: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ClientBackup: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+        };
         /** @enum {unknown} */
         Currency: "UAH" | "USD" | "EUR";
         /** @enum {unknown} */
@@ -1678,6 +1826,27 @@ export interface components {
             amountMinor: number | string;
             currency: components["schemas"]["Currency"];
         };
+        RestoreResponse: {
+            /** Format: int32 */
+            clients: number | string;
+            /** Format: int32 */
+            transactions: number | string;
+            /** Format: int32 */
+            budgetPayments: number | string;
+        };
+        SettingsBackup: {
+            /** Format: date */
+            fopRegistrationDate: null | string;
+            paymentMode: components["schemas"]["PaymentMode"];
+            esvRegistrationMonthPolicy: components["schemas"]["EsvRegistrationMonthPolicy"];
+            esvExempt: boolean;
+            taxPaymentCountsFromStatutoryDeclarationDate: boolean;
+            shiftTaxPaymentFromWeekend: boolean;
+            weekendDays: components["schemas"]["DayOfWeek"][];
+            locale: string;
+            theme: string;
+            defaultCurrency: string;
+        };
         SettingsRequest: {
             /** Format: date */
             fopRegistrationDate: null | string;
@@ -1761,6 +1930,34 @@ export interface components {
             source: string;
             /** Format: date-time */
             verifiedAt: null | string;
+        };
+        TransactionBackup: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            valueDate: string;
+            /** Format: int64 */
+            amountMinor: number | string;
+            currency: components["schemas"]["Currency"];
+            /** Format: int32 */
+            rateE4: number | string;
+            /** Format: date */
+            rateDate: null | string;
+            rateSource: null | components["schemas"]["RateSource"];
+            /** Format: int64 */
+            amountUahKop: number | string;
+            kind: components["schemas"]["TransactionKind"];
+            nonIncomeReason: null | string;
+            /** Format: uuid */
+            clientId: null | string;
+            /** Format: uuid */
+            refundsTransactionId: null | string;
+            invoiceNumber: null | string;
+            description: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         /** @enum {unknown} */
         TransactionKind: "Income" | "RefundToClient" | "OwnTransfer" | "FxSale" | "OwnDeposit" | "ErroneousReturn" | "OtherNonIncome";
