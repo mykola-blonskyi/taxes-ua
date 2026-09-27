@@ -134,15 +134,18 @@ public sealed record Obligation(
     ObligationStatus Status);
 
 /// <summary>
-/// One kind's figures for one year, by the period each payment names. Positive is owed, negative is
-/// overpaid. <c>OpeningBalanceKop</c> is everything accrued and paid for earlier years, so a debt or
-/// an overpayment carries into the year (Rule 7).
+/// One kind's year as the allocation left it, so a year whose debt a later-named payment settled
+/// reads as settled. <c>EarlierOwedKop</c> is what earlier years' obligations still owe,
+/// <c>PaidKop</c> what the allocation put on this year's obligations, and <c>OwedKop</c> what every
+/// obligation up to and including this year still owes. <c>CreditKop</c> is the kind's unspent
+/// credit, which only exists once nothing anywhere in the ledger is owed.
 /// </summary>
 public sealed record KindYearBalance(
-    long OpeningBalanceKop,
+    long EarlierOwedKop,
     long AccruedKop,
     long PaidKop,
-    long BalanceKop);
+    long OwedKop,
+    long CreditKop);
 
 /// <summary>
 /// One kind's ledger across the years in range. <c>Obligations</c> are in the order credit settles
@@ -162,16 +165,14 @@ public sealed record KindLedger(
 
     public KindYearBalance ForYear(int year)
     {
-        var openingKop =
-            Obligations.Where(obligation => obligation.Year < year).Sum(obligation => obligation.AccruedKop)
-            - Payments.Where(payment => payment.PeriodYear < year).Sum(payment => payment.AmountKop);
-        var accruedKop = Obligations
-            .Where(obligation => obligation.Year == year)
-            .Sum(obligation => obligation.AccruedKop);
-        var paidKop = Payments
-            .Where(payment => payment.PeriodYear == year)
-            .Sum(payment => payment.AmountKop);
-        return new KindYearBalance(openingKop, accruedKop, paidKop, openingKop + accruedKop - paidKop);
+        var earlierOwedKop = Obligations.Where(o => o.Year < year).Sum(o => o.RemainingKop);
+        var ofYear = Obligations.Where(o => o.Year == year).ToArray();
+        return new KindYearBalance(
+            earlierOwedKop,
+            ofYear.Sum(o => o.AccruedKop),
+            ofYear.Sum(o => o.PaidKop),
+            earlierOwedKop + ofYear.Sum(o => o.RemainingKop),
+            CreditKop);
     }
 }
 

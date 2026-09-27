@@ -58,11 +58,23 @@ public class BalancesTests
             ],
             Rows(ledger, 2027).Take(2));
         Assert.Equal(
-            new KindYearBalance(-EsvQuarterKop, EsvYearKop, 0, 3 * EsvQuarterKop),
+            new KindYearBalance(0, EsvYearKop, EsvQuarterKop, 3 * EsvQuarterKop, 0),
             ledger.ForYear(2027));
         Assert.Equal(
-            new KindYearBalance(0, EsvYearKop, 5 * EsvQuarterKop, -EsvQuarterKop),
+            new KindYearBalance(0, EsvYearKop, EsvYearKop, 0, 0),
             ledger.ForYear(2026));
+    }
+
+    [Fact]
+    public void A_year_settled_by_a_payment_named_for_the_next_year_reads_as_settled_in_its_own_year()
+    {
+        var ledger = Ledger(
+            [Year(2026, OneReceipt), Year(2027, [])],
+            Date("2027-06-01"),
+            Paid(PaymentKind.SingleTax, 50_000, 2027, quarter: 1)).SingleTax;
+
+        Assert.Equal(new KindYearBalance(0, 50_000, 50_000, 0, 0), ledger.ForYear(2026));
+        Assert.Equal(new KindYearBalance(0, 0, 0, 0, 0), ledger.ForYear(2027));
     }
 
     [Fact]
@@ -76,7 +88,7 @@ public class BalancesTests
         Assert.Equal(
             (50_000L, Date("2027-02-19"), ObligationStatus.Overdue),
             (fourth.RemainingKop, fourth.DueDate, fourth.Status));
-        Assert.Equal(new KindYearBalance(50_000, 0, 0, 50_000), ledger.ForYear(2027));
+        Assert.Equal(new KindYearBalance(50_000, 0, 0, 50_000, 0), ledger.ForYear(2027));
     }
 
     [Fact]
@@ -91,7 +103,8 @@ public class BalancesTests
         var first = Assert.Single(Of(ledger, 2027), obligation => obligation.Quarter == 1);
         Assert.Equal((50_000L, 0L, ObligationStatus.Done), (fourth.PaidKop, fourth.RemainingKop, fourth.Status));
         Assert.Equal((0L, 50_000L, ObligationStatus.Upcoming), (first.PaidKop, first.RemainingKop, first.Status));
-        Assert.Equal(new KindYearBalance(50_000, 50_000, 50_000, 50_000), ledger.ForYear(2027));
+        Assert.Equal(new KindYearBalance(0, 50_000, 0, 50_000, 0), ledger.ForYear(2027));
+        Assert.Equal(new KindYearBalance(0, 50_000, 50_000, 0, 0), ledger.ForYear(2026));
     }
 
     [Fact]
@@ -154,7 +167,7 @@ public class BalancesTests
             ledger => Assert.Empty(ledger.Obligations));
         Assert.Equal([payment], actual.Esv.Payments);
         Assert.Equal((5_000L, -5_000L), (actual.Esv.CreditKop, actual.Esv.BalanceKop));
-        Assert.Equal(new KindYearBalance(0, 0, 5_000, -5_000), actual.Esv.ForYear(2026));
+        Assert.Equal(new KindYearBalance(0, 0, 0, 0, 5_000), actual.Esv.ForYear(2026));
     }
 
     [Fact]
@@ -179,7 +192,7 @@ public class BalancesTests
         Assert.Equal(
             (1, 50_000L, 50_000L, 0L, ObligationStatus.Done), Rows(actual, 2026)[0]);
         Assert.Equal((30_000L, -30_000L), (actual.CreditKop, actual.BalanceKop));
-        Assert.Equal(new KindYearBalance(-80_000, 50_000, 0, -30_000), actual.ForYear(2026));
+        Assert.Equal(new KindYearBalance(0, 50_000, 50_000, 0, 30_000), actual.ForYear(2026));
     }
 
     [Fact]
@@ -409,11 +422,13 @@ public class BalancesTests
                     if (inRange.Contains(year + 1))
                     {
                         Assert.Equal(
-                            kind.ForYear(year).BalanceKop, kind.ForYear(year + 1).OpeningBalanceKop);
+                            kind.ForYear(year).OwedKop, kind.ForYear(year + 1).EarlierOwedKop);
                     }
                 }
 
-                Assert.Equal(kind.BalanceKop, kind.ForYear(horizon).BalanceKop);
+                var last = kind.ForYear(horizon);
+                Assert.Equal(kind.BalanceKop, last.OwedKop - last.CreditKop);
+                Assert.True(last.OwedKop == 0 || last.CreditKop == 0, context);
             }
         }
     }

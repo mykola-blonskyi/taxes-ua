@@ -14,65 +14,82 @@ namespace TaxesUa.Api.Features.Periods;
 internal sealed record YearAccruals(TaxYearConfig Config, SettingsEntity Settings, YearAccrual Accrual)
 {
     /// <summary>
-    /// Every configured year from the registration year onward, oldest first, so that Rule 7 can settle
-    /// a kind's oldest debt with any later payment and carry balances across years. Years after
-    /// <paramref name="year"/> are included because a payment named for them still settles an older
-    /// debt, and every year's screen must agree on which quarters are paid. Years before registration
-    /// accrue nothing and are left out unless <paramref name="year"/> is one of them; a year with no
-    /// <see cref="TaxYearConfig"/> row cannot be computed. Empty when <paramref name="year"/> itself has
-    /// no row.
+    /// The viewed year and the years Rule 7 allocates payments over. Null when the viewed year has no
+    /// <see cref="TaxYearConfig"/> row.
     /// </summary>
-    public static async Task<IReadOnlyList<YearAccruals>> LoadLedgerAsync(
+    public static async Task<LoadedYears?> LoadAsync(
         AppDbContext database, string userId, int year, CancellationToken cancellationToken)
     {
-        var settings = await database.Settings.FindAsync([userId], cancellationToken);
-        var fromYear = Math.Min(settings?.FopRegistrationDate?.Year ?? year, year);
-        var configured = await database.TaxYearConfigs
+        // The absent row answers with the defaults, as GET /api/settings does.
+        var settings = await database.Settings.FindAsync([userId], cancellationToken)
+            ?? new SettingsEntity { UserId = userId };
+        var registeredYear = settings.FopRegistrationDate?.Year;
+        var fromYear = Math.Min(registeredYear ?? year, year);
+
+        var configs = await database.TaxYearConfigs
             .Where(config => config.Year >= fromYear)
             .OrderBy(config => config.Year)
-            .Select(config => config.Year)
             .ToListAsync(cancellationToken);
-        if (!configured.Contains(year))
-        {
-            return [];
-        }
-
-        var years = new List<YearAccruals>(configured.Count);
-        foreach (var configuredYear in configured)
-        {
-            years.Add((await LoadAsync(database, userId, configuredYear, cancellationToken))!);
-        }
-
-        return years;
-    }
-
-    /// <summary>Null when the year has no <see cref="TaxYearConfig"/> row.</summary>
-    public static async Task<YearAccruals?> LoadAsync(
-        AppDbContext database, string userId, int year, CancellationToken cancellationToken)
-    {
-        var config = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
-        if (config is null)
+        var viewedConfig = configs.SingleOrDefault(config => config.Year == year);
+        if (viewedConfig is null)
         {
             return null;
         }
 
-        // The absent row answers with the defaults, as GET /api/settings does.
-        var settings = await database.Settings.FindAsync([userId], cancellationToken)
-            ?? new SettingsEntity { UserId = userId };
+        var ledgerConfigs = registeredYear is { } start ? Contiguous(configs, start) : [];
+        var computed = ledgerConfigs.Append(viewedConfig).DistinctBy(config => config.Year).ToArray();
+        var firstDay = new DateOnly(computed.Min(config => config.Year), 1, 1);
+        var endDay = new DateOnly(computed.Max(config => config.Year) + 1, 1, 1);
 
         var transactions = await database.Transactions
             .Include(row => row.RefundsTransaction)
-            .Where(row => row.UserId == userId
-                && row.ValueDate >= new DateOnly(year, 1, 1)
-                && row.ValueDate < new DateOnly(year + 1, 1, 1))
+            .Where(row => row.UserId == userId && row.ValueDate >= firstDay && row.ValueDate < endDay)
             .ToListAsync(cancellationToken);
+        var byYear = transactions.ToLookup(row => row.ValueDate.Year, row => row.ToEngineInput());
 
-        var accrual = Accruals.ForYear(
-            year,
-            transactions.Select(row => row.ToEngineInput()).ToList(),
-            config.ToEngineInput(),
-            settings.ToEngineInput());
+        var settingsInput = settings.ToEngineInput();
+        var accruals = computed.ToDictionary(
+            config => config.Year,
+            config => new YearAccruals(
+                config,
+                settings,
+                Accruals.ForYear(config.Year, [.. byYear[config.Year]], config.ToEngineInput(), settingsInput)));
 
-        return new YearAccruals(config, settings, accrual);
+        return new LoadedYears(
+            accruals[year],
+            [.. ledgerConfigs.Select(config => accruals[config.Year])]);
     }
+
+    /// <summary>
+    /// The configured years from <paramref name="start"/> up to the first one missing. A year without
+    /// a row cannot be computed, and skipping it would turn its payments into credit against later
+    /// years and hide its debt, so the ledger stops there instead.
+    /// </summary>
+    private static List<TaxYearConfig> Contiguous(IReadOnlyList<TaxYearConfig> configs, int start)
+    {
+        var run = new List<TaxYearConfig>();
+        foreach (var config in configs.Where(config => config.Year >= start))
+        {
+            if (config.Year != start + run.Count)
+            {
+                break;
+            }
+
+            run.Add(config);
+        }
+
+        return run;
+    }
+}
+
+/// <summary>
+/// <c>Ledger</c> runs from the registration year through every consecutive configured year, oldest
+/// first, whatever year is viewed, so every view allocates the same payments to the same quarters.
+/// It is empty without a registration date. <c>Viewed</c> is one of its entries when the viewed year
+/// falls inside it; a year before registration or past a missing year is computed on its own and has
+/// no obligations.
+/// </summary>
+internal sealed record LoadedYears(YearAccruals Viewed, IReadOnlyList<YearAccruals> Ledger)
+{
+    public bool ViewedIsInLedger => Ledger.Contains(Viewed);
 }

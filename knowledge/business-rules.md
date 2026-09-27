@@ -129,9 +129,16 @@ negative adds that amount to the kind's credit in the same way.
 
 The allocation runs across years (owner decision 2026-09-27). An unpaid balance of year Y is still
 owed, and still overdue, in Y+1; an overpayment at the end of Y settles Y+1's obligations of the same
-kind. A year's figures open with what earlier years left for that kind. The ledger starts at the
-registration year, or at the first configured tax year if that is later: payments named for an
-earlier year are not counted.
+kind. A year's figures follow the allocation, not the period payments name: paid is what was
+allocated to that year's quarters, owed is what every quarter up to and including that year still
+owes, and an overpayment is shown only when the kind's whole ledger is in credit. A year whose debt a
+later-named payment settled reads as settled.
+
+The ledger always starts at the registration year, whichever year is viewed; payments named for an
+earlier year are not counted, and a year before registration shows no obligations. It runs through
+consecutive configured tax years and stops at the first year without one, because that year's
+accruals are unknown: a year after the gap shows no obligations until the missing year is
+configured.
 
 ---
 
