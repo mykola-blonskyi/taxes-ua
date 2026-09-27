@@ -13,11 +13,11 @@ type Obligation = Obligations["singleTax"];
 
 const kinds = ["singleTax", "militaryLevy", "esv"] as const satisfies (keyof Obligations)[];
 
-const statusClass: Record<Obligation["status"], string> = {
+// Done is already said by a zero or negative balance, so only the three open states get a word.
+const statusClass: Record<Exclude<Obligation["status"], "Done">, string> = {
   Upcoming: "text-muted-foreground",
   Due: "text-destructive",
   Overdue: "text-destructive",
-  Done: "text-muted-foreground",
 };
 
 // Rule 7 keeps the three kinds apart, so a quarter's paid and remaining are three lines, never one sum.
@@ -37,7 +37,7 @@ function PerKind({
   return (
     <div className="flex flex-col items-end gap-0.5">
       {kinds.map((kind) => (
-        <div key={kind} className="flex flex-wrap items-baseline justify-end gap-x-1.5">
+        <div key={kind} className="flex items-baseline justify-end gap-x-1.5 whitespace-nowrap">
           <span className="text-xs text-muted-foreground">{label(kind)}</span>
           {render(obligations[kind])}
         </div>
@@ -103,8 +103,12 @@ export function QuartersTable({ quarters }: { quarters: Quarter[] }) {
           label={(kind) => t(kind)}
           render={(obligation) => (
             <span className="flex flex-col items-end">
-              <span className="font-medium">{formatMoney(Number(obligation.balanceKop), locale)}</span>
-              <span className={`text-xs ${statusClass[obligation.status]}`}>{t(`status.${obligation.status}`)}</span>
+              <span className={obligation.status === "Done" ? "text-muted-foreground" : "font-medium"}>
+                {formatMoney(Number(obligation.balanceKop), locale)}
+              </span>
+              {obligation.status === "Done" ? null : (
+                <span className={`text-xs ${statusClass[obligation.status]}`}>{t(`status.${obligation.status}`)}</span>
+              )}
             </span>
           )}
         />

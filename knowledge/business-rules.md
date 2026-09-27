@@ -115,6 +115,11 @@ The annual declaration (for Q4) includes the ESV attachment.
 Per kind (EP, VZ, ESV) independently: accrued cumulatively minus paid = owed or overpaid. An
 overpayment carries forward to the next period of the same kind. Kinds are never mixed.
 
+A quarter's balance is cumulative: it opens with the same kind's previous balance, so an unpaid Q1
+levy still shows as owed in Q2, Q3 and Q4, and it is one debt, not four. The carry-forward runs
+inside one year. An overpayment larger than the year's liability for its kind stays on that year's
+closing balance and does not open the next year (to confirm).
+
 ---
 
 ## Rule 8. FOP registration

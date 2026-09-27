@@ -1,7 +1,7 @@
 # 08: Budget payments and balances
 
 GitHub: #9
-Status: ready-for-agent (engine half merged in PR #30; payments endpoint and web screens remain)
+Status: in review (engine half merged in PR #30; payments ledger, API and screens in the ticket-9 PR)
 Blocked by: #8
 
 ## Parent
