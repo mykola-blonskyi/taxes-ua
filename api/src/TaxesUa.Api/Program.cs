@@ -8,6 +8,7 @@ using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Backup;
+using TaxesUa.Api.Features.Dashboard;
 using TaxesUa.Api.Features.Export;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Payments;
@@ -180,6 +181,7 @@ api.MapFxApi();
 api.MapPaymentsApi();
 api.MapBackupApi();
 api.MapAuditApi();
+api.MapDashboardApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

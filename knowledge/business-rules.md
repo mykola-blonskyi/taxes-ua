@@ -141,6 +141,16 @@ accruals are unknown: a year after the gap shows no obligations until the missin
 configured. Both cases say so on screen: the api names the reason (year before registration, or the
 missing year) as a warning, never as text.
 
+The home screen shows the next step from the allocated ledger, never from a pooled figure. Per kind
+it names one debt, across years: what every open obligation that has fallen due still owes, dated
+from the oldest of them; when nothing has fallen due, the nearest open quarter alone, since later
+quarters' ESV accrues up front but is not owed by that date. The step is every debt already due or
+overdue, or else the debts sharing the nearest date. EP and VZ share a deadline, so they come
+together, each with its own amount and no total. A payment recorded from the home screen names the
+oldest open quarter it covers; allocation would settle the oldest first anyway. The tax burden
+beside it divides all three kinds' accruals by income, year to date through the current quarter. It
+is a statistic and not a balance, which is why it is the one place the kinds are added.
+
 ---
 
 ## Rule 8. FOP registration
