@@ -82,6 +82,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DashboardResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login/google": {
         parameters: {
             query?: never;
@@ -1762,6 +1804,13 @@ export interface components {
         };
         /** @enum {string} */
         Currency: "UAH" | "USD" | "EUR";
+        DashboardResponse: {
+            /** Format: date */
+            today: string;
+            nextStep: components["schemas"]["NextStepResponse"];
+            credits: components["schemas"]["KindCreditResponse"][];
+            burden: null | components["schemas"]["TaxBurdenResponse"];
+        };
         Deadline: {
             /** Format: date */
             statutory: string;
@@ -1790,6 +1839,29 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        KindCreditResponse: {
+            kind: components["schemas"]["PaymentKind"];
+            /** Format: int64 */
+            creditKop: number | string;
+        };
+        KindDebtResponse: {
+            kind: components["schemas"]["PaymentKind"];
+            /** Format: int32 */
+            fromYear: number | string;
+            /** Format: int32 */
+            fromQuarter: number | string;
+            /** Format: int32 */
+            toYear: number | string;
+            /** Format: int32 */
+            toQuarter: number | string;
+            /** Format: int64 */
+            amountKop: number | string;
+            /** Format: date */
+            dueDate: string;
+            status: components["schemas"]["ObligationStatus"];
+            /** Format: int32 */
+            daysLeft: number | string;
+        };
         KindYearBalance: {
             /** Format: int64 */
             earlierOwedKop: number | string;
@@ -1809,6 +1881,17 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        NextStepResponse: {
+            state: components["schemas"]["NextStepState"];
+            /** Format: date */
+            registrationDate: null | string;
+            /** Format: int32 */
+            missingTaxYear: null | number | string;
+            now: components["schemas"]["KindDebtResponse"][];
+            later: components["schemas"]["KindDebtResponse"][];
+        };
+        /** @enum {string} */
+        NextStepState: "MissingTaxYear" | "RegistrationDateNotSet" | "BeforeRegistration" | "AllDone" | "Pay";
         ObligationResponse: {
             /** Format: int64 */
             accruedKop: number | string;
@@ -1989,6 +2072,14 @@ export interface components {
             locale: string;
             theme: string;
             defaultCurrency: string;
+        };
+        TaxBurdenResponse: {
+            /** Format: int64 */
+            incomeKop: number | string;
+            /** Format: int64 */
+            taxKop: number | string;
+            /** Format: int64 */
+            rateBp: null | number | string;
         };
         TaxYearConfigRequest: {
             /** Format: int64 */
