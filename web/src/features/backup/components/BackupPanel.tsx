@@ -3,33 +3,15 @@
 import { useRef, useState, type ChangeEvent } from "react";
 import { useTranslations } from "next-intl";
 import { Download } from "lucide-react";
-import { ApiError } from "@/data/api/client";
-import { backupUrl, NotJsonError, TooLargeError, useRestoreBackup } from "@/data/backup/backup";
+import { backupUrl, useRestoreBackup } from "@/data/backup/backup";
 import { Button } from "@/shared/ui/button";
-
-const MAX_SHOWN_ERRORS = 10;
+import { UploadFailure } from "./UploadFailure";
 
 export function BackupPanel() {
   const t = useTranslations("backup");
   const restoreBackup = useRestoreBackup();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
-
-  const notJson = restoreBackup.error instanceof NotJsonError;
-  const apiFailure = restoreBackup.error instanceof ApiError ? restoreBackup.error : null;
-  const errorEntries = Object.entries(apiFailure?.errors ?? {}).flatMap(([key, messages]) =>
-    messages.map((message) => `${key}: ${message}`),
-  );
-  const shownErrors = errorEntries.slice(0, MAX_SHOWN_ERRORS);
-  const moreErrors = errorEntries.length - shownErrors.length;
-  const failureMessage = notJson
-    ? t("notJson")
-    : restoreBackup.error instanceof TooLargeError || apiFailure?.status === 413
-      ? t("tooLarge")
-      : restoreBackup.isError
-        ? t("failed")
-        : null;
-  const failureDetail = apiFailure && apiFailure.status !== 413 ? apiFailure.message : null;
 
   function resetInput() {
     if (inputRef.current) {
@@ -127,22 +109,12 @@ export function BackupPanel() {
         </p>
       ) : null}
 
-      {failureMessage ? (
-        <div role="alert" className="flex min-w-0 flex-col gap-1 text-xs text-destructive">
-          <p className="min-w-0 break-words font-medium">{failureMessage}</p>
-          {failureDetail ? <p className="min-w-0 break-words">{failureDetail}</p> : null}
-          {shownErrors.length > 0 ? (
-            <ul className="flex min-w-0 flex-col gap-0.5">
-              {shownErrors.map((entry) => (
-                <li key={entry} className="min-w-0 break-all">
-                  {entry}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {moreErrors > 0 ? <p>{t("errorsMore", { count: moreErrors })}</p> : null}
-        </div>
-      ) : null}
+      <UploadFailure
+        error={restoreBackup.error}
+        notJson={t("notJson")}
+        tooLarge={t("tooLarge")}
+        failed={t("failed")}
+      />
     </section>
   );
 }

@@ -1,7 +1,7 @@
 # 14: Prototype JSON import
 
 GitHub: #15
-Status: ready-for-agent
+Status: API and screen in a PR on branch ticket-15
 Blocked by: #12
 
 ## Parent

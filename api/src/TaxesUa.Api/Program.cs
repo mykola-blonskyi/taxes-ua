@@ -182,6 +182,7 @@ api.MapExportApi();
 api.MapFxApi();
 api.MapPaymentsApi();
 api.MapBackupApi();
+api.MapImportApi();
 api.MapAuditApi();
 api.MapDashboardApi();
 
