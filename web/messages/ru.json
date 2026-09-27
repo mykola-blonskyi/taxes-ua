@@ -82,6 +82,7 @@
       "confirmDeleteYes": "Да, удалить",
       "confirmDeleteCancel": "Отмена",
       "deleteFailed": "Не удалось удалить:",
+      "history": "История",
       "rateNbu": "НБУ {date}",
       "rateManual": "вручную",
       "reversesReceipt": "Возврат поступления от {date}, {amount}",
@@ -215,7 +216,8 @@
       "confirmDeleteYes": "Да, удалить",
       "confirmDeleteCancel": "Отмена",
       "deleteFailed": "Не удалось удалить:",
-      "beforeRegistrationWarning": "дата оплаты раньше даты регистрации, проверьте"
+      "beforeRegistrationWarning": "дата оплаты раньше даты регистрации, проверьте",
+      "history": "История"
     },
     "balances": {
       "title": "Балансы за {year} год",
@@ -246,7 +248,9 @@
     "saving": "Сохранение…",
     "saveFailed": "Не удалось сохранить. Попробуйте ещё раз.",
     "validationError": "Проверьте введённые данные:",
+    "changeLog": "Журнал изменений",
     "fop": {
+      "history": "История",
       "fopRegistrationDate": "Дата регистрации ФОП",
       "paymentMode": "Режим уплаты",
       "paymentModeQuarterly": "Ежеквартально",
@@ -272,6 +276,7 @@
       "defaultCurrency": "Валюта по умолчанию"
     },
     "taxYears": {
+      "history": "История",
       "empty": "Налоговых годов пока нет.",
       "year": "Год",
       "minWageKop": "Минимальная зарплата",
@@ -322,5 +327,86 @@
     "errorsMore": "{count, plural, one {ещё # ошибка} few {ещё # ошибки} many {ещё # ошибок} other {ещё # ошибки}}",
     "tooLarge": "Файл слишком большой: резервная копия не может превышать 8 МБ.",
     "failed": "Не удалось восстановить данные из этого файла."
+  },
+  "audit": {
+    "title": "Журнал изменений",
+    "historyTitle": "История",
+    "subtitle": "История изменений: {entity}",
+    "viewFullLog": "Посмотреть весь журнал изменений",
+    "loading": "Загрузка…",
+    "loadFailed": "Не удалось загрузить журнал изменений.",
+    "empty": "Изменений пока нет.",
+    "actions": {
+      "Create": "Создано",
+      "Update": "Изменено",
+      "Delete": "Удалено",
+      "Restore": "Восстановлено"
+    },
+    "entities": {
+      "Transaction": "Поступление",
+      "BudgetPayment": "Платёж",
+      "Settings": "Настройки",
+      "TaxYearConfig": "Налоговый год",
+      "Backup": "Резервная копия"
+    },
+    "values": {
+      "yes": "Да",
+      "no": "Нет",
+      "none": "—",
+      "rateSource": {
+        "Nbu": "НБУ",
+        "Manual": "Вручную"
+      }
+    },
+    "fields": {
+      "valueDate": "Дата зачисления",
+      "amountMinor": "Сумма в валюте",
+      "currency": "Валюта",
+      "rateE4": "Курс",
+      "rateDate": "Дата курса",
+      "rateSource": "Источник курса",
+      "amountUahKop": "Сумма в гривнах",
+      "kind": "Тип",
+      "nonIncomeReason": "Причина",
+      "clientName": "Клиент",
+      "refundsTransactionId": "Возвращает поступление",
+      "invoiceNumber": "Номер инвойса",
+      "description": "Комментарий",
+      "paidOn": "Дата оплаты",
+      "amountKop": "Сумма",
+      "periodYear": "Год периода",
+      "periodQuarter": "Квартал периода",
+      "periodMonth": "Месяц периода",
+      "note": "Примечание",
+      "fopRegistrationDate": "Дата регистрации ФОП",
+      "paymentMode": "Режим уплаты",
+      "esvRegistrationMonthPolicy": "Месяц регистрации ЕСВ",
+      "esvExempt": "Освобождение от ЕСВ",
+      "taxPaymentCountsFromStatutoryDeclarationDate": "Срок уплаты от установленной даты декларации",
+      "shiftTaxPaymentFromWeekend": "Переносить уплату с выходного",
+      "weekendDays": "Выходные дни",
+      "locale": "Язык интерфейса",
+      "theme": "Тема",
+      "defaultCurrency": "Валюта по умолчанию",
+      "minWageKop": "Минимальная зарплата",
+      "singleTaxRateBp": "Единый налог",
+      "militaryLevyRateBp": "Военный сбор",
+      "esvRateBp": "Ставка ЕСВ",
+      "excessRateBp": "Ставка сверх лимита",
+      "esvMonthlyKop": "ЕСВ в месяц",
+      "incomeLimitMinWages": "Лимит дохода (в мин. зарплатах)",
+      "incomeLimitKop": "Лимит дохода",
+      "limitWarnThresholdsPct": "Пороги предупреждения",
+      "esvDeadlineDay": "Срок уплаты ЕСВ",
+      "declarationDays": "Дней на подачу декларации",
+      "taxPaymentDaysAfterDeclaration": "Дней на уплату после декларации",
+      "advanceRecommendedDay": "Рекомендуемый день аванса",
+      "holidays": "Праздничные дни",
+      "source": "Источник",
+      "verifiedAt": "Проверено",
+      "clients": "Клиентов",
+      "transactions": "Поступлений",
+      "budgetPayments": "Платежей"
+    }
   }
 }

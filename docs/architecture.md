@@ -168,6 +168,19 @@ computation references it, never duplicates it. `AppDbContext` and the audit sav
 are the two deliberate exceptions — EF Core needs one `DbContext`, and change auditing needs to
 see every audited entity, so both necessarily touch every feature.
 
+**Change log.** `Features/Audit/AuditSaveChangesInterceptor` is the only writer of `AuditLog`. On
+every `SaveChangesAsync` it snapshots each added, modified or deleted `Transaction`,
+`BudgetPayment`, `Settings` and `TaxYearConfig` into one entry, in the same database transaction as
+the change. The audited types are an opt-in list, so Identity's rows (password hashes, security
+stamps, passkeys) never reach the log. Because it reads the change tracker, an audited table must be
+written through tracked entities: `ExecuteUpdate`, `ExecuteDelete` or raw SQL against one of these
+tables bypasses the log. A database trigger makes `AuditLog` append-only.
+
+A restore from backup is not the owner's edits, so it writes one summary entry
+(`AuditEntry.Restored`, entity `Backup`, action `Restore`, with the restored counts) in the same
+save as the rows it inserts. A save that carries that summary gets no per-row entries. The log is
+history, not state: a backup does not carry it and a restore does not replace it.
+
 ### web layers
 
 ```

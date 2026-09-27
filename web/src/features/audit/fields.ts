@@ -1,0 +1,157 @@
+import type { AuditedEntity } from "@/data/audit/useAuditLog";
+import { formatDateOnly, formatInstantInKyiv } from "@/shared/lib/dates";
+import { formatMinor, formatMoney, formatRate, formatRateE4 } from "@/shared/lib/money";
+
+// The plan's fixed key order per entity; anything the API adds later still renders, appended
+// alphabetically, instead of being silently dropped.
+const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
+  Transaction: [
+    "valueDate",
+    "amountMinor",
+    "currency",
+    "rateE4",
+    "rateDate",
+    "rateSource",
+    "amountUahKop",
+    "kind",
+    "nonIncomeReason",
+    "clientName",
+    "refundsTransactionId",
+    "invoiceNumber",
+    "description",
+  ],
+  BudgetPayment: ["paidOn", "kind", "amountKop", "periodYear", "periodQuarter", "periodMonth", "note"],
+  Settings: [
+    "fopRegistrationDate",
+    "paymentMode",
+    "esvRegistrationMonthPolicy",
+    "esvExempt",
+    "taxPaymentCountsFromStatutoryDeclarationDate",
+    "shiftTaxPaymentFromWeekend",
+    "weekendDays",
+    "locale",
+    "theme",
+    "defaultCurrency",
+  ],
+  TaxYearConfig: [
+    "minWageKop",
+    "singleTaxRateBp",
+    "militaryLevyRateBp",
+    "esvRateBp",
+    "excessRateBp",
+    "esvMonthlyKop",
+    "incomeLimitMinWages",
+    "incomeLimitKop",
+    "limitWarnThresholdsPct",
+    "esvDeadlineDay",
+    "declarationDays",
+    "taxPaymentDaysAfterDeclaration",
+    "advanceRecommendedDay",
+    "holidays",
+    "source",
+    "verifiedAt",
+  ],
+  Backup: ["clients", "transactions", "budgetPayments"],
+};
+
+export function orderFields(entity: AuditedEntity, keys: string[]): string[] {
+  const order = FIELD_ORDER[entity];
+  const known = order.filter((key) => keys.includes(key));
+  const unknown = keys.filter((key) => !order.includes(key)).sort((a, b) => a.localeCompare(b));
+
+  return [...known, ...unknown];
+}
+
+const weekdayReferenceIndex: Record<string, number> = {
+  Sunday: 0,
+  Monday: 1,
+  Tuesday: 2,
+  Wednesday: 3,
+  Thursday: 4,
+  Friday: 5,
+  Saturday: 6,
+};
+
+// 2023-01-01 was a Sunday; used only as a UTC anchor for naming weekdays, never as a real date.
+function weekdayName(day: string, locale: string): string {
+  const index = weekdayReferenceIndex[day];
+
+  if (index === undefined) {
+    return day;
+  }
+
+  return new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" }).format(Date.UTC(2023, 0, 1 + index));
+}
+
+const isoDateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
+
+export type FieldFormatContext = {
+  key: string;
+  value: unknown;
+  snapshot: Record<string, unknown>;
+  locale: string;
+  none: string;
+  yes: string;
+  no: string;
+  enumLabel: (key: string, value: string) => string | null;
+};
+
+type FieldFormatter = (context: FieldFormatContext) => string;
+
+const enumValue: FieldFormatter = ({ key, value, enumLabel }) => enumLabel(key, String(value)) ?? String(value);
+
+// Formatters keyed by the exact field name. Checked before the suffix table below.
+const exactFormatters: Record<string, FieldFormatter> = {
+  amountMinor: ({ value, snapshot, locale }) => {
+    const currency = typeof snapshot.currency === "string" ? snapshot.currency : "UAH";
+
+    return formatMinor(Number(value), currency, locale);
+  },
+  rateE4: ({ value, locale }) => formatRateE4(Number(value), locale),
+  verifiedAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
+  holidays: ({ value, locale }) =>
+    Array.isArray(value) ? value.map((entry) => formatDateOnly(String(entry), locale)).join(", ") : String(value),
+  weekendDays: ({ value, locale }) =>
+    Array.isArray(value) ? value.map((entry) => weekdayName(String(entry), locale)).join(", ") : String(value),
+  refundsTransactionId: ({ value }) => String(value).slice(0, 8),
+  kind: enumValue,
+  paymentMode: enumValue,
+  esvRegistrationMonthPolicy: enumValue,
+  rateSource: enumValue,
+};
+
+// Formatters keyed by field-name suffix, checked when no exact match applies.
+const suffixFormatters: readonly (readonly [string, FieldFormatter])[] = [
+  ["Kop", ({ value, locale }) => formatMoney(Number(value), locale)],
+  ["Bp", ({ value, locale }) => formatRate(Number(value), locale)],
+];
+
+export function formatFieldValue(context: FieldFormatContext): string {
+  const { key, value, none, yes, no, locale } = context;
+
+  if (value === null || value === undefined) {
+    return none;
+  }
+
+  const exact = exactFormatters[key];
+
+  if (exact) {
+    return exact(context);
+  }
+
+  const suffix = suffixFormatters.find(([candidate]) => key.endsWith(candidate));
+
+  if (suffix) {
+    return suffix[1](context);
+  }
+
+  if (typeof value === "boolean") {
+    return value ? yes : no;
+  }
+
+  if (typeof value === "string" && isoDateOnlyPattern.test(value)) {
+    return formatDateOnly(value, locale);
+  }
+
+  return String(value);
+}

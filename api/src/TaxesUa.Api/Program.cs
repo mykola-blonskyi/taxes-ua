@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Backup;
 using TaxesUa.Api.Features.Export;
@@ -67,8 +68,11 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 builder.Services.AddOpenApi();
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<AuditSaveChangesInterceptor>();
+builder.Services.AddDbContext<AppDbContext>((services, options) => options
+    .UseNpgsql(builder.Configuration.GetConnectionString("Default"))
+    .AddInterceptors(services.GetRequiredService<AuditSaveChangesInterceptor>()));
 
 builder.Services.AddSingleton<EmailAllowlist>();
 builder.Services.AddSingleton(TimeProvider.System);
@@ -175,6 +179,7 @@ api.MapExportApi();
 api.MapFxApi();
 api.MapPaymentsApi();
 api.MapBackupApi();
+api.MapAuditApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

@@ -27,3 +27,12 @@ export function todayInKyiv(): string {
 export function currentYearInKyiv(): number {
   return Number(todayInKyiv().slice(0, 4));
 }
+
+// Change-log timestamps must read in Kyiv time regardless of the viewer's browser zone.
+export function formatInstantInKyiv(iso: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Kyiv",
+  }).format(new Date(iso));
+}

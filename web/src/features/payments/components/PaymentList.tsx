@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import { ApiError } from "@/data/api/client";
@@ -100,6 +101,14 @@ function PaymentRow({ payment, onEdit }: { payment: PaymentResponse; onEdit: (pa
               onClick={() => setConfirmingDelete(true)}
             >
               {t("row.delete")}
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link
+                href={`/history?entity=BudgetPayment&id=${payment.id}`}
+                aria-label={`${t("row.history")}: ${rowName}`}
+              >
+                {t("row.history")}
+              </Link>
             </Button>
           </>
         )}
