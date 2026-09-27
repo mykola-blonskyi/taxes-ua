@@ -149,7 +149,10 @@ public class MonthlyAdvancesTests
         EsvDeadlineDay: 19,
         DeclarationDays: 40,
         TaxPaymentDaysAfterDeclaration: 10,
-        Holidays: []);
+        Holidays: [],
+        IncomeLimitKop: 1_009_104_900,
+        ExcessRateBp: 1_500,
+        LimitWarnThresholdsPct: [85, 100]);
 
     private static readonly FopSettingsInput Settings = new(
         WeekendDays: [DayOfWeek.Saturday, DayOfWeek.Sunday],
