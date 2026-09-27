@@ -208,6 +208,29 @@ const chrome = spawn(
   { stdio: "ignore" },
 );
 
+async function record(path, label) {
+  const measurement = { ...(await evaluate(page, measureExpression(disclaimer))), path: label };
+  const slug = label === "/" ? "root" : label.replace(/^\//, "").replace(/[/#]/g, "-");
+  const file = `${options.width}px-${slug}-${options.locale}-${options.theme}.png`;
+  const shot = await page.send("Page.captureScreenshot", {
+    format: "png",
+    captureBeyondViewport: true,
+  });
+  writeFileSync(join(options.out, file), Buffer.from(shot.data, "base64"));
+
+  if (measurement.scrollWidth > measurement.clientWidth) {
+    failures.push(`${label}: scrollWidth ${measurement.scrollWidth} exceeds clientWidth ${measurement.clientWidth}`);
+  }
+  if (!measurement.hasDisclaimer) {
+    failures.push(`${label}: the ${options.locale} disclaimer is not in the rendered text`);
+  }
+  if (measurement.htmlLang !== options.locale) {
+    failures.push(`${label}: html lang is ${measurement.htmlLang}, expected ${options.locale}`);
+  }
+
+  results.push({ ...measurement, screenshot: file });
+}
+
 const results = [];
 const failures = [];
 let page;
@@ -253,7 +276,6 @@ try {
 
     await page.send("Page.navigate", { url: `${options.base}${route.path}` });
 
-    let measurement;
     try {
       await waitFor(
         `rendered content on ${route.path}`,
@@ -263,34 +285,36 @@ try {
             `!!document.querySelector("main h2") && document.querySelector("main h2").textContent.trim().length > 0`,
           ),
       );
-      measurement = await evaluate(page, measureExpression(disclaimer));
+      await record(route.path, route.path);
+
+      // A route's initial render shows only its first tab, and a panel behind another tab can
+      // overflow on its own, so every tab is opened and measured as a state of the route.
+      const tabs = await evaluate(page, `[...document.querySelectorAll('[role="tab"]')].map((tab) => tab.id)`);
+      for (const [index, id] of tabs.entries()) {
+        if (index === 0) continue;
+        await evaluate(
+          page,
+          `(() => {
+            const tab = document.getElementById(${JSON.stringify(id)});
+            tab.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }));
+            tab.focus();
+          })()`,
+        );
+        await waitFor(
+          `tab ${index + 1} on ${route.path} to open`,
+          async () =>
+            await evaluate(
+              page,
+              `document.getElementById(${JSON.stringify(id)}).getAttribute("aria-selected") === "true"`,
+            ),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await record(route.path, `${route.path}#tab${index + 1}`);
+      }
     } catch (error) {
       failures.push(`${route.path}: ${error.message}`);
       results.push({ path: route.path, error: error.message });
-      continue;
     }
-
-    const slug = route.path === "/" ? "root" : route.path.replace(/^\//, "").replace(/\//g, "-");
-    const file = `${options.width}px-${slug}-${options.locale}-${options.theme}.png`;
-    const shot = await page.send("Page.captureScreenshot", {
-      format: "png",
-      captureBeyondViewport: true,
-    });
-    writeFileSync(join(options.out, file), Buffer.from(shot.data, "base64"));
-
-    if (measurement.scrollWidth > measurement.clientWidth) {
-      failures.push(
-        `${route.path}: scrollWidth ${measurement.scrollWidth} exceeds clientWidth ${measurement.clientWidth}`,
-      );
-    }
-    if (!measurement.hasDisclaimer) {
-      failures.push(`${route.path}: the ${options.locale} disclaimer is not in the rendered text`);
-    }
-    if (measurement.htmlLang !== options.locale) {
-      failures.push(`${route.path}: html lang is ${measurement.htmlLang}, expected ${options.locale}`);
-    }
-
-    results.push({ ...measurement, screenshot: file });
   }
 } finally {
   page?.close();
@@ -310,13 +334,13 @@ writeFileSync(reportFile, `${JSON.stringify(report, null, 2)}\n`);
 
 for (const row of results) {
   if (row.skipped) {
-    console.log(`${row.path.padEnd(14)} skipped: ${row.skipped}`);
+    console.log(`${row.path.padEnd(18)} skipped: ${row.skipped}`);
   } else if (row.error) {
-    console.log(`${row.path.padEnd(14)} FAILED: ${row.error}`);
+    console.log(`${row.path.padEnd(18)} FAILED: ${row.error}`);
   } else {
     console.log(
       [
-        row.path.padEnd(14),
+        row.path.padEnd(18),
         `scrollWidth ${String(row.scrollWidth).padStart(5)}`,
         `clientWidth ${String(row.clientWidth).padStart(5)}`,
         `nav ${row.hasNav ? `${row.navWidth}px` : "absent"}`.padEnd(12),
@@ -342,4 +366,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`${results.filter((row) => !row.skipped).length} route(s) measured, no overflow`);
+console.log(`${results.filter((row) => !row.skipped).length} screen state(s) measured, no overflow`);

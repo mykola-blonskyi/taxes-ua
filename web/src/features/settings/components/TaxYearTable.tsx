@@ -92,7 +92,9 @@ export function TaxYearTable() {
   }
 
   return (
-    <div className="overflow-x-auto">
+    // `relative` makes this the containing block of the fields' sr-only labels. They are absolutely
+    // positioned, so without it they escape the scroll box and widen the whole page.
+    <div className="relative overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b text-left align-bottom text-xs text-muted-foreground">
