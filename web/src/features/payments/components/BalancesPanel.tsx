@@ -26,39 +26,38 @@ export function BalancesPanel({ year, balances }: { year: number; balances: Bala
       <ul className="grid gap-2 md:grid-cols-3">
         {paymentKinds.map((kind) => {
           const balance = balances[kindField[kind]];
-          const balanceKop = Number(balance.balanceKop);
-          const openingKop = Number(balance.openingBalanceKop);
+          const earlierOwedKop = Number(balance.earlierOwedKop);
+          const owedKop = Number(balance.owedKop);
+          const creditKop = Number(balance.creditKop);
 
           return (
             <li key={kind} className="flex min-w-0 flex-col gap-2 rounded-lg border p-3">
               <h4 className="text-sm font-semibold">{tKinds(kind)}</h4>
               <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-sm">
-                {openingKop !== 0 ? (
+                {earlierOwedKop > 0 ? (
                   <>
-                    <dt className="text-muted-foreground">{openingKop > 0 ? t("openingOwed") : t("openingOverpaid")}</dt>
-                    <dd className="text-right tabular-nums">{formatMoney(openingKop, locale)}</dd>
+                    <dt className="text-muted-foreground">{t("earlierOwed")}</dt>
+                    <dd className="text-right tabular-nums">{formatMoney(earlierOwedKop, locale)}</dd>
                   </>
                 ) : null}
                 <dt className="text-muted-foreground">{t("accrued")}</dt>
                 <dd className="text-right tabular-nums">{formatMoney(Number(balance.accruedKop), locale)}</dd>
                 <dt className="text-muted-foreground">{t("paid")}</dt>
                 <dd className="text-right tabular-nums">{formatMoney(Number(balance.paidKop), locale)}</dd>
-                <dt className="font-medium">
-                  {balanceKop > 0 ? t("owed") : balanceKop < 0 ? t("overpaid") : t("balance")}
-                </dt>
+                <dt className="font-medium">{owedKop > 0 ? t("owed") : creditKop > 0 ? t("overpaid") : t("balance")}</dt>
                 <dd
                   className={cn(
                     "text-right font-semibold tabular-nums",
-                    balanceKop > 0 ? "text-destructive" : balanceKop < 0 ? "text-emerald-700 dark:text-emerald-400" : undefined,
+                    owedKop > 0 ? "text-destructive" : creditKop > 0 ? "text-emerald-700 dark:text-emerald-400" : undefined,
                   )}
                 >
-                  {formatMoney(balanceKop, locale)}
+                  {formatMoney(owedKop > 0 ? owedKop : creditKop, locale)}
                 </dd>
               </dl>
-              {balanceKop === 0 && Number(balance.accruedKop) > 0 ? (
+              {owedKop === 0 && creditKop === 0 && Number(balance.accruedKop) > 0 ? (
                 <p className="text-xs text-muted-foreground">{t("settled")}</p>
               ) : null}
-              {balanceKop < 0 ? <p className="text-xs text-muted-foreground">{t("carryForward")}</p> : null}
+              {creditKop > 0 ? <p className="text-xs text-muted-foreground">{t("carryForward")}</p> : null}
             </li>
           );
         })}

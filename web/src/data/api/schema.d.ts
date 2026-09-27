@@ -1741,13 +1741,15 @@ export interface components {
         };
         KindYearBalance: {
             /** Format: int64 */
-            openingBalanceKop: number | string;
+            earlierOwedKop: number | string;
             /** Format: int64 */
             accruedKop: number | string;
             /** Format: int64 */
             paidKop: number | string;
             /** Format: int64 */
-            balanceKop: number | string;
+            owedKop: number | string;
+            /** Format: int64 */
+            creditKop: number | string;
         };
         MeResponse: {
             id: string;
