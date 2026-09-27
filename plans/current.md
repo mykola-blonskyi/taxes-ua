@@ -112,7 +112,7 @@ dependencies). Run `snippets/frontier.sh` for the live frontier instead of readi
   release, and then the #15/#16/#18 checks against the real domain — is the owner's, by hand, per
   that runbook.
 - PR #54 rewrote the README's local-run instructions step by step, with and without Docker.
-- **Test counts on `main`:** 155 engine, 366 api.
+- **Test counts on `main` at 080c01f:** 194 engine, 366 api.
 
 ## What remains
 
