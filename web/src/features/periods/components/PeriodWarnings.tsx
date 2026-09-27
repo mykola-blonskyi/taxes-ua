@@ -15,8 +15,15 @@ export function PeriodWarnings({ year, warnings }: { year: number; warnings: War
   const excludedOperationCount = Number(warnings.excludedOperationCount);
   const negativeQuarters = warnings.negativeCumulativeTaxQuarters.map((quarter) => Number(quarter));
 
+  const missingTaxYear = warnings.missingTaxYear === null ? null : Number(warnings.missingTaxYear);
+
   const hasWarning =
-    warnings.taxYearUnverified || warnings.fopRegistrationDateNotSet || excludedOperationCount > 0 || negativeQuarters.length > 0;
+    warnings.taxYearUnverified ||
+    warnings.fopRegistrationDateNotSet ||
+    warnings.yearBeforeRegistration ||
+    missingTaxYear !== null ||
+    excludedOperationCount > 0 ||
+    negativeQuarters.length > 0;
 
   if (!hasWarning) {
     return null;
@@ -36,6 +43,19 @@ export function PeriodWarnings({ year, warnings }: { year: number; warnings: War
       {warnings.fopRegistrationDateNotSet ? (
         <WarningItem tone="destructive">
           {t("warnings.fopRegistrationDateNotSet")}{" "}
+          <Link href="/settings" className="font-medium text-primary underline-offset-4 hover:underline">
+            {t("noYearsCta")}
+          </Link>
+        </WarningItem>
+      ) : null}
+
+      {warnings.yearBeforeRegistration ? (
+        <WarningItem tone="muted">{t("warnings.yearBeforeRegistration", { year })}</WarningItem>
+      ) : null}
+
+      {missingTaxYear !== null ? (
+        <WarningItem tone="destructive">
+          {t("warnings.missingTaxYear", { year: missingTaxYear })}{" "}
           <Link href="/settings" className="font-medium text-primary underline-offset-4 hover:underline">
             {t("noYearsCta")}
           </Link>

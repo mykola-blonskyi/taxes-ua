@@ -55,9 +55,13 @@ internal sealed record YearAccruals(TaxYearConfig Config, SettingsEntity Setting
                 settings,
                 Accruals.ForYear(config.Year, [.. byYear[config.Year]], config.ToEngineInput(), settingsInput)));
 
+        int? missingTaxYear = registeredYear is { } registered && year >= registered + ledgerConfigs.Count
+            ? registered + ledgerConfigs.Count
+            : null;
         return new LoadedYears(
             accruals[year],
-            [.. ledgerConfigs.Select(config => accruals[config.Year])]);
+            [.. ledgerConfigs.Select(config => accruals[config.Year])],
+            missingTaxYear);
     }
 
     /// <summary>
@@ -87,9 +91,10 @@ internal sealed record YearAccruals(TaxYearConfig Config, SettingsEntity Setting
 /// first, whatever year is viewed, so every view allocates the same payments to the same quarters.
 /// It is empty without a registration date. <c>Viewed</c> is one of its entries when the viewed year
 /// falls inside it; a year before registration or past a missing year is computed on its own and has
-/// no obligations.
+/// no obligations. <c>MissingTaxYear</c> names the year the ledger stopped at when that is why the
+/// viewed year is outside it.
 /// </summary>
-internal sealed record LoadedYears(YearAccruals Viewed, IReadOnlyList<YearAccruals> Ledger)
+internal sealed record LoadedYears(YearAccruals Viewed, IReadOnlyList<YearAccruals> Ledger, int? MissingTaxYear)
 {
     public bool ViewedIsInLedger => Ledger.Contains(Viewed);
 }

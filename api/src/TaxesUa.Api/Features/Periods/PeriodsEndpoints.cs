@@ -86,7 +86,7 @@ public static class PeriodsEndpoints
 
         return new PeriodsResponse(
             year,
-            ToWarnings(loaded),
+            ToWarnings(loadedYears),
             quarters,
             ledger is null
                 ? null
@@ -126,8 +126,9 @@ public static class PeriodsEndpoints
 
     // Folds the engine's per-operation list into one flag or count per kind: the transactions screen
     // already marks each excluded row, so this screen only has to say that some exist.
-    private static PeriodWarnings ToWarnings(YearAccruals loaded)
+    private static PeriodWarnings ToWarnings(LoadedYears loadedYears)
     {
+        var loaded = loadedYears.Viewed;
         var fopRegistrationDateNotSet = false;
         var excludedOperationCount = 0;
         var negativeQuarters = new List<int>();
@@ -154,7 +155,9 @@ public static class PeriodsEndpoints
             loaded.Config.VerifiedAt is null,
             fopRegistrationDateNotSet,
             excludedOperationCount,
-            [.. negativeQuarters]);
+            [.. negativeQuarters],
+            loaded.Settings.FopRegistrationDate is { } registered && loaded.Accrual.Year < registered.Year,
+            loadedYears.MissingTaxYear);
     }
 
     private static DateOnly QuarterEnd(int year, int quarter) =>
@@ -205,14 +208,18 @@ internal sealed record ObligationResponse(
     ObligationStatus Status);
 
 /// <summary>
-/// Rule 9 and Rule 8 as the screen needs them. Each field is one sentence the interface writes; the
-/// api sends no text, per ADR-002.
+/// Rule 9, Rule 8 and Rule 7 as the screen needs them. Each field is one sentence the interface
+/// writes; the api sends no text, per ADR-002. <c>YearBeforeRegistration</c> and
+/// <c>MissingTaxYear</c> say why a year with a registration date still has no balances: the year
+/// precedes the Rule 7 ledger, or the ledger stopped at that unconfigured year.
 /// </summary>
 internal sealed record PeriodWarnings(
     bool TaxYearUnverified,
     bool FopRegistrationDateNotSet,
     int ExcludedOperationCount,
-    int[] NegativeCumulativeTaxQuarters);
+    int[] NegativeCumulativeTaxQuarters,
+    bool YearBeforeRegistration,
+    int? MissingTaxYear);
 
 /// <summary>
 /// One quarter's own accruals and the year-to-date figures through it. The cumulative three are the

@@ -1827,6 +1827,9 @@ export interface components {
             /** Format: int32 */
             excludedOperationCount: number | string;
             negativeCumulativeTaxQuarters: (number | string)[];
+            yearBeforeRegistration: boolean;
+            /** Format: int32 */
+            missingTaxYear: null | number | string;
         };
         ProblemDetails: {
             type?: null | string;

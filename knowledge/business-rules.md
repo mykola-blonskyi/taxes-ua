@@ -138,7 +138,8 @@ The ledger always starts at the registration year, whichever year is viewed; pay
 earlier year are not counted, and a year before registration shows no obligations. It runs through
 consecutive configured tax years and stops at the first year without one, because that year's
 accruals are unknown: a year after the gap shows no obligations until the missing year is
-configured.
+configured. Both cases say so on screen: the api names the reason (year before registration, or the
+missing year) as a warning, never as text.
 
 ---
 

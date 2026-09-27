@@ -293,7 +293,9 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
     [Fact]
     public async Task The_ledger_starts_at_registration_whichever_year_is_viewed()
     {
-        using var owner = await SignIn(fixture, ApiFixture.SecondAllowedEmail);
+        await using var application = fixture.CreateApplication(
+            new StubNbuHandler(_ => throw new InvalidOperationException("NBU called")), new DateOnly(2087, 12, 31));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
         await Configure(owner, 2086, 2087);
         await SetRegistrationDate(owner, new DateOnly(2087, 1, 1));
         await PostIncome(owner, new DateOnly(2087, 2, 10), 10_000_000);
@@ -304,6 +306,8 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
 
         Assert.All(before!.Quarters, quarter => Assert.Null(quarter.Obligations));
         Assert.Null(before.Balances);
+        Assert.Equal((true, (int?)null, false), (before.Warnings.YearBeforeRegistration, before.Warnings.MissingTaxYear, before.Warnings.FopRegistrationDateNotSet));
+        Assert.Equal((false, (int?)null), (registered!.Warnings.YearBeforeRegistration, registered.Warnings.MissingTaxYear));
         Assert.Equal(new KindYearBalance(0, 600_000, 0, 600_000, 0), registered!.Balances!.SingleTax);
     }
 
@@ -312,7 +316,9 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
     [Fact]
     public async Task The_ledger_stops_at_the_first_year_without_a_configuration()
     {
-        using var owner = await SignIn(fixture, ApiFixture.SecondAllowedEmail);
+        await using var application = fixture.CreateApplication(
+            new StubNbuHandler(_ => throw new InvalidOperationException("NBU called")), new DateOnly(2098, 12, 31));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
         await Configure(owner, 2096, 2098);
         await SetRegistrationDate(owner, new DateOnly(2096, 1, 1));
         await PostIncome(owner, new DateOnly(2096, 2, 10), 10_000_000);
@@ -324,6 +330,23 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         Assert.Equal(new KindYearBalance(0, 600_000, 0, 600_000, 0), first!.Balances!.SingleTax);
         Assert.All(afterGap!.Quarters, quarter => Assert.Null(quarter.Obligations));
         Assert.Null(afterGap.Balances);
+        Assert.Equal((false, (int?)2097, false), (afterGap.Warnings.YearBeforeRegistration, afterGap.Warnings.MissingTaxYear, afterGap.Warnings.FopRegistrationDateNotSet));
+        Assert.Null(first.Warnings.MissingTaxYear);
+    }
+
+    [Fact]
+    public async Task An_unconfigured_registration_year_is_named_as_the_missing_year()
+    {
+        await using var application = fixture.CreateApplication(
+            new StubNbuHandler(_ => throw new InvalidOperationException("NBU called")), new DateOnly(2089, 12, 31));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
+        await Configure(owner, 2089);
+        await SetRegistrationDate(owner, new DateOnly(2088, 6, 1));
+
+        var periods = await owner.GetFromJsonAsync<PeriodsResponse>("/api/periods/2089", Json);
+
+        Assert.Null(periods!.Balances);
+        Assert.Equal(2088, periods.Warnings.MissingTaxYear);
     }
 
     [Fact]
