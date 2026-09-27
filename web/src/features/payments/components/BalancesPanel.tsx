@@ -6,7 +6,7 @@ import type { PeriodsResponse } from "@/data/periods/usePeriods";
 import { formatMoney } from "@/shared/lib/money";
 import { cn } from "@/shared/lib/utils";
 
-type Balances = PeriodsResponse["balances"];
+type Balances = NonNullable<PeriodsResponse["balances"]>;
 
 const kindField = {
   SingleTax: "singleTax",

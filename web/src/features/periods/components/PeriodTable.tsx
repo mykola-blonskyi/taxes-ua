@@ -27,14 +27,14 @@ export function PeriodTable<Row>({
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b text-left align-bottom text-xs text-muted-foreground">
-              <th scope="col" className="px-1.5 py-2 font-medium">
+              <th scope="col" className="px-1 py-2 font-medium">
                 {rowHeaderLabel}
               </th>
               {columns.map((column) => (
                 <th
                   key={column.key}
                   scope="col"
-                  className={cn("px-1.5 py-2 font-medium", column.numeric ? "text-right" : undefined)}
+                  className={cn("px-1 py-2 font-medium", column.numeric ? "text-right" : undefined)}
                 >
                   {column.header}
                 </th>
@@ -44,13 +44,13 @@ export function PeriodTable<Row>({
           <tbody>
             {rows.map((row) => (
               <tr key={rowKey(row)} className="border-b align-top">
-                <th scope="row" className="px-1.5 py-2 text-left font-medium">
+                <th scope="row" className="px-1 py-2 text-left font-medium">
                   {rowHeader(row)}
                 </th>
                 {columns.map((column) => (
                   <td
                     key={column.key}
-                    className={cn("px-1.5 py-2", column.numeric ? "whitespace-nowrap text-right tabular-nums" : undefined)}
+                    className={cn("px-1 py-2", column.numeric ? "whitespace-nowrap text-right tabular-nums" : undefined)}
                   >
                     {column.cell(row)}
                   </td>

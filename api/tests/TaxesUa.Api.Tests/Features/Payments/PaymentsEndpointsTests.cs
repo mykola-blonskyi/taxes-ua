@@ -195,13 +195,14 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         Assert.Equal((200_000L, ObligationStatus.Overdue), (q1.MilitaryLevy.BalanceKop, q1.MilitaryLevy.Status));
         Assert.Equal((200_000L, ObligationStatus.Upcoming), (q2.MilitaryLevy.BalanceKop, q2.MilitaryLevy.Status));
 
+        Assert.NotNull(periods.Balances);
         Assert.Equal(new KindYearBalance(600_000, 1_000_000, -400_000), periods.Balances.SingleTax);
         Assert.Equal(new KindYearBalance(200_000, 0, 200_000), periods.Balances.MilitaryLevy);
         Assert.Equal(new KindYearBalance(2_016_000, 1_176_000, 840_000), periods.Balances.Esv);
     }
 
     [Fact]
-    public async Task Without_a_registration_date_a_quarter_carries_no_obligations_but_the_balances_remain()
+    public async Task Without_a_registration_date_there_are_no_obligations_and_no_balances()
     {
         const int year = 2081;
         using var client = await SignIn(fixture, ApiFixture.SecondAllowedEmail);
@@ -214,7 +215,8 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         var periods = await client.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json);
 
         Assert.All(periods!.Quarters, quarter => Assert.Null(quarter.Obligations));
-        Assert.Equal(new KindYearBalance(0, 5_000, -5_000), periods.Balances.Esv);
+        Assert.Null(periods.Balances);
+        Assert.Single((await List(client, year)).Items);
     }
 
     private static async Task<IReadOnlyList<Obligation>> EngineObligations(

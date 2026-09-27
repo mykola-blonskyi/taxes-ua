@@ -87,7 +87,17 @@ export function PaymentsScreen() {
       ) : null}
       {payments.isError || periods.isError ? <p className="text-sm text-destructive">{t("loadFailed")}</p> : null}
 
-      {periods.data ? <BalancesPanel year={year} balances={periods.data.balances} /> : null}
+      {periods.data?.balances ? <BalancesPanel year={year} balances={periods.data.balances} /> : null}
+
+      {periods.data && periods.data.balances === null ? (
+        <section className="flex flex-col gap-2 rounded-lg border bg-muted p-4">
+          <h3 className="text-sm font-semibold text-destructive">{t("registrationWarning.title")}</h3>
+          <p className="text-sm text-muted-foreground">{t("registrationWarning.message")}</p>
+          <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+            {t("registrationWarning.cta")}
+          </Link>
+        </section>
+      ) : null}
 
       <div ref={formRef}>
         <PaymentForm

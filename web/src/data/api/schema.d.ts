@@ -1608,7 +1608,7 @@ export interface components {
             year: number | string;
             warnings: components["schemas"]["PeriodWarnings"];
             quarters: components["schemas"]["QuarterPeriodResponse"][];
-            balances: components["schemas"]["YearBalancesResponse"];
+            balances: null | components["schemas"]["YearBalancesResponse"];
         };
         PeriodWarnings: {
             taxYearUnverified: boolean;

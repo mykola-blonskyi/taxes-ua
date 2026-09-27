@@ -74,10 +74,14 @@ public static class PeriodsEndpoints
             year,
             ToWarnings(loaded),
             quarters,
-            new YearBalancesResponse(
-                ToYearBalance(balances.SingleTax),
-                ToYearBalance(balances.MilitaryLevy),
-                ToYearBalance(balances.Esv)));
+            // Without a registration date nothing accrues (Rule 8), so every payment would read as an
+            // overpayment. No balance is sent rather than a wrong one.
+            registrationDate is null
+                ? null
+                : new YearBalancesResponse(
+                    ToYearBalance(balances.SingleTax),
+                    ToYearBalance(balances.MilitaryLevy),
+                    ToYearBalance(balances.Esv)));
     }
 
     // The builder emits nothing without a registration date (Rule 8), so neither does the quarter.
@@ -151,7 +155,7 @@ internal sealed record PeriodsResponse(
     int Year,
     PeriodWarnings Warnings,
     QuarterPeriodResponse[] Quarters,
-    YearBalancesResponse Balances);
+    YearBalancesResponse? Balances);
 
 /// <summary>
 /// Rule 7's three ledgers for the year, one named field per kind like the engine's

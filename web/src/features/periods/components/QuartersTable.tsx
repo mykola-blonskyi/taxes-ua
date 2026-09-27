@@ -13,7 +13,7 @@ type Obligation = Obligations["singleTax"];
 
 const kinds = ["singleTax", "militaryLevy", "esv"] as const satisfies (keyof Obligations)[];
 
-// Done is already said by a zero or negative balance, so only the three open states get a word.
+// A zero balance says Done by itself; a negative one is labelled as an overpayment, as the panel does.
 const statusClass: Record<Exclude<Obligation["status"], "Done">, string> = {
   Upcoming: "text-muted-foreground",
   Due: "text-destructive",
@@ -106,9 +106,11 @@ export function QuartersTable({ quarters }: { quarters: Quarter[] }) {
               <span className={obligation.status === "Done" ? "text-muted-foreground" : "font-medium"}>
                 {formatMoney(Number(obligation.balanceKop), locale)}
               </span>
-              {obligation.status === "Done" ? null : (
+              {obligation.status !== "Done" ? (
                 <span className={`text-xs ${statusClass[obligation.status]}`}>{t(`status.${obligation.status}`)}</span>
-              )}
+              ) : Number(obligation.balanceKop) < 0 ? (
+                <span className="text-xs text-muted-foreground">{t("overpaid")}</span>
+              ) : null}
             </span>
           )}
         />
