@@ -22,6 +22,7 @@ if ! "${compose[@]}" up -d --build --wait --wait-timeout 180; then
 fi
 
 check "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q api)")" healthy "api is healthy"
+check "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q web)")" healthy "web is healthy"
 
 request() {
   docker run --rm --network "${project}_default" curlimages/curl:8.10.1 -s -o /dev/null -D - \

@@ -16,3 +16,4 @@ check '.services.api.init' true "api runs under an init process"
 check '[.services.api.volumes[] | select(.source == "dataprotection-keys") | .target] | .[0]' \
   "$(jq -r '.services.api.environment.DataProtection__KeysPath' <<<"$config")" \
   "the key ring volume is mounted where DataProtection__KeysPath points"
+check '.services.web.healthcheck.test | length > 0' true "web has a healthcheck, so Coolify can report its status"
