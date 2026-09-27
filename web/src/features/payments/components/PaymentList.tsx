@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { TriangleAlert } from "lucide-react";
 import { ApiError } from "@/data/api/client";
 import { useDeletePayment, type PaymentResponse } from "@/data/payments/usePayments";
 import { formatDateOnly } from "@/shared/lib/dates";
@@ -55,6 +56,13 @@ function PaymentRow({ payment, onEdit }: { payment: PaymentResponse; onEdit: (pa
       </p>
 
       {payment.note ? <p className="min-w-0 break-words text-xs text-muted-foreground">{payment.note}</p> : null}
+
+      {payment.beforeRegistration ? (
+        <p className="flex items-start gap-1.5 text-xs text-destructive">
+          <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          <span className="min-w-0 break-words">{t("row.beforeRegistrationWarning")}</span>
+        </p>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2 pt-1">
         {confirmingDelete ? (

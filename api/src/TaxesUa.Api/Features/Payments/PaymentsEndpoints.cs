@@ -5,6 +5,7 @@ using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Engine;
+using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
 
 namespace TaxesUa.Api.Features.Payments;
 
@@ -47,7 +48,10 @@ public static class PaymentsEndpoints
                     .ThenByDescending(row => row.CreatedAt)
                     .ToListAsync(cancellationToken);
 
-                return Results.Ok(new PaymentListResponse(year, [.. items.Select(ToResponse)]));
+                var settings = await LoadSettingsAsync(database, user.Id, cancellationToken);
+
+                return Results.Ok(new PaymentListResponse(
+                    year, [.. items.Select(row => ToResponse(row, IsBeforeRegistration(row, settings)))]));
             })
             .Produces<PaymentListResponse>()
             .ProducesValidationProblem()
@@ -77,7 +81,9 @@ public static class PaymentsEndpoints
                 database.BudgetPayments.Add(row);
                 await database.SaveChangesAsync(cancellationToken);
 
-                return Results.Created($"/api/payments/{row.Id}", ToResponse(row));
+                var settings = await LoadSettingsAsync(database, user.Id, cancellationToken);
+
+                return Results.Created($"/api/payments/{row.Id}", ToResponse(row, IsBeforeRegistration(row, settings)));
             })
             .Produces<PaymentResponse>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
@@ -112,7 +118,9 @@ public static class PaymentsEndpoints
                 Apply(row, request, DateTimeOffset.UtcNow);
                 await database.SaveChangesAsync(cancellationToken);
 
-                return Results.Ok(ToResponse(row));
+                var settings = await LoadSettingsAsync(database, user.Id, cancellationToken);
+
+                return Results.Ok(ToResponse(row, IsBeforeRegistration(row, settings)));
             })
             .Produces<PaymentResponse>()
             .ProducesValidationProblem()
@@ -173,7 +181,7 @@ public static class PaymentsEndpoints
         row.UpdatedAt = now;
     }
 
-    private static PaymentResponse ToResponse(BudgetPayment row) => new(
+    private static PaymentResponse ToResponse(BudgetPayment row, bool beforeRegistration) => new(
         row.Id,
         row.PaidOn,
         row.Kind,
@@ -181,7 +189,19 @@ public static class PaymentsEndpoints
         row.PeriodYear,
         row.PeriodQuarter,
         row.PeriodMonth,
-        row.Note);
+        row.Note,
+        beforeRegistration);
+
+    // The absent row answers with the defaults, as GET /api/settings does, so an owner who never saved
+    // settings is treated as having no registration date rather than as an error.
+    private static async Task<SettingsEntity> LoadSettingsAsync(
+        AppDbContext database, string userId, CancellationToken cancellationToken) =>
+        await database.Settings.FindAsync([userId], cancellationToken) ?? new SettingsEntity { UserId = userId };
+
+    // A soft warning only (Rule 8 does not govern payments): the payment is still saved and credited,
+    // the owner just gets flagged to double-check the date.
+    private static bool IsBeforeRegistration(BudgetPayment row, SettingsEntity settings) =>
+        settings.FopRegistrationDate is { } registrationDate && row.PaidOn < registrationDate;
 
     private static IResult Missing(Guid id) => Results.Problem(
         statusCode: StatusCodes.Status404NotFound,
@@ -265,6 +285,7 @@ internal sealed record PaymentResponse(
     int PeriodYear,
     int? PeriodQuarter,
     int? PeriodMonth,
-    string? Note);
+    string? Note,
+    bool BeforeRegistration);
 
 internal sealed record PaymentListResponse(int Year, PaymentResponse[] Items);

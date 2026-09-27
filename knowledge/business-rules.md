@@ -136,6 +136,10 @@ Advice for the owner: file the Group 3 application together with the registratio
 tax applies from the registration date. Otherwise the general tax system applies until the 1st of
 the following month.
 
+A budget payment whose `PaidOn` is before `FopRegistrationDate` is a different case: it is still
+saved and credited toward its kind's balance (unlike a receipt, a payment is never excluded), and
+the payments list only shows a soft warning on that row so the owner can double-check the date.
+
 ---
 
 ## Rule 9. Year parameters

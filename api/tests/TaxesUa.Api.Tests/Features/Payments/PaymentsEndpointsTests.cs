@@ -96,6 +96,48 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
     }
 
     [Fact]
+    public async Task A_payment_paid_before_the_registration_date_is_flagged_but_still_saved()
+    {
+        const int year = 2074;
+        using var client = await SignIn(fixture, ApiFixture.AllowedEmail);
+        await SetRegistrationDate(client, new DateOnly(year, 3, 1));
+
+        var before = await Post(
+            client, Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(year, 2, 1)));
+        var onOrAfter = await Post(
+            client, Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(year, 3, 1)));
+
+        Assert.True(before.BeforeRegistration);
+        Assert.False(onOrAfter.BeforeRegistration);
+
+        var listed = await List(client, year);
+        var byId = listed.Items.ToDictionary(item => item.Id);
+        Assert.True(byId[before.Id].BeforeRegistration);
+        Assert.False(byId[onOrAfter.Id].BeforeRegistration);
+
+        var edited = await client.PutAsJsonAsync(
+            $"/api/payments/{onOrAfter.Id}",
+            Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(year, 2, 15)),
+            Json);
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        var editedPayment = await edited.Content.ReadFromJsonAsync<PaymentResponse>(Json);
+        Assert.True(editedPayment!.BeforeRegistration);
+    }
+
+    [Fact]
+    public async Task A_payment_is_not_flagged_when_no_registration_date_is_set()
+    {
+        const int year = 2075;
+        using var client = await SignIn(fixture, ApiFixture.SecondAllowedEmail);
+        await SetRegistrationDate(client, null);
+
+        var payment = await Post(
+            client, Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(year, 1, 1)));
+
+        Assert.False(payment.BeforeRegistration);
+    }
+
+    [Fact]
     public async Task A_period_year_outside_the_supported_range_is_rejected()
     {
         using var client = await SignIn(fixture, ApiFixture.AllowedEmail);
