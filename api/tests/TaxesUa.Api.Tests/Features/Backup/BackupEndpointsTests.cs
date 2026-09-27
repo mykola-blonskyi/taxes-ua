@@ -147,8 +147,15 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "UAH with a rate source", "transactions[0].rateE4" },
         { "manual rate with a date", "transactions[1].rateDate" },
         { "invalid settings", "settings.locale" },
-        { "comma-joined currency", "transactions[1].currency" },
-        { "comma-joined weekend day", "settings.weekendDays" },
+        // StrictEnumJsonConverter rejects any comma-joined string outright, so these now fail while the
+        // file is parsed, before Validate ever sees a currency or weekendDays value to report a key
+        // for, the same way "numeric enum" below does.
+        { "comma-joined currency", null },
+        { "comma-joined weekend day", null },
+        // Income is 0 and RefundToClient is 1, so this is the exact string #53 reported: it used to
+        // silently store as RefundToClient instead of being rejected.
+        { "comma-joined transaction kind", null },
+        { "NUL in a client name", "clients[0].name" },
         { "null row", "file" },
         { "refunds linking each other", "transactions[2].refundsTransactionId" },
         { "NBU rate dated after the transaction", "transactions[1].rateDate" },
@@ -434,6 +441,12 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "comma-joined weekend day":
                 file["settings"]!["weekendDays"] = new JsonArray("Friday, Saturday");
+                break;
+            case "comma-joined transaction kind":
+                transactions[0]!["kind"] = "Income, RefundToClient";
+                break;
+            case "NUL in a client name":
+                file["clients"]![0]!["name"] = "Ann\u0000a";
                 break;
             case "null row":
                 file["clients"]!.AsArray().Add(null);

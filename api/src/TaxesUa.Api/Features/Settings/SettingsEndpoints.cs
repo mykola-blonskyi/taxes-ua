@@ -76,6 +76,14 @@ public static class SettingsEndpoints
         return routes;
     }
 
+    // The absent row answers with the defaults, as GET /api/settings does, so an owner who never saved
+    // settings is treated as having no registration date rather than as an error. Shared by every
+    // feature that only reads settings; TransactionsEndpoints and PaymentsEndpoints call this instead
+    // of each keeping their own copy.
+    internal static async Task<Settings> LoadOrDefaultAsync(
+        AppDbContext database, string userId, CancellationToken cancellationToken) =>
+        await database.Settings.FindAsync([userId], cancellationToken) ?? new Settings { UserId = userId };
+
     internal static void Apply(Settings settings, SettingsRequest request)
     {
         settings.FopRegistrationDate = request.FopRegistrationDate;

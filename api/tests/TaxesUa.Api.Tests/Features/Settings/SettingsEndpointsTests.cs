@@ -129,6 +129,27 @@ public sealed class SettingsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         await AssertRejectedWithoutStoring(body, expectedInBody: null);
     }
 
+    // Enum.TryParse ORs a comma-separated list of member names for any enum: FullMonth is 0 and
+    // Prorated is 1, so this string happens to equal the single defined value Prorated.
+    // StrictEnumJsonConverter must reject the string outright rather than silently store that value.
+    [Fact]
+    public async Task Put_rejects_a_comma_joined_esv_policy()
+    {
+        var body = Body();
+        body["esvRegistrationMonthPolicy"] = "FullMonth, Prorated";
+
+        await AssertRejectedWithoutStoring(body, expectedInBody: null);
+    }
+
+    [Fact]
+    public async Task Put_rejects_a_NUL_in_the_locale()
+    {
+        var body = Body();
+        body["locale"] = "u\u0000k";
+
+        await AssertRejectedWithoutStoring(body, "locale");
+    }
+
     [Theory]
     [InlineData("GET")]
     [InlineData("PUT")]
@@ -154,12 +175,7 @@ public sealed class SettingsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         using var document = JsonDocument.Parse(await client.GetStringAsync("/api/openapi/v1.json"));
 
         var schemas = document.RootElement.GetProperty("components").GetProperty("schemas");
-        foreach (var name in new[]
-                 {
-                     nameof(PaymentMode),
-                     nameof(EsvRegistrationMonthPolicy),
-                     nameof(DayOfWeek),
-                 })
+        foreach (var name in new[] { nameof(PaymentMode), nameof(EsvRegistrationMonthPolicy) })
         {
             var values = schemas.GetProperty(name).GetProperty("enum").EnumerateArray().ToArray();
             Assert.NotEmpty(values);
@@ -172,6 +188,17 @@ public sealed class SettingsEndpointsTests(ApiFixture fixture) : IClassFixture<A
                 .GetProperty("enum")
                 .EnumerateArray()
                 .Select(value => value.GetString()));
+
+        // DayOfWeek is a BCL enum reachable only as SettingsRequest.WeekendDays' element type, so
+        // System.Text.Json's schema exporter never gives it its own named component the way it does a
+        // project enum: it is described inline where it is used instead.
+        var weekendDays = schemas.GetProperty(nameof(SettingsRequest))
+            .GetProperty("properties")
+            .GetProperty("weekendDays");
+        var weekendDayValues = weekendDays.GetProperty("items").GetProperty("enum").EnumerateArray().ToArray();
+        Assert.NotEmpty(weekendDayValues);
+        Assert.All(weekendDayValues, value => Assert.Equal(JsonValueKind.String, value.ValueKind));
+        Assert.Contains(nameof(DayOfWeek.Sunday), weekendDayValues.Select(value => value.GetString()));
     }
 
     // Every rejected body is sent as the second owner, whose row no test writes, so "still no row" is

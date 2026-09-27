@@ -58,14 +58,6 @@ internal sealed record BackupDocument(
 
         var errors = new Dictionary<string, string[]>();
 
-        void Undefined(string prefix, IEnumerable<string> fields)
-        {
-            foreach (var field in fields)
-            {
-                errors[$"{prefix}.{field}"] = [$"{field} is not a known value."];
-            }
-        }
-
         void Merge(string prefix, Dictionary<string, string[]>? found)
         {
             foreach (var (key, messages) in found ?? [])
@@ -77,7 +69,6 @@ internal sealed record BackupDocument(
         if (Settings is { } settings)
         {
             Merge("settings", SettingsEndpoints.Validate(settings.ToRequest()));
-            Undefined("settings", settings.UndefinedEnums());
         }
 
         var clientNames = new Dictionary<Guid, string>();
@@ -95,6 +86,11 @@ internal sealed record BackupDocument(
             {
                 errors[$"clients[{i}].name"] =
                     [$"name must be 1 to {TransactionsEndpoints.MaxClientNameLength} characters."];
+            }
+            else if (TextRules.HasDisallowedControlChar(name))
+            {
+                errors[$"clients[{i}].name"] =
+                    ["name must not contain a NUL or other control character (tab, line feed and carriage return are allowed)."];
             }
             else if (!seenNames.Add(name))
             {
@@ -135,8 +131,6 @@ internal sealed record BackupDocument(
                 errors[$"{at}.refundsTransactionId"] = ["refundsTransactionId must be the id of an Income transaction."];
             }
 
-            Undefined(at, transaction.UndefinedEnums());
-
             var request = transaction.ToRequest(clientName);
             var requestErrors = TransactionsEndpoints.Validate(request, TransactionsEndpoints.Normalize(request), today);
             Merge(at, requestErrors);
@@ -157,10 +151,6 @@ internal sealed record BackupDocument(
             }
 
             Merge($"budgetPayments[{i}]", PaymentsEndpoints.Validate(payment.ToRequest()));
-            if (!Enum.IsDefined(payment.Kind))
-            {
-                Undefined($"budgetPayments[{i}]", ["kind"]);
-            }
         }
 
         return errors.Count == 0 ? null : errors;
@@ -203,25 +193,6 @@ internal sealed record SettingsBackup(
         Locale,
         Theme,
         DefaultCurrency);
-
-    // The enum converter accepts a comma list such as "Friday, Saturday" as a flags value no member has.
-    public IEnumerable<string> UndefinedEnums()
-    {
-        if (!Enum.IsDefined(PaymentMode))
-        {
-            yield return "paymentMode";
-        }
-
-        if (!Enum.IsDefined(EsvRegistrationMonthPolicy))
-        {
-            yield return "esvRegistrationMonthPolicy";
-        }
-
-        if (!WeekendDays.All(Enum.IsDefined))
-        {
-            yield return "weekendDays";
-        }
-    }
 
     public SettingsEntity ToEntity(string userId)
     {
@@ -309,24 +280,6 @@ internal sealed record TransactionBackup(
             ("amountUahKop", $"amountUahKop must be {Money.ToUahKop(AmountMinor, RateE4)}, amountMinor at rateE4."),
         _ => null,
     };
-
-    public IEnumerable<string> UndefinedEnums()
-    {
-        if (!Enum.IsDefined(Currency))
-        {
-            yield return "currency";
-        }
-
-        if (!Enum.IsDefined(Kind))
-        {
-            yield return "kind";
-        }
-
-        if (RateSource is { } source && !Enum.IsDefined(source))
-        {
-            yield return "rateSource";
-        }
-    }
 
     public Transaction ToEntity(string userId, Func<Guid, Guid> id)
     {
