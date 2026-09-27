@@ -82,48 +82,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["DashboardResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/auth/login/google": {
         parameters: {
             query?: never;
@@ -1802,24 +1760,15 @@ export interface components {
             id: string;
             name: string;
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         Currency: "UAH" | "USD" | "EUR";
-        DashboardResponse: {
-            /** Format: date */
-            today: string;
-            nextStep: components["schemas"]["NextStepResponse"];
-            credits: components["schemas"]["KindCreditResponse"][];
-            burden: null | components["schemas"]["TaxBurdenResponse"];
-        };
-        /** @enum {unknown} */
-        DayOfWeek: "Sunday" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday";
         Deadline: {
             /** Format: date */
             statutory: string;
             /** Format: date */
             due: string;
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         EsvRegistrationMonthPolicy: "FullMonth" | "Prorated";
         FxRateResponse: {
             currency: components["schemas"]["Currency"];
@@ -1841,29 +1790,6 @@ export interface components {
                 [key: string]: string[];
             };
         };
-        KindCreditResponse: {
-            kind: components["schemas"]["PaymentKind"];
-            /** Format: int64 */
-            creditKop: number | string;
-        };
-        KindDebtResponse: {
-            kind: components["schemas"]["PaymentKind"];
-            /** Format: int32 */
-            fromYear: number | string;
-            /** Format: int32 */
-            fromQuarter: number | string;
-            /** Format: int32 */
-            toYear: number | string;
-            /** Format: int32 */
-            toQuarter: number | string;
-            /** Format: int64 */
-            amountKop: number | string;
-            /** Format: date */
-            dueDate: string;
-            status: components["schemas"]["ObligationStatus"];
-            /** Format: int32 */
-            daysLeft: number | string;
-        };
         KindYearBalance: {
             /** Format: int64 */
             earlierOwedKop: number | string;
@@ -1883,17 +1809,6 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
-        NextStepResponse: {
-            state: components["schemas"]["NextStepState"];
-            /** Format: date */
-            registrationDate: null | string;
-            /** Format: int32 */
-            missingTaxYear: null | number | string;
-            now: components["schemas"]["KindDebtResponse"][];
-            later: components["schemas"]["KindDebtResponse"][];
-        };
-        /** @enum {unknown} */
-        NextStepState: "MissingTaxYear" | "RegistrationDateNotSet" | "BeforeRegistration" | "AllDone" | "Pay";
         ObligationResponse: {
             /** Format: int64 */
             accruedKop: number | string;
@@ -1905,19 +1820,19 @@ export interface components {
             dueDate: string;
             status: components["schemas"]["ObligationStatus"];
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         ObligationStatus: "Upcoming" | "Due" | "Overdue" | "Done";
         PasskeyCredentialSubmission: {
             credentialJson: null | string;
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         PaymentKind: "SingleTax" | "MilitaryLevy" | "Esv";
         PaymentListResponse: {
             /** Format: int32 */
             year: number | string;
             items: components["schemas"]["PaymentResponse"][];
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         PaymentMode: "Quarterly" | "MonthlyAdvance";
         PaymentRequest: {
             /** Format: date */
@@ -2007,7 +1922,7 @@ export interface components {
             deadlines: components["schemas"]["QuarterDeadlines"];
             obligations: null | components["schemas"]["QuarterObligations"];
         };
-        /** @enum {unknown} */
+        /** @enum {null|string} */
         RateSource: "Nbu" | "Manual" | null;
         ReceiptOption: {
             /** Format: uuid */
@@ -2044,7 +1959,7 @@ export interface components {
             esvExempt: boolean;
             taxPaymentCountsFromStatutoryDeclarationDate: boolean;
             shiftTaxPaymentFromWeekend: boolean;
-            weekendDays: components["schemas"]["DayOfWeek"][];
+            weekendDays: ("Sunday" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday")[];
             locale: string;
             theme: string;
             defaultCurrency: string;
@@ -2057,7 +1972,7 @@ export interface components {
             esvExempt: boolean;
             taxPaymentCountsFromStatutoryDeclarationDate: boolean;
             shiftTaxPaymentFromWeekend: boolean;
-            weekendDays: components["schemas"]["DayOfWeek"][];
+            weekendDays: ("Sunday" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday")[];
             locale: string;
             theme: string;
             defaultCurrency: string;
@@ -2070,18 +1985,10 @@ export interface components {
             esvExempt: boolean;
             taxPaymentCountsFromStatutoryDeclarationDate: boolean;
             shiftTaxPaymentFromWeekend: boolean;
-            weekendDays: components["schemas"]["DayOfWeek"][];
+            weekendDays: ("Sunday" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday")[];
             locale: string;
             theme: string;
             defaultCurrency: string;
-        };
-        TaxBurdenResponse: {
-            /** Format: int64 */
-            incomeKop: number | string;
-            /** Format: int64 */
-            taxKop: number | string;
-            /** Format: int64 */
-            rateBp: null | number | string;
         };
         TaxYearConfigRequest: {
             /** Format: int64 */
@@ -2169,7 +2076,7 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         TransactionKind: "Income" | "RefundToClient" | "OwnTransfer" | "FxSale" | "OwnDeposit" | "ErroneousReturn" | "OtherNonIncome";
         TransactionListResponse: {
             /** Format: int32 */

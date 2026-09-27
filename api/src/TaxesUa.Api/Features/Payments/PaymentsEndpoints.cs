@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Engine;
 using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
@@ -48,7 +49,7 @@ public static class PaymentsEndpoints
                     .ThenByDescending(row => row.CreatedAt)
                     .ToListAsync(cancellationToken);
 
-                var settings = await LoadSettingsAsync(database, user.Id, cancellationToken);
+                var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
 
                 return Results.Ok(new PaymentListResponse(
                     year, [.. items.Select(row => ToResponse(row, IsBeforeRegistration(row, settings)))]));
@@ -81,7 +82,7 @@ public static class PaymentsEndpoints
                 database.BudgetPayments.Add(row);
                 await database.SaveChangesAsync(cancellationToken);
 
-                var settings = await LoadSettingsAsync(database, user.Id, cancellationToken);
+                var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
 
                 return Results.Created($"/api/payments/{row.Id}", ToResponse(row, IsBeforeRegistration(row, settings)));
             })
@@ -118,7 +119,7 @@ public static class PaymentsEndpoints
                 Apply(row, request, DateTimeOffset.UtcNow);
                 await database.SaveChangesAsync(cancellationToken);
 
-                var settings = await LoadSettingsAsync(database, user.Id, cancellationToken);
+                var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
 
                 return Results.Ok(ToResponse(row, IsBeforeRegistration(row, settings)));
             })
@@ -198,12 +199,6 @@ public static class PaymentsEndpoints
         row.Note,
         beforeRegistration);
 
-    // The absent row answers with the defaults, as GET /api/settings does, so an owner who never saved
-    // settings is treated as having no registration date rather than as an error.
-    private static async Task<SettingsEntity> LoadSettingsAsync(
-        AppDbContext database, string userId, CancellationToken cancellationToken) =>
-        await database.Settings.FindAsync([userId], cancellationToken) ?? new SettingsEntity { UserId = userId };
-
     // A soft warning only (Rule 8 does not govern payments): the payment is still saved and credited,
     // the owner just gets flagged to double-check the date.
     private static bool IsBeforeRegistration(BudgetPayment row, SettingsEntity settings) =>
@@ -254,6 +249,11 @@ public static class PaymentsEndpoints
         if (Trim(request.Note) is { Length: > MaxNoteLength })
         {
             errors[Field(nameof(request.Note))] = [$"note must not exceed {MaxNoteLength} characters."];
+        }
+        else if (Trim(request.Note) is { } note && TextRules.HasDisallowedControlChar(note))
+        {
+            errors[Field(nameof(request.Note))] =
+                ["note must not contain a NUL or other control character (tab, line feed and carriage return are allowed)."];
         }
 
         return errors.Count == 0 ? null : errors;

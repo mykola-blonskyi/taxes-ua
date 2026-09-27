@@ -63,7 +63,18 @@ public static class TaxYearEndpoints
                 AppDbContext database,
                 CancellationToken cancellationToken) =>
             {
-                if (Validate(Bounds(year, request)) is { } errors)
+                var errors = Validate(Bounds(year, request));
+                if (TextRules.HasDisallowedControlChar(request.Source))
+                {
+                    errors ??= [];
+                    errors[JsonNamingPolicy.CamelCase.ConvertName(nameof(request.Source))] =
+                    [
+                        "source must not contain a NUL or other control character "
+                            + "(tab, line feed and carriage return are allowed).",
+                    ];
+                }
+
+                if (errors is not null)
                 {
                     return Results.ValidationProblem(errors);
                 }

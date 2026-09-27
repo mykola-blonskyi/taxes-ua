@@ -145,6 +145,17 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
     }
 
     [Fact]
+    public async Task Put_rejects_a_NUL_in_the_source()
+    {
+        using var client = await SignIn();
+
+        var response = await client.PutAsJsonAsync("/api/tax-years/2037", Request(source: "Law \u0000 42/2026"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("\"source\"", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Put_rejects_an_advance_day_the_following_month_may_not_have()
     {
         using var client = await SignIn();
@@ -381,7 +392,8 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         int esvDeadlineDay = 20,
         int declarationDays = 41,
         int taxPaymentDaysAfterDeclaration = 11,
-        int advanceRecommendedDay = 16) =>
+        int advanceRecommendedDay = 16,
+        string source = "a test source") =>
         new(
             minWageKop,
             singleTaxRateBp,
@@ -395,7 +407,7 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
             taxPaymentDaysAfterDeclaration,
             advanceRecommendedDay,
             [],
-            "a test source");
+            source);
 
     private async Task<HttpClient> SignIn()
     {

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Settings;
 using TaxesUa.Engine;
 using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
 
@@ -55,7 +56,7 @@ public static class TransactionsEndpoints
                     return Results.Unauthorized();
                 }
 
-                var settings = await LoadSettingsAsync(database, user.Id, cancellationToken);
+                var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
 
                 var rows = await database.Transactions
                     .Include(row => row.Client)
@@ -124,7 +125,7 @@ public static class TransactionsEndpoints
                 database.Transactions.Add(row);
                 await database.SaveChangesAsync(cancellationToken);
 
-                var settings = await LoadSettingsAsync(database, user.Id, cancellationToken);
+                var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
                 var beforeRegistration = IsBeforeRegistration(row, settings);
 
                 return Results.Created(
@@ -185,7 +186,7 @@ public static class TransactionsEndpoints
                 row.UpdatedAt = DateTimeOffset.UtcNow;
                 await database.SaveChangesAsync(cancellationToken);
 
-                var settings = await LoadSettingsAsync(database, user.Id, cancellationToken);
+                var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
                 var beforeRegistration = IsBeforeRegistration(row, settings);
 
                 return Results.Ok(ToResponse(row, normalized.ClientName, beforeRegistration));
@@ -291,12 +292,6 @@ public static class TransactionsEndpoints
 
         return routes;
     }
-
-    // The absent row answers with the defaults, as GET /api/settings does, so an owner who never saved
-    // settings is treated as having no registration date rather than as an error.
-    private static async Task<SettingsEntity> LoadSettingsAsync(
-        AppDbContext database, string userId, CancellationToken cancellationToken) =>
-        await database.Settings.FindAsync([userId], cancellationToken) ?? new SettingsEntity { UserId = userId };
 
     private static IResult Missing(Guid id) => Results.Problem(
         statusCode: StatusCodes.Status404NotFound,
@@ -570,6 +565,10 @@ public static class TransactionsEndpoints
             errors[Field(nameof(request.NonIncomeReason))] =
                 [$"nonIncomeReason must not exceed {MaxReasonLength} characters."];
         }
+        else if (normalized.NonIncomeReason is { } reason && TextRules.HasDisallowedControlChar(reason))
+        {
+            errors[Field(nameof(request.NonIncomeReason))] = [ControlCharMessage("nonIncomeReason")];
+        }
 
         if (request.RefundsTransactionId is not null && request.Kind != TransactionKind.RefundToClient)
         {
@@ -582,17 +581,29 @@ public static class TransactionsEndpoints
             errors[Field(nameof(request.ClientName))] =
                 [$"clientName must not exceed {MaxClientNameLength} characters."];
         }
+        else if (normalized.ClientName is { } clientName && TextRules.HasDisallowedControlChar(clientName))
+        {
+            errors[Field(nameof(request.ClientName))] = [ControlCharMessage("clientName")];
+        }
 
         if (normalized.InvoiceNumber is { Length: > MaxInvoiceNumberLength })
         {
             errors[Field(nameof(request.InvoiceNumber))] =
                 [$"invoiceNumber must not exceed {MaxInvoiceNumberLength} characters."];
         }
+        else if (normalized.InvoiceNumber is { } invoiceNumber && TextRules.HasDisallowedControlChar(invoiceNumber))
+        {
+            errors[Field(nameof(request.InvoiceNumber))] = [ControlCharMessage("invoiceNumber")];
+        }
 
         if (normalized.Description is { Length: > MaxDescriptionLength })
         {
             errors[Field(nameof(request.Description))] =
                 [$"description must not exceed {MaxDescriptionLength} characters."];
+        }
+        else if (normalized.Description is { } description && TextRules.HasDisallowedControlChar(description))
+        {
+            errors[Field(nameof(request.Description))] = [ControlCharMessage("description")];
         }
 
         return errors.Count == 0 ? null : errors;
@@ -602,6 +613,9 @@ public static class TransactionsEndpoints
     // from the member it is about. CamelCase is the policy JsonSerializerDefaults.Web applies to the
     // same member.
     private static string Field(string name) => JsonNamingPolicy.CamelCase.ConvertName(name);
+
+    private static string ControlCharMessage(string field) =>
+        $"{field} must not contain a NUL or other control character (tab, line feed and carriage return are allowed).";
 
     internal readonly record struct NormalizedText(
         string? NonIncomeReason,

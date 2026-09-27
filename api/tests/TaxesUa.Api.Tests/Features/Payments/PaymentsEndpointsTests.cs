@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -94,6 +96,41 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         await AssertErrorKey(response, "amountKop");
+    }
+
+    [Fact]
+    public async Task A_comma_joined_kind_is_rejected()
+    {
+        // Enum.TryParse ORs a comma-separated list of member names for any enum, so this string
+        // happens to equal the single defined value Esv. StrictEnumJsonConverter must reject the
+        // string outright rather than silently store that value.
+        using var client = await SignIn(fixture, ApiFixture.AllowedEmail);
+
+        var response = await client.PostAsync("/api/payments", RawBody(2076, "SingleTax, Esv", 1_000, quarter: 1));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task An_integer_kind_is_rejected()
+    {
+        using var client = await SignIn(fixture, ApiFixture.AllowedEmail);
+
+        var response = await client.PostAsync("/api/payments", RawBody(2076, "1", 1_000, quarter: 1, kindIsRaw: true));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_NUL_in_the_note_is_rejected()
+    {
+        using var client = await SignIn(fixture, ApiFixture.AllowedEmail);
+
+        var response = await client.PostAsJsonAsync(
+            "/api/payments", Body(2076, PaymentKind.Esv, 1_000, quarter: 1, note: "April\u0000 ESV"), Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await AssertErrorKey(response, "note");
     }
 
     [Fact]
@@ -407,6 +444,25 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         string? note = null,
         DateOnly? paidOn = null) =>
         new(paidOn ?? new DateOnly(year, 4, 15), kind, amountKop, year, quarter, month, note);
+
+    // A raw JSON body, kind as a string the compiler would not let PaymentRequest carry (a comma list
+    // or, with kindIsRaw, a bare number), so the strict enum binding can be exercised directly.
+    private static StringContent RawBody(
+        int year, string kind, long amountKop, int? quarter = null, int? month = null, bool kindIsRaw = false)
+    {
+        var node = new JsonObject
+        {
+            ["paidOn"] = new DateOnly(year, 4, 15).ToString("yyyy-MM-dd"),
+            ["kind"] = kindIsRaw ? JsonNode.Parse(kind) : kind,
+            ["amountKop"] = amountKop,
+            ["periodYear"] = year,
+            ["periodQuarter"] = quarter,
+            ["periodMonth"] = month,
+            ["note"] = null,
+        };
+
+        return new StringContent(node.ToJsonString(), Encoding.UTF8, "application/json");
+    }
 
     private static async Task<PaymentResponse> Post(HttpClient client, PaymentRequest body)
     {

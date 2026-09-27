@@ -1,9 +1,9 @@
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using TaxesUa.Api;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
@@ -57,10 +57,12 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     // web/ reads these shapes as TypeScript generated from the OpenAPI document, where a numeric enum
-    // arrives as a magic number instead of a string union. allowIntegerValues also defaults to true,
-    // and the number path checks no enum member, so `{"paymentMode": 77}` would otherwise be stored.
-    options.SerializerOptions.Converters.Add(
-        new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false));
+    // arrives as a magic number instead of a string union, and StrictEnumJsonConverter rejects a
+    // number outright. It also closes a gap JsonStringEnumConverter leaves open: Enum.TryParse accepts
+    // a comma-separated list of member names for any enum and ORs them, so a body naming two members
+    // (e.g. "Income, RefundToClient") would otherwise bind to whichever single member that combination
+    // happens to equal, silently storing the wrong value instead of failing.
+    options.SerializerOptions.Converters.Add(new StrictEnumJsonConverterFactory());
 
     // Both default to off, which lets a request body omit a non-nullable member and reach a handler
     // with null in it. On, the serializer answers 400 and no handler needs a null guard.
@@ -68,7 +70,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.RespectRequiredConstructorParameters = true;
 });
 
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options => options.AddSchemaTransformer<EnumSchemaTransformer>());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<AuditSaveChangesInterceptor>();
 builder.Services.AddDbContext<AppDbContext>((services, options) => options
