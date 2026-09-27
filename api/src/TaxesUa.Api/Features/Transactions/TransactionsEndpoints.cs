@@ -59,6 +59,7 @@ public static class TransactionsEndpoints
 
                 var rows = await database.Transactions
                     .Include(row => row.Client)
+                    .Include(row => row.RefundsTransaction)
                     .Where(row => row.UserId == user.Id
                         && row.ValueDate >= new DateOnly(year, 1, 1)
                         && row.ValueDate < new DateOnly(year + 1, 1, 1))
@@ -66,9 +67,10 @@ public static class TransactionsEndpoints
                     .ThenByDescending(row => row.CreatedAt)
                     .ToListAsync(cancellationToken);
 
-                var (totalIncomeKop, beforeRegistration) = RunLedger(year, rows, settings);
+                var totalIncomeKop = IncomeLedger.ForYear(
+                    year, rows.Select(row => row.ToEngineInput()).ToList(), settings.ToEngineInput()).TotalIncomeKop;
                 var items = rows
-                    .Select(row => ToResponse(row, row.Client?.Name, beforeRegistration.Contains(row.ValueDate)))
+                    .Select(row => ToResponse(row, row.Client?.Name, IsBeforeRegistration(row, settings)))
                     .ToArray();
 
                 return Results.Ok(new TransactionListResponse(
@@ -98,6 +100,11 @@ public static class TransactionsEndpoints
                     return Results.Unauthorized();
                 }
 
+                if (await ValidateLinksAsync(database, user.Id, null, request, cancellationToken) is { } linkErrors)
+                {
+                    return Results.ValidationProblem(linkErrors);
+                }
+
                 var row = new Transaction { Id = Guid.NewGuid(), UserId = user.Id };
                 if (await ApplyAmountAsync(row, request, rates, cancellationToken) is { } rateProblem)
                 {
@@ -108,6 +115,7 @@ public static class TransactionsEndpoints
                 row.ClientId = await ResolveClientAsync(database, user.Id, normalized.ClientName, cancellationToken);
                 row.Kind = request.Kind;
                 row.NonIncomeReason = normalized.NonIncomeReason;
+                row.RefundsTransaction = await FindReceiptAsync(database, request, cancellationToken);
                 row.InvoiceNumber = normalized.InvoiceNumber;
                 row.Description = normalized.Description;
                 row.CreatedAt = now;
@@ -155,6 +163,11 @@ public static class TransactionsEndpoints
                     return Missing(id);
                 }
 
+                if (await ValidateLinksAsync(database, user.Id, row, request, cancellationToken) is { } linkErrors)
+                {
+                    return Results.ValidationProblem(linkErrors);
+                }
+
                 if (await ApplyAmountAsync(row, request, rates, cancellationToken) is { } rateProblem)
                 {
                     return rateProblem;
@@ -163,6 +176,8 @@ public static class TransactionsEndpoints
                 row.ClientId = await ResolveClientAsync(database, user.Id, normalized.ClientName, cancellationToken);
                 row.Kind = request.Kind;
                 row.NonIncomeReason = normalized.NonIncomeReason;
+                row.RefundsTransactionId = request.RefundsTransactionId;
+                row.RefundsTransaction = await FindReceiptAsync(database, request, cancellationToken);
                 row.InvoiceNumber = normalized.InvoiceNumber;
                 row.Description = normalized.Description;
                 row.UpdatedAt = DateTimeOffset.UtcNow;
@@ -199,6 +214,14 @@ public static class TransactionsEndpoints
                     return Missing(id);
                 }
 
+                if (await database.Transactions.AnyAsync(
+                        t => t.UserId == user.Id && t.RefundsTransactionId == row.Id, cancellationToken))
+                {
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status409Conflict,
+                        title: "This receipt has linked refunds. Delete or unlink them first.");
+                }
+
                 database.Transactions.Remove(row);
                 await database.SaveChangesAsync(cancellationToken);
 
@@ -206,7 +229,37 @@ public static class TransactionsEndpoints
             })
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        transactions.MapGet("/receipts", async (
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                var receipts = await database.Transactions
+                    .Where(row => row.UserId == user.Id && row.Kind == TransactionKind.Income)
+                    .OrderByDescending(row => row.ValueDate)
+                    .ThenByDescending(row => row.CreatedAt)
+                    .Select(row => new ReceiptOption(
+                        row.Id,
+                        row.ValueDate,
+                        row.AmountMinor,
+                        row.Currency,
+                        row.Client == null ? null : row.Client.Name))
+                    .ToArrayAsync(cancellationToken);
+
+                return Results.Ok(receipts);
+            })
+            .Produces<ReceiptOption[]>()
+            .Produces(StatusCodes.Status401Unauthorized);
 
         routes.MapGroup("/clients")
             .WithTags("Transactions")
@@ -247,24 +300,103 @@ public static class TransactionsEndpoints
         statusCode: StatusCodes.Status404NotFound,
         title: $"No transaction exists with id {id}.");
 
-    // The one place a stored row's engine input is compiled and run, so the list, the create response
-    // and the update response can never diverge on Rule 1/Rule 8 (`IncomeLedger` owns both). The list
-    // needs the year's total on top of the flagged dates the other two callers use alone.
-    private static (long TotalIncomeKop, HashSet<DateOnly> FlaggedDates) RunLedger(
-        int year, IReadOnlyList<Transaction> rows, SettingsEntity settings)
-    {
-        var income = IncomeLedger.ForYear(
-            year, rows.Select(row => row.ToEngineInput()).ToList(), settings.ToEngineInput());
-        var flagged = income.Warnings
-            .OfType<EngineWarning.OperationBeforeRegistration>()
-            .Select(warning => warning.ValueDate)
-            .ToHashSet();
+    // Asks the same Rule 8 decision `IncomeLedger.ForYear` makes, so a row's flag and the list's total
+    // cannot disagree.
+    private static bool IsBeforeRegistration(Transaction row, SettingsEntity settings) =>
+        settings.FopRegistrationDate is { } registrationDate
+        && IncomeLedger.Exclusion(row.ToEngineInput(), registrationDate) is not null;
 
-        return (income.TotalIncomeKop, flagged);
+    // Validation already loaded the receipt into the context, so this is a lookup, not a query.
+    private static async Task<Transaction?> FindReceiptAsync(
+        AppDbContext database, TransactionRequest request, CancellationToken cancellationToken) =>
+        request.RefundsTransactionId is { } receiptId
+            ? await database.Transactions.FindAsync([receiptId], cancellationToken)
+            : null;
+
+    // Rule 8 follows a refund to its receipt, so a link has to point at a receipt that can carry it:
+    // the owner's own Income row in the refund's currency, not over-refunded (compared in that
+    // currency's minor units), and not turned into something else later.
+    private static async Task<Dictionary<string, string[]>?> ValidateLinksAsync(
+        AppDbContext database,
+        string userId,
+        Transaction? row,
+        TransactionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var errors = new Dictionary<string, string[]>();
+        var editedId = row?.Id;
+
+        if (request.RefundsTransactionId is { } receiptId)
+        {
+            // The edited row is still Income in the database, so without the id check it could link
+            // to itself on the way to becoming a refund.
+            var receipt = await database.Transactions.FirstOrDefaultAsync(
+                t => t.Id == receiptId
+                    && t.Id != editedId
+                    && t.UserId == userId
+                    && t.Kind == TransactionKind.Income,
+                cancellationToken);
+            if (receipt is null)
+            {
+                errors[Field(nameof(request.RefundsTransactionId))] =
+                    ["refundsTransactionId must be one of your receipts."];
+            }
+            else if (request.Currency != receipt.Currency)
+            {
+                errors[Field(nameof(request.RefundsTransactionId))] =
+                    [$"A refund of a {receipt.Currency} receipt must be in {receipt.Currency}."];
+            }
+            else
+            {
+                var refundedMinor = await LinkedRefundsMinorAsync(
+                    database, userId, receiptId, editedId, cancellationToken);
+                if (refundedMinor + request.AmountMinor > receipt.AmountMinor)
+                {
+                    errors[Field(nameof(request.RefundsTransactionId))] =
+                    [
+                        $"Refunds linked to this receipt would total {refundedMinor + request.AmountMinor}, "
+                        + $"more than its amount {receipt.AmountMinor}.",
+                    ];
+                }
+            }
+        }
+
+        var linkedMinor = row is null
+            ? 0
+            : await LinkedRefundsMinorAsync(database, userId, row.Id, null, cancellationToken);
+        if (row is not null && linkedMinor > 0)
+        {
+            if (request.Kind != TransactionKind.Income)
+            {
+                errors[Field(nameof(request.Kind))] =
+                    ["kind must stay Income while refunds are linked to this receipt."];
+            }
+            else if (request.Currency != row.Currency)
+            {
+                errors[Field(nameof(request.Currency))] =
+                    ["currency must stay the same while refunds are linked to this receipt."];
+            }
+            else if (request.AmountMinor < linkedMinor)
+            {
+                errors[Field(nameof(request.AmountMinor))] =
+                    [$"amountMinor must be at least {linkedMinor}, the total of the refunds linked to this receipt."];
+            }
+        }
+
+        return errors.Count == 0 ? null : errors;
     }
 
-    private static bool IsBeforeRegistration(Transaction row, SettingsEntity settings) =>
-        RunLedger(row.ValueDate.Year, [row], settings).FlaggedDates.Contains(row.ValueDate);
+    private static Task<long> LinkedRefundsMinorAsync(
+        AppDbContext database,
+        string userId,
+        Guid receiptId,
+        Guid? excludedRefundId,
+        CancellationToken cancellationToken) =>
+        database.Transactions
+            .Where(t => t.UserId == userId
+                && t.RefundsTransactionId == receiptId
+                && t.Id != excludedRefundId)
+            .SumAsync(t => t.AmountMinor, cancellationToken);
 
     // The one place POST and PUT fix the rate (Rule 2), so the two cannot diverge. It runs before any
     // other change to the row or the context, since FxRates saves its cache row with its own
@@ -369,7 +501,10 @@ public static class TransactionsEndpoints
             clientName,
             row.InvoiceNumber,
             row.Description,
-            beforeRegistration);
+            beforeRegistration,
+            row.RefundsTransaction is { } receipt
+                ? new RefundedReceipt(receipt.Id, receipt.ValueDate, receipt.AmountMinor, receipt.Currency)
+                : null);
 
     private static Dictionary<string, string[]> YearOutOfRange() => new()
     {
@@ -424,6 +559,12 @@ public static class TransactionsEndpoints
                 [$"nonIncomeReason must not exceed {MaxReasonLength} characters."];
         }
 
+        if (request.RefundsTransactionId is not null && request.Kind != TransactionKind.RefundToClient)
+        {
+            errors[Field(nameof(request.RefundsTransactionId))] =
+                ["refundsTransactionId is allowed only on a refund to a client."];
+        }
+
         if (normalized.ClientName is { Length: > MaxClientNameLength })
         {
             errors[Field(nameof(request.ClientName))] =
@@ -466,7 +607,8 @@ internal sealed record TransactionRequest(
     string? NonIncomeReason,
     string? ClientName,
     string? InvoiceNumber,
-    string? Description);
+    string? Description,
+    Guid? RefundsTransactionId);
 
 internal sealed record TransactionResponse(
     Guid Id,
@@ -482,7 +624,17 @@ internal sealed record TransactionResponse(
     string? ClientName,
     string? InvoiceNumber,
     string? Description,
-    bool BeforeRegistration);
+    bool BeforeRegistration,
+    RefundedReceipt? RefundsReceipt);
+
+internal sealed record RefundedReceipt(Guid Id, DateOnly ValueDate, long AmountMinor, Currency Currency);
+
+internal sealed record ReceiptOption(
+    Guid Id,
+    DateOnly ValueDate,
+    long AmountMinor,
+    Currency Currency,
+    string? ClientName);
 
 internal sealed record TransactionListResponse(
     int Year,

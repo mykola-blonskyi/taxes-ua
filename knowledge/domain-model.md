@@ -101,12 +101,18 @@ Fields:
 - `Kind: Income | RefundToClient | OwnTransfer | FxSale | OwnDeposit | ErroneousReturn |
   OtherNonIncome`.
 - `NonIncomeReason?` text for a non-income entry.
+- `RefundsTransactionId?` the receipt a `RefundToClient` reverses: a nullable self-reference, set
+  only on `RefundToClient` and only to the same owner's `Income` row in the refund's currency. The
+  refunds linked to one receipt total at most its `AmountMinor`, compared in that currency, not in
+  hryvnia. A receipt with linked refunds cannot be deleted and keeps its kind (`Income`) and
+  currency.
 - `ClientId?`, `InvoiceId?`, `InvoiceNumber?`, `Description`, `Counterparty`.
 - `ExternalId?` the bank's transaction ID, unique together with `BankAccountId`.
 - `ImportBatchId?`, `ReviewStatus: Confirmed | NeedsReview`.
 - `CreatedAt`, `UpdatedAt`.
 
-Rule: period income includes `Income` with a plus sign and `RefundToClient` with a minus sign.
+Rule: period income includes `Income` with a plus sign and `RefundToClient` with a minus sign. A
+linked refund is excluded with its receipt (Rule 8).
 
 Relationships: belongs to `User`, optionally `BankAccount`, `Client`, `Invoice`, `ImportBatch`.
 

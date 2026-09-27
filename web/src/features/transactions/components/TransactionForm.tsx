@@ -7,15 +7,16 @@ import { currencies, useFxRate, type Currency } from "@/data/fx/useFxRate";
 import {
   useClients,
   useCreateTransaction,
+  useReceipts,
   useUpdateTransaction,
   type TransactionKind,
   type TransactionRequest,
   type TransactionResponse,
 } from "@/data/transactions/useTransactions";
-import { formatMinor, formatMoney, parseHryvnia, parseRate, toUahKop } from "@/shared/lib/money";
+import { formatAmount, formatMinor, formatMoney, parseHryvnia, parseRate, toUahKop } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
 import { SelectField, TextField } from "@/shared/ui/fields";
-import { formatNumericDate } from "../dates";
+import { formatDateOnly, formatNumericDate } from "../dates";
 import { isNonIncomeKind, kindOptions } from "../kinds";
 
 function todayInKyiv(): string {
@@ -45,6 +46,7 @@ type FormState = {
   kind: TransactionKind;
   nonIncomeReason: string;
   clientName: string;
+  refundsTransactionId: string;
   invoiceNumber: string;
   description: string;
 };
@@ -58,6 +60,7 @@ function emptyForm(): FormState {
     kind: "Income",
     nonIncomeReason: "",
     clientName: "",
+    refundsTransactionId: "",
     invoiceNumber: "",
     description: "",
   };
@@ -75,6 +78,7 @@ function toFormState(transaction: TransactionResponse): FormState {
     kind: transaction.kind,
     nonIncomeReason: transaction.nonIncomeReason ?? "",
     clientName: transaction.clientName ?? "",
+    refundsTransactionId: transaction.refundsReceipt?.id ?? "",
     invoiceNumber: transaction.invoiceNumber ?? "",
     description: transaction.description ?? "",
   };
@@ -100,6 +104,7 @@ export function TransactionForm({
   const tCurrencies = useTranslations("transactions.currencies");
   const locale = useLocale();
   const { data: clients } = useClients();
+  const { data: receipts } = useReceipts();
   const createTransaction = useCreateTransaction();
   const updateTransaction = useUpdateTransaction();
 
@@ -167,6 +172,25 @@ export function TransactionForm({
     return fieldErrors?.manualRateE4;
   }
 
+  const refund = form.kind === "RefundToClient";
+  const clientFilter = form.clientName.trim();
+  const receiptOptions = (receipts ?? [])
+    .filter(
+      (receipt) =>
+        receipt.id === form.refundsTransactionId ||
+        (receipt.currency === form.currency && (clientFilter === "" || receipt.clientName === clientFilter)),
+    )
+    .map((receipt) => ({
+      value: receipt.id,
+      label: [
+        formatDateOnly(receipt.valueDate, locale),
+        formatAmount(Number(receipt.amountMinor), receipt.currency, locale),
+        receipt.clientName,
+      ]
+        .filter(Boolean)
+        .join(", "),
+    }));
+
   function submit() {
     if (parsedAmount === null || missingRate) {
       return;
@@ -180,6 +204,7 @@ export function TransactionForm({
       kind: form.kind,
       nonIncomeReason: nonIncome ? orNull(form.nonIncomeReason) : null,
       clientName: orNull(form.clientName),
+      refundsTransactionId: refund && form.refundsTransactionId !== "" ? form.refundsTransactionId : null,
       invoiceNumber: orNull(form.invoiceNumber),
       description: orNull(form.description),
     };
@@ -323,6 +348,17 @@ export function TransactionForm({
             <option key={client} value={client} />
           ))}
         </datalist>
+
+        {refund ? (
+          <SelectField
+            id="transaction-refunds-receipt"
+            label={t("refundsReceipt")}
+            value={form.refundsTransactionId}
+            onChange={(value) => setForm((current) => ({ ...current, refundsTransactionId: value }))}
+            options={[{ value: "", label: t("refundsReceiptNone") }, ...receiptOptions]}
+            errors={fieldErrors?.refundsTransactionId}
+          />
+        ) : null}
 
         <TextField
           id="transaction-invoice-number"

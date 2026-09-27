@@ -179,21 +179,96 @@ public sealed class CurrencyReceiptsTests(ApiFixture fixture) : IClassFixture<Ap
         Assert.Empty(nbu.Requests);
     }
 
+    [Fact]
+    public async Task A_linked_refund_is_capped_in_the_receipts_own_currency_not_in_hryvnia()
+    {
+        var nbu = StubNbuHandler.ByDate(new Dictionary<string, string>());
+        await using var application = fixture.CreateApplication(nbu, Today);
+        using var client = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var receipt = await Created(client, Body(Currency.USD, 10_000, new DateOnly(2038, 2, 2), manualRateE4: 400_000));
+
+        // At the higher refund-day rate each refund is worth more hryvnia than its share of the
+        // receipt, so only a comparison in dollars lets exactly 100.00 USD through.
+        var first = await client.PostAsJsonAsync("/api/transactions", Refund(Currency.USD, 6_000, receipt.Id), Json);
+        var rest = await client.PostAsJsonAsync("/api/transactions", Refund(Currency.USD, 4_000, receipt.Id), Json);
+        var over = await client.PostAsJsonAsync("/api/transactions", Refund(Currency.USD, 1, receipt.Id), Json);
+
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, rest.StatusCode);
+        await AssertRejected(over, "refundsTransactionId");
+    }
+
+    [Fact]
+    public async Task A_refund_in_another_currency_cannot_link_to_the_receipt()
+    {
+        var nbu = StubNbuHandler.ByDate(new Dictionary<string, string>());
+        await using var application = fixture.CreateApplication(nbu, Today);
+        using var client = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var uahReceipt = await Created(client, Body(Currency.UAH, 1_000_000, new DateOnly(2038, 3, 3)));
+
+        var response = await client.PostAsJsonAsync(
+            "/api/transactions", Refund(Currency.USD, 1_000, uahReceipt.Id), Json);
+
+        await AssertRejected(response, "refundsTransactionId");
+    }
+
+    [Fact]
+    public async Task A_receipt_with_linked_refunds_keeps_its_currency()
+    {
+        var nbu = StubNbuHandler.ByDate(new Dictionary<string, string>());
+        await using var application = fixture.CreateApplication(nbu, Today);
+        using var client = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var valueDate = new DateOnly(2038, 4, 4);
+        var receipt = await Created(client, Body(Currency.USD, 10_000, valueDate, manualRateE4: 400_000));
+        await Created(client, Refund(Currency.USD, 1_000, receipt.Id));
+
+        var response = await client.PutAsJsonAsync(
+            $"/api/transactions/{receipt.Id}", Body(Currency.EUR, 10_000, valueDate, manualRateE4: 450_000), Json);
+
+        await AssertRejected(response, "currency");
+    }
+
+    private static Dictionary<string, object?> Refund(Currency currency, long amountMinor, Guid receiptId) =>
+        Body(
+            currency,
+            amountMinor,
+            new DateOnly(2038, 5, 5),
+            manualRateE4: currency == Currency.UAH ? null : 450_000,
+            kind: TransactionKind.RefundToClient,
+            refundsTransactionId: receiptId);
+
+    private static async Task<TransactionResponse> Created(HttpClient client, Dictionary<string, object?> body)
+    {
+        var response = await client.PostAsJsonAsync("/api/transactions", body, Json);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<TransactionResponse>(Json))!;
+    }
+
+    private static async Task AssertRejected(HttpResponseMessage response, string key)
+    {
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.True(document.RootElement.GetProperty("errors").TryGetProperty(key, out _));
+    }
+
     private static Dictionary<string, object?> Body(
         Currency currency,
         long amountMinor,
         DateOnly valueDate,
         int? manualRateE4 = null,
-        string? description = null) => new()
+        string? description = null,
+        TransactionKind kind = TransactionKind.Income,
+        Guid? refundsTransactionId = null) => new()
     {
         ["valueDate"] = valueDate.ToString("yyyy-MM-dd"),
         ["amountMinor"] = amountMinor,
         ["currency"] = currency.ToString(),
         ["manualRateE4"] = manualRateE4,
-        ["kind"] = nameof(TransactionKind.Income),
+        ["kind"] = kind.ToString(),
         ["nonIncomeReason"] = null,
         ["clientName"] = null,
         ["invoiceNumber"] = null,
         ["description"] = description,
+        ["refundsTransactionId"] = refundsTransactionId,
     };
 }

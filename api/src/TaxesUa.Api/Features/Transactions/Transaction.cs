@@ -33,6 +33,10 @@ internal sealed class Transaction
 
     public Client? Client { get; set; }
 
+    public Guid? RefundsTransactionId { get; set; }
+
+    public Transaction? RefundsTransaction { get; set; }
+
     public string? InvoiceNumber { get; set; }
 
     public string? Description { get; set; }
@@ -44,9 +48,17 @@ internal sealed class Transaction
     public TransactionInput ToEngineInput() => Kind switch
     {
         TransactionKind.Income => new TransactionInput.Income(ValueDate, AmountUahKop),
-        TransactionKind.RefundToClient => new TransactionInput.RefundToClient(ValueDate, AmountUahKop),
+        TransactionKind.RefundToClient =>
+            new TransactionInput.RefundToClient(ValueDate, AmountUahKop, RefundedReceiptValueDate()),
         _ => new TransactionInput.NonIncome(ValueDate, AmountUahKop, ToNonIncomeKind(Kind), NonIncomeReason!),
     };
+
+    // A link whose receipt was not loaded would silently count a refund Rule 8 excludes, and a wrong
+    // tax figure is worse than a crash.
+    private DateOnly? RefundedReceiptValueDate() => RefundsTransactionId is null
+        ? null
+        : RefundsTransaction?.ValueDate ?? throw new InvalidOperationException(
+            $"Transaction {Id} links receipt {RefundsTransactionId} but it was not loaded.");
 
     private static NonIncomeKind ToNonIncomeKind(TransactionKind kind) => kind switch
     {

@@ -21,6 +21,14 @@ public abstract record EngineWarning
         DateOnly FopRegistrationDate) : EngineWarning;
 
     /// <summary>
+    /// Rule 8: the refund reverses a receipt that predates the FOP, so it is excluded with it.
+    /// </summary>
+    public sealed record RefundOfReceiptBeforeRegistration(
+        DateOnly ValueDate,
+        DateOnly ReceiptValueDate,
+        DateOnly FopRegistrationDate) : EngineWarning;
+
+    /// <summary>
     /// Rule 8: without a registration date there are no obligations at all, which is why every
     /// figure of the year comes back zero.
     /// </summary>

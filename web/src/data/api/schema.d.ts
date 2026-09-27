@@ -1033,8 +1033,59 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/transactions/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReceiptOption"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1218,6 +1269,25 @@ export interface components {
         };
         /** @enum {unknown} */
         RateSource: "Nbu" | "Manual" | null;
+        ReceiptOption: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            valueDate: string;
+            /** Format: int64 */
+            amountMinor: number | string;
+            currency: components["schemas"]["Currency"];
+            clientName: null | string;
+        };
+        RefundedReceipt: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            valueDate: string;
+            /** Format: int64 */
+            amountMinor: number | string;
+            currency: components["schemas"]["Currency"];
+        };
         SettingsRequest: {
             /** Format: date */
             fopRegistrationDate: null | string;
@@ -1326,6 +1396,8 @@ export interface components {
             clientName: null | string;
             invoiceNumber: null | string;
             description: null | string;
+            /** Format: uuid */
+            refundsTransactionId: null | string;
         };
         TransactionResponse: {
             /** Format: uuid */
@@ -1348,6 +1420,7 @@ export interface components {
             invoiceNumber: null | string;
             description: null | string;
             beforeRegistration: boolean;
+            refundsReceipt: null | components["schemas"]["RefundedReceipt"];
         };
     };
     responses: never;

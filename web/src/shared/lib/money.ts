@@ -53,6 +53,10 @@ export function formatMinor(amountMinor: number, currency: string, locale: strin
   return `${formatted} ${currency}`;
 }
 
+export function formatAmount(amountMinor: number, currency: string, locale: string) {
+  return currency === "UAH" ? formatMoney(amountMinor, locale) : formatMinor(amountMinor, currency, locale);
+}
+
 export const maxRateE4 = 10_000_000;
 
 // Like parseHryvnia: rateE4 (rate × 10^4) is assembled from the digit strings, never from a float.

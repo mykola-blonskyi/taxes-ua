@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Transactions;
 using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
 
@@ -252,6 +253,203 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
         await AssertErrorKey(response, "year");
     }
 
+    [Fact]
+    public async Task A_refund_linked_to_a_receipt_names_it_and_still_reduces_income()
+    {
+        const int year = 2031;
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+        var receipt = await Create(client, amountMinor: 50_000, valueDate: new DateOnly(year, 2, 1));
+
+        var refund = await Create(
+            client,
+            kind: TransactionKind.RefundToClient,
+            amountMinor: 20_000,
+            valueDate: new DateOnly(year, 3, 1),
+            refundsTransactionId: receipt.Id);
+
+        var expected = new RefundedReceipt(receipt.Id, receipt.ValueDate, 50_000, Currency.UAH);
+        Assert.Equal(expected, refund.RefundsReceipt);
+        var listed = await client.GetFromJsonAsync<TransactionListResponse>(
+            $"/api/transactions?year={year}", Json);
+        Assert.Equal(30_000, listed!.TotalIncomeKop);
+        Assert.Equal(expected, listed.Items.Single(item => item.Id == refund.Id).RefundsReceipt);
+    }
+
+    [Fact]
+    public async Task A_refund_of_a_receipt_before_registration_does_not_count_whatever_its_own_date()
+    {
+        const int year = 2027;
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+        await SetFopRegistrationDate(FopRegistrationDate);
+        var receipt = await Create(client, amountMinor: 10_000_000, valueDate: new DateOnly(2017, 2, 10));
+        var refund = await Create(
+            client,
+            kind: TransactionKind.RefundToClient,
+            amountMinor: 10_000_000,
+            valueDate: new DateOnly(year, 4, 15),
+            refundsTransactionId: receipt.Id);
+        var sameDayIncome = await Create(client, amountMinor: 40_000, valueDate: new DateOnly(year, 4, 15));
+
+        var listed = await client.GetFromJsonAsync<TransactionListResponse>(
+            $"/api/transactions?year={year}", Json);
+
+        Assert.Equal(40_000, listed!.TotalIncomeKop);
+        var byId = listed.Items.ToDictionary(item => item.Id);
+        Assert.True(byId[refund.Id].BeforeRegistration);
+        Assert.Equal(receipt.Id, byId[refund.Id].RefundsReceipt?.Id);
+        Assert.False(byId[sameDayIncome.Id].BeforeRegistration);
+    }
+
+    [Fact]
+    public async Task A_link_on_anything_but_a_refund_is_rejected()
+    {
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+        var receipt = await Create(client, valueDate: new DateOnly(2035, 1, 1));
+        var body = Body(valueDate: new DateOnly(2035, 1, 2), refundsTransactionId: receipt.Id);
+
+        var response = await client.PostAsJsonAsync("/api/transactions", body, Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await AssertErrorKey(response, "refundsTransactionId");
+    }
+
+    [Fact]
+    public async Task A_link_to_another_owners_receipt_to_a_refund_or_to_itself_is_rejected()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        using var other = await SignIn(ApiFixture.SecondAllowedEmail);
+        var othersReceipt = await Create(other, valueDate: new DateOnly(2035, 2, 1));
+        var ownRefund = await Create(owner, kind: TransactionKind.RefundToClient, valueDate: new DateOnly(2035, 2, 2));
+        var ownReceipt = await Create(owner, valueDate: new DateOnly(2035, 2, 3));
+
+        foreach (var target in new[] { othersReceipt.Id, ownRefund.Id })
+        {
+            var body = RefundBody(valueDate: new DateOnly(2035, 2, 4), refundsTransactionId: target);
+
+            var response = await owner.PostAsJsonAsync("/api/transactions", body, Json);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            await AssertErrorKey(response, "refundsTransactionId");
+        }
+
+        var selfLink = await owner.PutAsJsonAsync(
+            $"/api/transactions/{ownReceipt.Id}",
+            RefundBody(valueDate: new DateOnly(2035, 2, 3), refundsTransactionId: ownReceipt.Id),
+            Json);
+        Assert.Equal(HttpStatusCode.BadRequest, selfLink.StatusCode);
+        await AssertErrorKey(selfLink, "refundsTransactionId");
+    }
+
+    [Fact]
+    public async Task Refunds_linked_to_one_receipt_cannot_add_up_to_more_than_it()
+    {
+        const int year = 2032;
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+        var receipt = await Create(client, amountMinor: 10_000, valueDate: new DateOnly(year, 1, 1));
+        var first = await Create(
+            client,
+            kind: TransactionKind.RefundToClient,
+            amountMinor: 6_000,
+            valueDate: new DateOnly(year, 1, 2),
+            refundsTransactionId: receipt.Id);
+
+        var over = await client.PostAsJsonAsync(
+            "/api/transactions",
+            RefundBody(amountMinor: 5_000, valueDate: new DateOnly(year, 1, 3), refundsTransactionId: receipt.Id),
+            Json);
+        var firstGrownToTheWholeReceipt = await client.PutAsJsonAsync(
+            $"/api/transactions/{first.Id}",
+            RefundBody(amountMinor: 10_000, valueDate: new DateOnly(year, 1, 2), refundsTransactionId: receipt.Id),
+            Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, over.StatusCode);
+        await AssertErrorKey(over, "refundsTransactionId");
+        Assert.Equal(HttpStatusCode.OK, firstGrownToTheWholeReceipt.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_receipt_with_linked_refunds_stays_income_and_covers_them()
+    {
+        const int year = 2033;
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+        var receipt = await Create(client, amountMinor: 10_000, valueDate: new DateOnly(year, 1, 1));
+        await Create(
+            client,
+            kind: TransactionKind.RefundToClient,
+            amountMinor: 6_000,
+            valueDate: new DateOnly(year, 1, 2),
+            refundsTransactionId: receipt.Id);
+        var url = $"/api/transactions/{receipt.Id}";
+        var date = new DateOnly(year, 1, 1);
+
+        var kindChanged = await client.PutAsJsonAsync(
+            url,
+            Body(kind: TransactionKind.OwnDeposit, amountMinor: 10_000, valueDate: date, nonIncomeReason: "own funds"),
+            Json);
+        var shrunkBelowRefunds = await client.PutAsJsonAsync(url, Body(amountMinor: 5_999, valueDate: date), Json);
+        var shrunkToRefunds = await client.PutAsJsonAsync(url, Body(amountMinor: 6_000, valueDate: date), Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, kindChanged.StatusCode);
+        await AssertErrorKey(kindChanged, "kind");
+        Assert.Equal(HttpStatusCode.BadRequest, shrunkBelowRefunds.StatusCode);
+        await AssertErrorKey(shrunkBelowRefunds, "amountMinor");
+        Assert.Equal(HttpStatusCode.OK, shrunkToRefunds.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_receipt_with_a_linked_refund_cannot_be_deleted_until_it_is_unlinked()
+    {
+        const int year = 2034;
+        using var client = await SignIn(ApiFixture.AllowedEmail);
+        var receipt = await Create(client, amountMinor: 10_000, valueDate: new DateOnly(year, 1, 1));
+        var refund = await Create(
+            client,
+            kind: TransactionKind.RefundToClient,
+            amountMinor: 1_000,
+            valueDate: new DateOnly(year, 1, 2),
+            refundsTransactionId: receipt.Id);
+
+        var rejected = await client.DeleteAsync($"/api/transactions/{receipt.Id}");
+
+        Assert.Equal(HttpStatusCode.Conflict, rejected.StatusCode);
+        var listed = await client.GetFromJsonAsync<TransactionListResponse>(
+            $"/api/transactions?year={year}", Json);
+        Assert.Contains(listed!.Items, item => item.Id == receipt.Id);
+
+        var unlinked = await client.PutAsJsonAsync(
+            $"/api/transactions/{refund.Id}",
+            RefundBody(amountMinor: 1_000, valueDate: new DateOnly(year, 1, 2)),
+            Json);
+        Assert.Equal(HttpStatusCode.OK, unlinked.StatusCode);
+        Assert.Null((await unlinked.Content.ReadFromJsonAsync<TransactionResponse>(Json))!.RefundsReceipt);
+
+        var deleted = await client.DeleteAsync($"/api/transactions/{receipt.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+    }
+
+    [Fact]
+    public async Task Receipts_lists_only_the_owners_income_rows()
+    {
+        const int year = 2036;
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        using var other = await SignIn(ApiFixture.SecondAllowedEmail);
+        var receipt = await Create(owner, valueDate: new DateOnly(year, 1, 1), clientName: "Initech");
+        var refund = await Create(owner, kind: TransactionKind.RefundToClient, valueDate: new DateOnly(year, 1, 2));
+        var deposit = await Create(
+            owner, kind: TransactionKind.OwnDeposit, valueDate: new DateOnly(year, 1, 3), nonIncomeReason: "own funds");
+        var othersReceipt = await Create(other, valueDate: new DateOnly(year, 1, 4));
+
+        var receipts = await owner.GetFromJsonAsync<ReceiptOption[]>("/api/transactions/receipts", Json);
+
+        Assert.NotNull(receipts);
+        Assert.Contains(
+            new ReceiptOption(receipt.Id, receipt.ValueDate, receipt.AmountMinor, Currency.UAH, "Initech"),
+            receipts);
+        Assert.DoesNotContain(
+            receipts,
+            option => option.Id == refund.Id || option.Id == deposit.Id || option.Id == othersReceipt.Id);
+    }
+
     private static async Task AssertErrorKey(HttpResponseMessage response, string key)
     {
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -264,14 +462,16 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
         long amountMinor = 10_000,
         DateOnly? valueDate = null,
         string? nonIncomeReason = null,
-        string? clientName = null)
+        string? clientName = null,
+        Guid? refundsTransactionId = null)
     {
         var body = Body(
             kind: kind,
             amountMinor: amountMinor,
             valueDate: valueDate ?? new DateOnly(2030, 1, 1),
             nonIncomeReason: nonIncomeReason,
-            clientName: clientName);
+            clientName: clientName,
+            refundsTransactionId: refundsTransactionId);
 
         var response = await client.PostAsJsonAsync("/api/transactions", body, Json);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
@@ -306,7 +506,8 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
         string? nonIncomeReason = null,
         string? clientName = null,
         string? invoiceNumber = null,
-        string? description = null) => new()
+        string? description = null,
+        Guid? refundsTransactionId = null) => new()
     {
         ["valueDate"] = (valueDate == default ? new DateOnly(2030, 1, 1) : valueDate).ToString("yyyy-MM-dd"),
         ["amountMinor"] = amountMinor,
@@ -317,7 +518,16 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
         ["clientName"] = clientName,
         ["invoiceNumber"] = invoiceNumber,
         ["description"] = description,
+        ["refundsTransactionId"] = refundsTransactionId,
     };
+
+    private static Dictionary<string, object?> RefundBody(
+        long amountMinor = 10_000, DateOnly valueDate = default, Guid? refundsTransactionId = null) =>
+        Body(
+            kind: TransactionKind.RefundToClient,
+            amountMinor: amountMinor,
+            valueDate: valueDate,
+            refundsTransactionId: refundsTransactionId);
 
     private async Task<HttpClient> SignIn(string email)
     {

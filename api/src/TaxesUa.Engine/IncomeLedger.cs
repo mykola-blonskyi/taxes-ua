@@ -52,8 +52,12 @@ public abstract record TransactionInput
         public override long IncomeContributionKop => AmountUahKop;
     }
 
-    public sealed record RefundToClient(DateOnly ValueDate, long AmountUahKop)
-        : TransactionInput(ValueDate, AmountUahKop)
+    /// <param name="ReceiptValueDate">The value date of the receipt this refund reverses, when the
+    /// owner linked one.</param>
+    public sealed record RefundToClient(
+        DateOnly ValueDate,
+        long AmountUahKop,
+        DateOnly? ReceiptValueDate = null) : TransactionInput(ValueDate, AmountUahKop)
     {
         public override long IncomeContributionKop => -AmountUahKop;
     }
@@ -116,10 +120,9 @@ public static class IncomeLedger
                     continue;
                 }
 
-                if (transaction.ValueDate < registrationDate)
+                if (Exclusion(transaction, registrationDate) is { } warning)
                 {
-                    warnings.Add(new EngineWarning.OperationBeforeRegistration(
-                        transaction.ValueDate, registrationDate));
+                    warnings.Add(warning);
                     continue;
                 }
 
@@ -144,4 +147,20 @@ public static class IncomeLedger
 
         return new YearIncome(year, months, quarters, warnings);
     }
+
+    /// <summary>
+    /// Rule 8: why the operation is left out of income, or null when it counts. A refund linked to
+    /// a receipt that predates the FOP is left out with that receipt, whatever its own date.
+    /// </summary>
+    public static EngineWarning? Exclusion(TransactionInput transaction, DateOnly fopRegistrationDate) =>
+        transaction switch
+        {
+            _ when transaction.ValueDate < fopRegistrationDate =>
+                new EngineWarning.OperationBeforeRegistration(transaction.ValueDate, fopRegistrationDate),
+            TransactionInput.RefundToClient { ReceiptValueDate: { } receiptValueDate }
+                when receiptValueDate < fopRegistrationDate =>
+                new EngineWarning.RefundOfReceiptBeforeRegistration(
+                    transaction.ValueDate, receiptValueDate, fopRegistrationDate),
+            _ => null,
+        };
 }

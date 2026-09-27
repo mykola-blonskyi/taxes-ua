@@ -83,7 +83,10 @@
       "confirmDeleteCancel": "Скасувати",
       "deleteFailed": "Не вдалося видалити:",
       "rateNbu": "НБУ {date}",
-      "rateManual": "вручну"
+      "rateManual": "вручну",
+      "reversesReceipt": "Повернення надходження від {date}, {amount}",
+      "reversesReceiptBeforeRegistration": "Повертає надходження до дати реєстрації ФОП: не входить у дохід",
+      "deleteLinked": "Не вдалося видалити: до цього надходження прив’язані повернення. Спершу видаліть їх або зніміть прив’язку."
     },
     "form": {
       "valueDate": "Дата зарахування",
@@ -92,6 +95,8 @@
       "kind": "Тип операції",
       "nonIncomeReason": "Причина",
       "clientName": "Клієнт",
+      "refundsReceipt": "Повертає надходження",
+      "refundsReceiptNone": "Не пов’язано",
       "invoiceNumber": "Номер інвойсу",
       "description": "Коментар",
       "save": "Зберегти",

@@ -7,7 +7,8 @@ not yet confirmed the interpretation; the behavior is made configurable.
 
 Period income = sum of `Transaction.Kind = Income` minus sum of `Kind = RefundToClient`, by
 `ValueDate`. A refund of a prepayment reduces the income of the period in which the refund
-happens.
+happens. A refund linked to the receipt it reverses follows that receipt's income treatment: if
+the receipt is excluded, so is the refund (Rule 8).
 
 Not income: transfers between one's own accounts, hryvnia from selling one's own currency,
 exchange-rate differences, top-ups from one's own funds, refunds of erroneous payments. Every
@@ -120,6 +121,10 @@ overpayment carries forward to the next period of the same kind. Kinds are never
 
 Before `FopRegistrationDate` there are no obligations. Operations with a `ValueDate` earlier than
 the registration date are flagged with a warning and excluded from income.
+
+The exclusion is transitive: a refund linked to an excluded receipt is excluded too, whatever its
+own date, so it neither lowers period income nor creates a tax credit. An unlinked refund is judged
+by its own date only.
 
 Advice for the owner: file the Group 3 application together with the registration, so the single
 tax applies from the registration date. Otherwise the general tax system applies until the 1st of
