@@ -157,11 +157,11 @@ internal sealed record BackupDocument(
             }
         }
 
-        var batchIds = new HashSet<Guid>();
+        var batchAccounts = new Dictionary<Guid, Guid>();
         for (var i = 0; i < ImportBatches.Length; i++)
         {
             var batch = ImportBatches[i];
-            if (batch.Id == Guid.Empty || !batchIds.Add(batch.Id))
+            if (batch.Id == Guid.Empty || !batchAccounts.TryAdd(batch.Id, batch.BankAccountId))
             {
                 errors[$"importBatches[{i}].id"] = ["id must be a non-empty id no other import batch has."];
             }
@@ -172,7 +172,7 @@ internal sealed record BackupDocument(
             }
             else if (batch.ImportedCount < 0 || batch.SkippedCount < 0 || batch.From > batch.To)
             {
-                errors[$"importBatches[{i}].from"] = ["An import batch has a window from before to and counts of zero or more."];
+                errors[$"importBatches[{i}].importedCount"] = ["An import batch has a window from before to and counts of zero or more."];
             }
         }
 
@@ -210,7 +210,7 @@ internal sealed record BackupDocument(
                 errors[$"{at}.refundsTransactionId"] = ["refundsTransactionId must be the id of an Income transaction."];
             }
 
-            if (transaction.ImportError(accountIds, batchIds) is var (importKey, importMessage))
+            if (transaction.ImportError(accountIds, batchAccounts) is var (importKey, importMessage))
             {
                 errors[$"{at}.{importKey}"] = [importMessage];
             }
@@ -349,7 +349,8 @@ internal sealed record TransactionBackup(
         row.UpdatedAt);
 
     // An imported row names its account and its bank operation together; a typed row names neither.
-    public (string Key, string Message)? ImportError(IReadOnlySet<Guid> accountIds, IReadOnlySet<Guid> batchIds) => this switch
+    public (string Key, string Message)? ImportError(
+        IReadOnlySet<Guid> accountIds, IReadOnlyDictionary<Guid, Guid> batchAccounts) => this switch
     {
         { BankAccountId: null, ExternalId: not null } or { BankAccountId: not null, ExternalId: null } =>
             ("externalId", "bankAccountId and externalId are set together or not at all."),
@@ -363,8 +364,9 @@ internal sealed record TransactionBackup(
             ("counterparty", $"counterparty must not exceed {TransactionsEndpoints.MaxClientNameLength} characters."),
         { Counterparty: { } counterparty } when TextRules.HasDisallowedControlChar(counterparty) =>
             ("counterparty", "counterparty must not contain a control character."),
-        { ImportBatchId: { } batchId } when !batchIds.Contains(batchId) =>
-            ("importBatchId", "importBatchId must be the id of one of the import batches."),
+        { ImportBatchId: { } batchId } when !batchAccounts.TryGetValue(batchId, out var batchAccount)
+            || batchAccount != BankAccountId =>
+            ("importBatchId", "importBatchId must be the id of an import batch of the same bank account."),
         _ => null,
     };
 

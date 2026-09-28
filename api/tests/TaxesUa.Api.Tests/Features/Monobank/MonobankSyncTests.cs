@@ -163,6 +163,40 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
     }
 
     [Fact]
+    public async Task A_card_payment_in_another_currency_is_recorded_in_the_account_currency()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-card", ("card-uah", 980));
+        bank.Put("card-uah", new Operation("op-card", At(2042, 3, 2, 9), 4_500_000, 978, CounterName: "EU client"));
+        await using var app = Create(At(2042, 3, 3, 10), bank);
+        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-card");
+
+        await Sync(app, owner);
+
+        var row = Assert.Single((await List(owner, 2042)).Items);
+        Assert.Equal((Currency.UAH, 4_500_000L, 4_500_000L), (row.Currency, row.AmountMinor, row.AmountUahKop));
+    }
+
+    [Fact]
+    public async Task A_failed_statement_call_clears_the_queue_and_the_next_sync_imports()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-fail", ("fail-uah", 980));
+        bank.Put("fail-uah", new Operation("op-fail", At(2043, 5, 2, 9), 123_00, 980));
+        bank.StatementsFail = true;
+        await using var app = Create(At(2043, 5, 3, 10), bank);
+        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-fail");
+
+        await Sync(app, owner);
+        Assert.Empty((await List(owner, 2043)).Items);
+        Assert.Null((await Status(owner)).Accounts.Single(account => account.ExternalId == "fail-uah").LastSync);
+
+        bank.StatementsFail = false;
+        await Sync(app, owner);
+        Assert.Equal(123_00, Assert.Single((await List(owner, 2043)).Items).AmountMinor);
+    }
+
+    [Fact]
     public async Task An_unfollowed_account_is_never_fetched()
     {
         var bank = new FakeBank();
@@ -391,6 +425,8 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
     {
         private readonly ConcurrentDictionary<string, string> _clientInfo = new();
 
+        public bool StatementsFail { get; set; }
+
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, Operation>> _operations = new();
 
         public void Connect(string token, params (string Id, int CurrencyCode)[] accounts) =>
@@ -421,6 +457,11 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
             if (path is not ["personal", "statement", var accountId, var fromText, var toText])
             {
                 return new HttpResponseMessage(HttpStatusCode.NotFound);
+            }
+
+            if (StatementsFail)
+            {
+                return new HttpResponseMessage(HttpStatusCode.InternalServerError);
             }
 
             var from = DateTimeOffset.FromUnixTimeSeconds(long.Parse(fromText, CultureInfo.InvariantCulture));

@@ -40,7 +40,7 @@ internal sealed class MonobankStatementImport(
                     && row.IsFop
                     && row.IsActive,
                 cancellationToken);
-        if (connection is null || account is null || !encryptor.IsConfigured)
+        if (connection is null || account is null)
         {
             return;
         }
@@ -51,7 +51,7 @@ internal sealed class MonobankStatementImport(
             return;
         }
 
-        await ImportAsync(work.OwnerId, account.Id, statement, cancellationToken);
+        await ImportAsync(work.OwnerId, account, statement, cancellationToken);
     }
 
     private async Task<Statement?> FetchAsync(
@@ -77,8 +77,16 @@ internal sealed class MonobankStatementImport(
 
             items.AddRange(found.Items);
             var oldest = found.Items.Count == 0 ? pageTo : found.Items.Min(item => item.Time);
-            if (found.Items.Count < MonobankClient.StatementPageSize || oldest >= pageTo)
+            if (found.Items.Count < MonobankClient.StatementPageSize)
             {
+                return new Statement(from, to, items);
+            }
+
+            if (oldest >= pageTo)
+            {
+                logger.LogWarning(
+                    "monobank statement for account {AccountId} has a full page within one second; older operations wait for a later sync.",
+                    accountId);
                 return new Statement(from, to, items);
             }
 
@@ -90,8 +98,9 @@ internal sealed class MonobankStatementImport(
     // One database transaction per account under the owner's advisory lock, the lock restore and the
     // prototype import take, so a sync never interleaves with a restore's delete and insert.
     private async Task ImportAsync(
-        string ownerId, Guid bankAccountId, Statement statement, CancellationToken cancellationToken)
+        string ownerId, BankAccount account, Statement statement, CancellationToken cancellationToken)
     {
+        var bankAccountId = account.Id;
         var today = time.TodayInKyiv();
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         await database.Database.ExecuteSqlAsync(
@@ -124,7 +133,7 @@ internal sealed class MonobankStatementImport(
         var skipped = 0;
         foreach (var item in credits.ExceptBy(present, item => item.Id).OrderBy(item => item.Time))
         {
-            switch (await RecordAsync(ownerId, bankAccountId, batch.Id, item, today, cancellationToken))
+            switch (await RecordAsync(ownerId, account, batch.Id, item, today, cancellationToken))
             {
                 case Outcome.Imported:
                     imported++;
@@ -147,7 +156,7 @@ internal sealed class MonobankStatementImport(
 
     private async Task<Outcome> RecordAsync(
         string ownerId,
-        Guid bankAccountId,
+        BankAccount account,
         Guid batchId,
         MonobankStatementItem item,
         DateOnly today,
@@ -159,11 +168,13 @@ internal sealed class MonobankStatementImport(
             return Outcome.Skipped;
         }
 
-        if (IsoCurrency.FromNumeric(item.CurrencyCode) is not { } currency)
+        // The amount is in the account's currency; the item's own code can name the currency a card
+        // payment was made in, which would pair a hryvnia amount with a foreign rate.
+        if (IsoCurrency.FromNumeric(account.CurrencyCode) is not { } currency)
         {
             logger.LogInformation(
-                "monobank operation {OperationId} is in currency {CurrencyCode}, which is not recorded.",
-                item.Id, item.CurrencyCode);
+                "monobank operation {OperationId} is on an account in currency {CurrencyCode}, which is not recorded.",
+                item.Id, account.CurrencyCode);
             return Outcome.Skipped;
         }
 
@@ -179,7 +190,7 @@ internal sealed class MonobankStatementImport(
             InvoiceNumber: null,
             Description: Fit(Describe(item), TransactionsEndpoints.MaxDescriptionLength),
             RefundsTransactionId: null);
-        var provenance = new ImportProvenance(bankAccountId, item.Id, item.Time, counterparty, batchId);
+        var provenance = new ImportProvenance(account.Id, item.Id, item.Time, counterparty, batchId);
 
         RecordTransactionResult result;
         try
@@ -193,7 +204,8 @@ internal sealed class MonobankStatementImport(
                 ConstraintName: ExternalIdIndex,
             })
         {
-            // EF rolled the failed save back to its savepoint; what it tracked for it must not be saved again.
+            // Only a second api instance, which does not take this process's queue, can race the insert.
+            // EF rolled the failed save back to its savepoint; what it tracked must not be saved again.
             database.ChangeTracker.Clear();
             return Outcome.AlreadyPresent;
         }

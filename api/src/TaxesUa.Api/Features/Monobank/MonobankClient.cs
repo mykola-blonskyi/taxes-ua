@@ -16,7 +16,8 @@ internal sealed record MonobankClientInfo(
     IReadOnlyList<MonobankAccount> Accounts);
 
 // One statement operation. Time is the bank's instant; Amount is in the account currency's minor units
-// and negative for a debit.
+// and negative for a debit. CurrencyCode is kept as the bank sent it, and is not trusted to name the
+// currency of Amount.
 internal sealed record MonobankStatementItem(
     string Id,
     DateTimeOffset Time,

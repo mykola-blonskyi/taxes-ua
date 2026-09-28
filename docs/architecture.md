@@ -194,7 +194,8 @@ reads the last 31 days, and records each settled credit through `TransactionReco
 behind `POST /api/transactions`, with the row's import provenance (Rule 12). Each account is imported
 in one database transaction under the restore's per-owner advisory lock, so a sync never interleaves
 with a restore, and every inserted row gets its ordinary `Create` entry. The queue lives in memory: a
-restart drops queued work, and the owner presses "sync now" again (#77 adds a persisted cursor and
+restart drops queued work, and the owner presses "sync now" again. The queue and the gate are per
+process, so the api runs as one instance (#77 adds a persisted cursor and
 the 429 and 401 handling, both at the gate and the worker). `BankAccount`, `ImportBatch` and the
 connection are not audited: an account snapshot would put the full IBAN on the History screen.
 
