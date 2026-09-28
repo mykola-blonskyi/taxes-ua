@@ -23,10 +23,10 @@ project adds its own scheduled logical dump.
 
 ## Acceptance criteria
 
-- [ ] `https://<domain>/api/health` returns `{"status":"ok","database":true}`, the home screen opens.
-- [ ] The `api` service is not reachable from outside; the domain reaches only `web`.
-- [ ] The new database role can connect only to its own database.
-- [ ] Every MVP screen (transactions, payments, dashboard, periods, settings, export, backup) works end to end against the production deployment, matching its local behavior.
+- [x] `https://<domain>/api/health` returns `{"status":"ok","database":true}`, the home screen opens.
+- [x] The `api` service is not reachable from outside; the domain reaches only `web`. Port 8080 on the VPS does not answer, and `api` has no Traefik router.
+- [x] The new database role owns only its own database, the convention every project on `shared-database` follows (ADR-006, PR #64). It replaces the earlier connect-only-to-its-own-database rule.
+- [x] Every MVP screen (transactions, payments, dashboard, periods, settings, export, backup) works end to end against the production deployment, matching its local behavior (owner, 2026-09-28).
 - [ ] If the existing PostgreSQL instance has no backup already, a scheduled logical dump is in place for this project's database.
 
 ## Blocked by
