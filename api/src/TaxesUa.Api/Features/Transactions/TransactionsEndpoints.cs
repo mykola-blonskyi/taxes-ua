@@ -91,8 +91,7 @@ public static class TransactionsEndpoints
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
-                // Rejects a malformed body before touching the user store, same as before the create
-                // path moved into TransactionRecorder.
+                // A malformed body answers 400 before the user lookup can answer 401.
                 var normalized = Normalize(request);
                 if (Validate(request, normalized, time.TodayInKyiv()) is { } errors)
                 {
