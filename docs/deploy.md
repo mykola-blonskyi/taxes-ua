@@ -7,11 +7,11 @@ Facts this runbook relies on, established in #3 and #20:
 
 - Domain `taxes.blonskyi.dev`. The VPS is reached with `ssh blonskyi`; `<vps-ip>` below is its
   public address.
-- `blonskyi.dev` is on Cloudflare with a proxied wildcard record, so `taxes.blonskyi.dev` already
-  resolves. Traefik obtains certificates through the Cloudflare DNS challenge, so none of this
-  needs HTTP to reach the VPS.
-- Google sign-in uses an OAuth client in the owner's Google Cloud project. taxes-ua gets a client
-  of its own with a fresh secret before production (step 4).
+- `blonskyi.dev` is on Cloudflare with one proxied `A` record per subdomain, all pointing at
+  `<vps-ip>` (23.88.118.219). There is no wildcard. Traefik obtains certificates through the
+  Cloudflare DNS challenge, so none of this needs HTTP to reach the VPS.
+- Google sign-in uses the OAuth client shared with the owner's other projects, with a secret
+  rotated before production (step 4).
 - The database is a new role and database in Coolify's `shared-database` resource (ADR-006): the
   container `3p9qjnulllqn3bcjqokir0wq`, PostgreSQL 18, admin role `postgres`, on the `coolify`
   network. It already holds `fitness`, `todo`, `hub`, `plane` and `login`.
@@ -47,8 +47,8 @@ ssh blonskyi 'docker exec 3p9qjnulllqn3bcjqokir0wq psql -U postgres -Atc "select
 
 ## 1. DNS
 
-Nothing to do: the wildcard record already covers `taxes.blonskyi.dev`. Until step 6 deploys,
-the domain answers 526 because Traefik has no route and no certificate for it yet.
+In Cloudflare, add an `A` record `taxes` → `<vps-ip>`, proxied, like the other subdomains. Until
+step 6 deploys, the domain answers 526 because Traefik has no route and no certificate for it yet.
 
 **Check.** `dig +short taxes.blonskyi.dev` prints Cloudflare addresses.
 
@@ -183,42 +183,61 @@ the session survives the redeploy. Tick the matching boxes on #20.
 
 ## 8. Backups
 
-Skip this step if step 0 found a backup that covers the whole instance.
+Coolify backs up the whole `shared-database` instance with `pg_dumpall`. The dumps go to local storage on the VPS
+and to the owner's MinIO. This covers `taxes_ua` along with every other project on the instance.
+It was set up on 2026-09-28. Redo these steps only if it is gone.
 
-Otherwise schedule `deploy/postgres/dump.sh`. It writes one `pg_dump -Fc` file per run, never
-leaves a partial file behind, and prunes dumps older than `RETAIN_DAYS` (default 14) only after a
-dump succeeds.
+1. **Bucket.** In the MinIO console (`https://s3-console.blonskyi.dev`), create the bucket
+   `coolify-backups`.
+2. **Access key.** The Community Edition console has no key management, so create the key with
+   `mc` inside the MinIO container. The policy limits the key to that one bucket. Open a shell:
+
+   ```bash
+   ssh -t blonskyi "docker exec -it minio-3jhjnrvkwf0oozjqo3sz0vsr-150204880600 sh"
+   ```
+
+   and paste:
+
+   ```sh
+   mc alias set root http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
+   cat > /tmp/coolify-backups.json <<'EOF'
+   {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::coolify-backups"]},{"Effect":"Allow","Action":["s3:PutObject","s3:GetObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::coolify-backups/*"]}]}
+   EOF
+   mc admin accesskey create root --name coolify-backups --policy /tmp/coolify-backups.json
+   rm -f /tmp/coolify-backups.json; mc alias remove root >/dev/null; exit
+   ```
+
+   The command prints the access key and the secret key once.
+3. **DNS.** The `s3` record in Cloudflare must be **DNS only**, not proxied. Coolify pins the S3
+   host for `mc` with `--resolve` and writes IPv6 addresses in brackets, which `mc` rejects. A
+   proxied record always carries Cloudflare's IPv6, so the upload fails with
+   `invalid DNS resolve entry ... ParseAddr("[2a06:...]")`. An internal endpoint such as
+   `http://minio:9000` is no way around this, because Coolify refuses private addresses for S3.
+4. **S3 storage.** In Coolify, open S3 Storages → New. Set the endpoint to
+   `https://s3.blonskyi.dev`, the bucket to `coolify-backups`, the region to `us-east-1`, and the
+   keys from item 2.
+5. **Schedule.** Open `shared-database` → Backups, add a daily schedule, and turn on Save to S3.
+
+**Check.** Click Backup Now. The run shows Success, with Local Storage and S3 Storage both green.
+The newest dump is intact and contains `taxes_ua`:
 
 ```bash
-scp deploy/postgres/dump.sh blonskyi:/home/mykola/bin/taxes-ua-dump.sh
-ssh blonskyi 'sudo install -d -m 700 -o mykola /var/backups/taxes-ua'
-ssh blonskyi 'crontab -e'
+ssh blonskyi 'docker run --rm -v /data/coolify/backups/databases/root-team-0/shared-database-3p9qjnulllqn3bcjqokir0wq:/b:ro alpine:3 sh -c "f=\$(ls -t /b/*.gz | head -1); gzip -t \$f && zcat \$f | grep -c \"connect taxes_ua\""'
 ```
 
-```
-30 3 * * * BACKUP_DIR=/var/backups/taxes-ua /home/mykola/bin/taxes-ua-dump.sh docker exec 3p9qjnulllqn3bcjqokir0wq pg_dump -U postgres -Fc taxes_ua >> /var/backups/taxes-ua/cron.log 2>&1
-```
+It prints a non-zero count.
 
-The dumps sit on the same disk as the database; copy them off the VPS (MinIO or the
-laptop) for them to survive losing it.
-
-**Check.** Run the cron line once by hand, then list the newest dump's contents. It prints a
-non-zero count:
-
-```bash
-f=$(ls -t /var/backups/taxes-ua/*.dump | head -1)
-docker exec -i 3p9qjnulllqn3bcjqokir0wq pg_restore --list < "$f" | grep -c 'TABLE DATA'
-```
+MinIO runs on the same VPS and disk as the database. These dumps survive a broken or wiped
+database, but not the loss of the server. For that, copy `coolify-backups` off the VPS.
 
 ## 9. Checks that need the real domain
 
 These tickets were built and tested locally, but their last criteria need HTTPS on the real
 domain. Do them now and tick them on their issues:
 
-- **#16 Passkey.** Register a passkey in settings, sign out, and sign in with it on iOS Safari,
-  Android Chrome and desktop.
-- **#18 PWA.** Lighthouse marks the app installable. Install it on iOS and Android and confirm it
-  opens in standalone mode.
+- **#16 Passkey.** While signed in, open `/login` and add a passkey, sign out, and sign in with it
+  on Android Chrome and desktop. iOS is not a target.
+- **#18 PWA.** Install the app from Chrome on Android and confirm it opens in standalone mode.
 - **#15 Prototype import.** Import a real export from the prototype, check the receipts and
   payments against it, then import the same file again and confirm the record count does not
   change.
@@ -229,14 +248,21 @@ domain. Do them now and tick them on their issues:
 the documented path for the Compose build pack: Coolify builds whatever `main` holds.
 
 **A bad release with a migration.** Migrations run when `api` starts and only move forward, so the
-old code may not run against the new schema. Take a dump before deploying any release that
-carries a migration (step 8's command, run by hand). To roll back:
+old code may not run against the new schema. Before deploying any release that carries a
+migration, take a dump of this database alone to the laptop:
+
+```bash
+ssh blonskyi 'docker exec 3p9qjnulllqn3bcjqokir0wq pg_dump -U postgres -Fc taxes_ua' > taxes_ua-before-release.dump
+```
+
+The instance-wide dumps from step 8 are no substitute here. They restore every project on the
+instance at once. To roll back:
 
 1. Stop the resource in Coolify, so nothing writes to the database while it is restored.
 2. Restore the dump taken before the release. **Everything written after that dump is lost.**
 
    ```bash
-   docker exec -i 3p9qjnulllqn3bcjqokir0wq pg_restore -U postgres --clean --if-exists --no-owner --role=taxes_ua_app -d taxes_ua < <file>.dump
+   ssh blonskyi 'docker exec -i 3p9qjnulllqn3bcjqokir0wq pg_restore -U postgres --clean --if-exists --no-owner --role=taxes_ua_app -d taxes_ua' < taxes_ua-before-release.dump
    ```
 
 3. Revert the release on `main`.

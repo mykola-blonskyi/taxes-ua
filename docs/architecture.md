@@ -227,15 +227,14 @@ imports` in eslint.
   and `api`. The domain points at `web`. `api` is not published externally.
 - Database: Coolify's `shared-database` PostgreSQL instance, already running on the VPS, is
   reused. The login role `taxes_ua_app` owns the database `taxes_ua`, the convention every
-  project on that instance follows ([ADR-006](decisions.md)). Backups: whatever backup mechanism
-  already covers that instance, plus the project's own scheduled logical dump if that instance has
-  none.
+  project on that instance follows ([ADR-006](decisions.md)). Backups: Coolify's daily
+  instance-wide dump, kept on the VPS and in the owner's MinIO.
 - Cron: hosted services inside `api`. No external scheduler is needed.
 - Secrets: Coolify environment variables. `.env.example` in the repository holds no values, and
   the api refuses to start outside Development while a required one is empty.
 - Sessions: the data-protection key ring is persisted in the `dataprotection-keys` volume, so a
   redeploy keeps the owner signed in ([ADR-010](decisions.md)).
-- Runbook: [`docs/deploy.md`](deploy.md). The backup script lives in `deploy/postgres/`.
+- Runbook: [`docs/deploy.md`](deploy.md).
 - Cost: 0.
 
 ---
