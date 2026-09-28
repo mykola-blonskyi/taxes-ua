@@ -93,7 +93,8 @@ External systems:
   labelled with their own date, an unpublished future date comes back `[]`). The adapter falls back
   day by day, up to 7 days, and stores the actual rate date. Responses are cached in the `FxRates`
   table, except for a future date, whose fallback is provisional.
-- monobank personal API, PrivatBank Autoclient (Stage 2). Tokens are encrypted with AES-256-GCM
+- monobank personal API (Stage 2). PrivatBank is deferred: the owner has no FOP account there.
+  Tokens are encrypted with AES-256-GCM
   using a key from the environment.
 - Telegram Bot API and SMTP for reminders (Stage 2).
 - DPS XML declaration schema F0103309 (Stage 3).
