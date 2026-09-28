@@ -1,7 +1,7 @@
 # 14: Prototype JSON import
 
 GitHub: #15
-Status: ready-for-human (merged in PR #61; open for the owner's check against a real prototype export)
+Status: closed, done (PR #61). The production check with a real prototype export is deferred until one exists (docs/deploy.md step 9).
 Blocked by: #12
 
 ## Parent
