@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
@@ -26,6 +27,10 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<BudgetPayment> BudgetPayments => Set<BudgetPayment>();
 
     public DbSet<AuditEntry> AuditLog => Set<AuditEntry>();
+
+    public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
+
+    public DbSet<MonobankConnection> MonobankConnections => Set<MonobankConnection>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

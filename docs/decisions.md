@@ -387,3 +387,69 @@ restarting the api rotates the keys and ends every session at once, which is ADR
 a stolen cookie. `deploy/check-compose.sh` fails CI if the mount and the configured path drift
 apart. A local Docker run persists its keys in the same volume under its own project.
 
+---
+
+## ADR-011. Encrypt the monobank token with a standalone key, not the Data Protection ring
+
+Date: 2026-09-28
+
+Status: Accepted
+
+### Context
+
+#75 stores the owner's monobank personal API token so the api can call the bank on the owner's
+behalf. The token has to be encrypted at rest, and the api already has an encryption mechanism
+wired up: the ASP.NET Core Data Protection key ring that protects session, external sign-in and
+passkey ceremony cookies (ADR-009, ADR-010).
+
+Reusing it would be the smaller change: no new key to generate, distribute or rotate. But ADR-009's
+whole point is that a redeploy is the *only* thing that keeps that ring alive across restarts, and
+deleting the ring's volume and restarting is the documented way to end every session after a stolen
+cookie. A token protected by the same ring would be destroyed by that same action, silently
+disconnecting monobank the next time the owner deliberately signs everyone out — a side effect
+neither ADR mentions and nothing in that flow should have to account for.
+
+### Decision
+
+The token is encrypted with AES-256-GCM (`Features/Monobank/TokenEncryptor.cs`) under a dedicated
+32-byte key, read once from `Monobank:TokenEncryptionKeyBase64`
+(`MONOBANK_TOKEN_ENCRYPTION_KEY`), independent of the Data Protection ring. Each token is stored as
+a fresh random 12-byte nonce, the ciphertext and a 16-byte GCM tag, concatenated in one `bytea`
+column (`MonobankConnection.EncryptedToken`). The token never appears in a response, a log line or
+the change log: `MonobankConnection` is not one of `AuditSaveChangesInterceptor`'s audited types,
+and the token is write-only through the API (`MonobankEndpoints.cs` never serializes it back).
+
+The key can be absent. `TokenEncryptor.IsConfigured` is false without it, and the api still starts
+— unlike the required-outside-Development variables in `Program.cs`, because a fresh install with
+no interest in bank sync should not be blocked from starting for a key it does not need yet. Every
+monobank endpoint checks `IsConfigured` first and answers `503` with a
+`monobank-not-configured` problem type when it is not, the same shape `/api/auth/login/google`
+already uses for an unconfigured Google client. A key that *is* set but fails to decode, or does
+not decode to exactly 32 bytes, still fails startup: that is a real misconfiguration, not an
+intentionally-skipped feature.
+
+`docker-compose.yml` passes `MONOBANK_TOKEN_ENCRYPTION_KEY` through from the environment like every
+other secret. `docker-compose.local.yml` sets a fixed 32-byte base64 key so a local stack can
+exercise the connected state without the owner generating one, exactly as its database credentials
+are also fixed and local-only.
+
+### Alternatives Considered
+
+The Data Protection ring (`IDataProtector` with a distinct purpose string). Free encryption with no
+new key to manage, but ties the token's lifetime to a ring that ADR-009 rotates on purpose to end
+sessions, which must not also delete bank access nobody asked to revoke.
+
+A key in the database (a `KeyEncryptionKey` table, itself protected by a passphrase). Survives a
+Data Protection rotation, but moves the problem rather than solving it: the passphrase still needs
+a home outside the database, which is exactly what an environment variable already is, with one
+less table and one less migration.
+
+### Consequences
+
+Rotating the monobank key (a real key rotation, not a session-revocation rotation) requires
+re-encrypting the stored token or asking the owner to reconnect; there is no way to do it in place
+because the key lives only in the environment. With one owner and a token the owner can always
+replace from monobank, asking for a reconnect is an acceptable cost.  The Coolify deploy generates
+the key once during the runbook's setup step (`docs/deploy.md`) and treats it exactly like the
+Google client secret: set once, rotated by hand when needed.
+

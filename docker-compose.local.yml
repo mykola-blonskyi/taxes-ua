@@ -13,6 +13,9 @@ services:
       # .env hands the container an empty value, and an empty environment variable outranks
       # appsettings.Development.json. Without this line the api would refuse to start locally.
       Auth__Passkey__ServerDomain: localhost
+      # A fixed, obviously-fake dev key (ADR-011), so a local stack can exercise the connected
+      # monobank state without generating one. Never reused outside this local override.
+      Monobank__TokenEncryptionKeyBase64: dGF4ZXMtdWEtbG9jYWwtZGV2LWtleS0zMi1ieXRlcyE=
     depends_on:
       db:
         condition: service_healthy

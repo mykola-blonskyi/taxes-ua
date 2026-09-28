@@ -301,7 +301,8 @@
     "title": "Налаштування",
     "tabs": {
       "fop": "ФОП",
-      "taxYears": "Податкові роки"
+      "taxYears": "Податкові роки",
+      "monobank": "monobank"
     },
     "loading": "Завантаження…",
     "loadFailed": "Не вдалося завантажити дані.",
@@ -335,6 +336,29 @@
       "locale": "Мова інтерфейсу",
       "theme": "Тема",
       "defaultCurrency": "Валюта за замовчуванням"
+    },
+    "monobank": {
+      "loading": "Завантаження…",
+      "loadFailed": "Не вдалося завантажити дані.",
+      "notConfigured": "monobank не налаштовано на цьому сервері.",
+      "statusConnected": "Підключено",
+      "statusDisconnected": "Не підключено",
+      "token": "Особистий токен API monobank",
+      "tokenHint": "Отримайте токен на api.monobank.ua/index.html. Токен ніколи не показується повторно.",
+      "save": "Зберегти",
+      "saving": "Збереження…",
+      "saveFailed": "Не вдалося зберегти. Перевірте токен.",
+      "tokenRequired": "Введіть токен.",
+      "tokenInvalid": "monobank відхилив цей токен.",
+      "cancel": "Скасувати",
+      "replaceToken": "Замінити токен",
+      "disconnect": "Відключити",
+      "disconnecting": "Відключення…",
+      "disconnectFailed": "Не вдалося відключити.",
+      "accountsSaveFailed": "Не вдалося зберегти вибрані рахунки.",
+      "fopAccounts": "Рахунки ФОП",
+      "unsupportedAccounts": "Інші рахунки",
+      "notSupported": "не підтримується"
     },
     "taxYears": {
       "history": "Історія",
