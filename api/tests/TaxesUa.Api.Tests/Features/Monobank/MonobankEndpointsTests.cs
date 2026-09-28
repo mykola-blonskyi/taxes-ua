@@ -109,6 +109,125 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     }
 
     [Fact]
+    public async Task Replacing_the_token_deactivates_accounts_the_new_client_info_no_longer_lists()
+    {
+        var both = StubMonobankHandler.ClientInfo(
+            "client-1",
+            ("acc-a", "fop", 980, "UA1"),
+            ("acc-b", "fop", 980, "UA2"));
+        var onlyB = StubMonobankHandler.ClientInfo("client-1", ("acc-b", "fop", 980, "UA2"));
+        using var application = fixture.CreateApplication(ForTokens((GoodToken, both), ("second-token", onlyB)));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
+
+        var response = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "second-token" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var status = await response.Content.ReadFromJsonAsync<ConnectionStatus>();
+        var a = status!.Accounts.Single(acc => acc.ExternalId == "acc-a");
+        Assert.False(a.IsFollowed, "an account dropped from the new client-info must stop being followed");
+        var b = status.Accounts.Single(acc => acc.ExternalId == "acc-b");
+        Assert.True(b.IsFollowed);
+    }
+
+    [Fact]
+    public async Task Replacing_the_token_reactivates_a_fop_account_that_reappears()
+    {
+        var both = StubMonobankHandler.ClientInfo(
+            "client-1",
+            ("acc-a", "fop", 980, "UA1"),
+            ("acc-b", "fop", 980, "UA2"));
+        var onlyB = StubMonobankHandler.ClientInfo("client-1", ("acc-b", "fop", 980, "UA2"));
+        using var application = fixture.CreateApplication(ForTokens(
+            (GoodToken, both), ("second-token", onlyB), ("third-token", both)));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
+        await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "second-token" });
+
+        var response = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "third-token" });
+
+        var status = await response.Content.ReadFromJsonAsync<ConnectionStatus>();
+        Assert.True(status!.Accounts.Single(acc => acc.ExternalId == "acc-a").IsFollowed);
+    }
+
+    [Fact]
+    public async Task Replacing_a_working_token_with_an_invalid_one_keeps_the_connection_and_accounts()
+    {
+        var body = StubMonobankHandler.ClientInfo("client-1", ("acc-a", "fop", 980, "UA1"));
+        using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
+
+        var rejected = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "not-a-real-token" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        var status = await owner.GetFromJsonAsync<ConnectionStatus>("/api/monobank/connection");
+        Assert.True(status!.Connected);
+        Assert.True(status.Accounts.Single(acc => acc.ExternalId == "acc-a").IsFollowed);
+    }
+
+    [Fact]
+    public async Task An_empty_accounts_body_is_a_validation_problem_not_a_server_error()
+    {
+        var body = StubMonobankHandler.ClientInfo("client-1", ("acc-a", "fop", 980, "UA1"));
+        using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
+
+        var response = await owner.PutAsync(
+            "/api/monobank/accounts",
+            new StringContent("{}", System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_null_followed_accounts_list_is_a_validation_problem_not_a_server_error()
+    {
+        var body = StubMonobankHandler.ClientInfo("client-1", ("acc-a", "fop", 980, "UA1"));
+        using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
+
+        var response = await owner.PutAsJsonAsync(
+            "/api/monobank/accounts",
+            new { followedExternalIds = (string[]?)null });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("""[]""")]
+    [InlineData("""{"clientId":123,"name":"x","accounts":[]}""")]
+    [InlineData("""{"clientId":"c","name":"x","accounts":[{"id":123,"type":"fop","currencyCode":980,"iban":"UA1"}]}""")]
+    [InlineData("""{"clientId":"c","name":"x","accounts":[{"id":"a","type":123,"currencyCode":980,"iban":"UA1"}]}""")]
+    [InlineData("""{"clientId":"c","name":"x","accounts":[{"id":"a","type":"fop","currencyCode":980,"iban":123}]}""")]
+    [InlineData("""{"clientId":"c","name":"x","accounts":[{"id":"a","type":"fop","currencyCode":99999999999,"iban":"UA1"}]}""")]
+    public async Task A_malformed_client_info_payload_never_crashes_to_a_server_error(string malformedBody)
+    {
+        using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, malformedBody));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+
+        var response = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        var problem = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Exception", problem, StringComparison.Ordinal);
+    }
+
+    // Answers client-info for each recognised token with its own body, and 403 for any other one, so
+    // a single test can exercise "save, then replace with a different token" against one stub.
+    private static StubMonobankHandler ForTokens(params (string Token, string Body)[] byToken) =>
+        new(request =>
+        {
+            var token = request.Headers.TryGetValues("X-Token", out var values) ? values.FirstOrDefault() : null;
+            var match = byToken.FirstOrDefault(entry => entry.Token == token);
+            return match.Token is not null
+                ? StubMonobankHandler.Json(match.Body)
+                : new HttpResponseMessage(HttpStatusCode.Forbidden);
+        });
+
+    [Fact]
     public async Task A_second_owner_sees_no_accounts_or_connection_from_the_first()
     {
         var body = StubMonobankHandler.ClientInfo("client-1", ("fop-a", "fop", 980, "UA1"));

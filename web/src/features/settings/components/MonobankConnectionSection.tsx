@@ -45,6 +45,16 @@ function MonobankConnectionBody({
   const [editingToken, setEditingToken] = useState(!connection.connected);
 
   const tokenFailure = saveToken.error instanceof ApiError ? saveToken.error : null;
+  // The api sends the same fixed English sentence for these two cases either way (ApiError.errors is
+  // whatever ProblemDetails carried), so they are the only server field errors this app translates;
+  // every other endpoint's field errors are shown as the api sends them.
+  const tokenErrorKeys: Record<string, string> = {
+    "Token is required.": t("tokenRequired"),
+    "monobank rejected this token.": t("tokenInvalid"),
+  };
+  const tokenErrors = tokenFailure?.errors.token?.map((message) => tokenErrorKeys[message] ?? message);
+  const accountsFailure = saveAccounts.error instanceof ApiError ? saveAccounts.error : null;
+  const disconnectFailure = disconnect.error instanceof ApiError ? disconnect.error : null;
   const fopAccounts = connection.accounts.filter((account) => account.isFop);
   const unsupportedAccounts = connection.accounts.filter((account) => !account.isFop);
 
@@ -56,6 +66,12 @@ function MonobankConnectionBody({
         setEditingToken(false);
       },
     });
+  }
+
+  function cancelEditingToken() {
+    setToken("");
+    saveToken.reset();
+    setEditingToken(false);
   }
 
   function toggleFollowed(externalId: string, followed: boolean) {
@@ -92,12 +108,14 @@ function MonobankConnectionBody({
             variant="outline"
             size="sm"
             disabled={disconnect.isPending}
-            onClick={() => disconnect.mutate()}
+            onClick={() => disconnect.mutate(undefined, { onSuccess: () => setEditingToken(true) })}
           >
             {disconnect.isPending ? t("disconnecting") : t("disconnect")}
           </Button>
         ) : null}
       </div>
+
+      {disconnectFailure ? <p className="text-sm text-destructive">{`${t("disconnectFailed")} ${disconnectFailure.message}`}</p> : null}
 
       {editingToken ? (
         <form className="flex flex-col gap-2" onSubmit={submitToken}>
@@ -109,18 +127,25 @@ function MonobankConnectionBody({
             autoComplete="off"
             value={token}
             onChange={setToken}
-            errors={tokenFailure?.errors.token}
+            errors={tokenErrors}
           />
-          {tokenFailure && !tokenFailure.errors.token ? (
+          {tokenFailure && !tokenErrors ? (
             <p className="text-sm text-destructive">{t("saveFailed")}</p>
           ) : null}
-          <div>
+          <div className="flex items-center gap-2">
             <Button type="submit" disabled={saveToken.isPending || token.length === 0}>
               {saveToken.isPending ? t("saving") : t("save")}
             </Button>
+            {connection.connected ? (
+              <Button type="button" variant="outline" onClick={cancelEditingToken} disabled={saveToken.isPending}>
+                {t("cancel")}
+              </Button>
+            ) : null}
           </div>
         </form>
       ) : null}
+
+      {accountsFailure ? <p className="text-sm text-destructive">{`${t("accountsSaveFailed")} ${accountsFailure.message}`}</p> : null}
 
       {connection.accounts.length > 0 ? (
         <div className="flex flex-col gap-3">

@@ -33,7 +33,7 @@ internal abstract record ClientInfoResult
 /// The monobank personal API's <c>client-info</c> endpoint, registered as a typed HttpClient like
 /// NbuRateClient so tests replace its primary handler instead of reaching the real bank (ADR-011).
 /// </summary>
-internal sealed class MonobankClient(HttpClient http)
+internal sealed class MonobankClient(HttpClient http, ILogger<MonobankClient> logger)
 {
     public async Task<ClientInfoResult> GetClientInfoAsync(string token, CancellationToken cancellationToken)
     {
@@ -47,11 +47,13 @@ internal sealed class MonobankClient(HttpClient http)
         }
         catch (HttpRequestException exception)
         {
-            return new ClientInfoResult.Unavailable($"monobank request failed: {exception.Message}");
+            logger.LogWarning(exception, "monobank client-info request failed.");
+            return new ClientInfoResult.Unavailable("monobank did not answer.");
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new ClientInfoResult.Unavailable($"monobank did not answer within {http.Timeout}.");
+            logger.LogWarning("monobank did not answer within {Timeout}.", http.Timeout);
+            return new ClientInfoResult.Unavailable("monobank did not answer in time.");
         }
 
         using (response)
@@ -63,18 +65,22 @@ internal sealed class MonobankClient(HttpClient http)
 
             if (!response.IsSuccessStatusCode)
             {
-                return new ClientInfoResult.Unavailable($"monobank answered {(int)response.StatusCode}.");
+                logger.LogWarning("monobank client-info answered {StatusCode}.", (int)response.StatusCode);
+                return new ClientInfoResult.Unavailable("monobank answered with an unexpected status.");
             }
 
-            string body;
+            var body = await response.Content.ReadAsStringAsync(cancellationToken);
             try
             {
-                body = await response.Content.ReadAsStringAsync(cancellationToken);
                 return Parse(body);
             }
-            catch (JsonException exception)
+            // Never the exception's own message in the result: it can quote the response body back,
+            // and ClientInfoResult.Unavailable.Reason flows straight into a ProblemDetails response.
+            // The exception (never the token, which this code path never sees) is logged instead.
+            catch (Exception exception) when (exception is JsonException or FormatException)
             {
-                return new ClientInfoResult.Unavailable($"monobank's body is not usable: {exception.Message}");
+                logger.LogWarning(exception, "monobank client-info response could not be parsed.");
+                return new ClientInfoResult.Unavailable("monobank's response could not be read.");
             }
         }
     }
@@ -83,18 +89,25 @@ internal sealed class MonobankClient(HttpClient http)
     {
         using var document = JsonDocument.Parse(body);
         var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            throw new FormatException($"monobank client-info root is {root.ValueKind}, not an object.");
+        }
 
-        var clientId = root.TryGetProperty("clientId", out var clientIdProperty)
-            ? clientIdProperty.GetString() ?? string.Empty
-            : string.Empty;
-        var name = root.TryGetProperty("name", out var nameProperty) ? nameProperty.GetString() ?? string.Empty : string.Empty;
+        var clientId = ReadString(root, "clientId") ?? string.Empty;
+        var name = ReadString(root, "name") ?? string.Empty;
 
         var accounts = new List<MonobankAccount>();
         if (root.TryGetProperty("accounts", out var accountsProperty) && accountsProperty.ValueKind == JsonValueKind.Array)
         {
             foreach (var account in accountsProperty.EnumerateArray())
             {
-                var id = account.TryGetProperty("id", out var idProperty) ? idProperty.GetString() : null;
+                if (account.ValueKind != JsonValueKind.Object)
+                {
+                    throw new FormatException($"monobank client-info account is {account.ValueKind}, not an object.");
+                }
+
+                var id = ReadString(account, "id");
                 if (string.IsNullOrEmpty(id))
                 {
                     continue;
@@ -103,17 +116,46 @@ internal sealed class MonobankClient(HttpClient http)
                 // The published enum is black|white|platinum|iron|fop|yellow|eAid, but a real token can
                 // return a value outside it (e.g. "diia"). Read as an open string; an unknown value is
                 // simply not "fop" and is listed as not supported, never a parse failure.
-                var type = account.TryGetProperty("type", out var typeProperty) ? typeProperty.GetString() ?? string.Empty : string.Empty;
-                var currencyCode = account.TryGetProperty("currencyCode", out var currencyProperty)
-                    && currencyProperty.ValueKind == JsonValueKind.Number
-                        ? currencyProperty.GetInt32()
-                        : 0;
-                var iban = account.TryGetProperty("iban", out var ibanProperty) ? ibanProperty.GetString() ?? string.Empty : string.Empty;
+                var type = ReadString(account, "type") ?? string.Empty;
+                var currencyCode = ReadCurrencyCode(account);
+                var iban = ReadString(account, "iban") ?? string.Empty;
 
                 accounts.Add(new MonobankAccount(id, type, currencyCode, iban));
             }
         }
 
         return new ClientInfoResult.Found(new MonobankClientInfo(clientId, name, accounts));
+    }
+
+    // Absent or null reads as "not sent" (the caller defaults it); present with the wrong JSON kind is
+    // a shape monobank should never send, so it fails the whole response instead of coercing silently.
+    private static string? ReadString(JsonElement element, string property)
+    {
+        if (!element.TryGetProperty(property, out var value) || value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (value.ValueKind != JsonValueKind.String)
+        {
+            throw new FormatException($"monobank client-info \"{property}\" is {value.ValueKind}, not a string.");
+        }
+
+        return value.GetString();
+    }
+
+    private static int ReadCurrencyCode(JsonElement account)
+    {
+        if (!account.TryGetProperty("currencyCode", out var value) || value.ValueKind == JsonValueKind.Null)
+        {
+            return 0;
+        }
+
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out var currencyCode))
+        {
+            throw new FormatException("monobank client-info \"currencyCode\" is not a valid 32-bit number.");
+        }
+
+        return currencyCode;
     }
 }

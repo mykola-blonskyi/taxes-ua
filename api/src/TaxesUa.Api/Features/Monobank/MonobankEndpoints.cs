@@ -114,6 +114,14 @@ public static class MonobankEndpoints
                     return NotConfigured();
                 }
 
+                if (request.FollowedExternalIds is null)
+                {
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["followedExternalIds"] = ["followedExternalIds is required."],
+                    });
+                }
+
                 var user = await users.GetUserAsync(http.User);
                 if (user is null)
                 {
@@ -137,6 +145,7 @@ public static class MonobankEndpoints
                 return await BuildStatusAsync(database, user.Id, cancellationToken);
             })
             .Produces<MonobankConnectionResponse>()
+            .ProducesValidationProblem()
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
@@ -199,8 +208,11 @@ public static class MonobankEndpoints
             .Where(account => account.UserId == userId && account.Bank == Bank.Monobank)
             .ToDictionaryAsync(account => account.ExternalId, cancellationToken);
 
+        var seenExternalIds = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (var account in info.Accounts)
         {
+            seenExternalIds.Add(account.Id);
             var isFop = account.Type == "fop";
 
             if (existing.TryGetValue(account.Id, out var stored))
@@ -210,7 +222,16 @@ public static class MonobankEndpoints
                 stored.Iban = account.Iban;
                 stored.AccountType = account.Type;
                 stored.IsFop = isFop;
-                // A previously chosen selection is left alone; only a brand new account gets a default.
+                if (isFop && !stored.IsActive)
+                {
+                    // Either brand new to being FOP, or reappeared after a previous save dropped it for
+                    // being absent: a FOP account the token currently reports is followed by default.
+                    stored.IsActive = true;
+                }
+                else if (!isFop)
+                {
+                    stored.IsActive = false;
+                }
             }
             else
             {
@@ -230,6 +251,16 @@ public static class MonobankEndpoints
                     IsActive = isFop,
                     CreatedAt = DateTimeOffset.UtcNow,
                 });
+            }
+        }
+
+        foreach (var account in existing.Values)
+        {
+            if (!seenExternalIds.Contains(account.ExternalId))
+            {
+                // The token's client-info no longer reports this account: stop following it so nothing
+                // syncs against data the owner can no longer see or confirm through this token.
+                account.IsActive = false;
             }
         }
 

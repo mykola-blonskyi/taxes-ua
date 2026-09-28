@@ -415,7 +415,7 @@ The token is encrypted with AES-256-GCM (`Features/Monobank/TokenEncryptor.cs`) 
 32-byte key, read once from `Monobank:TokenEncryptionKeyBase64`
 (`MONOBANK_TOKEN_ENCRYPTION_KEY`), independent of the Data Protection ring. Each token is stored as
 a fresh random 12-byte nonce, the ciphertext and a 16-byte GCM tag, concatenated in one `bytea`
-column (`MonobankConnection.EncryptedToken`). The key never appears in a response, a log line or
+column (`MonobankConnection.EncryptedToken`). The token never appears in a response, a log line or
 the change log: `MonobankConnection` is not one of `AuditSaveChangesInterceptor`'s audited types,
 and the token is write-only through the API (`MonobankEndpoints.cs` never serializes it back).
 
