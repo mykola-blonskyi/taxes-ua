@@ -68,10 +68,39 @@ Relationships: none. The engine receives the list of configs as input.
 
 Responsibilities: a FOP account or personal account, the source of an import.
 
-Fields: `Bank: Monobank | PrivatBank | Other`, `Name`, `Currency`, `Iban`, `IsFop`, `ExternalId`,
-`EncryptedToken?`, `IsActive`.
+Fields: `Bank: Monobank | PrivatBank | Other`, `Name`, `CurrencyCode` (ISO 4217 numeric, as the bank
+reports it; only 980/840/978 map to a display currency), `Iban`, `AccountType` (the bank's own open
+string, e.g. `fop`, `black`, `diia`), `IsFop` (`AccountType == "fop"`), `ExternalId` (the bank's
+account id), `IsActive` (the owner chose to follow this account; always `false` for a non-FOP
+account). Unique per (`UserId`, `Bank`, `ExternalId`).
+
+A row exists for every account the token exposed, FOP or not, so settings can list an unsupported
+type without a second call to the bank. Only a `fop` account can ever have `IsActive = true`.
+
+The token itself does not live here: see `BankConnection` below (#75). `EncryptedToken` moved off
+this entity because the connection — one token per owner — outlives any single account, and
+disconnecting must not touch the `BankAccount` rows a sync already created.
 
 Relationships: belongs to `User`, has many `Transaction`.
+
+---
+
+### BankConnection (monobank)
+
+Responsibilities: one owner's personal API token for one bank. One connection, and one encrypted
+token, per owner — not per account (#75).
+
+Fields: `UserId` (primary key), `EncryptedToken` (AES-256-GCM ciphertext, see ADR-011; never
+returned by the API), `MonobankClientId` (the bank's own client id, kept only to help the owner
+recognise which token is connected), `ConnectedAt`.
+
+The token is validated against the bank's `client-info` endpoint at the moment it is saved; an
+invalid token is rejected and nothing is stored. Saving a valid token upserts a `BankAccount` row
+per account the bank reports, preselecting (`IsActive = true`) every `fop` account and leaving
+every other type unselected and not selectable. Disconnecting deletes this row only; `BankAccount`
+rows, and anything imported against them, stay.
+
+Relationships: belongs to `User`, 1-to-1.
 
 ---
 

@@ -11,7 +11,9 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Tests.Features.Fx;
+using TaxesUa.Api.Tests.Features.Monobank;
 using Testcontainers.PostgreSql;
 
 namespace TaxesUa.Api.Tests;
@@ -21,6 +23,10 @@ public sealed class ApiFixture : IAsyncLifetime
     public const string AllowedEmail = "owner@example.com";
 
     public const string SecondAllowedEmail = "second@example.com";
+
+    // 32 bytes, base64 — a fixed test key so every test runs with monobank "configured" unless it
+    // deliberately asks for the unconfigured application below.
+    public const string MonobankTestKeyBase64 = "dGVzdC1tb25vYmFuay1rZXktMzItYnl0ZXMtbG9uZyE=";
 
     private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:16-alpine").Build();
 
@@ -41,15 +47,20 @@ public sealed class ApiFixture : IAsyncLifetime
             builder.UseSetting("Auth:Passkey:ServerDomain", "localhost");
             builder.UseSetting("ConnectionStrings:Default", _database.GetConnectionString());
             builder.UseSetting("Auth:AllowedEmails", $" {AllowedEmail} ; {SecondAllowedEmail}");
+            builder.UseSetting("Monobank:TokenEncryptionKeyBase64", MonobankTestKeyBase64);
 
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IStartupFilter, ExternalSignInStub>();
 
-                // A test that needs NBU registers its own handler after this one, which replaces it.
+                // A test that needs NBU or monobank registers its own handler after this one, which
+                // replaces it.
                 services.AddHttpClient<NbuRateClient>()
                     .ConfigurePrimaryHttpMessageHandler(() => new StubNbuHandler(_ =>
                         throw new InvalidOperationException("real NBU called from a test")));
+                services.AddHttpClient<MonobankClient>()
+                    .ConfigurePrimaryHttpMessageHandler(() => new StubMonobankHandler(_ =>
+                        throw new InvalidOperationException("real monobank called from a test")));
             });
 
             configure(builder);
@@ -78,6 +89,16 @@ public sealed class ApiFixture : IAsyncLifetime
             services.AddSingleton<TimeProvider>(
                 new FakeTime(new DateTimeOffset(today, new TimeOnly(10, 0), TimeSpan.Zero)));
         }));
+
+    // An application whose monobank answers come from monobank.
+    public WebApplicationFactory<Program> CreateApplication(StubMonobankHandler monobank) =>
+        CreateApplication(builder => builder.ConfigureTestServices(services =>
+            services.AddHttpClient<MonobankClient>().ConfigurePrimaryHttpMessageHandler(() => monobank)));
+
+    // An application with no monobank key configured at all (ADR-011): every monobank endpoint must
+    // answer "not configured" instead of ever reaching the encryptor or the bank.
+    public WebApplicationFactory<Program> CreateApplicationWithoutMonobankKey() =>
+        CreateApplication(builder => builder.UseSetting("Monobank:TokenEncryptionKeyBase64", string.Empty));
 
     public static async Task<HttpClient> SignIn(WebApplicationFactory<Program> application, string email)
     {

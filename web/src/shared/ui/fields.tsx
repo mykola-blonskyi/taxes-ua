@@ -110,12 +110,14 @@ export function CheckboxField({
   checked,
   onChange,
   labelClassName,
+  disabled,
 }: {
   id: string;
   label: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   labelClassName?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -123,8 +125,9 @@ export function CheckboxField({
         id={id}
         type="checkbox"
         checked={checked}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.checked)}
-        className="size-4 rounded border bg-background"
+        className="size-4 rounded border bg-background disabled:opacity-50"
       />
       <label htmlFor={id} className={labelClassName ?? "text-sm"}>
         {label}

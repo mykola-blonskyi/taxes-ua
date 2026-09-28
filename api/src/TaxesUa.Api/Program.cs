@@ -13,6 +13,7 @@ using TaxesUa.Api.Features.Backup;
 using TaxesUa.Api.Features.Dashboard;
 using TaxesUa.Api.Features.Export;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
@@ -131,6 +132,15 @@ builder.Services.AddHttpClient<NbuRateClient>(client =>
     client.Timeout = TimeSpan.FromSeconds(5);
 });
 
+// The key can be absent (a local run, or a deployment that has not set it up yet): TokenEncryptor
+// starts unconfigured rather than throwing, and MonobankEndpoints answers 503 until it is set.
+builder.Services.AddSingleton<TokenEncryptor>();
+builder.Services.AddHttpClient<MonobankClient>(client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["Monobank:BaseUrl"] ?? "https://api.monobank.ua/");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
 var authentication = builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = IdentityConstants.ApplicationScheme;
@@ -194,6 +204,10 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// Resolved eagerly so a malformed (as opposed to merely absent) key fails startup instead of the
+// first monobank request.
+app.Services.GetRequiredService<TokenEncryptor>();
+
 app.UseForwardedHeaders();
 
 if (!app.Environment.IsDevelopment())
@@ -256,6 +270,7 @@ api.MapBackupApi();
 api.MapImportApi();
 api.MapAuditApi();
 api.MapDashboardApi();
+api.MapMonobankApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

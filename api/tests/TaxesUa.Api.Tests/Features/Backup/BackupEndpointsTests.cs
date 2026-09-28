@@ -10,6 +10,7 @@ using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Backup;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
@@ -263,6 +264,12 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(FxRate)];
         // The change log is history, not state: a restore does not replay it and does not carry it.
         Type[] historyNotState = [typeof(AuditEntry)];
+        // #75 / ADR-011: the encrypted token must never leave the database, so the connection it
+        // belongs to is excluded outright rather than carried as an entry with the token blanked.
+        // BankAccount is excluded alongside it: a restore keeps the connection absent (the domain
+        // model), so a synced account is meaningless without it, and reconnecting dedupes accounts by
+        // ExternalId exactly as sync already does.
+        Type[] bankConnectionNotBackedUp = [typeof(BankAccount), typeof(MonobankConnection)];
 
         var featureTables = model.GetEntityTypes()
             .Select(type => type.ClrType)
@@ -270,7 +277,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 && type.Namespace != "TaxesUa.Api.Features.Auth")
             .ToHashSet();
         Assert.Equal(
-            backedUp.Keys.Concat(sharedByEveryOwner).Concat(historyNotState).ToHashSet(), featureTables);
+            backedUp.Keys.Concat(sharedByEveryOwner).Concat(historyNotState).Concat(bankConnectionNotBackedUp).ToHashSet(),
+            featureTables);
 
         foreach (var (entity, record) in backedUp)
         {

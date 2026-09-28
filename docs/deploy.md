@@ -23,6 +23,9 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
 - `api` runs as `Production` and refuses to start while `DATABASE_URL`, `GOOGLE_CLIENT_ID`,
   `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `ALLOWED_HOSTS` or `PASSKEY_SERVER_DOMAIN` is empty.
   Its log names the missing variables, and the container exits instead of staying up unhealthy.
+- `MONOBANK_TOKEN_ENCRYPTION_KEY` is the one secret that is *not* required to start (ADR-011): left
+  empty, the api still comes up and the monobank settings section answers "not configured" instead
+  of 500s. Set it whenever the owner is ready to connect monobank.
 - The data-protection key ring lives in the `dataprotection-keys` volume, so a redeploy keeps the
   owner signed in (ADR-010).
 - `api` answers only for `ALLOWED_HOSTS`, as forwarded by `web`, plus its own internal names for
@@ -132,6 +135,7 @@ is disabled.
    | `ALLOWED_EMAILS` | the owner's email |
    | `ALLOWED_HOSTS` | `taxes.blonskyi.dev` |
    | `PASSKEY_SERVER_DOMAIN` | `taxes.blonskyi.dev` |
+   | `MONOBANK_TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32`, once, kept in the password manager (ADR-011) |
 
    Set these only in Coolify. Never put the domain in a local `.env`: `docker-compose.local.yml`
    overrides only the environment name and the connection string, so a local run would inherit it

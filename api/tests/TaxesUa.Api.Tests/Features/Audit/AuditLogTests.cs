@@ -9,6 +9,7 @@ using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
@@ -222,7 +223,18 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
     [Fact]
     public async Task Every_entity_is_either_audited_or_named_here_as_not_audited()
     {
-        Type[] notAudited = [typeof(Client), typeof(FxRate), typeof(AuditEntry), typeof(ApplicationUser)];
+        Type[] notAudited =
+        [
+            typeof(Client),
+            typeof(FxRate),
+            typeof(AuditEntry),
+            typeof(ApplicationUser),
+            // The encrypted monobank token must never reach the change log (ADR-011); BankAccount
+            // carries no secret but is excluded alongside it since both are connection metadata, not
+            // the owner's tax data the log exists to track.
+            typeof(BankAccount),
+            typeof(MonobankConnection),
+        ];
 
         await using var scope = fixture.CreateScope();
         var model = scope.ServiceProvider.GetRequiredService<AppDbContext>().Model;

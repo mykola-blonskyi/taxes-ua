@@ -1,0 +1,21 @@
+namespace TaxesUa.Api.Features.Monobank;
+
+/// <summary>
+/// One owner's monobank personal API token. One connection (and one encrypted token) per owner, not
+/// per account (knowledge/domain-model.md, #75). The token is encrypted with AES-256-GCM under a key
+/// from the environment (ADR-011), never with the ASP.NET Core Data Protection ring, and is never
+/// read back out through the API.
+/// </summary>
+internal sealed class MonobankConnection
+{
+    public string UserId { get; set; } = string.Empty;
+
+    // Nonce (12 bytes) + ciphertext + authentication tag (16 bytes), see TokenEncryptor.
+    public byte[] EncryptedToken { get; set; } = [];
+
+    // The monobank clientId the token resolved to at the moment it was saved, kept only to help the
+    // owner recognise which token is connected; never a secret.
+    public string MonobankClientId { get; set; } = string.Empty;
+
+    public DateTimeOffset ConnectedAt { get; set; }
+}
