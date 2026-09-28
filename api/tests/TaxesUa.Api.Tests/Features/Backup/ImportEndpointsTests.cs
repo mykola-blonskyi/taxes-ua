@@ -21,6 +21,7 @@ namespace TaxesUa.Api.Tests.Features.Backup;
 // Every test starts by restoring an empty backup, so it owns the whole state of the owner it signs in.
 // The year is 2031, given 2026's parameters: 5% EP, 1% VZ, ESV 1,902.34 a month, advances recommended on
 // the 15th. A far-off year keeps the fake clock ahead of the real one, so the session cookie stays valid.
+[Collection(nameof(ImportEndpointsTests))]
 public sealed class ImportEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
     private static readonly JsonSerializerOptions Json =
@@ -239,20 +240,23 @@ public sealed class ImportEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
     // A lookup through DbSet.Local per receipt once made this quadratic: 10,000 named receipts ran past
     // the web proxy's 30 seconds while holding the owner's lock. Growth is checked as a ratio because a
-    // shared CI runner is several times slower than a workstation; tenfold the receipts costing far
-    // more than tenfold the time is the regression. The absolute cap only catches a runaway.
+    // shared CI runner is several times slower than a workstation. Tenfold the receipts costs seven to
+    // fourteen times the time today and cost about sixtyfold with that lookup, so the bound sits
+    // between them. The warm-up is as large as the small import because a first import costs up to twice as
+    // much, which would pull the regression's ratio down towards the bound. The absolute cap only
+    // catches a runaway.
     [Fact]
     public async Task Import_time_grows_linearly_up_to_the_largest_allowed_file()
     {
         await using var application = CreateApplication();
         using var owner = await SignedInFresh(application);
-        await Import(owner, NamedReceipts(50, day: 1));
+        await Import(owner, NamedReceipts(PrototypeFile.MaxIncomes / 10, day: 1));
 
         var small = await Timed(owner, NamedReceipts(PrototypeFile.MaxIncomes / 10, day: 2));
         var large = await Timed(owner, NamedReceipts(PrototypeFile.MaxIncomes, day: 3));
 
         Assert.Equal(20, (await Backup(owner)).Clients.Length);
-        Assert.True(large < small * 15, $"{PrototypeFile.MaxIncomes / 10} took {small}, {PrototypeFile.MaxIncomes} took {large}");
+        Assert.True(large < small * 25, $"{PrototypeFile.MaxIncomes / 10} took {small}, {PrototypeFile.MaxIncomes} took {large}");
         Assert.True(large < TimeSpan.FromSeconds(60), $"took {large}");
     }
 
@@ -435,3 +439,9 @@ public sealed class ImportEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static async Task<AuditEntryResponse[]> History(HttpClient owner) =>
         (await owner.GetFromJsonAsync<AuditEntryResponse[]>("/api/audit", Json))!;
 }
+
+// Run alone, after every parallel collection: the growth test times two imports, and the other
+// classes' tests competing for a CI runner's four cores slowed the large one more than the small one,
+// pushing a linear import past the bound.
+[CollectionDefinition(nameof(ImportEndpointsTests), DisableParallelization = true)]
+public sealed class ImportEndpointsCollection;
