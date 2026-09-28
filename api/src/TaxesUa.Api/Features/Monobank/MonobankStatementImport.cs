@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
-using Npgsql;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Transactions;
@@ -25,8 +24,6 @@ internal sealed class MonobankStatementImport(
     public static readonly TimeSpan Window = TimeSpan.FromDays(31);
 
     private const string StatementMethod = "statement";
-
-    private const string ExternalIdIndex = "IX_Transactions_BankAccountId_ExternalId";
 
     public async Task RunAsync(SyncWork work, CancellationToken cancellationToken)
     {
@@ -192,23 +189,8 @@ internal sealed class MonobankStatementImport(
             RefundsTransactionId: null);
         var provenance = new ImportProvenance(account.Id, item.Id, item.Time, counterparty, batchId);
 
-        RecordTransactionResult result;
-        try
-        {
-            result = await TransactionRecorder.RecordAsync(
-                database, ownerId, request, provenance, rates, today, cancellationToken);
-        }
-        catch (DbUpdateException exception) when (exception.InnerException is PostgresException
-            {
-                SqlState: PostgresErrorCodes.UniqueViolation,
-                ConstraintName: ExternalIdIndex,
-            })
-        {
-            // Only a second api instance, which does not take this process's queue, can race the insert.
-            // EF rolled the failed save back to its savepoint; what it tracked must not be saved again.
-            database.ChangeTracker.Clear();
-            return Outcome.AlreadyPresent;
-        }
+        var result = await TransactionRecorder.RecordAsync(
+            database, ownerId, request, provenance, rates, today, cancellationToken);
 
         switch (result)
         {
@@ -241,7 +223,8 @@ internal sealed class MonobankStatementImport(
     private static string? Fit(string? value, int maxLength) => value switch
     {
         null or "" => null,
-        { Length: var length } when length > maxLength => value[..maxLength],
+        { Length: var length } when length > maxLength =>
+            value[..(char.IsHighSurrogate(value[maxLength - 1]) ? maxLength - 1 : maxLength)],
         _ => value,
     };
 
@@ -251,6 +234,5 @@ internal sealed class MonobankStatementImport(
     {
         Imported,
         Skipped,
-        AlreadyPresent,
     }
 }

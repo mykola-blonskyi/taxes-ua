@@ -178,6 +178,22 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
     }
 
     [Fact]
+    public async Task A_long_counterparty_name_is_cut_without_splitting_an_emoji()
+    {
+        var name = new string('a', TransactionsEndpoints.MaxClientNameLength - 1) + "\U0001F600 tail";
+        var bank = new FakeBank();
+        bank.Connect("token-emoji", ("emoji-uah", 980));
+        bank.Put("emoji-uah", new Operation("op-emoji", At(2047, 5, 7, 9), 100_00, 980, CounterName: name));
+        await using var app = Create(At(2047, 5, 8, 10), bank);
+        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-emoji");
+
+        await Sync(app, owner);
+
+        Assert.Single((await List(owner, 2047)).Items);
+        Assert.Equal((1, 0), Counts(await Status(owner), "emoji-uah"));
+    }
+
+    [Fact]
     public async Task A_failed_statement_call_clears_the_queue_and_the_next_sync_imports()
     {
         var bank = new FakeBank();
@@ -264,11 +280,11 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
     {
         var bank = new FakeBank();
         bank.Connect("token-backup-secret", ("backup-usd", 840));
-        bank.Put("backup-usd", new Operation("op-backup", At(2040, 9, 3, 9), 250_00, 840, CounterName: "Epsilon"));
-        await using var app = Create(At(2040, 9, 5, 10), bank, Nbu(("USD", new DateOnly(2040, 9, 3), "40.0000")));
+        bank.Put("backup-usd", new Operation("op-backup", At(2050, 9, 3, 9), 250_00, 840, CounterName: "Epsilon"));
+        await using var app = Create(At(2050, 9, 5, 10), bank, Nbu(("USD", new DateOnly(2050, 9, 3), "40.0000")));
         using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-backup-secret");
         await Sync(app, owner);
-        var imported = Assert.Single((await List(owner, 2040)).Items);
+        var imported = Assert.Single((await List(owner, 2050)).Items);
 
         var file = await owner.GetStringAsync("/api/backup");
 
@@ -296,7 +312,7 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "token-backup-secret" })).StatusCode);
         await Sync(app, owner);
 
-        Assert.Equal(imported.Id, Assert.Single((await List(owner, 2040)).Items).Id);
+        Assert.Equal(imported.Id, Assert.Single((await List(owner, 2050)).Items).Id);
         Assert.Equal((0, 0), Counts(await Status(owner), "backup-usd"));
     }
 
