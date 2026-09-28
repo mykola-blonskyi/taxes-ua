@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -90,6 +91,7 @@ public static class TransactionsEndpoints
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
+                // A malformed body answers 400 before the user lookup can answer 401.
                 var normalized = Normalize(request);
                 if (Validate(request, normalized, time.TodayInKyiv()) is { } errors)
                 {
@@ -102,35 +104,19 @@ public static class TransactionsEndpoints
                     return Results.Unauthorized();
                 }
 
-                if (await ValidateLinksAsync(database, user.Id, null, request, cancellationToken) is { } linkErrors)
+                var result = await TransactionRecorder.RecordAsync(
+                    database, user.Id, request, rates, time.TodayInKyiv(), cancellationToken);
+
+                return result switch
                 {
-                    return Results.ValidationProblem(linkErrors);
-                }
-
-                var row = new Transaction { Id = Guid.NewGuid(), UserId = user.Id };
-                if (await ApplyAmountAsync(row, request, rates, cancellationToken) is { } rateProblem)
-                {
-                    return rateProblem;
-                }
-
-                var now = DateTimeOffset.UtcNow;
-                row.ClientId = await ResolveClientAsync(database, user.Id, normalized.ClientName, cancellationToken);
-                row.Kind = request.Kind;
-                row.NonIncomeReason = normalized.NonIncomeReason;
-                row.RefundsTransaction = await FindReceiptAsync(database, request, cancellationToken);
-                row.InvoiceNumber = normalized.InvoiceNumber;
-                row.Description = normalized.Description;
-                row.CreatedAt = now;
-                row.UpdatedAt = now;
-                database.Transactions.Add(row);
-                await database.SaveChangesAsync(cancellationToken);
-
-                var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
-                var beforeRegistration = IsBeforeRegistration(row, settings);
-
-                return Results.Created(
-                    $"/api/transactions/{row.Id}",
-                    ToResponse(row, normalized.ClientName, beforeRegistration));
+                    RecordTransactionResult.Success success => Results.Created(
+                        $"/api/transactions/{success.Row.Id}",
+                        ToResponse(success.Row, success.ClientName, success.BeforeRegistration)),
+                    RecordTransactionResult.Invalid invalid => Results.ValidationProblem(invalid.Errors),
+                    RecordTransactionResult.RateUnavailable unavailable =>
+                        FxEndpoints.RateUnavailable(unavailable.Currency, unavailable.Date, unavailable.Lookup),
+                    _ => throw new UnreachableException(),
+                };
             })
             .Produces<TransactionResponse>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
@@ -171,9 +157,15 @@ public static class TransactionsEndpoints
                     return Results.ValidationProblem(linkErrors);
                 }
 
-                if (await ApplyAmountAsync(row, request, rates, cancellationToken) is { } rateProblem)
+                if (await ApplyAmountAsync(row, request, rates, cancellationToken) is { } problem)
                 {
-                    return rateProblem;
+                    return problem switch
+                    {
+                        AmountProblem.Invalid invalid => Results.ValidationProblem(invalid.Errors),
+                        AmountProblem.RateUnavailable unavailable =>
+                            FxEndpoints.RateUnavailable(unavailable.Currency, unavailable.Date, unavailable.Lookup),
+                        _ => throw new UnreachableException(),
+                    };
                 }
 
                 row.ClientId = await ResolveClientAsync(database, user.Id, normalized.ClientName, cancellationToken);
@@ -299,12 +291,12 @@ public static class TransactionsEndpoints
 
     // Asks the same Rule 8 decision `IncomeLedger.ForYear` makes, so a row's flag and the list's total
     // cannot disagree.
-    private static bool IsBeforeRegistration(Transaction row, SettingsEntity settings) =>
+    internal static bool IsBeforeRegistration(Transaction row, SettingsEntity settings) =>
         settings.FopRegistrationDate is { } registrationDate
         && IncomeLedger.Exclusion(row.ToEngineInput(), registrationDate) is not null;
 
     // Validation already loaded the receipt into the context, so this is a lookup, not a query.
-    private static async Task<Transaction?> FindReceiptAsync(
+    internal static async Task<Transaction?> FindReceiptAsync(
         AppDbContext database, TransactionRequest request, CancellationToken cancellationToken) =>
         request.RefundsTransactionId is { } receiptId
             ? await database.Transactions.FindAsync([receiptId], cancellationToken)
@@ -398,7 +390,7 @@ public static class TransactionsEndpoints
     // The one place POST and PUT fix the rate (Rule 2), so the two cannot diverge. It runs before any
     // other change to the row or the context, since FxRates saves its cache row with its own
     // SaveChanges. On PUT, row still holds the stored values it compares against.
-    private static async Task<IResult?> ApplyAmountAsync(
+    internal static async Task<AmountProblem?> ApplyAmountAsync(
         Transaction row, TransactionRequest request, FxRates rates, CancellationToken cancellationToken)
     {
         (int RateE4, DateOnly? RateDate, RateSource? Source) rate;
@@ -422,7 +414,7 @@ public static class TransactionsEndpoints
             var lookup = await rates.GetAsync(request.Currency, request.ValueDate, cancellationToken);
             if (lookup is not NbuLookup.Found found)
             {
-                return FxEndpoints.RateUnavailable(request.Currency, request.ValueDate, lookup);
+                return new AmountProblem.RateUnavailable(request.Currency, request.ValueDate, lookup);
             }
 
             rate = (found.RateE4, found.RateDate, RateSource.Nbu);
@@ -430,7 +422,7 @@ public static class TransactionsEndpoints
 
         if (ExceedsUahBound(request.AmountMinor, rate.RateE4))
         {
-            return Results.ValidationProblem(new Dictionary<string, string[]>
+            return new AmountProblem.Invalid(new Dictionary<string, string[]>
             {
                 [Field(nameof(request.AmountMinor))] =
                     [$"amountMinor at this rate must not exceed {MaxAmountMinor} kopecks in hryvnia."],
@@ -451,7 +443,7 @@ public static class TransactionsEndpoints
     internal static bool ExceedsUahBound(long amountMinor, int rateE4) =>
         (Int128)amountMinor * rateE4 > (Int128)MaxAmountMinor * Money.RateScale;
 
-    private static async Task<Guid?> ResolveClientAsync(
+    internal static async Task<Guid?> ResolveClientAsync(
         AppDbContext database, string userId, string? name, CancellationToken cancellationToken)
     {
         if (name is null)
