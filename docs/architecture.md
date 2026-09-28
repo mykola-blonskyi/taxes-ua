@@ -186,6 +186,18 @@ A prototype import (`POST /api/import/prototype`) merges rather than replaces, s
 ordinary path: one `Create` entry per inserted row. It shares the restore's per-owner advisory lock,
 and its dry run is the same code in a transaction that is rolled back.
 
+**Bank sync.** `POST /api/monobank/sync` only enqueues the owner's followed FOP accounts on
+`MonobankSyncQueue`; the request never calls the bank. One `BackgroundService`,
+`MonobankSyncWorker`, takes one account at a time. It waits its turn at `MonobankRateGate` (one
+statement call per owner per 60 seconds, timed on `TimeProvider` so tests advance a fake clock),
+reads the last 31 days, and records each settled credit through `TransactionRecorder`, the operation
+behind `POST /api/transactions`, with the row's import provenance (Rule 12). Each account is imported
+in one database transaction under the restore's per-owner advisory lock, so a sync never interleaves
+with a restore, and every inserted row gets its ordinary `Create` entry. The queue lives in memory: a
+restart drops queued work, and the owner presses "sync now" again (#77 adds a persisted cursor and
+the 429 and 401 handling, both at the gate and the worker). `BankAccount`, `ImportBatch` and the
+connection are not audited: an account snapshot would put the full IBAN on the History screen.
+
 ### web layers
 
 ```

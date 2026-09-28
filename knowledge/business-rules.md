@@ -226,3 +226,27 @@ Europe/Kyiv; bank UTC timestamps are converted at the boundary.
 
 The calculation is informational. The user reconciles accruals against the Electronic Cabinet.
 The application does not pay taxes and does not file declarations.
+
+---
+
+## Rule 12. Bank import
+
+A sync reads the last 31 days of every followed FOP account (#76). It records an operation only when
+it is a credit (`amount > 0`) that the bank reports settled (`hold` is false), in UAH, USD or EUR.
+Debits are not recorded (budget payments are a later ticket), and a held credit waits for a later
+sync, so a reversed authorisation never counts as income.
+
+An imported credit goes through the same recording as a manual entry: Rule 1's no-future-date check,
+Rule 2's NBU rate on the credit date, fixed at write time, and the client found or created by the
+counterparty's name. Its `ValueDate` is the Kyiv calendar date of the bank's instant, so a credit at
+23:30 UTC lands on the next day in Kyiv (Rule 10). It is `Income` and starts as `NeedsReview`.
+
+An unreviewed row counts toward income under its kind, exactly as a confirmed one: the figures never
+wait for a review to include money that arrived.
+
+A sync only inserts. An operation is the bank's `id` on its account; once a row holds it, a later
+sync leaves that row as the owner last saved it, whatever the bank now says, so an owner's edit and
+the fixed rate always win. A credit that could not be recorded (on hold, another currency, a failed
+check, an NBU rate not yet published) writes nothing and is counted as skipped; the next sync tries
+it again. Debits and operations already recorded count as neither imported nor skipped, so a repeated
+sync reads 0 and 0. A deleted imported row comes back on the next sync until #78 adds the tombstone.

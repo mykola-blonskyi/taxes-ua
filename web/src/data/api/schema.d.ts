@@ -1987,6 +1987,15 @@ export interface paths {
                         "application/json": components["schemas"]["MonobankConnectionResponse"];
                     };
                 };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
                 /** @description Unauthorized */
                 401: {
                     headers: {
@@ -2006,6 +2015,66 @@ export interface paths {
             };
         };
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/monobank/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MonobankConnectionResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -2038,9 +2107,26 @@ export interface components {
             clients: components["schemas"]["ClientBackup"][];
             transactions: components["schemas"]["TransactionBackup"][];
             budgetPayments: components["schemas"]["BudgetPaymentBackup"][];
+            bankAccounts: components["schemas"]["BankAccountBackup"][];
+            importBatches: components["schemas"]["ImportBatchBackup"][];
         };
         /** @enum {string} */
         Bank: "Monobank" | "PrivatBank" | "Other";
+        BankAccountBackup: {
+            /** Format: uuid */
+            id: string;
+            bank: components["schemas"]["Bank"];
+            externalId: string;
+            name: string;
+            /** Format: int32 */
+            currencyCode: number | string;
+            iban: string;
+            accountType: string;
+            isFop: boolean;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
         BudgetPaymentBackup: {
             /** Format: uuid */
             id: string;
@@ -2107,6 +2193,23 @@ export interface components {
                 [key: string]: string[];
             };
         };
+        ImportBatchBackup: {
+            /** Format: uuid */
+            id: string;
+            source: components["schemas"]["ImportSource"];
+            /** Format: uuid */
+            bankAccountId: string;
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            /** Format: int32 */
+            importedCount: number | string;
+            /** Format: int32 */
+            skippedCount: number | string;
+            /** Format: date-time */
+            createdAt: string;
+        };
         ImportResponse: {
             dryRun: boolean;
             /** Format: int32 */
@@ -2120,6 +2223,8 @@ export interface components {
             /** Format: int32 */
             paymentsNothingDue: number | string;
         };
+        /** @enum {string} */
+        ImportSource: "Monobank";
         JsonElement: unknown;
         KindCreditResponse: {
             kind: components["schemas"]["PaymentKind"];
@@ -2158,6 +2263,18 @@ export interface components {
             /** Format: int64 */
             creditKop: number | string;
         };
+        LastSyncResponse: {
+            /** Format: date-time */
+            at: string;
+            /** Format: date-time */
+            from: string;
+            /** Format: date-time */
+            to: string;
+            /** Format: int32 */
+            importedCount: number | string;
+            /** Format: int32 */
+            skippedCount: number | string;
+        };
         /** @enum {string} */
         LimitLevel: "Ok" | "Warn" | "Exceeded";
         LimitStatusResponse: {
@@ -2190,6 +2307,8 @@ export interface components {
             isFop: boolean;
             isSupported: boolean;
             isFollowed: boolean;
+            syncPending: boolean;
+            lastSync: null | components["schemas"]["LastSyncResponse"];
         };
         MonobankConnectionResponse: {
             connected: boolean;
@@ -2368,6 +2487,8 @@ export interface components {
             /** Format: int32 */
             budgetPayments: number | string;
         };
+        /** @enum {string} */
+        ReviewStatus: "Confirmed" | "NeedsReview";
         SettingsBackup: {
             /** Format: date */
             fopRegistrationDate: null | string;
@@ -2496,6 +2617,15 @@ export interface components {
             refundsTransactionId: null | string;
             invoiceNumber: null | string;
             description: null | string;
+            /** Format: uuid */
+            bankAccountId: null | string;
+            externalId: null | string;
+            /** Format: date-time */
+            bankTime: null | string;
+            counterparty: null | string;
+            /** Format: uuid */
+            importBatchId: null | string;
+            reviewStatus: components["schemas"]["ReviewStatus"];
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -2550,6 +2680,11 @@ export interface components {
             description: null | string;
             beforeRegistration: boolean;
             refundsReceipt: null | components["schemas"]["RefundedReceipt"];
+            source: null | components["schemas"]["TransactionSource"];
+        };
+        TransactionSource: {
+            bank: components["schemas"]["Bank"];
+            accountCurrency: string;
         };
         YearBalancesResponse: {
             singleTax: components["schemas"]["KindYearBalance"];
