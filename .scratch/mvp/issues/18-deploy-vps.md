@@ -1,7 +1,7 @@
 # 18: Deploy to Coolify on the VPS
 
 GitHub: #20
-Status: repository side closed in PR #62 (host filtering, security headers, persisted
+Status: closed, done (repository side PR #62, runbook PR #64; deployed and verified on 2026-09-28)
 data-protection keys, fail-fast startup, `deploy/postgres/` scripts, `docs/deploy.md`). Open for
 the deploy itself: DNS, the Coolify resource, the Google client, the database role, and the first
 release, all by hand per docs/deploy.md, followed by the #15/#16/#18 checks on the real domain.
@@ -27,7 +27,7 @@ project adds its own scheduled logical dump.
 - [x] The `api` service is not reachable from outside; the domain reaches only `web`. Port 8080 on the VPS does not answer, and `api` has no Traefik router.
 - [x] The new database role owns only its own database, the convention every project on `shared-database` follows (ADR-006, PR #64). It replaces the earlier connect-only-to-its-own-database rule.
 - [x] Every MVP screen (transactions, payments, dashboard, periods, settings, export, backup) works end to end against the production deployment, matching its local behavior (owner, 2026-09-28).
-- [ ] If the existing PostgreSQL instance has no backup already, a scheduled logical dump is in place for this project's database.
+- [x] If the existing PostgreSQL instance has no backup already, a scheduled logical dump is in place for this project's database. Coolify backs up the whole shared-database instance daily to local storage and to MinIO (`coolify-backups` bucket). On 2026-09-28 the newest dump passed `gzip -t` and holds `taxes_ua` with 16 tables.
 
 ## Blocked by
 
