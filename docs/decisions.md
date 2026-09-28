@@ -194,9 +194,10 @@ Stricter, but it would be the only project on the instance set up differently, a
 
 ### Consequences
 
-Zero cost and no new database process. The application depends on Coolify for TLS and on however
-the owner already backs up that PostgreSQL instance; if that instance has no backup in place, the
-project adds its own scheduled logical dump.
+Zero cost and no new database process. The application depends on Coolify for TLS and for
+backups. The instance had none, so Coolify's daily instance-wide dump to local storage and the
+owner's MinIO was set up for it on 2026-09-28 (docs/deploy.md step 8). It covers every project on
+the instance, not just this one.
 
 The role can drop its own database and create schemas in it. Like every other project's role, it
 can connect to the other databases on the instance, and they to this one, but no role can read
