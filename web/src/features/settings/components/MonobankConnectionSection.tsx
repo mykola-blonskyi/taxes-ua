@@ -45,9 +45,7 @@ function MonobankConnectionBody({
   const [editingToken, setEditingToken] = useState(!connection.connected);
 
   const tokenFailure = saveToken.error instanceof ApiError ? saveToken.error : null;
-  // The api sends the same fixed English sentence for these two cases either way (ApiError.errors is
-  // whatever ProblemDetails carried), so they are the only server field errors this app translates;
-  // every other endpoint's field errors are shown as the api sends them.
+  // The one server field error an owner routinely meets, so the only one this app translates.
   const tokenErrorKeys: Record<string, string> = {
     "Token is required.": t("tokenRequired"),
     "monobank rejected this token.": t("tokenInvalid"),

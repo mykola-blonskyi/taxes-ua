@@ -98,7 +98,8 @@ recognise which token is connected), `ConnectedAt`.
 The token is validated against the bank's `client-info` endpoint at the moment it is saved; an
 invalid token is rejected and nothing is stored. Saving a valid token reconciles `BankAccount` rows
 against the accounts the bank now reports: an existing row not among them has `IsActive` cleared
-and stops being followed, a `fop` row among them (new or reappearing) gets `IsActive = true`, and
+and stops being followed, a new `fop` row gets `IsActive = true`, an existing `fop` row keeps the
+owner's choice (an account that reappears stays unfollowed until the owner follows it again), and
 every other type stays unselected and not selectable. Disconnecting deletes this row only;
 `BankAccount` rows, and anything imported against them, stay.
 

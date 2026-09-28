@@ -113,9 +113,9 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         var both = StubMonobankHandler.ClientInfo(
             "client-1",
-            ("acc-a", "fop", 980, "UA1"),
-            ("acc-b", "fop", 980, "UA2"));
-        var onlyB = StubMonobankHandler.ClientInfo("client-1", ("acc-b", "fop", 980, "UA2"));
+            ("deactivate-a", "fop", 980, "UA1"),
+            ("deactivate-b", "fop", 980, "UA2"));
+        var onlyB = StubMonobankHandler.ClientInfo("client-1", ("deactivate-b", "fop", 980, "UA2"));
         using var application = fixture.CreateApplication(ForTokens((GoodToken, both), ("second-token", onlyB)));
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
@@ -124,20 +124,39 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var status = await response.Content.ReadFromJsonAsync<ConnectionStatus>();
-        var a = status!.Accounts.Single(acc => acc.ExternalId == "acc-a");
+        var a = status!.Accounts.Single(acc => acc.ExternalId == "deactivate-a");
         Assert.False(a.IsFollowed, "an account dropped from the new client-info must stop being followed");
-        var b = status.Accounts.Single(acc => acc.ExternalId == "acc-b");
+        var b = status.Accounts.Single(acc => acc.ExternalId == "deactivate-b");
         Assert.True(b.IsFollowed);
     }
 
     [Fact]
-    public async Task Replacing_the_token_reactivates_a_fop_account_that_reappears()
+    public async Task Replacing_the_token_keeps_an_account_the_owner_stopped_following_unfollowed()
     {
         var both = StubMonobankHandler.ClientInfo(
             "client-1",
-            ("acc-a", "fop", 980, "UA1"),
-            ("acc-b", "fop", 980, "UA2"));
-        var onlyB = StubMonobankHandler.ClientInfo("client-1", ("acc-b", "fop", 980, "UA2"));
+            ("keep-a", "fop", 980, "UA1"),
+            ("keep-b", "fop", 840, "UA2"));
+        using var application = fixture.CreateApplication(ForTokens((GoodToken, both), ("second-token", both)));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
+        await owner.PutAsJsonAsync("/api/monobank/accounts", new { followedExternalIds = new[] { "keep-a" } });
+
+        var response = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "second-token" });
+
+        var status = await response.Content.ReadFromJsonAsync<ConnectionStatus>();
+        Assert.True(status!.Accounts.Single(acc => acc.ExternalId == "keep-a").IsFollowed);
+        Assert.False(status.Accounts.Single(acc => acc.ExternalId == "keep-b").IsFollowed);
+    }
+
+    [Fact]
+    public async Task An_account_that_reappears_waits_for_the_owner_to_follow_it_again()
+    {
+        var both = StubMonobankHandler.ClientInfo(
+            "client-1",
+            ("reappear-a", "fop", 980, "UA1"),
+            ("reappear-b", "fop", 980, "UA2"));
+        var onlyB = StubMonobankHandler.ClientInfo("client-1", ("reappear-b", "fop", 980, "UA2"));
         using var application = fixture.CreateApplication(ForTokens(
             (GoodToken, both), ("second-token", onlyB), ("third-token", both)));
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
@@ -147,7 +166,8 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
         var response = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "third-token" });
 
         var status = await response.Content.ReadFromJsonAsync<ConnectionStatus>();
-        Assert.True(status!.Accounts.Single(acc => acc.ExternalId == "acc-a").IsFollowed);
+        Assert.False(status!.Accounts.Single(acc => acc.ExternalId == "reappear-a").IsFollowed);
+        Assert.True(status.Accounts.Single(acc => acc.ExternalId == "reappear-b").IsFollowed);
     }
 
     [Fact]

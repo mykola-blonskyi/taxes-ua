@@ -222,13 +222,8 @@ public static class MonobankEndpoints
                 stored.Iban = account.Iban;
                 stored.AccountType = account.Type;
                 stored.IsFop = isFop;
-                if (isFop && !stored.IsActive)
-                {
-                    // Either brand new to being FOP, or reappeared after a previous save dropped it for
-                    // being absent: a FOP account the token currently reports is followed by default.
-                    stored.IsActive = true;
-                }
-                else if (!isFop)
+                // The owner's follow choice stands; only a brand new account gets the default.
+                if (!isFop)
                 {
                     stored.IsActive = false;
                 }
@@ -258,8 +253,7 @@ public static class MonobankEndpoints
         {
             if (!seenExternalIds.Contains(account.ExternalId))
             {
-                // The token's client-info no longer reports this account: stop following it so nothing
-                // syncs against data the owner can no longer see or confirm through this token.
+                // A sync must never read an account this token cannot see.
                 account.IsActive = false;
             }
         }
