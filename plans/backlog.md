@@ -7,7 +7,8 @@ Stage 2. Automation (roughly 6–8 days).
 - [ ] Import monobank and PrivatBank CSV/XLSX statements. Dedupe by transaction ID.
 - [ ] Auto-classification: income, own transfer, currency sale. Manual confirmation.
 - [ ] monobank personal API: encrypted token, a request queue limited to 1 request per 60
-      seconds, statements in 31-day windows. Verify visibility of FOP accounts.
+      seconds, statements in 31-day windows. FOP accounts are visible (confirmed 2026-09-28).
+      Read only, no payment creation. #71.
 - [ ] PrivatBank Autoclient API for FOP accounts.
 - [ ] Reminders: a Telegram bot and email, each toggleable independently. At 7 days, 1 day, and
       on the deadline itself.

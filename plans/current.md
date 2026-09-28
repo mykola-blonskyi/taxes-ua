@@ -495,4 +495,5 @@ See [backlog.md](backlog.md). Broken into tickets via `/to-tickets` once the MVP
   (`openapi-typescript`), never hand-written twice.
 - The FOP is not registered yet. The registration date is in the future; real data arrives later,
   so the engine is verified against synthetic data and the 2026 reference table.
-- The monobank API may not expose FOP accounts. Checked with the owner's own token in Stage 2.
+- ~~The monobank API may not expose FOP accounts.~~ Closed 2026-09-28: the owner's token returns
+  the FOP accounts as `type: "fop"`. Adapter tracked in #71.
