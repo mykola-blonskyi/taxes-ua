@@ -38,7 +38,20 @@ against a live domain. Only CI (GitHub Actions) runs early, since it needs no de
 Critical path: #2 → #3 → #4 → #5 → #6 → #8 → #9 → #10, then #20 once everything else lands.
 Frontier at the start: #2 and #3.
 
-## Stages 2 and 3
+## Stage 2: monobank sync
 
-Not yet broken into tickets. Content in [backlog.md](backlog.md). Broken down via `/to-tickets`
-once the MVP is closed.
+Spec: issue #71. Mirror: `.scratch/stage-2/`. monobank only; PrivatBank is deferred.
+
+| # | Ticket | Blocked by |
+| --- | --- | --- |
+| #74 | 01. Share transaction recording between the form and imports | none |
+| #75 | 02. Connect monobank with a personal API token | none |
+| #76 | 03. Sync the last 31 days of monobank FOP receipts | #74, #75 |
+| #77 | 04. Backfill the year from monobank within the rate limit | #76 |
+| #78 | 05. Review imported transactions with suggested kinds | #76 |
+| #79 | 06. Pick up new monobank operations by webhook and nightly catch-up | #77 |
+| #80 | 07. Turn Treasury payments into budget payment candidates | #78 |
+
+Frontier at the start: #74 and #75.
+
+The rest of Stages 2 and 3 is not yet broken into tickets. Content in [backlog.md](backlog.md).
