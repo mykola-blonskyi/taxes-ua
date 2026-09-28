@@ -229,11 +229,13 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
             typeof(FxRate),
             typeof(AuditEntry),
             typeof(ApplicationUser),
-            // The encrypted monobank token must never reach the change log (ADR-011); BankAccount
-            // carries no secret but is excluded alongside it since both are connection metadata, not
-            // the owner's tax data the log exists to track.
-            typeof(BankAccount),
+            // The encrypted monobank token must never reach the change log (ADR-011).
             typeof(MonobankConnection),
+            // A snapshot would carry the full IBAN onto the History screen, which shows every field,
+            // while #75 masks it everywhere else.
+            typeof(BankAccount),
+            // A sync run's summary. The rows it imported each get their own Create entry.
+            typeof(ImportBatch),
         ];
 
         await using var scope = fixture.CreateScope();

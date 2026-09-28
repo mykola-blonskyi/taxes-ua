@@ -32,6 +32,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<MonobankConnection> MonobankConnections => Set<MonobankConnection>();
 
+    public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

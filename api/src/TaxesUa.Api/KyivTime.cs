@@ -11,4 +11,7 @@ internal static class KyivTime
     public static DateOnly TodayInKyiv(this TimeProvider time) => DateOnly.FromDateTime(time.NowInKyiv());
 
     public static DateTime NowInKyiv(this TimeProvider time) => TimeZoneInfo.ConvertTime(time.GetUtcNow(), Kyiv).DateTime;
+
+    public static DateOnly KyivDate(this DateTimeOffset instant) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Kyiv).DateTime);
 }

@@ -2,18 +2,12 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Transactions;
 
 namespace TaxesUa.Api.Features.Monobank;
 
 public static class MonobankEndpoints
 {
-    private static readonly Dictionary<int, string> KnownCurrencyCodes = new()
-    {
-        [980] = "UAH",
-        [840] = "USD",
-        [978] = "EUR",
-    };
-
     public static IEndpointRouteBuilder MapMonobankApi(this IEndpointRouteBuilder routes)
     {
         var monobank = routes.MapGroup("/monobank").WithTags("Monobank").RequireAuthorization();
@@ -22,6 +16,7 @@ public static class MonobankEndpoints
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 TokenEncryptor encryptor,
+                MonobankSyncQueue queue,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -36,7 +31,7 @@ public static class MonobankEndpoints
                     return Results.Unauthorized();
                 }
 
-                return await BuildStatusAsync(database, user.Id, cancellationToken);
+                return Results.Ok(await LoadStatusAsync(database, queue, user.Id, cancellationToken));
             })
             .Produces<MonobankConnectionResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -47,6 +42,7 @@ public static class MonobankEndpoints
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 TokenEncryptor encryptor,
+                MonobankSyncQueue queue,
                 MonobankClient client,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
@@ -89,7 +85,7 @@ public static class MonobankEndpoints
 
                     case ClientInfoResult.Found found:
                         await SaveConnectionAsync(database, encryptor, user.Id, request.Token, found.Info, cancellationToken);
-                        return await BuildStatusAsync(database, user.Id, cancellationToken);
+                        return Results.Ok(await LoadStatusAsync(database, queue, user.Id, cancellationToken));
 
                     default:
                         throw new InvalidOperationException($"Unhandled {nameof(ClientInfoResult)}.");
@@ -106,6 +102,7 @@ public static class MonobankEndpoints
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 TokenEncryptor encryptor,
+                MonobankSyncQueue queue,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -142,7 +139,7 @@ public static class MonobankEndpoints
 
                 await database.SaveChangesAsync(cancellationToken);
 
-                return await BuildStatusAsync(database, user.Id, cancellationToken);
+                return Results.Ok(await LoadStatusAsync(database, queue, user.Id, cancellationToken));
             })
             .Produces<MonobankConnectionResponse>()
             .ProducesValidationProblem()
@@ -174,6 +171,53 @@ public static class MonobankEndpoints
             })
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status401Unauthorized);
+
+        // Only enqueues: MonobankSyncWorker reads the bank, so this request never waits on it.
+        monobank.MapPost("/sync", async (
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                TokenEncryptor encryptor,
+                MonobankSyncQueue queue,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                if (!encryptor.IsConfigured)
+                {
+                    return NotConfigured();
+                }
+
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                if (!await database.MonobankConnections.AnyAsync(connection => connection.UserId == user.Id, cancellationToken))
+                {
+                    return Results.Problem(
+                        title: "Connect monobank before syncing.",
+                        statusCode: StatusCodes.Status409Conflict);
+                }
+
+                var followed = await database.BankAccounts
+                    .Where(account => account.UserId == user.Id
+                        && account.Bank == Bank.Monobank
+                        && account.IsFop
+                        && account.IsActive)
+                    .Select(account => account.Id)
+                    .ToListAsync(cancellationToken);
+                foreach (var accountId in followed)
+                {
+                    queue.Enqueue(new SyncWork(user.Id, accountId));
+                }
+
+                return Results.Accepted(
+                    "/api/monobank/connection", await LoadStatusAsync(database, queue, user.Id, cancellationToken));
+            })
+            .Produces<MonobankConnectionResponse>(StatusCodes.Status202Accepted)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
         return routes;
     }
@@ -261,7 +305,8 @@ public static class MonobankEndpoints
         await database.SaveChangesAsync(cancellationToken);
     }
 
-    private static async Task<IResult> BuildStatusAsync(AppDbContext database, string userId, CancellationToken cancellationToken)
+    private static async Task<MonobankConnectionResponse> LoadStatusAsync(
+        AppDbContext database, MonobankSyncQueue queue, string userId, CancellationToken cancellationToken)
     {
         var connected = await database.MonobankConnections.AnyAsync(connection => connection.UserId == userId, cancellationToken);
 
@@ -270,21 +315,32 @@ public static class MonobankEndpoints
             .OrderBy(account => account.ExternalId)
             .ToListAsync(cancellationToken);
 
-        var response = new MonobankConnectionResponse(
-            Connected: connected,
-            Accounts: [.. accounts.Select(ToResponse)]);
+        var lastBatches = await database.ImportBatches
+            .Where(batch => batch.UserId == userId)
+            .GroupBy(batch => batch.BankAccountId)
+            .Select(batches => batches.OrderByDescending(batch => batch.CreatedAt).First())
+            .ToDictionaryAsync(batch => batch.BankAccountId, cancellationToken);
 
-        return Results.Ok(response);
+        return new MonobankConnectionResponse(
+            Connected: connected,
+            Accounts: [.. accounts.Select(account => ToResponse(
+                account,
+                queue.IsPending(new SyncWork(userId, account.Id)),
+                lastBatches.GetValueOrDefault(account.Id)))]);
     }
 
-    private static MonobankAccountResponse ToResponse(BankAccount account) => new(
+    private static MonobankAccountResponse ToResponse(BankAccount account, bool syncPending, ImportBatch? lastSync) => new(
         ExternalId: account.ExternalId,
         Bank: account.Bank,
-        Currency: KnownCurrencyCodes.GetValueOrDefault(account.CurrencyCode, account.CurrencyCode.ToString()),
+        Currency: IsoCurrency.Display(account.CurrencyCode),
         MaskedIban: MaskIban(account.Iban),
         IsFop: account.IsFop,
         IsSupported: account.IsFop,
-        IsFollowed: account.IsActive);
+        IsFollowed: account.IsActive,
+        SyncPending: syncPending,
+        LastSync: lastSync is null
+            ? null
+            : new LastSyncResponse(lastSync.CreatedAt, lastSync.From, lastSync.To, lastSync.ImportedCount, lastSync.SkippedCount));
 
     // Keeps only the last 4 characters, e.g. "UA•••••••••••••••••••1234", so the owner can recognise
     // an account without the full IBAN sitting in a response or on screen.
@@ -316,7 +372,16 @@ internal sealed record MonobankAccountResponse(
     string MaskedIban,
     bool IsFop,
     bool IsSupported,
-    bool IsFollowed);
+    bool IsFollowed,
+    bool SyncPending,
+    LastSyncResponse? LastSync);
+
+internal sealed record LastSyncResponse(
+    DateTimeOffset At,
+    DateTimeOffset From,
+    DateTimeOffset To,
+    int ImportedCount,
+    int SkippedCount);
 
 internal sealed record MonobankConnectionResponse(
     bool Connected,
