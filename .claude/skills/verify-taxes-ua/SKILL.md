@@ -75,7 +75,9 @@ The script launches headless Chrome over the DevTools Protocol with no package d
 through the seam, and for every route reports `scrollWidth`, `clientWidth`, disclaimer presence,
 nav width, `html lang` and the resolved theme, with a screenshot each. It exits non-zero when a
 route overflows, loses its disclaimer, or renders the wrong locale, and it names the offending
-element when a route is wider than its viewport.
+element when a route is wider than its viewport. It also opens every `[role="tab"]` on a route and
+measures each tab as its own row (`/settings#tab2`), because a panel behind a tab the initial render
+never shows can overflow on its own.
 
 Options are `--base --email --width --height --locale --theme --out --port --timeout`; pass
 `CHROME_PATH` if it cannot find a browser.

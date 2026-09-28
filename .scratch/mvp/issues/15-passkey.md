@@ -14,9 +14,9 @@ After signing in via Google, the owner adds a passkey in their profile, signs ou
 
 ## Acceptance criteria
 
-- [ ] Passkey registration and sign-in work on iOS Safari, Android Chrome and desktop.
-- [ ] `IdentityPasskeyOptions.ServerDomain` matches the deployment domain.
-- [ ] API test rejecting an invalid attestation.
+- [ ] Passkey registration and sign-in work on Android Chrome and desktop. iOS dropped by the owner on 2026-09-28.
+- [x] `IdentityPasskeyOptions.ServerDomain` matches the deployment domain. On 2026-09-28 `POST https://taxes.blonskyi.dev/api/auth/passkey/login/options` returned `rpId: taxes.blonskyi.dev`.
+- [x] API test rejecting an invalid attestation (`PasskeyTests.An_invalid_attestation_is_rejected`).
 
 ## Blocked by
 
