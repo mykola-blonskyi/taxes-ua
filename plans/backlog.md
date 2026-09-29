@@ -19,11 +19,13 @@ Stage 2. Automation (roughly 6–8 days).
 
 Stage 3. Documents (roughly 5–7 days).
 
-- [ ] Clients with details.
-- [ ] English-language PDF invoice: IBAN, SWIFT, numbering. Link to a receipt, "paid" status.
+- [ ] Clients with details. Spec #89, ticket #90.
+- [ ] Bilingual EN/UK PDF invoice: IBAN, SWIFT, numbering. Link to a receipt, "paid" status.
+      Spec #89, tickets #91-#94.
 - [ ] F0103309 XML declaration per the current DPS schema, for import into the Electronic
       Cabinet.
-- [ ] Yearly archive, a reminder to keep documents for 3 years.
+- [ ] Yearly archive, a reminder to keep documents at least 1095 days after the declaration that
+      covers them (Tax Code 44.3), extended by any martial-law suspension.
 
 ---
 

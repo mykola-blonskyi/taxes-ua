@@ -54,4 +54,18 @@ Spec: issue #71. Mirror: `.scratch/stage-2/`. monobank only; PrivatBank is defer
 
 Frontier at the start: #74 and #75.
 
+## Stage 3: invoices
+
+Spec: issue #89. Mirror: `.scratch/stage-3-invoices/`. Bilingual EN/UK PDF, frozen at issue, paid by linked receipts.
+
+| # | Ticket | Blocked by |
+| --- | --- | --- |
+| #90 | 01. Keep client details for invoices | none |
+| #91 | 02. Enter my invoicing details and payment details per currency | none |
+| #92 | 03. Draft, issue and download a bilingual PDF invoice | #90, #91 |
+| #93 | 04. Mark invoices paid by linking receipts | #92 |
+| #94 | 05. Suggest invoice payments for imported receipts | #93, #80 |
+
+Frontier at the start: #90 and #91.
+
 The rest of Stages 2 and 3 is not yet broken into tickets. Content in [backlog.md](backlog.md).
