@@ -10,6 +10,10 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
     {
         builder.HasKey(transaction => transaction.Id);
 
+        // A dismissed import counts nowhere, so every read leaves it out unless it asks for it by name:
+        // the sync's duplicate check, the currency-sale pairing, and backup and restore.
+        builder.HasQueryFilter(transaction => transaction.ReviewStatus != ReviewStatus.Dismissed);
+
         // No navigation to ApplicationUser, same as SettingsConfiguration: nothing reads a
         // transaction through the user.
         builder.HasOne<ApplicationUser>()

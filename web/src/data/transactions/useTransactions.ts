@@ -74,6 +74,35 @@ export function useDeleteTransaction() {
   });
 }
 
+export function useReviewQueue() {
+  return useQuery({
+    queryKey: [...transactionsQueryKey, "review"],
+    queryFn: async () => {
+      const { data } = await api.GET("/api/transactions/review");
+
+      return data;
+    },
+  });
+}
+
+// Sends the kind the owner saw: a sync may have moved the suggestion since, and the api then answers 409
+// instead of confirming a kind nobody reviewed. The list reloads either way, so the row shows the new kind.
+export function useConfirmTransaction() {
+  const invalidate = useInvalidateTransactions();
+
+  return useMutation({
+    mutationFn: async (shown: Pick<TransactionResponse, "id" | "kind">) => {
+      const { data } = await api.POST("/api/transactions/{id}/confirm", {
+        params: { path: { id: shown.id } },
+        body: { kind: shown.kind },
+      });
+
+      return data;
+    },
+    onSettled: invalidate,
+  });
+}
+
 export function useReceipts() {
   return useQuery({
     queryKey: [...transactionsQueryKey, "receipts"],

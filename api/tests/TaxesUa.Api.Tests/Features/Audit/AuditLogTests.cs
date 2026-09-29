@@ -236,6 +236,9 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
             typeof(BankAccount),
             // A sync run's summary. The rows it imported each get their own Create entry.
             typeof(ImportBatch),
+            // The bank's record of a sold currency, kept only to pair a sale; it is never a transaction
+            // and the owner never sees or edits it.
+            typeof(ForeignDebit),
         ];
 
         await using var scope = fixture.CreateScope();

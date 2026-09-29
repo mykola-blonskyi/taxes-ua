@@ -122,7 +122,9 @@ public static class BackupEndpoints
             .Where(row => row.UserId == userId)
             .OrderBy(row => row.Name)
             .ToListAsync(cancellationToken);
+        // Dismissed imports travel too, so a restore followed by a sync does not bring them back.
         var transactions = await database.Transactions.AsNoTracking()
+            .IgnoreQueryFilters()
             .Where(row => row.UserId == userId)
             .OrderBy(row => row.ValueDate)
             .ThenBy(row => row.CreatedAt)
@@ -169,7 +171,9 @@ public static class BackupEndpoints
 
         // One statement takes receipts and their refunds together: PostgreSQL checks the RESTRICT link
         // at the end of the statement, when neither side is left.
-        await database.Transactions.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.Transactions.IgnoreQueryFilters()
+            .Where(row => row.UserId == userId)
+            .ExecuteDeleteAsync(cancellationToken);
         await database.ImportBatches.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.Clients.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.BudgetPayments.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
@@ -231,7 +235,7 @@ public static class BackupEndpoints
     {
         var ids = document.Ids().ToArray();
         var taken = await database.Clients.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
-            || await database.Transactions.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
+            || await database.Transactions.IgnoreQueryFilters().AnyAsync(row => ids.Contains(row.Id), cancellationToken)
             || await database.BudgetPayments.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
             || await database.ImportBatches.AnyAsync(row => ids.Contains(row.Id), cancellationToken);
         if (!taken)

@@ -251,6 +251,41 @@ public sealed class CurrencyReceiptsTests(ApiFixture fixture) : IClassFixture<Ap
         Assert.True(document.RootElement.GetProperty("errors").TryGetProperty(key, out _));
     }
 
+    // The sync and restore take the owner's lock for whole windows and files, so an edit that held it
+    // while NBU answered would stall them behind a slow bank, and be stalled by them in turn.
+    [Fact]
+    public async Task An_edit_fetches_a_new_rate_before_it_takes_the_owners_lock()
+    {
+        var recorded = new DateOnly(2039, 4, 1);
+        var moved = new DateOnly(2039, 4, 4);
+        var lockFreeWhileNbuAnswered = new List<bool>();
+        var nbu = new StubNbuHandler(request =>
+        {
+            var date = request.RequestUri!.Query.Contains("date=20390404", StringComparison.Ordinal) ? moved : recorded;
+            if (date == moved)
+            {
+                using var scope = fixture.CreateScope();
+                var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var ownerId = database.Users.Single(user => user.Email == ApiFixture.AllowedEmail).Id;
+                lockFreeWhileNbuAnswered.Add(database.Database
+                    .SqlQuery<bool>($"SELECT pg_try_advisory_xact_lock(hashtext({ownerId})) AS \"Value\"")
+                    .AsEnumerable()
+                    .Single());
+            }
+
+            return StubNbuHandler.Json(StubNbuHandler.Row("USD", date, "41.0000"));
+        });
+        await using var application = fixture.CreateApplication(nbu, Today);
+        using var client = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var created = await client.PostAsJsonAsync("/api/transactions", Body(Currency.USD, 10_000, recorded), Json);
+        var receipt = (await created.Content.ReadFromJsonAsync<TransactionResponse>(Json))!;
+
+        var updated = await client.PutAsJsonAsync($"/api/transactions/{receipt.Id}", Body(Currency.USD, 10_000, moved), Json);
+
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        Assert.Equal([true], lockFreeWhileNbuAnswered);
+    }
+
     private static Dictionary<string, object?> Body(
         Currency currency,
         long amountMinor,

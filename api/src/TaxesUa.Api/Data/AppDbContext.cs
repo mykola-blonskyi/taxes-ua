@@ -34,6 +34,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
 
+    public DbSet<ForeignDebit> ForeignDebits => Set<ForeignDebit>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

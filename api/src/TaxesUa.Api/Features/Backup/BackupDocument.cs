@@ -354,6 +354,12 @@ internal sealed record TransactionBackup(
     {
         { BankAccountId: null, ExternalId: not null } or { BankAccountId: not null, ExternalId: null } =>
             ("externalId", "bankAccountId and externalId are set together or not at all."),
+        // A dismissed row is a deleted import kept so a sync does not record it again; it counts nowhere,
+        // so a refund link it held would slip past every refund check.
+        { ReviewStatus: ReviewStatus.Dismissed, ExternalId: null } =>
+            ("reviewStatus", "reviewStatus must not be Dismissed on a transaction without an externalId."),
+        { ReviewStatus: ReviewStatus.Dismissed, RefundsTransactionId: not null } =>
+            ("refundsTransactionId", "refundsTransactionId must be null on a dismissed transaction."),
         { BankAccountId: { } accountId } when !accountIds.Contains(accountId) =>
             ("bankAccountId", "bankAccountId must be the id of one of the bank accounts."),
         { ExternalId: { Length: 0 or > MaxExternalIdLength } } =>

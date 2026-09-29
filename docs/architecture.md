@@ -177,6 +177,12 @@ stamps, passkeys) never reach the log. Because it reads the change tracker, an a
 written through tracked entities: `ExecuteUpdate`, `ExecuteDelete` or raw SQL against one of these
 tables bypasses the log. A database trigger makes `AuditLog` append-only.
 
+**Dismissed imports.** Deleting an imported transaction keeps the row as `ReviewStatus.Dismissed`
+(Rule 12). A global query filter on `Transaction` hides dismissed rows, so every read path (lists,
+periods, the dashboard, exports, refund links) leaves them out without asking. Only the code that
+must see a tombstone opts out with `IgnoreQueryFilters`: the sync's duplicate check and currency-sale
+pairing, the backup, and the restore's delete and id check.
+
 A restore from backup is not the owner's edits, so it writes one summary entry
 (`AuditEntry.Restored`, entity `Backup`, action `Restore`, with the restored counts) in the same
 save as the rows it inserts. A save that carries that summary gets no per-row entries. The log is

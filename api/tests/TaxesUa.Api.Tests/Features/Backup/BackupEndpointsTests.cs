@@ -189,6 +189,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "refunds linking each other", "transactions[2].refundsTransactionId" },
         { "NBU rate dated after the transaction", "transactions[1].rateDate" },
         { "future-dated transaction", "transactions[0].valueDate" },
+        { "dismissed typed row", "transactions[0].reviewStatus" },
+        { "dismissed import keeping its refund link", "transactions[2].refundsTransactionId" },
+        { "refund of a dismissed import", "transactions[2].refundsTransactionId" },
         { "unknown field", null },
         { "missing field", null },
         { "numeric enum", null },
@@ -298,6 +301,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         // excluded outright rather than carried with the token blanked. A restore leaves it absent and the
         // owner reconnects; bank accounts are carried, so reconnecting finds the rows imports point at.
         Type[] bankConnectionNotBackedUp = [typeof(MonobankConnection)];
+        // The foreign legs of currency sales are the bank's record, read again by the walk a restore
+        // starts; like the cursors below, they describe the bank, not the owner's ledger (Rule 12).
+        Type[] bankRecordNotBackedUp = [typeof(ForeignDebit)];
 
         var featureTables = model.GetEntityTypes()
             .Select(type => type.ClrType)
@@ -305,7 +311,12 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 && type.Namespace != "TaxesUa.Api.Features.Auth")
             .ToHashSet();
         Assert.Equal(
-            backedUp.Keys.Concat(sharedByEveryOwner).Concat(historyNotState).Concat(bankConnectionNotBackedUp).ToHashSet(),
+            backedUp.Keys
+                .Concat(sharedByEveryOwner)
+                .Concat(historyNotState)
+                .Concat(bankConnectionNotBackedUp)
+                .Concat(bankRecordNotBackedUp)
+                .ToHashSet(),
             featureTables);
 
         // A sync's cursor, history mark and last failure describe the database's imports, which a restore
@@ -513,6 +524,15 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 // Today is 2031-06-01 for this test class (see CreateApplication), so this is a day after.
                 transactions[0]!["valueDate"] = "2031-06-02";
                 break;
+            case "dismissed typed row":
+                transactions[0]!["reviewStatus"] = "Dismissed";
+                break;
+            case "dismissed import keeping its refund link":
+                Dismiss(file, transactions[2]!);
+                break;
+            case "refund of a dismissed import":
+                Dismiss(file, transactions[1]!);
+                break;
             case "unknown field":
                 transactions[0]!["amountKop"] = 1;
                 break;
@@ -535,6 +555,17 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         }
 
         return file.ToJsonString();
+    }
+
+    private static void Dismiss(JsonObject file, JsonNode transaction)
+    {
+        var account = Guid.NewGuid();
+        file["bankAccounts"]!.AsArray().Add(JsonSerializer.SerializeToNode(
+            new BankAccountBackup(account, Bank.Monobank, "usd", "USD", 840, "", "fop", true, true, DateTimeOffset.UnixEpoch),
+            Json));
+        transaction["bankAccountId"] = account;
+        transaction["externalId"] = "op-dismissed";
+        transaction["reviewStatus"] = "Dismissed";
     }
 
     private static Task<HttpResponseMessage> Post(HttpClient client, string file) =>

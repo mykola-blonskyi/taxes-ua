@@ -147,6 +147,9 @@ public static class TransactionsEndpoints
                     return Results.Unauthorized();
                 }
 
+                var lookup = await LookUpRateAsync(request, rates, cancellationToken);
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await LockOwnerAsync(database, user.Id, cancellationToken);
                 var row = await database.Transactions
                     .Include(t => t.BankAccount)
                     .FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.Id, cancellationToken);
@@ -160,7 +163,7 @@ public static class TransactionsEndpoints
                     return Results.ValidationProblem(linkErrors);
                 }
 
-                if (await ApplyAmountAsync(row, request, rates, cancellationToken) is { } problem)
+                if (ApplyAmount(row, request, lookup) is { } problem)
                 {
                     return problem switch
                     {
@@ -178,8 +181,10 @@ public static class TransactionsEndpoints
                 row.RefundsTransaction = await FindReceiptAsync(database, request, cancellationToken);
                 row.InvoiceNumber = normalized.InvoiceNumber;
                 row.Description = normalized.Description;
+                row.ReviewStatus = ReviewStatus.Confirmed;
                 row.UpdatedAt = DateTimeOffset.UtcNow;
                 await database.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
 
                 var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
                 var beforeRegistration = IsBeforeRegistration(row, settings);
@@ -220,7 +225,20 @@ public static class TransactionsEndpoints
                         title: "This receipt has linked refunds. Delete or unlink them first.");
                 }
 
-                database.Transactions.Remove(row);
+                // An imported row stays as a tombstone holding its operation id, so the next sync does
+                // not record the operation again. It counts nowhere, so it drops any refund link: a hidden
+                // link would slip past every refund check.
+                if (row.ExternalId is null)
+                {
+                    database.Transactions.Remove(row);
+                }
+                else
+                {
+                    row.ReviewStatus = ReviewStatus.Dismissed;
+                    row.RefundsTransactionId = null;
+                    row.UpdatedAt = DateTimeOffset.UtcNow;
+                }
+
                 await database.SaveChangesAsync(cancellationToken);
 
                 return Results.NoContent();
@@ -229,6 +247,90 @@ public static class TransactionsEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict);
+
+        transactions.MapPost("/{id:guid}/confirm", async (
+                Guid id,
+                ConfirmRequest request,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await LockOwnerAsync(database, user.Id, cancellationToken);
+                var row = await database.Transactions
+                    .Include(t => t.Client)
+                    .Include(t => t.RefundsTransaction)
+                    .Include(t => t.BankAccount)
+                    .FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.Id, cancellationToken);
+                if (row is null)
+                {
+                    return Missing(id);
+                }
+
+                // A sync may have moved the suggestion since the owner read it; confirming then would save
+                // a kind they never saw.
+                if (row.Kind != request.Kind)
+                {
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status409Conflict,
+                        title: $"The transaction is now {row.Kind}, not {request.Kind}. Reload it before confirming.");
+                }
+
+                if (row.ReviewStatus == ReviewStatus.NeedsReview)
+                {
+                    row.ReviewStatus = ReviewStatus.Confirmed;
+                    row.UpdatedAt = DateTimeOffset.UtcNow;
+                    await database.SaveChangesAsync(cancellationToken);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+
+                var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
+
+                return Results.Ok(ToResponse(row, row.Client?.Name, IsBeforeRegistration(row, settings)));
+            })
+            .Produces<TransactionResponse>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        // Every year at once: an import backfill can leave rows waiting in a year the owner is not viewing.
+        transactions.MapGet("/review", async (
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
+                var rows = await database.Transactions
+                    .Include(row => row.Client)
+                    .Include(row => row.RefundsTransaction)
+                    .Include(row => row.BankAccount)
+                    .Where(row => row.UserId == user.Id && row.ReviewStatus == ReviewStatus.NeedsReview)
+                    .OrderByDescending(row => row.ValueDate)
+                    .ThenByDescending(row => row.BankTime)
+                    .ThenByDescending(row => row.CreatedAt)
+                    .ToListAsync(cancellationToken);
+
+                return Results.Ok(rows
+                    .Select(row => ToResponse(row, row.Client?.Name, IsBeforeRegistration(row, settings)))
+                    .ToArray());
+            })
+            .Produces<TransactionResponse[]>()
+            .Produces(StatusCodes.Status401Unauthorized);
 
         transactions.MapGet("/receipts", async (
                 UserManager<ApplicationUser> users,
@@ -287,6 +389,11 @@ public static class TransactionsEndpoints
 
         return routes;
     }
+
+    // The lock the sync, restore and prototype import take, so a sync's re-suggestion of an unreviewed
+    // row cannot land between an owner's read and write of it.
+    private static Task LockOwnerAsync(AppDbContext database, string userId, CancellationToken cancellationToken) =>
+        database.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
 
     private static IResult Missing(Guid id) => Results.Problem(
         statusCode: StatusCodes.Status404NotFound,
@@ -390,11 +497,19 @@ public static class TransactionsEndpoints
                 && t.Id != excludedRefundId)
             .SumAsync(t => t.AmountMinor, cancellationToken);
 
-    // The one place POST and PUT fix the rate (Rule 2), so the two cannot diverge. It runs before any
-    // other change to the row or the context, since FxRates saves its cache row with its own
-    // SaveChanges. On PUT, row still holds the stored values it compares against.
-    internal static async Task<AmountProblem?> ApplyAmountAsync(
-        Transaction row, TransactionRequest request, FxRates rates, CancellationToken cancellationToken)
+    // The NBU rate a request would be recorded at, or null when it brings its own (a manual rate, or
+    // UAH). Callers look it up before they take the owner's lock, since NBU can take seconds to answer
+    // and the sync and restore wait on that lock. FxRates saves its cache row with its own SaveChanges,
+    // so this also runs before any change to the context.
+    internal static async Task<NbuLookup?> LookUpRateAsync(
+        TransactionRequest request, FxRates rates, CancellationToken cancellationToken) =>
+        request.ManualRateE4 is null && request.Currency != Currency.UAH
+            ? await rates.GetAsync(request.Currency, request.ValueDate, cancellationToken)
+            : null;
+
+    // The one place POST and PUT fix the rate (Rule 2), so the two cannot diverge. On PUT, row still
+    // holds the stored values it compares against.
+    internal static AmountProblem? ApplyAmount(Transaction row, TransactionRequest request, NbuLookup? lookup)
     {
         (int RateE4, DateOnly? RateDate, RateSource? Source) rate;
         if (request.ManualRateE4 is { } manualRateE4)
@@ -412,15 +527,13 @@ public static class TransactionsEndpoints
             // The rate is fixed when recorded, so an edit of the other fields must not move it.
             rate = (row.RateE4, row.RateDate, RateSource.Nbu);
         }
+        else if (lookup is NbuLookup.Found found)
+        {
+            rate = (found.RateE4, found.RateDate, RateSource.Nbu);
+        }
         else
         {
-            var lookup = await rates.GetAsync(request.Currency, request.ValueDate, cancellationToken);
-            if (lookup is not NbuLookup.Found found)
-            {
-                return new AmountProblem.RateUnavailable(request.Currency, request.ValueDate, lookup);
-            }
-
-            rate = (found.RateE4, found.RateDate, RateSource.Nbu);
+            return new AmountProblem.RateUnavailable(request.Currency, request.ValueDate, lookup!);
         }
 
         if (ExceedsUahBound(request.AmountMinor, rate.RateE4))
@@ -502,7 +615,8 @@ public static class TransactionsEndpoints
                 : null,
             row.BankAccount is { } account
                 ? new TransactionSource(account.Bank, IsoCurrency.Display(account.CurrencyCode))
-                : null);
+                : null,
+            row.ReviewStatus);
 
     private static Dictionary<string, string[]> YearOutOfRange() => new()
     {
@@ -650,7 +764,10 @@ internal sealed record TransactionResponse(
     string? Description,
     bool BeforeRegistration,
     RefundedReceipt? RefundsReceipt,
-    TransactionSource? Source);
+    TransactionSource? Source,
+    ReviewStatus ReviewStatus);
+
+internal sealed record ConfirmRequest(TransactionKind Kind);
 
 // Where an imported row came from; null on a row the owner typed.
 internal sealed record TransactionSource(Bank Bank, string AccountCurrency);
