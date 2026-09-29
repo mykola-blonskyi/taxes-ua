@@ -183,7 +183,7 @@ function MonobankConnectionBody({
         </p>
       ) : null}
 
-      {connection.webhook ? <WebhookStatus webhook={connection.webhook} /> : null}
+      {connection.webhook && !tokenRejected ? <WebhookStatus webhook={connection.webhook} /> : null}
 
       {syncFailure ? <p className="text-sm text-destructive">{`${t("syncFailed")} ${syncFailure.message}`}</p> : null}
 
