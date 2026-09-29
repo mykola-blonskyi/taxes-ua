@@ -86,12 +86,9 @@ public static class MonobankEndpoints
                             statusCode: StatusCodes.Status502BadGateway);
 
                     case ClientInfoResult.Found found:
-                        var wasRejected = await SaveConnectionAsync(
+                        await SaveConnectionAsync(
                             database, encryptor, user.Id, request.Token, found.Info, cancellationToken);
-                        if (wasRejected)
-                        {
-                            await EnqueueFollowedAsync(database, queue, user.Id, cancellationToken);
-                        }
+                        await EnqueueFollowedAsync(database, queue, user.Id, cancellationToken);
 
                         return Results.Ok(await LoadStatusAsync(database, queue, time, user.Id, cancellationToken));
 
@@ -139,14 +136,25 @@ public static class MonobankEndpoints
                     .ToListAsync(cancellationToken);
 
                 var chosen = new HashSet<string>(request.FollowedExternalIds, StringComparer.Ordinal);
+                var newlyFollowed = new List<Guid>();
                 foreach (var account in accounts)
                 {
                     // Only a FOP account can ever be followed; a non-FOP id in the request is silently
                     // ignored rather than accepted and then never synced, which would look like a bug.
-                    account.IsActive = account.IsFop && chosen.Contains(account.ExternalId);
+                    var follow = account.IsFop && chosen.Contains(account.ExternalId);
+                    if (follow && !account.IsActive)
+                    {
+                        newlyFollowed.Add(account.Id);
+                    }
+
+                    account.IsActive = follow;
                 }
 
                 await database.SaveChangesAsync(cancellationToken);
+                foreach (var accountId in newlyFollowed)
+                {
+                    queue.Enqueue(new SyncWork(user.Id, accountId));
+                }
 
                 return Results.Ok(await LoadStatusAsync(database, queue, time, user.Id, cancellationToken));
             })
@@ -254,8 +262,7 @@ public static class MonobankEndpoints
         }
     }
 
-    // Answers whether the replaced token had been rejected, so the caller can resume its syncs.
-    private static async Task<bool> SaveConnectionAsync(
+    private static async Task SaveConnectionAsync(
         AppDbContext database,
         TokenEncryptor encryptor,
         string userId,
@@ -270,7 +277,6 @@ public static class MonobankEndpoints
             database.MonobankConnections.Add(connection);
         }
 
-        var wasRejected = connection.RejectedAt is not null;
         connection.EncryptedToken = encryptor.Encrypt(token);
         connection.MonobankClientId = info.ClientId;
         connection.ConnectedAt = DateTimeOffset.UtcNow;
@@ -337,7 +343,6 @@ public static class MonobankEndpoints
         }
 
         await database.SaveChangesAsync(cancellationToken);
-        return wasRejected;
     }
 
     private static async Task<MonobankConnectionResponse> LoadStatusAsync(

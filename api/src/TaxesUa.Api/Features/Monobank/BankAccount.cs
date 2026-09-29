@@ -59,5 +59,6 @@ internal enum SyncFailure
     UnreadableAnswer,
     RateLimited,
     TokenUnreadable,
+    TooManyInOneSecond,
     Unexpected,
 }

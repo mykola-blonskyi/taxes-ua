@@ -2541,7 +2541,7 @@ export interface components {
             defaultCurrency: string;
         };
         /** @enum {string} */
-        SyncFailure: "BankUnreachable" | "BankTimeout" | "BankError" | "UnreadableAnswer" | "RateLimited" | "TokenUnreadable" | "Unexpected";
+        SyncFailure: "BankUnreachable" | "BankTimeout" | "BankError" | "UnreadableAnswer" | "RateLimited" | "TokenUnreadable" | "TooManyInOneSecond" | "Unexpected";
         SyncFailureResponse: {
             /** Format: date-time */
             at: string;

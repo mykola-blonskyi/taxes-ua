@@ -77,7 +77,7 @@ non-FOP account, and force-cleared for any account a later token save no longer 
 written in the same transaction as them; null until the first window lands, see Rule 12),
 `LastFailedAt?` and `LastFailure?` (the last failed sync other than a rejected token, one of
 `BankUnreachable | BankTimeout | BankError | UnreadableAnswer | RateLimited | TokenUnreadable |
-Unexpected`; both set or both null, cleared when a window of the account imports). Unique per
+TooManyInOneSecond | Unexpected`; both set or both null, cleared when a window of the account imports). Unique per
 (`UserId`, `Bank`, `ExternalId`).
 
 Settings shows, per followed account, the month its cursor has reached (or that the backfill is

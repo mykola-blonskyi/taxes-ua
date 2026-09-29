@@ -175,9 +175,10 @@ internal sealed class MonobankStatementImport(
             if (oldest >= pageTo)
             {
                 logger.LogWarning(
-                    "monobank statement for account {AccountId} has a full page within one second; older operations wait for a later sync.",
+                    "monobank statement for account {AccountId} has a full page within one second, so its window is not committed.",
                     account.ExternalId);
-                return new Statement(from, to, to == now, items);
+                await RecordFailureAsync(account.Id, SyncFailure.TooManyInOneSecond, cancellationToken);
+                return null;
             }
 
             pageTo = oldest;

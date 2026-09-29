@@ -256,8 +256,10 @@ for the gate, and retries the same window; the owner sees nothing. After five 42
 window the sync stops and records the failure, so a bank that keeps refusing cannot hold the worker. A 401 or 403
 marks the connection's token rejected: that owner's queued and later syncs do nothing, settings asks
 for a new token, and saving one clears the mark and queues the followed accounts, which resume from
-their cursors. Any other failure (monobank unreachable or slow, an error status, an unreadable answer,
-a token that cannot be decrypted, an unexpected error) is kept on the account with its time and reason
+their cursors. Saving a token, replaced or not, and following an account queue the followed accounts the
+same way, so a walk stopped by a replacement, a reconnect or an unfollow picks up again. Any other failure (monobank unreachable or slow, an error status, an unreadable answer,
+a token that cannot be decrypted, a window with 500 or more operations in one second, which the bank's
+paging cannot split and which is therefore not committed, an unexpected error) is kept on the account with its time and reason
 and shown in settings until a window of that account is imported again.
 
 It records an operation only when
