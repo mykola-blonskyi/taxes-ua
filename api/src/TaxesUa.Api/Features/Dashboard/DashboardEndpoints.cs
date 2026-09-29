@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
+using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Features.Dashboard;
@@ -25,6 +27,8 @@ public static class DashboardEndpoints
                 }
 
                 var today = time.TodayInKyiv();
+                var needsReview = await database.Transactions.CountAsync(
+                    row => row.UserId == user.Id && row.ReviewStatus == ReviewStatus.NeedsReview, cancellationToken);
                 var loaded = await YearAccruals.LoadAsync(database, user.Id, today.Year, cancellationToken);
 
                 // A gap in the configured years stops the ledger (see LoadedYears), so any debt shown
@@ -39,7 +43,8 @@ public static class DashboardEndpoints
                         },
                         [],
                         null,
-                        null));
+                        null,
+                        needsReview));
                 }
 
                 var settings = loaded.Viewed.Settings.ToEngineInput();
@@ -72,7 +77,8 @@ public static class DashboardEndpoints
                     ToStep(step, today),
                     ledger is null ? [] : Credits(ledger),
                     burden is null ? null : new TaxBurdenResponse(burden.IncomeKop, burden.TaxKop, burden.RateBp),
-                    ToLimit(limit)));
+                    ToLimit(limit),
+                    needsReview));
             })
             .WithTags("Dashboard")
             .RequireAuthorization()
@@ -129,14 +135,16 @@ public static class DashboardEndpoints
 /// <c>Credits</c> lists each kind with unspent credit, which the ledger only holds once nothing of that
 /// kind is owed. <c>Burden</c> is sent only for a year the ledger covers. <c>Limit</c> is sent
 /// whenever a tax year is configured, unlike <c>Burden</c>, since the limit bar should show even
-/// before there is any next-step debt.
+/// before there is any next-step debt. <c>NeedsReviewCount</c> is the number of imported transactions
+/// the owner has not reviewed; the figures already count them under their suggested kinds.
 /// </summary>
 internal sealed record DashboardResponse(
     DateOnly Today,
     NextStepResponse NextStep,
     KindCreditResponse[] Credits,
     TaxBurdenResponse? Burden,
-    LimitStatusResponse? Limit);
+    LimitStatusResponse? Limit,
+    int NeedsReviewCount);
 
 internal enum NextStepState
 {

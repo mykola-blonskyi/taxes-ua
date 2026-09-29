@@ -170,8 +170,12 @@ Fields:
 - `BankTime?` the bank's own instant for the operation; `ValueDate` is its Kyiv date.
 - `Counterparty?` the counterparty name as the bank sent it; the client is linked by the same name.
 - `ImportBatchId?` the sync run that inserted the row.
-- `ReviewStatus: Confirmed | NeedsReview`. Every imported row starts `NeedsReview`; typed rows, and
-  every row that existed before #76, are `Confirmed`. It never changes a figure (Rule 12).
+- `ReviewStatus: Confirmed | NeedsReview | Dismissed`. Every imported row starts `NeedsReview` with a
+  suggested kind; typed rows, and every row that existed before #76, are `Confirmed`. Confirming or
+  saving any edit sets `Confirmed`, so a `NeedsReview` row carries no owner decision. Between
+  `Confirmed` and `NeedsReview` it never changes a figure. `Dismissed` is a deleted imported row kept
+  as a tombstone: it counts nowhere and is never shown, and it holds its `ExternalId` so a sync does
+  not record the operation again (Rule 12).
 - `CreatedAt`, `UpdatedAt`.
 
 Rule: period income includes `Income` with a plus sign and `RefundToClient` with a minus sign. A
@@ -338,6 +342,18 @@ Fields: `Source: Monobank` (CSV and PrivatBank join when they are built), `BankA
 `To` (the statement window as instants, since a bank window is not a whole number of Kyiv days),
 `ImportedCount` (rows written), `SkippedCount` (credits not written, see Rule 12), `CreatedAt`.
 Settings shows each account's latest batch as its last sync.
+
+### ForeignDebit
+
+Responsibilities: the foreign leg of a possible currency sale (#78). A settled debit on one of the
+owner's foreign-currency FOP accounts, written by the monobank sync and read only by the sale
+pairing, so a UAH credit read in any later or earlier window still finds it (Rule 12). It is never a
+`Transaction`, never shown, not audited and not in the backup: a restore clears the cursors and the
+walk reads it again.
+
+Fields: `BankAccountId`, `ExternalId` (the bank's operation id, unique together with
+`BankAccountId`; a sync only inserts), `BankTime`, `AmountMinor` (what left the account, positive),
+`Currency`.
 
 ### Invoice (Stage 3)
 

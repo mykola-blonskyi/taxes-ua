@@ -1211,6 +1211,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/transactions/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TransactionResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/transactions/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TransactionResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/transactions/receipts": {
         parameters: {
             query?: never;
@@ -2157,6 +2265,9 @@ export interface components {
             id: string;
             name: string;
         };
+        ConfirmRequest: {
+            kind: components["schemas"]["TransactionKind"];
+        };
         /** @enum {string} */
         Currency: "UAH" | "USD" | "EUR";
         DashboardResponse: {
@@ -2166,6 +2277,8 @@ export interface components {
             credits: components["schemas"]["KindCreditResponse"][];
             burden: null | components["schemas"]["TaxBurdenResponse"];
             limit: null | components["schemas"]["LimitStatusResponse"];
+            /** Format: int32 */
+            needsReviewCount: number | string;
         };
         Deadline: {
             /** Format: date */
@@ -2501,7 +2614,7 @@ export interface components {
             budgetPayments: number | string;
         };
         /** @enum {string} */
-        ReviewStatus: "Confirmed" | "NeedsReview";
+        ReviewStatus: "Confirmed" | "NeedsReview" | "Dismissed";
         SettingsBackup: {
             /** Format: date */
             fopRegistrationDate: null | string;
@@ -2701,6 +2814,7 @@ export interface components {
             beforeRegistration: boolean;
             refundsReceipt: null | components["schemas"]["RefundedReceipt"];
             source: null | components["schemas"]["TransactionSource"];
+            reviewStatus: components["schemas"]["ReviewStatus"];
         };
         TransactionSource: {
             bank: components["schemas"]["Bank"];

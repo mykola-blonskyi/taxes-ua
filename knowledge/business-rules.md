@@ -285,14 +285,49 @@ sync, so a reversed authorisation never counts as income.
 An imported credit goes through the same recording as a manual entry: Rule 1's no-future-date check,
 Rule 2's NBU rate on the credit date, fixed at write time, and the client found or created by the
 counterparty's name. Its `ValueDate` is the Kyiv calendar date of the bank's instant, so a credit at
-23:30 UTC lands on the next day in Kyiv (Rule 10). It is `Income` and starts as `NeedsReview`.
+23:30 UTC lands on the next day in Kyiv (Rule 10). It starts as `NeedsReview` with a suggested kind
+(#78):
 
-An unreviewed row counts toward income under its kind, exactly as a confirmed one: the figures never
-wait for a review to include money that arrived.
+- `FxSale` for a UAH credit that pairs with a settled foreign-currency debit on one of the owner's
+  own FOP accounts: within 60 seconds of it, and worth the debit at that day's NBU rate within 5
+  percent. Both legs of a sale are booked by one in-bank conversion, so they land seconds apart, and
+  the bank converts at its own buying rate, which sits a few percent under the NBU rate. Each debit
+  pairs with one credit, and overlapping candidates pair as many sales as they can, the closest
+  first among equals. Only the UAH leg is recorded; the debit never is.
+- `OwnTransfer` for a credit whose counterparty IBAN is one of the owner's own known bank accounts.
+- `Income` for everything else.
+
+A sale outranks an own transfer, since the UAH leg of a sale may name the owner's own account as its
+counterparty. A statement holds one account, and each account walks its whole backfill before the
+next starts, so the two legs of a sale can be read months apart in either order. The sync therefore
+keeps every settled debit of a foreign-currency FOP account (never as a transaction, and not in the
+backup, since a restore walks the history again), and each window of any account classifies its new
+credits together with the stored UAH legs and stored foreign debits around it. Whichever leg is read
+second finds the other, with no extra call to the bank. An unreviewed leg in the window moves to
+`FxSale` once it pairs, and one once suggested as a sale that no longer pairs, because the real leg
+settled later and closer, moves back to `Income`, so a stale guess never keeps income out. A
+non-income suggestion
+carries a system reason (`monobank: own transfer`, `monobank: currency sale`), which satisfies
+Rule 1 until the owner writes their own.
+
+An unreviewed row counts toward income under its suggested kind, exactly as a confirmed one: the
+figures never wait for a review to include money that arrived, and the dashboard warns while any
+row awaits review. The owner confirms a suggestion in one action or changes the kind through the
+transaction edit, where a non-income kind still needs a reason. Confirming or saving any edit makes
+the row `Confirmed`. Confirming names the kind the owner saw; if a sync has moved the suggestion
+since, the confirmation is refused and the row is shown again with its new kind.
 
 A sync only inserts. An operation is the bank's `id` on its account; once a row holds it, a later
 sync leaves that row as the owner last saved it, whatever the bank now says, so an owner's edit and
-the fixed rate always win. A credit that could not be recorded (on hold, another currency, a failed
-check, an NBU rate not yet published) writes nothing and is counted as skipped; the next sync tries
-it again. Debits and operations already recorded count as neither imported nor skipped, so a repeated
-sync reads 0 and 0. A deleted imported row comes back on the next sync until #78 adds the tombstone.
+the fixed rate always win. The one exception is the sale pairing above, which moves an unreviewed
+row's suggestion and nothing else: an unreviewed row carries no owner decision to override. A credit
+that could not be recorded (on hold, another currency, a failed check, an NBU rate not yet
+published) writes nothing and is counted as skipped; the next sync tries it again. Debits and operations already recorded count as neither imported nor skipped, so a repeated
+sync reads 0 and 0.
+
+Deleting an imported row does not remove it: it becomes `Dismissed`, a tombstone that counts in no
+figure (income, periods, the dashboard and its limit, exports) and appears in no list, while still
+holding its operation id, so no later sync records the operation again. The backup carries the
+tombstone, so a restore followed by a sync does not bring it back either; a file whose dismissed row
+names no bank operation or still links a receipt is refused. A row the owner typed is deleted
+outright, as before.

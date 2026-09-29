@@ -35,7 +35,8 @@ internal static class TransactionRecorder
         }
 
         var row = new Transaction { Id = Guid.NewGuid(), UserId = userId };
-        if (await TransactionsEndpoints.ApplyAmountAsync(row, request, rates, cancellationToken) is { } problem)
+        var lookup = await TransactionsEndpoints.LookUpRateAsync(request, rates, cancellationToken);
+        if (TransactionsEndpoints.ApplyAmount(row, request, lookup) is { } problem)
         {
             return problem switch
             {
@@ -106,7 +107,7 @@ internal abstract record RecordTransactionResult
         : RecordTransactionResult;
 }
 
-/// <summary>What <see cref="TransactionsEndpoints.ApplyAmountAsync"/> hands back when it cannot fix the rate.</summary>
+/// <summary>What <see cref="TransactionsEndpoints.ApplyAmount"/> hands back when it cannot fix the rate.</summary>
 internal abstract record AmountProblem
 {
     private AmountProblem()

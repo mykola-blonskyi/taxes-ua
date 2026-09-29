@@ -43,3 +43,26 @@ internal sealed class MonobankConnectionConfiguration : IEntityTypeConfiguration
         builder.Property(connection => connection.WebhookFailure).HasConversion<string>().HasMaxLength(30);
     }
 }
+
+internal sealed class ForeignDebitConfiguration : IEntityTypeConfiguration<ForeignDebit>
+{
+    public void Configure(EntityTypeBuilder<ForeignDebit> builder)
+    {
+        builder.HasKey(debit => debit.Id);
+
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(debit => debit.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne<BankAccount>()
+            .WithMany()
+            .HasForeignKey(debit => debit.BankAccountId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(debit => new { debit.BankAccountId, debit.ExternalId }).IsUnique();
+        builder.HasIndex(debit => new { debit.UserId, debit.BankTime });
+
+        builder.Property(debit => debit.ExternalId).HasMaxLength(200);
+    }
+}

@@ -5,7 +5,11 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import { ApiError } from "@/data/api/client";
-import { useDeleteTransaction, type TransactionResponse } from "@/data/transactions/useTransactions";
+import {
+  useConfirmTransaction,
+  useDeleteTransaction,
+  type TransactionResponse,
+} from "@/data/transactions/useTransactions";
 import { formatDateOnly, formatNumericDate } from "@/shared/lib/dates";
 import { formatAmount, formatMinor, formatMoney, formatRateE4 } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
@@ -38,12 +42,15 @@ function TransactionRow({
   const tKinds = useTranslations("transactions.kinds");
   const locale = useLocale();
   const deleteTransaction = useDeleteTransaction();
+  const confirmTransaction = useConfirmTransaction();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const nonIncome = isNonIncomeKind(transaction.kind);
   const amountKop = Number(transaction.amountUahKop);
   const displayAmount = transaction.kind === "RefundToClient" ? -amountKop : amountKop;
   const deleteFailure = deleteTransaction.error instanceof ApiError ? deleteTransaction.error : null;
+  const confirmFailure = confirmTransaction.error instanceof ApiError ? confirmTransaction.error : null;
+  const needsReview = transaction.reviewStatus === "NeedsReview";
   const formattedDate = formatDateOnly(transaction.valueDate, locale);
   const receipt = transaction.refundsReceipt;
   const formattedAmount = formatMoney(displayAmount, locale);
@@ -75,6 +82,11 @@ function TransactionRow({
       ) : null}
 
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+        {needsReview ? (
+          <span className="rounded bg-muted px-1.5 py-0.5 font-medium text-destructive">
+            {t("row.needsReview")}
+          </span>
+        ) : null}
         {nonIncome ? <span className="rounded bg-muted px-1.5 py-0.5">{t("row.nonIncomeTag")}</span> : null}
         {transaction.source ? (
           <span className="rounded bg-muted px-1.5 py-0.5">
@@ -116,7 +128,9 @@ function TransactionRow({
       <div className="flex flex-wrap items-center gap-2 pt-1">
         {confirmingDelete ? (
           <>
-            <span className="text-xs text-destructive">{t("row.confirmDelete")}</span>
+            <span className="text-xs text-destructive">
+              {t(transaction.source ? "row.confirmDismiss" : "row.confirmDelete")}
+            </span>
             <Button
               type="button"
               variant="destructive"
@@ -134,6 +148,17 @@ function TransactionRow({
           </>
         ) : (
           <>
+            {needsReview ? (
+              <Button
+                type="button"
+                size="sm"
+                aria-label={`${t("row.confirm")}: ${rowName}`}
+                disabled={confirmTransaction.isPending}
+                onClick={() => confirmTransaction.mutate(transaction)}
+              >
+                {t("row.confirm")}
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
@@ -169,6 +194,14 @@ function TransactionRow({
           {deleteFailure.status === 409
             ? t("row.deleteLinked")
             : `${t("row.deleteFailed")} ${deleteFailure.message}`}
+        </p>
+      ) : null}
+
+      {confirmFailure ? (
+        <p className="text-xs text-destructive">
+          {confirmFailure.status === 409
+            ? t("row.confirmStale")
+            : `${t("row.confirmFailed")} ${confirmFailure.message}`}
         </p>
       ) : null}
     </li>

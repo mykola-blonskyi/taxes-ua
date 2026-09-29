@@ -23,9 +23,11 @@ export function DashboardScreen() {
   }
 
   const { nextStep, today } = data;
+  const needsReview = Number(data.needsReviewCount);
 
   return (
     <div className="flex flex-col gap-6">
+      {needsReview > 0 ? <ReviewWarning count={needsReview} /> : null}
       {nextStep.state === "Pay" ? (
         <>
           <HeroCard now={nextStep.now} today={today} busy={isFetching} />
@@ -98,6 +100,20 @@ function Card({
       </h3>
       <p className="text-sm text-muted-foreground">{text}</p>
       {children}
+    </section>
+  );
+}
+
+function ReviewWarning({ count }: { count: number }) {
+  const t = useTranslations("dashboard.review");
+
+  return (
+    <section className="flex flex-col gap-2 rounded-lg border bg-muted p-4">
+      <h3 className="text-sm font-semibold text-destructive">{t("title", { count })}</h3>
+      <p className="text-sm text-muted-foreground">{t("text", { count })}</p>
+      <Link href="/review" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+        {t("cta")}
+      </Link>
     </section>
   );
 }

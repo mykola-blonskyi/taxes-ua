@@ -9,9 +9,10 @@ namespace TaxesUa.Api.Features.Monobank;
 
 /// <summary>
 /// Walks one followed FOP account's statement forward in windows from its cursor (or, before the first
-/// window lands, from the backfill start) to now, and records each settled credit through
-/// <see cref="TransactionRecorder"/>, the same operation a manual entry takes. It only inserts: an
-/// operation whose id the account already holds is left as the owner last saved it.
+/// window lands, from the backfill start) to now, and records each settled credit, with the kind
+/// <see cref="ReceiptClassifier"/> suggests, through <see cref="TransactionRecorder"/>, the same
+/// operation a manual entry takes. An operation whose id the account already holds is never recorded
+/// again.
 /// </summary>
 internal sealed class MonobankStatementImport(
     AppDbContext database,
@@ -243,16 +244,22 @@ internal sealed class MonobankStatementImport(
             .DistinctBy(item => item.Id)
             .ToList();
         var ids = credits.Select(item => item.Id).ToList();
+        // A dismissed row is a tombstone: it still holds its operation id, so the bank cannot bring it back.
         var present = await database.Transactions
+            .IgnoreQueryFilters()
             .Where(row => row.BankAccountId == bankAccountId && ids.Contains(row.ExternalId!))
             .Select(row => row.ExternalId!)
             .ToListAsync(cancellationToken);
+        var fresh = credits.ExceptBy(present, item => item.Id).OrderBy(item => item.Time).ToList();
+        await StoreForeignDebitsAsync(ownerId, account, statement, cancellationToken);
+        var suggestions = await SuggestAsync(ownerId, account, statement, fresh, cancellationToken);
 
         var imported = 0;
         var skipped = 0;
-        foreach (var item in credits.ExceptBy(present, item => item.Id).OrderBy(item => item.Time))
+        foreach (var item in fresh)
         {
-            switch (await RecordAsync(ownerId, account, batch.Id, item, today, cancellationToken))
+            var kind = suggestions.Kinds.GetValueOrDefault(Fresh(item), TransactionKind.Income);
+            switch (await RecordAsync(ownerId, account, batch.Id, item, kind, today, cancellationToken))
             {
                 case Outcome.Imported:
                     imported++;
@@ -262,6 +269,8 @@ internal sealed class MonobankStatementImport(
                     break;
             }
         }
+
+        await MoveStoredSuggestionsAsync(statement, suggestions, cancellationToken);
 
         await database.ImportBatches
             .Where(row => row.Id == batch.Id)
@@ -288,6 +297,7 @@ internal sealed class MonobankStatementImport(
         BankAccount account,
         Guid batchId,
         MonobankStatementItem item,
+        TransactionKind kind,
         DateOnly today,
         CancellationToken cancellationToken)
     {
@@ -313,8 +323,8 @@ internal sealed class MonobankStatementImport(
             item.Amount,
             currency,
             ManualRateE4: null,
-            TransactionKind.Income,
-            NonIncomeReason: null,
+            kind,
+            ReceiptClassifier.ReasonFor(kind),
             ClientName: counterparty,
             InvoiceNumber: null,
             Description: Fit(Describe(item), TransactionsEndpoints.MaxDescriptionLength),
@@ -341,6 +351,144 @@ internal sealed class MonobankStatementImport(
         }
     }
 
+    // A statement holds one account, so the two legs of a sale arrive in different walks, in either
+    // order and possibly months apart. The foreign leg is kept here so whichever leg is read second
+    // still finds the other one stored.
+    private async Task StoreForeignDebitsAsync(
+        string ownerId, BankAccount account, Statement statement, CancellationToken cancellationToken)
+    {
+        if (IsoCurrency.FromNumeric(account.CurrencyCode) is not { } currency || currency == Currency.UAH)
+        {
+            return;
+        }
+
+        var debits = statement.Items
+            .Where(item => item.Amount < 0 && !item.Hold)
+            .DistinctBy(item => item.Id)
+            .ToList();
+        var ids = debits.Select(item => item.Id).ToList();
+        var stored = await database.ForeignDebits
+            .Where(row => row.BankAccountId == account.Id && ids.Contains(row.ExternalId))
+            .Select(row => row.ExternalId)
+            .ToListAsync(cancellationToken);
+        database.ForeignDebits.AddRange(debits.ExceptBy(stored, item => item.Id).Select(item => new ForeignDebit
+        {
+            Id = Guid.NewGuid(),
+            UserId = ownerId,
+            BankAccountId = account.Id,
+            ExternalId = item.Id,
+            BankTime = item.Time,
+            AmountMinor = -item.Amount,
+            Currency = currency,
+        }));
+        await database.SaveChangesAsync(cancellationToken);
+    }
+
+    // One classification over the window's fresh credits, the hryvnia legs already stored around it and
+    // every stored foreign debit around it, so a sale pairs whichever account was read first. It runs
+    // before anything else is changed in this window, since FxRates saves its cache rows as it goes.
+    private async Task<Suggestions> SuggestAsync(
+        string ownerId,
+        BankAccount account,
+        Statement statement,
+        IReadOnlyList<MonobankStatementItem> fresh,
+        CancellationToken cancellationToken)
+    {
+        var from = statement.From - ReceiptClassifier.SaleTolerance;
+        var to = statement.To + ReceiptClassifier.SaleTolerance;
+        var debits = await database.ForeignDebits
+            .Where(row => row.UserId == ownerId && row.BankTime >= from && row.BankTime <= to)
+            .ToListAsync(cancellationToken);
+        var legs = debits.Count == 0
+            ? []
+            : await database.Transactions
+                .IgnoreQueryFilters()
+                .Where(row => row.UserId == ownerId
+                    && row.ExternalId != null
+                    && row.Currency == Currency.UAH
+                    && row.BankTime >= from
+                    && row.BankTime <= to)
+                .ToListAsync(cancellationToken);
+        var ownIbans = await database.BankAccounts
+            .Where(row => row.UserId == ownerId && row.Iban != "")
+            .Select(row => row.Iban)
+            .ToListAsync(cancellationToken);
+
+        var rateOn = new Dictionary<(Currency, DateOnly), int?>();
+        foreach (var key in debits.Select(debit => (debit.Currency, Date: debit.BankTime.KyivDate())).Distinct())
+        {
+            rateOn[key] = await rates.GetAsync(key.Currency, key.Date, cancellationToken) is NbuLookup.Found found
+                ? found.RateE4
+                : null;
+        }
+
+        IncomingCredit[] credits = IsoCurrency.FromNumeric(account.CurrencyCode) is { } currency
+            ? [.. fresh.Select(item => new IncomingCredit(Fresh(item), currency, item.Time, item.Amount, item.CounterIban))]
+            : [];
+        var kinds = ReceiptClassifier.Classify(
+            [.. credits, .. legs.Select(row => new IncomingCredit(Stored(row), Currency.UAH, row.BankTime!.Value, row.AmountMinor, null))],
+            [.. debits.Select(debit => new OutgoingDebit(
+                debit.Id.ToString(),
+                debit.Currency,
+                debit.BankTime,
+                debit.AmountMinor,
+                rateOn[(debit.Currency, debit.BankTime.KyivDate())]))],
+            ownIbans.ToHashSet(StringComparer.OrdinalIgnoreCase));
+
+        return new Suggestions(kinds, legs);
+    }
+
+    // Moves the suggestion of a stored leg inside this window that the pairing now reads differently:
+    // to FxSale once its foreign leg is read, and back to Income when a guess no longer pairs (the real
+    // leg settled later and closer). Only unreviewed rows move, since any edit or confirmation sets
+    // Confirmed under the owner's lock this runs under. Legs just outside the window only take part:
+    // their partners may lie beyond what was loaded, and their own window already placed them.
+    private async Task MoveStoredSuggestionsAsync(
+        Statement statement, Suggestions suggestions, CancellationToken cancellationToken)
+    {
+        var saleReason = ReceiptClassifier.ReasonFor(TransactionKind.FxSale);
+        var unreviewed = suggestions.Legs
+            .Where(row => row.ReviewStatus == ReviewStatus.NeedsReview
+                && row.BankTime >= statement.From
+                && row.BankTime <= statement.To)
+            .ToList();
+        var sold = unreviewed
+            .Where(row => row.Kind != TransactionKind.FxSale && suggestions.Kinds[Stored(row)] == TransactionKind.FxSale)
+            .ToList();
+        var unsold = unreviewed
+            .Where(row => row.Kind == TransactionKind.FxSale
+                && row.NonIncomeReason == saleReason
+                && suggestions.Kinds[Stored(row)] != TransactionKind.FxSale)
+            .ToList();
+        var soldIds = sold.Select(row => row.Id).ToList();
+        // A receipt with linked refunds must stay Income, as the transaction edit enforces.
+        var linked = await database.Transactions
+            .Where(row => row.RefundsTransactionId != null && soldIds.Contains(row.RefundsTransactionId.Value))
+            .Select(row => row.RefundsTransactionId!.Value)
+            .ToListAsync(cancellationToken);
+        var now = time.GetUtcNow();
+        foreach (var row in sold.Where(row => !linked.Contains(row.Id)))
+        {
+            row.Kind = TransactionKind.FxSale;
+            row.NonIncomeReason = saleReason;
+            row.UpdatedAt = now;
+        }
+
+        foreach (var row in unsold)
+        {
+            row.Kind = TransactionKind.Income;
+            row.NonIncomeReason = null;
+            row.UpdatedAt = now;
+        }
+
+        await database.SaveChangesAsync(cancellationToken);
+    }
+
+    // The classifier's ids share one namespace; a bank operation id and a row id never collide this way.
+    private static string Fresh(MonobankStatementItem item) => $"op:{item.Id}";
+
+    private static string Stored(Transaction row) => $"row:{row.Id}";
+
     private static string? Describe(MonobankStatementItem item)
     {
         var parts = new[] { item.Description?.Trim(), item.Comment?.Trim() }
@@ -359,6 +507,8 @@ internal sealed class MonobankStatementImport(
             value[..(char.IsHighSurrogate(value[maxLength - 1]) ? maxLength - 1 : maxLength)],
         _ => value,
     };
+
+    private sealed record Suggestions(IReadOnlyDictionary<string, TransactionKind> Kinds, IReadOnlyList<Transaction> Legs);
 
     private sealed record Statement(
         DateTimeOffset From, DateTimeOffset To, bool ReachesNow, IReadOnlyList<MonobankStatementItem> Items);

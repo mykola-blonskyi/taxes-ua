@@ -92,6 +92,10 @@ internal enum ReviewStatus
 {
     Confirmed,
     NeedsReview,
+
+    // A deleted imported row. It keeps its operation id so a sync never recreates it, and a query
+    // filter hides it from every read (TransactionConfiguration).
+    Dismissed,
 }
 
 internal enum TransactionKind
