@@ -28,5 +28,16 @@ internal sealed class MonobankRateGate(TimeProvider time)
         {
             await Task.Delay(wait, time, cancellationToken);
         }
+
+        // A wait that overran its slot (a paused VM, a long GC) would leave the next reservation in the
+        // past and let two calls out back to back, so the next slot counts from the call itself.
+        lock (_lock)
+        {
+            var earliest = time.GetUtcNow() + Interval;
+            if (_nextSlot[(ownerId, method)] < earliest)
+            {
+                _nextSlot[(ownerId, method)] = earliest;
+            }
+        }
     }
 }
