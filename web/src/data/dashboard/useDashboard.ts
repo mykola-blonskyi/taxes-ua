@@ -23,3 +23,19 @@ export function useDashboard() {
     },
   });
 }
+
+// Allocation settles the oldest debt first whatever period a payment names, so naming the oldest open
+// quarter, or the advance's month, only keeps the record readable.
+export function recordedPeriodOf(debt: KindDebt): {
+  periodYear: number;
+  periodQuarter: number | null;
+  periodMonth: number | null;
+} {
+  const advance = debt.advanceMonth !== null;
+
+  return {
+    periodYear: Number(debt.fromYear),
+    periodQuarter: advance ? null : Number(debt.fromQuarter),
+    periodMonth: advance ? Number(debt.advanceMonth) : null,
+  };
+}

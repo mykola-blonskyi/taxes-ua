@@ -9,6 +9,10 @@ export type PaymentKind = components["schemas"]["PaymentKind"];
 export type PaymentRequest = components["schemas"]["PaymentRequest"];
 export type PaymentResponse = components["schemas"]["PaymentResponse"];
 
+export type PaymentCandidate = components["schemas"]["PaymentCandidateResponse"];
+export type PaymentMatch = components["schemas"]["PaymentMatchResponse"];
+export type ConfirmCandidateRequest = components["schemas"]["ConfirmCandidateRequest"];
+
 export const paymentKinds: PaymentKind[] = ["SingleTax", "MilitaryLevy", "Esv"];
 
 export const paymentsQueryKey = ["payments"] as const;
@@ -81,6 +85,40 @@ export function useRecordPayments() {
         await api.POST("/api/payments", { body });
       }
     },
+    onSettled: invalidate,
+  });
+}
+
+export function usePaymentCandidates() {
+  return useQuery({
+    queryKey: [...paymentsQueryKey, "candidates"],
+    queryFn: async () => {
+      const { data } = await api.GET("/api/payments/candidates");
+
+      return data;
+    },
+  });
+}
+
+// Settled, not succeeded: a 409 means the list is stale, and reloading it is the recovery.
+export function useConfirmCandidate() {
+  const invalidate = useInvalidatePayments();
+
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: ConfirmCandidateRequest }) => {
+      const { data } = await api.POST("/api/payments/candidates/{id}/confirm", { params: { path: { id } }, body });
+
+      return data;
+    },
+    onSettled: invalidate,
+  });
+}
+
+export function useDismissCandidate() {
+  const invalidate = useInvalidatePayments();
+
+  return useMutation({
+    mutationFn: (id: string) => api.POST("/api/payments/candidates/{id}/dismiss", { params: { path: { id } } }),
     onSettled: invalidate,
   });
 }
