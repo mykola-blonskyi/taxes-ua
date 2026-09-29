@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Transactions;
 using HttpJsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
 
@@ -53,6 +54,7 @@ public static class BackupEndpoints
                 AppDbContext database,
                 IOptions<HttpJsonOptions> json,
                 TimeProvider time,
+                MonobankSyncQueue queue,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -93,6 +95,9 @@ public static class BackupEndpoints
                 {
                     return Results.ValidationProblem(linkErrors, title: "The backup file breaks the rules below.");
                 }
+
+                // The restore cleared every sync cursor; walking the history again brings back what the file lacks.
+                await MonobankEndpoints.EnqueueFollowedAsync(database, queue, user.Id, cancellationToken);
 
                 return Results.Ok(new RestoreResponse(
                     document.Clients.Length, document.Transactions.Length, document.BudgetPayments.Length));

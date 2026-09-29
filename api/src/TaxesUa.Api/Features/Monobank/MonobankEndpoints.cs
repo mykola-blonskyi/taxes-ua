@@ -238,7 +238,7 @@ public static class MonobankEndpoints
         statusCode: StatusCodes.Status503ServiceUnavailable,
         type: "https://taxes-ua/problems/monobank-not-configured");
 
-    private static async Task EnqueueFollowedAsync(
+    internal static async Task EnqueueFollowedAsync(
         AppDbContext database, MonobankSyncQueue queue, string userId, CancellationToken cancellationToken)
     {
         var followed = await database.BankAccounts
@@ -275,6 +275,12 @@ public static class MonobankEndpoints
         connection.MonobankClientId = info.ClientId;
         connection.ConnectedAt = DateTimeOffset.UtcNow;
         connection.RejectedAt = null;
+        // A rejection written by the worker after this row was read must still be cleared, so the column
+        // is written even when the tracked value was already null.
+        if (database.Entry(connection).State != EntityState.Added)
+        {
+            database.Entry(connection).Property(row => row.RejectedAt).IsModified = true;
+        }
 
         var existing = await database.BankAccounts
             .Where(account => account.UserId == userId && account.Bank == Bank.Monobank)

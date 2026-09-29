@@ -243,12 +243,17 @@ one ended; an operation on that boundary is read twice and recorded once.
 
 The sync queue lives in memory, so on start the app queues again every followed account whose cursor
 is missing or older than 31 days, unless its owner's token was rejected. A restore clears every
-account's cursor and last failure, since the restored transactions replace the synced ones; the next
-sync walks again from the start and records only what the file lacks.
+account's cursor and last failure, since the restored transactions replace the synced ones, and queues
+the followed accounts, which walk again from the start and record only what the file lacks. Each
+window commits only while the walk still holds: the cursor is still where the walk left it, the
+account is still followed, and the connection still has the token the walk read and is not rejected.
+Otherwise the window writes nothing and the walk stops, so a restore, an unfollow, a disconnect or a
+token replacement mid-backfill never leaves a gap behind a cursor or imports with a removed token.
 
 Every statement call waits for the owner's rate gate: one call per 60 seconds. A 429 waits for the
-bank's `Retry-After` when it sends one, then for the gate, and retries the same window; the owner sees
-nothing. After five 429s in a row on one window the sync stops and records the failure. A 401 or 403
+bank's `Retry-After` when it sends one (at most 5 minutes, since one worker serves every owner), then
+for the gate, and retries the same window; the owner sees nothing. After five 429s in a row on one
+window the sync stops and records the failure, so a bank that keeps refusing cannot hold the worker. A 401 or 403
 marks the connection's token rejected: that owner's queued and later syncs do nothing, settings asks
 for a new token, and saving one clears the mark and queues the followed accounts, which resume from
 their cursors. Any other failure (monobank unreachable or slow, an error status, an unreadable answer,

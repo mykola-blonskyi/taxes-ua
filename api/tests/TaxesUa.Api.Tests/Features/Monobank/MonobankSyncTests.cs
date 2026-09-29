@@ -38,6 +38,8 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
         var nbu = Nbu(("USD", new DateOnly(2032, 7, 12), "41.2345"), ("EUR", new DateOnly(2032, 7, 13), "45.6789"));
         await using var app = Create(At(2032, 7, 15, 10), bank, nbu);
         using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-currencies");
+        // A real clock moves between any two reads, which must not cost an extra call for the last second.
+        app.Clock.AutoAdvanceAmount = TimeSpan.FromMilliseconds(1);
 
         await Sync(app, owner);
 
@@ -307,38 +309,66 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
     }
 
     [Fact]
-    public async Task A_rejected_token_stops_syncing_until_it_is_replaced_and_then_resumes_from_the_cursor()
+    public async Task A_rejected_token_stops_the_backfill_until_it_is_replaced_and_then_resumes_from_the_cursor()
     {
         var bank = new FakeBank();
         bank.Connect("token-revoked", ("revoked-uah", 980));
-        bank.Put("revoked-uah", new Operation("op-before", At(2054, 3, 1, 9), 10_00, 980));
-        await using var app = Create(At(2054, 3, 3, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-revoked");
-        await Sync(app, owner);
-        Assert.Single((await List(owner, 2054)).Items);
+        for (var month = 1; month <= 5; month++)
+        {
+            bank.Put("revoked-uah", new Operation($"op-revoked-{month}", At(2054, month, 10, 9), month * 10_00, 980));
+        }
 
+        await using var app = Create(At(2054, 5, 20, 10), bank);
+        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-revoked", new DateOnly(2054, 1, 1));
+        Assert.Equal(HttpStatusCode.Accepted, (await owner.PostAsync("/api/monobank/sync", null)).StatusCode);
+        var cursor = await DrainUntil(app, owner, "revoked-uah", account => account.SyncedThrough is not null);
         bank.Revoke("token-revoked");
-        bank.Put("revoked-uah", new Operation("op-after", At(2054, 3, 4, 9), 20_00, 980));
-        app.Clock.Advance(TimeSpan.FromDays(2));
-        await Sync(app, owner);
+        await DrainUntil(app, owner, "revoked-uah", account => !account.SyncPending);
 
         var broken = await Status(owner);
         Assert.NotNull(broken.TokenRejectedAt);
-        Assert.True(broken.Connected);
+        Assert.Equal(cursor, broken.Accounts.Single(row => row.ExternalId == "revoked-uah").SyncedThrough);
         var callsWhileBroken = bank.StatementCalls(app.Handler).Length;
-        var refused = await owner.PostAsync("/api/monobank/sync", null);
-        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await owner.PostAsync("/api/monobank/sync", null)).StatusCode);
+        app.Clock.Advance(TimeSpan.FromMinutes(5));
+        await Task.Delay(100);
         Assert.Equal(callsWhileBroken, bank.StatementCalls(app.Handler).Length);
-        Assert.Single((await List(owner, 2054)).Items);
 
         bank.Connect("token-renewed", ("revoked-uah", 980));
         var replaced = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "token-renewed" });
         Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
-        var resumed = await DrainUntil(app, owner, "revoked-uah", account => !account.SyncPending);
+        await DrainUntil(app, owner, "revoked-uah", account => account.BackfillComplete && !account.SyncPending);
 
         Assert.Null((await Status(owner)).TokenRejectedAt);
-        Assert.Equal([10_00L, 20_00L], (await List(owner, 2054)).Items.Select(item => item.AmountMinor).Order());
-        Assert.True(resumed >= At(2054, 3, 5, 10));
+        Assert.Equal(cursor, Window(bank.StatementCalls(app.Handler)[callsWhileBroken].Uri).From);
+        Assert.Equal(
+            Enumerable.Range(1, 5).Select(month => month * 10_00L),
+            (await List(owner, 2054)).Items.Select(item => item.AmountMinor).Order());
+    }
+
+    [Fact]
+    public async Task A_restore_mid_backfill_walks_the_history_again_so_no_month_is_lost()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-restore", ("restore-uah", 980));
+        for (var month = 1; month <= 4; month++)
+        {
+            bank.Put("restore-uah", new Operation($"op-restore-{month}", At(2061, month, 10, 9), month * 10_00, 980));
+        }
+
+        await using var app = Create(At(2061, 4, 20, 10), bank);
+        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-restore", new DateOnly(2061, 1, 1));
+        var empty = await owner.GetStringAsync("/api/backup");
+        Assert.Equal(HttpStatusCode.Accepted, (await owner.PostAsync("/api/monobank/sync", null)).StatusCode);
+        await DrainUntil(app, owner, "restore-uah", account => account.SyncedThrough is not null);
+
+        var restore = await owner.PostAsync("/api/restore", new StringContent(empty, System.Text.Encoding.UTF8, "application/json"));
+        Assert.True(restore.StatusCode == HttpStatusCode.OK, await restore.Content.ReadAsStringAsync());
+        await DrainUntil(app, owner, "restore-uah", account => account.BackfillComplete && !account.SyncPending);
+
+        Assert.Equal(
+            Enumerable.Range(1, 4).Select(month => month * 10_00L),
+            (await List(owner, 2061)).Items.Select(item => item.AmountMinor).Order());
     }
 
     [Fact]
@@ -478,6 +508,8 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
         Assert.Equal(HttpStatusCode.Conflict, (await owner.PostAsync("/api/monobank/sync", null)).StatusCode);
     }
 
+    private const int MaxDrainSteps = 3000;
+
     private static DateTimeOffset At(int year, int month, int day, int hour) => new(year, month, day, hour, 0, 0, TimeSpan.Zero);
 
     private static (DateTimeOffset From, DateTimeOffset To) Window(Uri uri)
@@ -542,7 +574,7 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
     private static async Task<DateTimeOffset> DrainUntil(
         SyncApp app, HttpClient owner, string externalId, Func<MonobankAccountResponse, bool> done)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(30);
+        var steps = 0;
         while (true)
         {
             var account = (await Status(owner)).Accounts.Single(row => row.ExternalId == externalId);
@@ -551,23 +583,23 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
                 return account.SyncedThrough!.Value;
             }
 
-            Assert.True(DateTime.UtcNow < deadline, "the sync did not get there");
+            Assert.True(++steps < MaxDrainSteps, "the sync did not get there");
             app.Clock.Advance(TimeSpan.FromSeconds(5));
             await Task.Delay(10);
         }
     }
 
     // The worker waits on the fake clock between statement calls, so the clock is moved on while the
-    // queue drains; real time only bounds how long the test is willing to wait.
+    // queue drains. The wait is bounded in steps, not wall time, which jumps when the machine sleeps.
     private static async Task Sync(SyncApp app, HttpClient owner)
     {
         var response = await owner.PostAsync("/api/monobank/sync", null);
         Assert.True(response.StatusCode == HttpStatusCode.Accepted, await response.Content.ReadAsStringAsync());
 
-        var deadline = DateTime.UtcNow.AddSeconds(30);
+        var steps = 0;
         while ((await Status(owner)).Accounts.Any(account => account.SyncPending))
         {
-            Assert.True(DateTime.UtcNow < deadline, "the sync queue did not drain");
+            Assert.True(++steps < MaxDrainSteps, "the sync queue did not drain");
             app.Clock.Advance(TimeSpan.FromSeconds(5));
             await Task.Delay(10);
         }
