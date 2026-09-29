@@ -314,8 +314,9 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
         var backup = await owner.GetStringAsync("/api/backup");
 
         Assert.DoesNotContain(GoodToken, backup, StringComparison.Ordinal);
-        Assert.DoesNotContain("monobank", backup, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("bankAccount", backup, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("encryptedToken", backup, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("client-1", backup, StringComparison.Ordinal);
+        Assert.Contains("\"fop-a\"", backup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -336,6 +337,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     [InlineData("PUT", "/api/monobank/connection")]
     [InlineData("PUT", "/api/monobank/accounts")]
     [InlineData("DELETE", "/api/monobank/connection")]
+    [InlineData("POST", "/api/monobank/sync")]
     public async Task Every_route_without_a_session_is_unauthorized(string method, string path)
     {
         using var client = fixture.CreateClient();

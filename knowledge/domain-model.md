@@ -82,7 +82,12 @@ The token itself does not live here: see `MonobankConnection` below (#75). `Encr
 off this entity because the connection — one token per owner — outlives any single account, and
 disconnecting must not touch the `BankAccount` rows a sync already created.
 
-Relationships: belongs to `User`, has many `Transaction`.
+A backup carries every account (never the connection or its token). A restore matches a file account
+to the owner's row with the same `Bank` and `ExternalId` and keeps that row as it stands; an account
+the owner does not hold is inserted. Reconnecting after a restore therefore finds the rows the restored
+transactions point at, and the sync's `ExternalId` check sees them.
+
+Relationships: belongs to `User`, has many `Transaction` and `ImportBatch`.
 
 ---
 
@@ -139,8 +144,13 @@ Fields:
   hryvnia. A receipt with linked refunds cannot be deleted and keeps its kind (`Income`) and
   currency.
 - `ClientId?`, `InvoiceId?`, `InvoiceNumber?`, `Description`, `Counterparty`.
-- `ExternalId?` the bank's transaction ID, unique together with `BankAccountId`.
-- `ImportBatchId?`, `ReviewStatus: Confirmed | NeedsReview`.
+- `BankAccountId?` the account an imported row came from, and `ExternalId?` the bank's operation id,
+  unique together. Both are set on an imported row and neither on a typed one.
+- `BankTime?` the bank's own instant for the operation; `ValueDate` is its Kyiv date.
+- `Counterparty?` the counterparty name as the bank sent it; the client is linked by the same name.
+- `ImportBatchId?` the sync run that inserted the row.
+- `ReviewStatus: Confirmed | NeedsReview`. Every imported row starts `NeedsReview`; typed rows, and
+  every row that existed before #76, are `Confirmed`. It never changes a figure (Rule 12).
 - `CreatedAt`, `UpdatedAt`.
 
 Rule: period income includes `Income` with a plus sign and `RefundToClient` with a minus sign. A
@@ -204,12 +214,19 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (1), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`, each row with
-its id and every stored column except `UserId`. `TaxYearConfig` and `FxRate` are left out because
-they are shared. A restore replaces the owner's four tables in one database transaction and passes
-every row through the endpoints' own validation, refund links included; any violation changes
-nothing. Ids are kept, so a restore after a wipe reproduces the same file. When another owner still
-holds one of the ids, every id in the file is replaced by a fresh one and the links follow.
+Fields: `SchemaVersion` (2), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+`BankAccounts`, `ImportBatches`, each row with its id and every stored column except `UserId`.
+`TaxYearConfig` and `FxRate` are left out because they are shared. The monobank connection is never
+in it, so the file carries no bank access. Version 2 added the bank accounts, the import batches and
+the transactions' import fields (#76). A version 1 file still restores, read as having none of them
+and every transaction `Confirmed`; a file of a version this build does not know is refused by its
+version number rather than by whichever field it added.
+
+A restore replaces the owner's settings, clients, transactions, payments and import batches in one
+database transaction and passes every row through the endpoints' own validation, refund links
+included; any violation changes nothing. Bank accounts are matched rather than replaced (see
+`BankAccount`). Ids are kept, so a restore after a wipe reproduces the same file. When another owner
+still holds one of the ids, every id in the file is replaced by a fresh one and the links follow.
 
 ---
 
@@ -289,10 +306,15 @@ rather than replacing it, so each imported record keeps its own history from its
 `Reminder`: `ObligationKey`, `OffsetDays` (7, 1, 0), `ScheduledAt`, `SentAt?`, `ChannelId`,
 `Status`.
 
-### ImportBatch (Stage 2)
+### ImportBatch
 
-`Source: Csv | Monobank | PrivatBank`, `BankAccountId`, `FromDate`, `ToDate`, `FileName?`,
-`ImportedCount`, `SkippedCount`, `CreatedAt`.
+Responsibilities: one sync run for one account (#76). Written by the monobank sync worker, never by
+the owner, and not audited: the rows it imported each get their own `Create` entry.
+
+Fields: `Source: Monobank` (CSV and PrivatBank join when they are built), `BankAccountId`, `From` and
+`To` (the statement window as instants, since a bank window is not a whole number of Kyiv days),
+`ImportedCount` (rows written), `SkippedCount` (credits not written, see Rule 12), `CreatedAt`.
+Settings shows each account's latest batch as its last sync.
 
 ### Invoice (Stage 3)
 

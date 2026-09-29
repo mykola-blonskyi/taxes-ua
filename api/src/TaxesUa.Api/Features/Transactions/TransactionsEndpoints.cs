@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Engine;
 using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
@@ -31,7 +32,7 @@ public static class TransactionsEndpoints
 
     private const int MaxInvoiceNumberLength = 100;
 
-    private const int MaxDescriptionLength = 1000;
+    internal const int MaxDescriptionLength = 1000;
 
     public static IEndpointRouteBuilder MapTransactionsApi(this IEndpointRouteBuilder routes)
     {
@@ -62,6 +63,7 @@ public static class TransactionsEndpoints
                 var rows = await database.Transactions
                     .Include(row => row.Client)
                     .Include(row => row.RefundsTransaction)
+                    .Include(row => row.BankAccount)
                     .Where(row => row.UserId == user.Id
                         && row.ValueDate >= new DateOnly(year, 1, 1)
                         && row.ValueDate < new DateOnly(year + 1, 1, 1))
@@ -105,7 +107,7 @@ public static class TransactionsEndpoints
                 }
 
                 var result = await TransactionRecorder.RecordAsync(
-                    database, user.Id, request, rates, time.TodayInKyiv(), cancellationToken);
+                    database, user.Id, request, provenance: null, rates, time.TodayInKyiv(), cancellationToken);
 
                 return result switch
                 {
@@ -146,6 +148,7 @@ public static class TransactionsEndpoints
                 }
 
                 var row = await database.Transactions
+                    .Include(t => t.BankAccount)
                     .FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.Id, cancellationToken);
                 if (row is null)
                 {
@@ -496,6 +499,9 @@ public static class TransactionsEndpoints
             beforeRegistration,
             row.RefundsTransaction is { } receipt
                 ? new RefundedReceipt(receipt.Id, receipt.ValueDate, receipt.AmountMinor, receipt.Currency)
+                : null,
+            row.BankAccount is { } account
+                ? new TransactionSource(account.Bank, IsoCurrency.Display(account.CurrencyCode))
                 : null);
 
     private static Dictionary<string, string[]> YearOutOfRange() => new()
@@ -643,7 +649,11 @@ internal sealed record TransactionResponse(
     string? InvoiceNumber,
     string? Description,
     bool BeforeRegistration,
-    RefundedReceipt? RefundsReceipt);
+    RefundedReceipt? RefundsReceipt,
+    TransactionSource? Source);
+
+// Where an imported row came from; null on a row the owner typed.
+internal sealed record TransactionSource(Bank Bank, string AccountCurrency);
 
 internal sealed record RefundedReceipt(Guid Id, DateOnly ValueDate, long AmountMinor, Currency Currency);
 

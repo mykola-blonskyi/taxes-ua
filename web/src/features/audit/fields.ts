@@ -19,6 +19,12 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
     "refundsTransactionId",
     "invoiceNumber",
     "description",
+    "counterparty",
+    "bankTime",
+    "externalId",
+    "bankAccountId",
+    "importBatchId",
+    "reviewStatus",
   ],
   BudgetPayment: ["paidOn", "kind", "amountKop", "periodYear", "periodQuarter", "periodMonth", "note"],
   Settings: [
@@ -114,6 +120,10 @@ const exactFormatters: Record<string, FieldFormatter> = {
   weekendDays: ({ value, locale }) =>
     Array.isArray(value) ? value.map((entry) => weekdayName(String(entry), locale)).join(", ") : String(value),
   refundsTransactionId: ({ value }) => String(value).slice(0, 8),
+  bankAccountId: ({ value }) => String(value).slice(0, 8),
+  importBatchId: ({ value }) => String(value).slice(0, 8),
+  bankTime: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
+  reviewStatus: enumValue,
   kind: enumValue,
   paymentMode: enumValue,
   esvRegistrationMonthPolicy: enumValue,

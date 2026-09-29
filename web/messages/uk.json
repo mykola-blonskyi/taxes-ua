@@ -137,7 +137,12 @@
       "rateManual": "вручну",
       "reversesReceipt": "Повернення надходження від {date}, {amount}",
       "reversesReceiptBeforeRegistration": "Повертає надходження до дати реєстрації ФОП: не входить у дохід",
-      "deleteLinked": "Не вдалося видалити: до цього надходження прив’язані повернення. Спершу видаліть їх або зніміть прив’язку."
+      "deleteLinked": "Не вдалося видалити: до цього надходження прив’язані повернення. Спершу видаліть їх або зніміть прив’язку.",
+      "source": {
+        "Monobank": "monobank · {currency}",
+        "PrivatBank": "ПриватБанк · {currency}",
+        "Other": "банк · {currency}"
+      }
     },
     "form": {
       "valueDate": "Дата зарахування",
@@ -358,7 +363,14 @@
       "accountsSaveFailed": "Не вдалося зберегти вибрані рахунки.",
       "fopAccounts": "Рахунки ФОП",
       "unsupportedAccounts": "Інші рахунки",
-      "notSupported": "не підтримується"
+      "notSupported": "не підтримується",
+      "syncNow": "Синхронізувати зараз",
+      "syncing": "Синхронізація…",
+      "syncNothingFollowed": "Оберіть хоча б один рахунок ФОП.",
+      "syncFailed": "Не вдалося запустити синхронізацію.",
+      "syncQueued": "У черзі на синхронізацію",
+      "lastSync": "Остання синхронізація {at}: додано {imported}, пропущено {skipped}",
+      "neverSynced": "Ще не синхронізовано"
     },
     "taxYears": {
       "history": "Історія",
@@ -463,6 +475,10 @@
       "rateSource": {
         "Nbu": "НБУ",
         "Manual": "Вручну"
+      },
+      "reviewStatus": {
+        "Confirmed": "Підтверджено",
+        "NeedsReview": "Потребує перевірки"
       }
     },
     "fields": {
@@ -513,7 +529,13 @@
       "verifiedAt": "Перевірено",
       "clients": "Клієнтів",
       "transactions": "Надходжень",
-      "budgetPayments": "Платежів"
+      "budgetPayments": "Платежів",
+      "bankAccountId": "Банківський рахунок",
+      "externalId": "Ідентифікатор у банку",
+      "bankTime": "Час у банку",
+      "counterparty": "Контрагент",
+      "importBatchId": "Імпорт",
+      "reviewStatus": "Перевірка"
     }
   }
 }

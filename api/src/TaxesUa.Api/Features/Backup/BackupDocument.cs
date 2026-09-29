@@ -1,5 +1,7 @@
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.Transactions;
@@ -21,25 +23,57 @@ internal sealed record BackupDocument(
     SettingsBackup? Settings,
     ClientBackup[] Clients,
     TransactionBackup[] Transactions,
-    BudgetPaymentBackup[] BudgetPayments)
+    BudgetPaymentBackup[] BudgetPayments,
+    BankAccountBackup[] BankAccounts,
+    ImportBatchBackup[] ImportBatches)
 {
-    public const int CurrentSchemaVersion = 1;
+    // 2 added bankAccounts, importBatches and the transactions' import fields (#76). A version 1 file
+    // is upgraded to this shape before it is read, see UpgradeFromVersion1.
+    public const int CurrentSchemaVersion = 2;
 
     public static BackupDocument From(
         SettingsEntity? settings,
         IEnumerable<Client> clients,
         IEnumerable<Transaction> transactions,
-        IEnumerable<BudgetPayment> payments) => new(
+        IEnumerable<BudgetPayment> payments,
+        IEnumerable<BankAccount> bankAccounts,
+        IEnumerable<ImportBatch> importBatches) => new(
         CurrentSchemaVersion,
         settings is null ? null : SettingsBackup.From(settings),
         [.. clients.Select(client => new ClientBackup(client.Id, client.Name))],
         [.. transactions.Select(TransactionBackup.From)],
-        [.. payments.Select(BudgetPaymentBackup.From)]);
+        [.. payments.Select(BudgetPaymentBackup.From)],
+        [.. bankAccounts.Select(BankAccountBackup.From)],
+        [.. importBatches.Select(ImportBatchBackup.Of)]);
 
+    // Bank accounts are left out: a restore matches them to the owner's rows by bank and external id.
     public IEnumerable<Guid> Ids() =>
         Clients.Select(client => client.Id)
             .Concat(Transactions.Select(transaction => transaction.Id))
-            .Concat(BudgetPayments.Select(payment => payment.Id));
+            .Concat(BudgetPayments.Select(payment => payment.Id))
+            .Concat(ImportBatches.Select(batch => batch.Id));
+
+    // A version 1 file predates bank imports: no accounts, no batches, and every row the owner's own.
+    public static void UpgradeFromVersion1(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        root["bankAccounts"] = new JsonArray();
+        root["importBatches"] = new JsonArray();
+        if (root["transactions"] is not JsonArray transactions)
+        {
+            return;
+        }
+
+        foreach (var transaction in transactions.OfType<JsonObject>())
+        {
+            transaction["bankAccountId"] = null;
+            transaction["externalId"] = null;
+            transaction["bankTime"] = null;
+            transaction["counterparty"] = null;
+            transaction["importBatchId"] = null;
+            transaction["reviewStatus"] = nameof(ReviewStatus.Confirmed);
+        }
+    }
 
     /// <summary>
     /// Every rule a row must meet that the file alone can answer, through the same validators the
@@ -51,9 +85,14 @@ internal sealed record BackupDocument(
         // RespectNullableAnnotations checks members, not array elements.
         if (Array.Exists(Clients, row => row is null)
             || Array.Exists(Transactions, row => row is null)
-            || Array.Exists(BudgetPayments, row => row is null))
+            || Array.Exists(BudgetPayments, row => row is null)
+            || Array.Exists(BankAccounts, row => row is null)
+            || Array.Exists(ImportBatches, row => row is null))
         {
-            return new() { ["file"] = ["clients, transactions and budgetPayments must not contain null."] };
+            return new()
+            {
+                ["file"] = ["clients, transactions, budgetPayments, bankAccounts and importBatches must not contain null."],
+            };
         }
 
         var errors = new Dictionary<string, string[]>();
@@ -98,6 +137,46 @@ internal sealed record BackupDocument(
             }
         }
 
+        var accountIds = new HashSet<Guid>();
+        var accountKeys = new HashSet<(Bank, string)>();
+        for (var i = 0; i < BankAccounts.Length; i++)
+        {
+            var account = BankAccounts[i];
+            if (account.Id == Guid.Empty || !accountIds.Add(account.Id))
+            {
+                errors[$"bankAccounts[{i}].id"] = ["id must be a non-empty id no other bank account has."];
+            }
+
+            if (account.Error() is var (key, message))
+            {
+                errors[$"bankAccounts[{i}].{key}"] = [message];
+            }
+            else if (!accountKeys.Add((account.Bank, account.ExternalId)))
+            {
+                errors[$"bankAccounts[{i}].externalId"] = ["externalId must differ from every other account's of the same bank."];
+            }
+        }
+
+        var batchAccounts = new Dictionary<Guid, Guid>();
+        for (var i = 0; i < ImportBatches.Length; i++)
+        {
+            var batch = ImportBatches[i];
+            if (batch.Id == Guid.Empty || !batchAccounts.TryAdd(batch.Id, batch.BankAccountId))
+            {
+                errors[$"importBatches[{i}].id"] = ["id must be a non-empty id no other import batch has."];
+            }
+
+            if (!accountIds.Contains(batch.BankAccountId))
+            {
+                errors[$"importBatches[{i}].bankAccountId"] = ["bankAccountId must be the id of one of the bank accounts."];
+            }
+            else if (batch.ImportedCount < 0 || batch.SkippedCount < 0 || batch.From > batch.To)
+            {
+                errors[$"importBatches[{i}].importedCount"] = ["An import batch has a window from before to and counts of zero or more."];
+            }
+        }
+
+        var externalIds = new HashSet<(Guid, string)>();
         var transactionIds = Transactions.Select(transaction => transaction.Id).ToHashSet();
         var receiptIds = Transactions
             .Where(transaction => transaction.Kind == TransactionKind.Income)
@@ -129,6 +208,16 @@ internal sealed record BackupDocument(
                 // ValidateLinksAsync says the same after the insert, but two refunds linking each other
                 // are a cycle EF cannot order, so the insert itself would fail first.
                 errors[$"{at}.refundsTransactionId"] = ["refundsTransactionId must be the id of an Income transaction."];
+            }
+
+            if (transaction.ImportError(accountIds, batchAccounts) is var (importKey, importMessage))
+            {
+                errors[$"{at}.{importKey}"] = [importMessage];
+            }
+            else if (transaction is { BankAccountId: { } accountId, ExternalId: { } externalId }
+                && !externalIds.Add((accountId, externalId)))
+            {
+                errors[$"{at}.externalId"] = ["externalId must differ from every other transaction's of the same bank account."];
             }
 
             var request = transaction.ToRequest(clientName);
@@ -224,9 +313,17 @@ internal sealed record TransactionBackup(
     Guid? RefundsTransactionId,
     string? InvoiceNumber,
     string? Description,
+    Guid? BankAccountId,
+    string? ExternalId,
+    DateTimeOffset? BankTime,
+    string? Counterparty,
+    Guid? ImportBatchId,
+    ReviewStatus ReviewStatus,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
+    private const int MaxExternalIdLength = 200;
+
     public static TransactionBackup From(Transaction row) => new(
         row.Id,
         row.ValueDate,
@@ -242,8 +339,36 @@ internal sealed record TransactionBackup(
         row.RefundsTransactionId,
         row.InvoiceNumber,
         row.Description,
+        row.BankAccountId,
+        row.ExternalId,
+        row.BankTime,
+        row.Counterparty,
+        row.ImportBatchId,
+        row.ReviewStatus,
         row.CreatedAt,
         row.UpdatedAt);
+
+    // An imported row names its account and its bank operation together; a typed row names neither.
+    public (string Key, string Message)? ImportError(
+        IReadOnlySet<Guid> accountIds, IReadOnlyDictionary<Guid, Guid> batchAccounts) => this switch
+    {
+        { BankAccountId: null, ExternalId: not null } or { BankAccountId: not null, ExternalId: null } =>
+            ("externalId", "bankAccountId and externalId are set together or not at all."),
+        { BankAccountId: { } accountId } when !accountIds.Contains(accountId) =>
+            ("bankAccountId", "bankAccountId must be the id of one of the bank accounts."),
+        { ExternalId: { Length: 0 or > MaxExternalIdLength } } =>
+            ("externalId", $"externalId must be 1 to {MaxExternalIdLength} characters."),
+        { ExternalId: { } externalId } when TextRules.HasDisallowedControlChar(externalId) =>
+            ("externalId", "externalId must not contain a control character."),
+        { Counterparty: { Length: > TransactionsEndpoints.MaxClientNameLength } } =>
+            ("counterparty", $"counterparty must not exceed {TransactionsEndpoints.MaxClientNameLength} characters."),
+        { Counterparty: { } counterparty } when TextRules.HasDisallowedControlChar(counterparty) =>
+            ("counterparty", "counterparty must not contain a control character."),
+        { ImportBatchId: { } batchId } when !batchAccounts.TryGetValue(batchId, out var batchAccount)
+            || batchAccount != BankAccountId =>
+            ("importBatchId", "importBatchId must be the id of an import batch of the same bank account."),
+        _ => null,
+    };
 
     // A foreign rate travels as the manual rate so the endpoint's own range check covers it, whichever
     // source fixed it.
@@ -281,7 +406,7 @@ internal sealed record TransactionBackup(
         _ => null,
     };
 
-    public Transaction ToEntity(string userId, Func<Guid, Guid> id)
+    public Transaction ToEntity(string userId, Func<Guid, Guid> id, Func<Guid, Guid> accountId)
     {
         var text = TransactionsEndpoints.Normalize(ToRequest(clientName: null));
 
@@ -302,6 +427,12 @@ internal sealed record TransactionBackup(
             RefundsTransactionId = RefundsTransactionId is { } receiptId ? id(receiptId) : null,
             InvoiceNumber = text.InvoiceNumber,
             Description = text.Description,
+            BankAccountId = BankAccountId is { } bankAccountId ? accountId(bankAccountId) : null,
+            ExternalId = ExternalId,
+            BankTime = BankTime?.ToUniversalTime(),
+            Counterparty = Counterparty,
+            ImportBatchId = ImportBatchId is { } batchId ? id(batchId) : null,
+            ReviewStatus = ReviewStatus,
             CreatedAt = CreatedAt.ToUniversalTime(),
             UpdatedAt = UpdatedAt.ToUniversalTime(),
         };
@@ -341,4 +472,93 @@ internal sealed record BudgetPaymentBackup(
         PaymentsEndpoints.Apply(row, ToRequest(), UpdatedAt.ToUniversalTime());
         return row;
     }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record BankAccountBackup(
+    Guid Id,
+    Bank Bank,
+    string ExternalId,
+    string Name,
+    int CurrencyCode,
+    string Iban,
+    string AccountType,
+    bool IsFop,
+    bool IsActive,
+    DateTimeOffset CreatedAt)
+{
+    public static BankAccountBackup From(BankAccount row) => new(
+        row.Id,
+        row.Bank,
+        row.ExternalId,
+        row.Name,
+        row.CurrencyCode,
+        row.Iban,
+        row.AccountType,
+        row.IsFop,
+        row.IsActive,
+        row.CreatedAt);
+
+    // The column limits of BankAccountConfiguration, and #75's rule that only a FOP account is followed.
+    public (string Key, string Message)? Error() => this switch
+    {
+        { ExternalId: { Length: 0 or > 200 } } => ("externalId", "externalId must be 1 to 200 characters."),
+        { Name.Length: > 200 } => ("name", "name must not exceed 200 characters."),
+        { Iban.Length: > 34 } => ("iban", "iban must not exceed 34 characters."),
+        { AccountType.Length: > 50 } => ("accountType", "accountType must not exceed 50 characters."),
+        _ when new[] { ExternalId, Name, Iban, AccountType }.Any(TextRules.HasDisallowedControlChar) =>
+            ("externalId", "A bank account's text must not contain a control character."),
+        { IsActive: true, IsFop: false } => ("isActive", "Only a FOP account can be followed."),
+        _ => null,
+    };
+
+    public BankAccount ToEntity(string userId, Guid id) => new()
+    {
+        Id = id,
+        UserId = userId,
+        Bank = Bank,
+        ExternalId = ExternalId,
+        Name = Name,
+        CurrencyCode = CurrencyCode,
+        Iban = Iban,
+        AccountType = AccountType,
+        IsFop = IsFop,
+        IsActive = IsActive,
+        CreatedAt = CreatedAt.ToUniversalTime(),
+    };
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record ImportBatchBackup(
+    Guid Id,
+    ImportSource Source,
+    Guid BankAccountId,
+    DateTimeOffset From,
+    DateTimeOffset To,
+    int ImportedCount,
+    int SkippedCount,
+    DateTimeOffset CreatedAt)
+{
+    public static ImportBatchBackup Of(ImportBatch row) => new(
+        row.Id,
+        row.Source,
+        row.BankAccountId,
+        row.From,
+        row.To,
+        row.ImportedCount,
+        row.SkippedCount,
+        row.CreatedAt);
+
+    public ImportBatch ToEntity(string userId, Func<Guid, Guid> id, Func<Guid, Guid> accountId) => new()
+    {
+        Id = id(Id),
+        UserId = userId,
+        Source = Source,
+        BankAccountId = accountId(BankAccountId),
+        From = From.ToUniversalTime(),
+        To = To.ToUniversalTime(),
+        ImportedCount = ImportedCount,
+        SkippedCount = SkippedCount,
+        CreatedAt = CreatedAt.ToUniversalTime(),
+    };
 }

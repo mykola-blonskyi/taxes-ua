@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
 import {
   useDisconnectMonobank,
   useMonobankConnection,
   useSaveFollowedMonobankAccounts,
   useSaveMonobankToken,
+  useSyncMonobank,
   type MonobankAccountResponse,
 } from "@/data/monobank/useMonobank";
+import { formatInstantInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
 import { CheckboxField, TextField } from "@/shared/ui/fields";
 
@@ -41,6 +43,7 @@ function MonobankConnectionBody({
   const saveToken = useSaveMonobankToken();
   const saveAccounts = useSaveFollowedMonobankAccounts();
   const disconnect = useDisconnectMonobank();
+  const sync = useSyncMonobank();
   const [token, setToken] = useState("");
   const [editingToken, setEditingToken] = useState(!connection.connected);
 
@@ -53,7 +56,10 @@ function MonobankConnectionBody({
   const tokenErrors = tokenFailure?.errors.token?.map((message) => tokenErrorKeys[message] ?? message);
   const accountsFailure = saveAccounts.error instanceof ApiError ? saveAccounts.error : null;
   const disconnectFailure = disconnect.error instanceof ApiError ? disconnect.error : null;
+  const syncFailure = sync.error instanceof ApiError ? sync.error : null;
   const fopAccounts = connection.accounts.filter((account) => account.isFop);
+  const followedCount = fopAccounts.filter((account) => account.isFollowed).length;
+  const syncing = connection.accounts.some((account) => account.syncPending);
   const unsupportedAccounts = connection.accounts.filter((account) => !account.isFop);
 
   function submitToken(event: React.FormEvent) {
@@ -143,6 +149,24 @@ function MonobankConnectionBody({
         </form>
       ) : null}
 
+      {connection.connected ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            disabled={sync.isPending || syncing || followedCount === 0}
+            onClick={() => sync.mutate()}
+          >
+            {sync.isPending || syncing ? t("syncing") : t("syncNow")}
+          </Button>
+          {followedCount === 0 ? (
+            <span className="text-xs text-muted-foreground">{t("syncNothingFollowed")}</span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {syncFailure ? <p className="text-sm text-destructive">{`${t("syncFailed")} ${syncFailure.message}`}</p> : null}
+
       {accountsFailure ? <p className="text-sm text-destructive">{`${t("accountsSaveFailed")} ${accountsFailure.message}`}</p> : null}
 
       {connection.accounts.length > 0 ? (
@@ -151,14 +175,16 @@ function MonobankConnectionBody({
             <div className="flex flex-col gap-2">
               <h3 className="text-sm font-medium">{t("fopAccounts")}</h3>
               {fopAccounts.map((account) => (
-                <CheckboxField
-                  key={account.externalId}
-                  id={`monobank-account-${account.externalId}`}
-                  label={`${account.currency} · ${account.maskedIban}`}
-                  checked={account.isFollowed}
-                  disabled={saveAccounts.isPending}
-                  onChange={(checked) => toggleFollowed(account.externalId, checked)}
-                />
+                <div key={account.externalId} className="flex min-w-0 flex-col gap-0.5">
+                  <CheckboxField
+                    id={`monobank-account-${account.externalId}`}
+                    label={`${account.currency} · ${account.maskedIban}`}
+                    checked={account.isFollowed}
+                    disabled={saveAccounts.isPending}
+                    onChange={(checked) => toggleFollowed(account.externalId, checked)}
+                  />
+                  <SyncStatus account={account} />
+                </div>
               ))}
             </div>
           ) : null}
@@ -179,4 +205,23 @@ function MonobankConnectionBody({
       ) : null}
     </div>
   );
+}
+
+function SyncStatus({ account }: { account: MonobankAccountResponse }) {
+  const t = useTranslations("settings.monobank");
+  const locale = useLocale();
+
+  const text = account.syncPending
+    ? t("syncQueued")
+    : account.lastSync
+      ? t("lastSync", {
+          at: formatInstantInKyiv(account.lastSync.at, locale),
+          imported: account.lastSync.importedCount,
+          skipped: account.lastSync.skippedCount,
+        })
+      : account.isFollowed
+        ? t("neverSynced")
+        : null;
+
+  return text ? <p className="min-w-0 break-words pl-6 text-xs text-muted-foreground">{text}</p> : null;
 }

@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -129,7 +130,19 @@ public static class BackupEndpoints
             .ThenBy(row => row.Id)
             .ToListAsync(cancellationToken);
 
-        return BackupDocument.From(settings, clients, transactions, payments);
+        var bankAccounts = await database.BankAccounts.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .OrderBy(row => row.Bank)
+            .ThenBy(row => row.ExternalId)
+            .ToListAsync(cancellationToken);
+        var importBatches = await database.ImportBatches.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .OrderBy(row => row.CreatedAt)
+            .ThenBy(row => row.Id)
+            .ToListAsync(cancellationToken);
+
+        // The monobank connection, and the token it holds, is never part of a backup (ADR-011).
+        return BackupDocument.From(settings, clients, transactions, payments, bankAccounts, importBatches);
     }
 
     // Returns the refund-link errors, having rolled everything back, or null once the owner's data is
@@ -152,18 +165,21 @@ public static class BackupEndpoints
         // One statement takes receipts and their refunds together: PostgreSQL checks the RESTRICT link
         // at the end of the statement, when neither side is left.
         await database.Transactions.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.ImportBatches.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.Clients.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.BudgetPayments.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.Settings.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
 
         var id = await IdMappingAsync(database, document, cancellationToken);
+        var accountId = await MatchBankAccountsAsync(database, userId, document.BankAccounts, cancellationToken);
         if (document.Settings is { } settings)
         {
             database.Settings.Add(settings.ToEntity(userId));
         }
 
         database.Clients.AddRange(document.Clients.Select(client => client.ToEntity(userId, id)));
-        var transactions = document.Transactions.Select(row => row.ToEntity(userId, id)).ToArray();
+        database.ImportBatches.AddRange(document.ImportBatches.Select(batch => batch.ToEntity(userId, id, accountId)));
+        var transactions = document.Transactions.Select(row => row.ToEntity(userId, id, accountId)).ToArray();
         database.Transactions.AddRange(transactions);
         database.BudgetPayments.AddRange(document.BudgetPayments.Select(payment => payment.ToEntity(userId, id)));
         database.AuditLog.Add(AuditEntry.Restored(
@@ -211,7 +227,8 @@ public static class BackupEndpoints
         var ids = document.Ids().ToArray();
         var taken = await database.Clients.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
             || await database.Transactions.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
-            || await database.BudgetPayments.AnyAsync(row => ids.Contains(row.Id), cancellationToken);
+            || await database.BudgetPayments.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
+            || await database.ImportBatches.AnyAsync(row => ids.Contains(row.Id), cancellationToken);
         if (!taken)
         {
             return fileId => fileId;
@@ -219,6 +236,38 @@ public static class BackupEndpoints
 
         var fresh = ids.Distinct().ToDictionary(fileId => fileId, _ => Guid.NewGuid());
         return fileId => fresh[fileId];
+    }
+
+    // Accounts are not replaced: the monobank connection reconciles them against the bank, and a sync
+    // after reconnecting must find the rows its transactions point at. A file account the owner already
+    // holds (same bank and external id) maps to that row as it stands; any other is inserted, under a
+    // fresh id if the file's id is taken.
+    private static async Task<Func<Guid, Guid>> MatchBankAccountsAsync(
+        AppDbContext database, string userId, BankAccountBackup[] accounts, CancellationToken cancellationToken)
+    {
+        var owned = await database.BankAccounts
+            .Where(row => row.UserId == userId)
+            .ToListAsync(cancellationToken);
+        var fileIds = accounts.Select(account => account.Id).ToArray();
+        var taken = await database.BankAccounts
+            .Where(row => fileIds.Contains(row.Id))
+            .Select(row => row.Id)
+            .ToListAsync(cancellationToken);
+
+        var map = new Dictionary<Guid, Guid>();
+        foreach (var account in accounts)
+        {
+            var existing = owned.FirstOrDefault(row => row.Bank == account.Bank && row.ExternalId == account.ExternalId);
+            if (existing is null)
+            {
+                existing = account.ToEntity(userId, taken.Contains(account.Id) ? Guid.NewGuid() : account.Id);
+                database.BankAccounts.Add(existing);
+            }
+
+            map[account.Id] = existing.Id;
+        }
+
+        return fileId => map[fileId];
     }
 
     internal static async Task<byte[]?> ReadBoundedAsync(Stream body, CancellationToken cancellationToken)
@@ -261,15 +310,21 @@ public static class BackupEndpoints
                 return false;
             }
 
-            if (number != BackupDocument.CurrentSchemaVersion)
+            if (number is not (1 or BackupDocument.CurrentSchemaVersion))
             {
                 reason = $"Backup schemaVersion {number} is not supported. This version restores schemaVersion "
-                    + $"{BackupDocument.CurrentSchemaVersion}.";
+                    + $"1 and {BackupDocument.CurrentSchemaVersion}.";
                 return false;
             }
 
+            var upgraded = JsonNode.Parse(body)!.AsObject();
+            if (number == 1)
+            {
+                BackupDocument.UpgradeFromVersion1(upgraded);
+            }
+
             // An object root never deserializes to null.
-            document = root.Deserialize<BackupDocument>(options)!;
+            document = upgraded.Deserialize<BackupDocument>(options)!;
             reason = null;
             return true;
         }

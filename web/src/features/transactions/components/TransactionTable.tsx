@@ -76,6 +76,11 @@ function TransactionRow({
 
       <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
         {nonIncome ? <span className="rounded bg-muted px-1.5 py-0.5">{t("row.nonIncomeTag")}</span> : null}
+        {transaction.source ? (
+          <span className="rounded bg-muted px-1.5 py-0.5">
+            {t(`row.source.${transaction.source.bank}`, { currency: transaction.source.accountCurrency })}
+          </span>
+        ) : null}
         {transaction.clientName ? <span className="min-w-0 break-words">{transaction.clientName}</span> : null}
         {transaction.invoiceNumber ? (
           <span className="min-w-0 break-words">{transaction.invoiceNumber}</span>

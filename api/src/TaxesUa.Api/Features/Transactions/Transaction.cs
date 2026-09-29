@@ -1,4 +1,5 @@
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Features.Transactions;
@@ -41,6 +42,22 @@ internal sealed class Transaction
 
     public string? Description { get; set; }
 
+    public Guid? BankAccountId { get; set; }
+
+    public BankAccount? BankAccount { get; set; }
+
+    // The bank's own operation id, unique together with BankAccountId. A sync only inserts, so a row
+    // carrying one is never overwritten by the bank.
+    public string? ExternalId { get; set; }
+
+    public DateTimeOffset? BankTime { get; set; }
+
+    public string? Counterparty { get; set; }
+
+    public Guid? ImportBatchId { get; set; }
+
+    public ReviewStatus ReviewStatus { get; set; } = ReviewStatus.Confirmed;
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
@@ -69,6 +86,12 @@ internal sealed class Transaction
         TransactionKind.OtherNonIncome => NonIncomeKind.Other,
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "not a non-income kind"),
     };
+}
+
+internal enum ReviewStatus
+{
+    Confirmed,
+    NeedsReview,
 }
 
 internal enum TransactionKind

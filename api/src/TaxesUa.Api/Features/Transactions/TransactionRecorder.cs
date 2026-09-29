@@ -8,8 +8,8 @@ namespace TaxesUa.Api.Features.Transactions;
 /// <summary>
 /// Records a transaction: normalization, validation, the receipt link (Rule 8's transitive
 /// exclusion needs it), the NBU rate (Rule 2) and client resolution, all in one save. This is the
-/// operation behind <c>POST /transactions</c>, and the one a later background worker (the monobank
-/// import) calls directly with an owner id and a request-shaped input, without an HttpContext.
+/// operation behind <c>POST /transactions</c>, and the one the monobank sync calls directly with an
+/// owner id, a request-shaped input and the row's <see cref="ImportProvenance"/>, without an HttpContext.
 /// </summary>
 internal static class TransactionRecorder
 {
@@ -17,6 +17,7 @@ internal static class TransactionRecorder
         AppDbContext database,
         string userId,
         TransactionRequest request,
+        ImportProvenance? provenance,
         FxRates rates,
         DateOnly today,
         CancellationToken cancellationToken)
@@ -53,6 +54,16 @@ internal static class TransactionRecorder
         row.RefundsTransaction = await TransactionsEndpoints.FindReceiptAsync(database, request, cancellationToken);
         row.InvoiceNumber = normalized.InvoiceNumber;
         row.Description = normalized.Description;
+        if (provenance is not null)
+        {
+            row.BankAccountId = provenance.BankAccountId;
+            row.ExternalId = provenance.ExternalId;
+            row.BankTime = provenance.BankTime;
+            row.Counterparty = provenance.Counterparty;
+            row.ImportBatchId = provenance.ImportBatchId;
+            row.ReviewStatus = ReviewStatus.NeedsReview;
+        }
+
         row.CreatedAt = now;
         row.UpdatedAt = now;
         database.Transactions.Add(row);
@@ -64,6 +75,17 @@ internal static class TransactionRecorder
         return new RecordTransactionResult.Success(row, normalized.ClientName, beforeRegistration);
     }
 }
+
+/// <summary>
+/// Where an imported row came from. A row recorded with one starts as <see cref="ReviewStatus.NeedsReview"/>,
+/// since nothing is classified for the owner without their confirmation.
+/// </summary>
+internal sealed record ImportProvenance(
+    Guid BankAccountId,
+    string ExternalId,
+    DateTimeOffset BankTime,
+    string? Counterparty,
+    Guid ImportBatchId);
 
 /// <summary>
 /// What <see cref="TransactionRecorder.RecordAsync"/> hands back: the saved row, a validation

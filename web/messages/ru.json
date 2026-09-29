@@ -137,7 +137,12 @@
       "rateManual": "вручную",
       "reversesReceipt": "Возврат поступления от {date}, {amount}",
       "reversesReceiptBeforeRegistration": "Возвращает поступление до даты регистрации ФОП: не входит в доход",
-      "deleteLinked": "Не удалось удалить: к этому поступлению привязаны возвраты. Сначала удалите их или снимите привязку."
+      "deleteLinked": "Не удалось удалить: к этому поступлению привязаны возвраты. Сначала удалите их или снимите привязку.",
+      "source": {
+        "Monobank": "monobank · {currency}",
+        "PrivatBank": "ПриватБанк · {currency}",
+        "Other": "банк · {currency}"
+      }
     },
     "form": {
       "valueDate": "Дата зачисления",
@@ -358,7 +363,14 @@
       "accountsSaveFailed": "Не удалось сохранить выбранные счета.",
       "fopAccounts": "Счета ФОП",
       "unsupportedAccounts": "Другие счета",
-      "notSupported": "не поддерживается"
+      "notSupported": "не поддерживается",
+      "syncNow": "Синхронизировать сейчас",
+      "syncing": "Синхронизация…",
+      "syncNothingFollowed": "Выберите хотя бы один счёт ФОП.",
+      "syncFailed": "Не удалось запустить синхронизацию.",
+      "syncQueued": "В очереди на синхронизацию",
+      "lastSync": "Последняя синхронизация {at}: добавлено {imported}, пропущено {skipped}",
+      "neverSynced": "Ещё не синхронизировано"
     },
     "taxYears": {
       "history": "История",
@@ -463,6 +475,10 @@
       "rateSource": {
         "Nbu": "НБУ",
         "Manual": "Вручную"
+      },
+      "reviewStatus": {
+        "Confirmed": "Подтверждено",
+        "NeedsReview": "Требует проверки"
       }
     },
     "fields": {
@@ -513,7 +529,13 @@
       "verifiedAt": "Проверено",
       "clients": "Клиентов",
       "transactions": "Поступлений",
-      "budgetPayments": "Платежей"
+      "budgetPayments": "Платежей",
+      "bankAccountId": "Банковский счёт",
+      "externalId": "Идентификатор в банке",
+      "bankTime": "Время в банке",
+      "counterparty": "Контрагент",
+      "importBatchId": "Импорт",
+      "reviewStatus": "Проверка"
     }
   }
 }

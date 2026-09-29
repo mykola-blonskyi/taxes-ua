@@ -29,8 +29,22 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
             .HasForeignKey(transaction => transaction.RefundsTransactionId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(transaction => transaction.BankAccount)
+            .WithMany()
+            .HasForeignKey(transaction => transaction.BankAccountId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasOne<ImportBatch>()
+            .WithMany()
+            .HasForeignKey(transaction => transaction.ImportBatchId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasIndex(transaction => new { transaction.BankAccountId, transaction.ExternalId }).IsUnique();
+
         builder.Property(transaction => transaction.NonIncomeReason).HasMaxLength(1000);
         builder.Property(transaction => transaction.InvoiceNumber).HasMaxLength(100);
         builder.Property(transaction => transaction.Description).HasMaxLength(1000);
+        builder.Property(transaction => transaction.ExternalId).HasMaxLength(200);
+        builder.Property(transaction => transaction.Counterparty).HasMaxLength(200);
     }
 }

@@ -4,11 +4,17 @@ using System.Text;
 
 namespace TaxesUa.Api.Tests.Features.Monobank;
 
-public sealed class StubMonobankHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
+public sealed class StubMonobankHandler(Func<HttpRequestMessage, HttpResponseMessage> respond, TimeProvider? clock = null)
+    : HttpMessageHandler
 {
     private readonly ConcurrentQueue<HttpRequestMessage> _requests = new();
 
+    private readonly ConcurrentQueue<(Uri Uri, DateTimeOffset At)> _calls = new();
+
     public IReadOnlyCollection<HttpRequestMessage> Requests => _requests;
+
+    // Every call with the time the app's clock read when it arrived, so tests can assert on pacing.
+    public IReadOnlyCollection<(Uri Uri, DateTimeOffset At)> Calls => _calls;
 
     // Answers client-info for the one recognised token and 401 for every other one, the way a real
     // token check behaves for a typo.
@@ -34,6 +40,7 @@ public sealed class StubMonobankHandler(Func<HttpRequestMessage, HttpResponseMes
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         _requests.Enqueue(request);
+        _calls.Enqueue((request.RequestUri!, (clock ?? TimeProvider.System).GetUtcNow()));
         return Task.FromResult(respond(request));
     }
 }

@@ -33,7 +33,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
-    private const string Empty = """{"schemaVersion":1,"settings":null,"clients":[],"transactions":[],"budgetPayments":[]}""";
+    private const string Empty =
+        """{"schemaVersion":2,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[]}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -109,6 +110,33 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task A_version_1_file_restores_with_every_row_as_the_owners_own()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var current = Baseline();
+        var version1 = Baseline();
+        version1["schemaVersion"] = 1;
+        version1.Remove("bankAccounts");
+        version1.Remove("importBatches");
+        foreach (var row in version1["transactions"]!.AsArray().OfType<JsonObject>())
+        {
+            foreach (var field in new[] { "bankAccountId", "externalId", "bankTime", "counterparty", "importBatchId", "reviewStatus" })
+            {
+                row.Remove(field);
+            }
+        }
+
+        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version1.ToJsonString()));
+
+        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
+        Assert.Equal(2, backup["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(
+            current["transactions"]!.AsArray().Count,
+            backup["transactions"]!.AsArray().Count(row => row!["reviewStatus"]!.GetValue<string>() == "Confirmed"));
+    }
+
+    [Fact]
     public async Task A_restore_logs_exactly_one_summary_entry_and_no_per_row_entries()
     {
         await using var application = CreateApplication();
@@ -164,7 +192,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "unknown field", null },
         { "missing field", null },
         { "numeric enum", null },
-        { "schema version 2", null },
+        { "schema version 3", null },
         { "no schema version", null },
         { "not JSON", null },
     };
@@ -260,16 +288,16 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [typeof(Client)] = typeof(ClientBackup),
             [typeof(Transaction)] = typeof(TransactionBackup),
             [typeof(BudgetPayment)] = typeof(BudgetPaymentBackup),
+            [typeof(BankAccount)] = typeof(BankAccountBackup),
+            [typeof(ImportBatch)] = typeof(ImportBatchBackup),
         };
         Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(FxRate)];
         // The change log is history, not state: a restore does not replay it and does not carry it.
         Type[] historyNotState = [typeof(AuditEntry)];
-        // #75 / ADR-011: the encrypted token must never leave the database, so the connection it
-        // belongs to is excluded outright rather than carried as an entry with the token blanked.
-        // BankAccount is excluded alongside it: a restore keeps the connection absent (the domain
-        // model), so a synced account is meaningless without it, and reconnecting dedupes accounts by
-        // ExternalId exactly as sync already does.
-        Type[] bankConnectionNotBackedUp = [typeof(BankAccount), typeof(MonobankConnection)];
+        // ADR-011: the encrypted token must never leave the database, so the connection it belongs to is
+        // excluded outright rather than carried with the token blanked. A restore leaves it absent and the
+        // owner reconnects; bank accounts are carried, so reconnecting finds the rows imports point at.
+        Type[] bankConnectionNotBackedUp = [typeof(MonobankConnection)];
 
         var featureTables = model.GetEntityTypes()
             .Select(type => type.ClrType)
@@ -367,22 +395,25 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [new ClientBackup(ClientId, "Acme"), new ClientBackup(Guid.NewGuid(), "Beta")],
             [
                 new TransactionBackup(UahReceiptId, new DateOnly(2031, 2, 1), 100_000, Currency.UAH, Money.RateScale,
-                    null, null, 100_000, TransactionKind.Income, null, ClientId, null, null, null, created, created),
+                    null, null, 100_000, TransactionKind.Income, null, ClientId, null, null, null, null, null, null, null, null, ReviewStatus.Confirmed, created, created),
                 new TransactionBackup(UsdReceiptId, new DateOnly(2031, 2, 2), 100_000, Currency.USD, 400_000,
-                    null, RateSource.Manual, 4_000_000, TransactionKind.Income, null, null, null, "INV-2", null, created,
-                    created),
+                    null, RateSource.Manual, 4_000_000, TransactionKind.Income, null, null, null, "INV-2", null, null, null, null, null, null,
+                    ReviewStatus.Confirmed, created, created),
                 new TransactionBackup(UsdRefundId, new DateOnly(2031, 2, 3), 30_000, Currency.USD, 400_000,
                     null, RateSource.Manual, 1_200_000, TransactionKind.RefundToClient, null, null, UsdReceiptId, null,
-                    null, created, created),
+                    null, null, null, null, null, null, ReviewStatus.Confirmed, created, created),
                 new TransactionBackup(TransferId, new DateOnly(2031, 2, 4), 5_000, Currency.UAH, Money.RateScale,
-                    null, null, 5_000, TransactionKind.OwnTransfer, "Own card", null, null, null, null, created, created),
+                    null, null, 5_000, TransactionKind.OwnTransfer, "Own card", null, null, null, null, null, null, null, null, null,
+                    ReviewStatus.Confirmed, created, created),
             ],
             [
                 new BudgetPaymentBackup(QuarterPaymentId, new DateOnly(2031, 4, 15), PaymentKind.Esv, 190_234, 2031, 1,
                     null, null, created, created),
                 new BudgetPaymentBackup(MonthPaymentId, new DateOnly(2031, 3, 15), PaymentKind.SingleTax, 61_700, 2031,
                     null, 3, "March", created, created),
-            ]);
+            ],
+            [],
+            []);
 
         return JsonSerializer.SerializeToNode(document, Json)!.AsObject();
     }
@@ -480,8 +511,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             case "numeric enum":
                 transactions[0]!["kind"] = 0;
                 break;
-            case "schema version 2":
-                file["schemaVersion"] = 2;
+            case "schema version 3":
+                file["schemaVersion"] = 3;
                 break;
             case "no schema version":
                 file.Remove("schemaVersion");
