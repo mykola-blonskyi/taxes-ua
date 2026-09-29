@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
@@ -7,7 +8,8 @@ using TaxesUa.Api.Features.Transactions;
 namespace TaxesUa.Api.Features.Monobank;
 
 /// <summary>
-/// Reads the last 31 days of one followed FOP account and records each settled credit through
+/// Walks one followed FOP account's statement forward in windows from its cursor (or, before the first
+/// window lands, from the backfill start) to now, and records each settled credit through
 /// <see cref="TransactionRecorder"/>, the same operation a manual entry takes. It only inserts: an
 /// operation whose id the account already holds is left as the owner last saved it.
 /// </summary>
@@ -25,6 +27,11 @@ internal sealed class MonobankStatementImport(
 
     private const string StatementMethod = "statement";
 
+    private const int MaxRateLimitedAttempts = 5;
+
+    public static DateOnly BackfillStart(DateOnly? registeredOn, DateOnly today) =>
+        registeredOn ?? new DateOnly(today.Year, 1, 1);
+
     public async Task RunAsync(SyncWork work, CancellationToken cancellationToken)
     {
         var connection = await database.MonobankConnections.AsNoTracking()
@@ -37,60 +44,141 @@ internal sealed class MonobankStatementImport(
                     && row.IsFop
                     && row.IsActive,
                 cancellationToken);
-        if (connection is null || account is null)
+        if (connection is null || account is null || connection.RejectedAt is not null)
         {
             return;
         }
 
-        var token = encryptor.Decrypt(connection.EncryptedToken);
-        if (await FetchAsync(token, work.OwnerId, account.ExternalId, cancellationToken) is not { } statement)
+        string token;
+        try
         {
+            token = encryptor.Decrypt(connection.EncryptedToken);
+        }
+        catch (CryptographicException exception)
+        {
+            logger.LogError(exception, "The monobank token of owner {OwnerId} could not be decrypted.", work.OwnerId);
+            await RecordFailureAsync(account.Id, SyncFailure.TokenUnreadable, cancellationToken);
             return;
         }
 
-        await ImportAsync(work.OwnerId, account, statement, cancellationToken);
+        var start = await StartAsync(work.OwnerId, account, cancellationToken);
+        // "Now" is read after the turn comes, or a sync that waited behind another account would end its
+        // window where the wait began and spend one more call on the minutes since.
+        await gate.WaitTurnAsync(connection.UserId, StatementMethod, cancellationToken);
+        var from = Min(start, time.GetUtcNow() - Window);
+        while (await FetchAsync(connection, token, account, from, cancellationToken) is { } statement)
+        {
+            await ImportAsync(work.OwnerId, account, statement, cancellationToken);
+            if (statement.ReachesNow)
+            {
+                return;
+            }
+
+            from = statement.To;
+            await gate.WaitTurnAsync(connection.UserId, StatementMethod, cancellationToken);
+        }
     }
 
-    private async Task<Statement?> FetchAsync(
-        string token, string ownerId, string accountId, CancellationToken cancellationToken)
+    public Task RecordFailureAsync(Guid bankAccountId, SyncFailure failure, CancellationToken cancellationToken) =>
+        database.BankAccounts
+            .Where(row => row.Id == bankAccountId)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(row => row.LastFailedAt, time.GetUtcNow())
+                    .SetProperty(row => row.LastFailure, failure),
+                cancellationToken);
+
+    private async Task<DateTimeOffset> StartAsync(string ownerId, BankAccount account, CancellationToken cancellationToken)
     {
-        await gate.WaitTurnAsync(ownerId, StatementMethod, cancellationToken);
-        var to = time.GetUtcNow();
-        var from = to - Window;
+        if (account.SyncedThrough is { } cursor)
+        {
+            return cursor;
+        }
+
+        var registeredOn = await database.Settings
+            .Where(row => row.UserId == ownerId)
+            .Select(row => row.FopRegistrationDate)
+            .FirstOrDefaultAsync(cancellationToken);
+        return BackfillStart(registeredOn, time.TodayInKyiv()).KyivMidnight();
+    }
+
+    // One window from `from` to at most a window later, paged back from its end; the caller has waited
+    // its turn. Null when the bank gave no usable answer, which is recorded for the owner to see.
+    private async Task<Statement?> FetchAsync(
+        MonobankConnection connection,
+        string token,
+        BankAccount account,
+        DateTimeOffset from,
+        CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        var to = Min(from + Window, now);
 
         var items = new List<MonobankStatementItem>();
         var pageTo = to;
+        var rateLimited = 0;
         while (true)
         {
-            var result = await client.GetStatementAsync(token, accountId, from, pageTo, cancellationToken);
-            if (result is not StatementResult.Found found)
+            var result = await client.GetStatementAsync(token, account.ExternalId, from, pageTo, cancellationToken);
+            switch (result)
             {
-                logger.LogWarning(
-                    "monobank statement for account {AccountId} was not read: {Outcome}.",
-                    accountId,
-                    result is StatementResult.Unavailable unavailable ? unavailable.Reason : "the token was rejected");
-                return null;
+                case StatementResult.RateLimited limited when ++rateLimited < MaxRateLimitedAttempts:
+                    if (limited.RetryAfter is { } retryAfter && retryAfter > TimeSpan.Zero)
+                    {
+                        await Task.Delay(retryAfter, time, cancellationToken);
+                    }
+
+                    await gate.WaitTurnAsync(connection.UserId, StatementMethod, cancellationToken);
+                    continue;
+
+                case StatementResult.RateLimited:
+                    logger.LogWarning("monobank kept rate-limiting the statement of account {AccountId}.", account.ExternalId);
+                    await RecordFailureAsync(account.Id, SyncFailure.RateLimited, cancellationToken);
+                    return null;
+
+                case StatementResult.InvalidToken:
+                    logger.LogWarning("monobank rejected the token of owner {OwnerId}.", connection.UserId);
+                    await RejectAsync(connection, cancellationToken);
+                    return null;
+
+                case StatementResult.Unavailable unavailable:
+                    logger.LogWarning(
+                        "monobank statement for account {AccountId} was not read: {Failure}.",
+                        account.ExternalId,
+                        unavailable.Failure);
+                    await RecordFailureAsync(account.Id, unavailable.Failure, cancellationToken);
+                    return null;
             }
 
+            var found = (StatementResult.Found)result;
+            rateLimited = 0;
             items.AddRange(found.Items);
             var oldest = found.Items.Count == 0 ? pageTo : found.Items.Min(item => item.Time);
             if (found.Items.Count < MonobankClient.StatementPageSize)
             {
-                return new Statement(from, to, items);
+                return new Statement(from, to, to == now, items);
             }
 
             if (oldest >= pageTo)
             {
                 logger.LogWarning(
                     "monobank statement for account {AccountId} has a full page within one second; older operations wait for a later sync.",
-                    accountId);
-                return new Statement(from, to, items);
+                    account.ExternalId);
+                return new Statement(from, to, to == now, items);
             }
 
             pageTo = oldest;
-            await gate.WaitTurnAsync(ownerId, StatementMethod, cancellationToken);
+            await gate.WaitTurnAsync(connection.UserId, StatementMethod, cancellationToken);
         }
     }
+
+    // Only the token that was rejected: one saved while this call was in flight stays usable.
+    private Task RejectAsync(MonobankConnection connection, CancellationToken cancellationToken) =>
+        database.MonobankConnections
+            .Where(row => row.UserId == connection.UserId && row.EncryptedToken == connection.EncryptedToken)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.RejectedAt, time.GetUtcNow()), cancellationToken);
+
+    private static DateTimeOffset Min(DateTimeOffset first, DateTimeOffset second) => first < second ? first : second;
 
     // One database transaction per account under the owner's advisory lock, the lock restore and the
     // prototype import take, so a sync never interleaves with a restore's delete and insert.
@@ -147,6 +235,14 @@ internal sealed class MonobankStatementImport(
                 setters => setters
                     .SetProperty(row => row.ImportedCount, imported)
                     .SetProperty(row => row.SkippedCount, skipped),
+                cancellationToken);
+        await database.BankAccounts
+            .Where(row => row.Id == bankAccountId)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(row => row.SyncedThrough, statement.To)
+                    .SetProperty(row => row.LastFailedAt, (DateTimeOffset?)null)
+                    .SetProperty(row => row.LastFailure, (SyncFailure?)null),
                 cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
@@ -228,7 +324,8 @@ internal sealed class MonobankStatementImport(
         _ => value,
     };
 
-    private sealed record Statement(DateTimeOffset From, DateTimeOffset To, IReadOnlyList<MonobankStatementItem> Items);
+    private sealed record Statement(
+        DateTimeOffset From, DateTimeOffset To, bool ReachesNow, IReadOnlyList<MonobankStatementItem> Items);
 
     private enum Outcome
     {

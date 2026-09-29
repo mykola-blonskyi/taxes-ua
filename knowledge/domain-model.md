@@ -72,8 +72,17 @@ Fields: `Bank: Monobank | PrivatBank | Other`, `Name`, `CurrencyCode` (ISO 4217 
 reports it; only 980/840/978 map to a display currency), `Iban`, `AccountType` (the bank's own open
 string, e.g. `fop`, `black`, `diia`), `IsFop` (`AccountType == "fop"`), `ExternalId` (the bank's
 account id), `IsActive` (the owner is following this account for sync; always `false` for a
-non-FOP account, and force-cleared for any account a later token save no longer reports). Unique
-per (`UserId`, `Bank`, `ExternalId`).
+non-FOP account, and force-cleared for any account a later token save no longer reports),
+`SyncedThrough?` (the sync cursor: the end of the last statement window whose rows are committed,
+written in the same transaction as them; null until the first window lands, see Rule 12),
+`LastFailedAt?` and `LastFailure?` (the last failed sync other than a rejected token, one of
+`BankUnreachable | BankTimeout | BankError | UnreadableAnswer | RateLimited | TokenUnreadable |
+Unexpected`; both set or both null, cleared when a window of the account imports). Unique per
+(`UserId`, `Bank`, `ExternalId`).
+
+Settings shows, per followed account, the month its cursor has reached (or that the backfill is
+complete, when the cursor is within the last 31 days), its latest `ImportBatch` as the last sync, and
+its last failure.
 
 A row exists for every account the token exposed, FOP or not, so settings can list an unsupported
 type without a second call to the bank. Only a `fop` account can ever have `IsActive = true`.
@@ -98,14 +107,17 @@ token, per owner — not per account (#75).
 
 Fields: `UserId` (primary key), `EncryptedToken` (AES-256-GCM ciphertext, see ADR-011; never
 returned by the API), `MonobankClientId` (the bank's own client id, kept only to help the owner
-recognise which token is connected), `ConnectedAt`.
+recognise which token is connected), `ConnectedAt`, `RejectedAt?` (set when monobank answered 401 or
+403 to a statement call with this very token, compared by its ciphertext so a token saved meanwhile is
+not marked; while set, no sync of the owner runs and "sync now" answers 409).
 
 The token is validated against the bank's `client-info` endpoint at the moment it is saved; an
 invalid token is rejected and nothing is stored. Saving a valid token reconciles `BankAccount` rows
 against the accounts the bank now reports: an existing row not among them has `IsActive` cleared
 and stops being followed, a new `fop` row gets `IsActive = true`, an existing `fop` row keeps the
 owner's choice (an account that reappears stays unfollowed until the owner follows it again), and
-every other type stays unselected and not selectable. Disconnecting deletes this row only;
+every other type stays unselected and not selectable. Saving a token clears `RejectedAt`; when it was
+set, the owner's followed accounts are queued and resume from their cursors. Disconnecting deletes this row only;
 `BankAccount` rows, and anything imported against them, stay.
 
 Relationships: belongs to `User`, 1-to-1.
@@ -215,7 +227,8 @@ never cached.
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
 Fields: `SchemaVersion` (2), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
-`BankAccounts`, `ImportBatches`, each row with its id and every stored column except `UserId`.
+`BankAccounts`, `ImportBatches`, each row with its id and every stored column except `UserId` and a
+bank account's sync state (`SyncedThrough`, `LastFailedAt`, `LastFailure`), which a restore clears.
 `TaxYearConfig` and `FxRate` are left out because they are shared. The monobank connection is never
 in it, so the file carries no bank access. Version 2 added the bank accounts, the import batches and
 the transactions' import fields (#76). A version 1 file still restores, read as having none of them

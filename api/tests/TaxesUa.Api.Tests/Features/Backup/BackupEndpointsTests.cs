@@ -308,10 +308,16 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             backedUp.Keys.Concat(sharedByEveryOwner).Concat(historyNotState).Concat(bankConnectionNotBackedUp).ToHashSet(),
             featureTables);
 
+        // A sync's cursor and last failure describe the database's imports, which a restore replaces, so a
+        // restore clears them rather than carrying them (Rule 12).
+        string[] syncStateNotBackedUp =
+            [nameof(BankAccount.SyncedThrough), nameof(BankAccount.LastFailedAt), nameof(BankAccount.LastFailure)];
+
         foreach (var (entity, record) in backedUp)
         {
             var columns = model.FindEntityType(entity)!.GetProperties().Select(property => property.Name)
-                .Where(name => name != "UserId");
+                .Where(name => name != "UserId")
+                .Where(name => entity != typeof(BankAccount) || !syncStateNotBackedUp.Contains(name));
             var carried = record.GetProperties().Select(property => property.Name).ToHashSet();
             Assert.All(columns, column => Assert.Contains(column, carried));
         }
