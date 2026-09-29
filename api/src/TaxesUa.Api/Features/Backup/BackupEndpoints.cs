@@ -259,6 +259,7 @@ public static class BackupEndpoints
         foreach (var row in owned)
         {
             row.SyncedThrough = null;
+            row.HistoryImportedAt = null;
             row.LastFailedAt = null;
             row.LastFailure = null;
         }

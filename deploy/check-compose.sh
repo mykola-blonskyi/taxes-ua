@@ -17,3 +17,5 @@ check '[.services.api.volumes[] | select(.source == "dataprotection-keys") | .ta
   "$(jq -r '.services.api.environment.DataProtection__KeysPath' <<<"$config")" \
   "the key ring volume is mounted where DataProtection__KeysPath points"
 check '.services.web.healthcheck.test | length > 0' true "web has a healthcheck, so Coolify can report its status"
+check '.services.api.environment.Monobank__PublicBaseUrl' "${MONOBANK_PUBLIC_BASE_URL:-}" \
+  "MONOBANK_PUBLIC_BASE_URL reaches the api, which registers no webhook while it is empty"

@@ -308,10 +308,15 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             backedUp.Keys.Concat(sharedByEveryOwner).Concat(historyNotState).Concat(bankConnectionNotBackedUp).ToHashSet(),
             featureTables);
 
-        // A sync's cursor and last failure describe the database's imports, which a restore replaces, so a
-        // restore clears them rather than carrying them (Rule 12).
+        // A sync's cursor, history mark and last failure describe the database's imports, which a restore
+        // replaces, so a restore clears them rather than carrying them (Rule 12).
         string[] syncStateNotBackedUp =
-            [nameof(BankAccount.SyncedThrough), nameof(BankAccount.LastFailedAt), nameof(BankAccount.LastFailure)];
+        [
+            nameof(BankAccount.SyncedThrough),
+            nameof(BankAccount.HistoryImportedAt),
+            nameof(BankAccount.LastFailedAt),
+            nameof(BankAccount.LastFailure),
+        ];
 
         foreach (var (entity, record) in backedUp)
         {

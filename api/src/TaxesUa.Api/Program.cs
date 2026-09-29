@@ -144,6 +144,9 @@ builder.Services.AddSingleton<MonobankRateGate>();
 builder.Services.AddSingleton<MonobankSyncQueue>();
 builder.Services.AddScoped<MonobankStatementImport>();
 builder.Services.AddHostedService<MonobankSyncWorker>();
+builder.Services.AddSingleton<MonobankWebhooks>();
+builder.Services.AddHostedService(services => services.GetRequiredService<MonobankWebhooks>());
+builder.Services.AddHostedService<MonobankNightlySync>();
 
 var authentication = builder.Services.AddAuthentication(options =>
 {
@@ -208,9 +211,10 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Resolved eagerly so a malformed (as opposed to merely absent) key fails startup instead of the
-// first monobank request.
+// Resolved eagerly so a malformed (as opposed to merely absent) key or public base URL fails startup
+// instead of the first monobank request.
 app.Services.GetRequiredService<TokenEncryptor>();
+app.Services.GetRequiredService<MonobankWebhooks>();
 
 app.UseForwardedHeaders();
 

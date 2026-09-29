@@ -44,6 +44,10 @@ internal sealed class BankAccount
     // registration date then (Rule 12).
     public DateTimeOffset? SyncedThrough { get; set; }
 
+    // When a window reaching the present was first committed. From then on the history counts as
+    // imported, however old the cursor grows between syncs; a restore clears it with the cursor.
+    public DateTimeOffset? HistoryImportedAt { get; set; }
+
     // The last sync that failed for a reason other than a rejected token, kept until a window of this
     // account imports again. Both set or both null.
     public DateTimeOffset? LastFailedAt { get; set; }

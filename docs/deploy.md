@@ -26,6 +26,12 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
 - `MONOBANK_TOKEN_ENCRYPTION_KEY` is the one secret that is *not* required to start (ADR-011): left
   empty, the api still comes up and the monobank settings section answers "not configured" instead
   of 500s. Set it whenever the owner is ready to connect monobank.
+- `MONOBANK_PUBLIC_BASE_URL` is optional too (ADR-012). Empty, the api never registers a monobank
+  webhook and new operations arrive through "sync now" and the nightly run at 03:00 Kyiv. Set to the
+  public origin (`https://taxes.blonskyi.dev`), the api registers
+  `<origin>/api/monobank/webhook/<secret>` for the owner after each token save, and a new operation
+  appears within a minute or two. The secret in that path is what keeps strangers from queuing syncs,
+  so keep Traefik access logs off, or rotate the secret by saving the token again after sharing one.
 - The data-protection key ring lives in the `dataprotection-keys` volume, so a redeploy keeps the
   owner signed in (ADR-010).
 - `api` answers only for `ALLOWED_HOSTS`, as forwarded by `web`, plus its own internal names for
@@ -136,13 +142,14 @@ is disabled.
    | `ALLOWED_HOSTS` | `taxes.blonskyi.dev` |
    | `PASSKEY_SERVER_DOMAIN` | `taxes.blonskyi.dev` |
    | `MONOBANK_TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32`, once, kept in the password manager (ADR-011) |
+   | `MONOBANK_PUBLIC_BASE_URL` | `https://taxes.blonskyi.dev`, or empty to run without the webhook (ADR-012) |
 
    Set these only in Coolify. Never put the domain in a local `.env`: `docker-compose.local.yml`
    overrides only the environment name and the connection string, so a local run would inherit it
    and refuse to start.
 
 **Check.** Persistent Storage lists the `dataprotection-keys` volume. The `api` service has no
-domain. All six variables have values.
+domain. The six required variables have values; the two `MONOBANK_*` ones may stay empty.
 
 ## 6. First deploy
 
@@ -165,7 +172,13 @@ curl -s -o /dev/null -w '%{http_code}\n' "$D/api/auth/me"                 # 401
 curl -s -o /dev/null -D - "$D/api/auth/login/google" | grep -i '^location'  # accounts.google.com, redirect_uri=https%3A%2F%2Ftaxes.blonskyi.dev%2Fapi%2Fauth%2Fcallback%2Fgoogle
 curl -s -o /dev/null -D - "$D/" | grep -i -E '^(strict-transport|content-security|x-frame)'  # all three present
 curl -s -m 5 http://<vps-ip>:8080/api/health || echo unreachable          # unreachable
+curl -s -o /dev/null -w '%{http_code}\n' "$D/api/monobank/webhook/0"      # 404
 ```
+
+With `MONOBANK_PUBLIC_BASE_URL` set and monobank connected, settings shows the bank notifications as
+registered within a minute of saving the token. If it shows them failed, monobank could not reach
+the URL: its check is a plain GET from the bank's servers, so a Cloudflare bot challenge on the
+domain would fail it.
 
 On the VPS, `api` has no host port and no Traefik router:
 

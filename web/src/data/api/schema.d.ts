@@ -2323,6 +2323,7 @@ export interface components {
             connected: boolean;
             /** Format: date-time */
             tokenRejectedAt: null | string;
+            webhook: null | components["schemas"]["WebhookStatusResponse"];
             backfillStart: components["schemas"]["BackfillStartResponse"];
             accounts: components["schemas"]["MonobankAccountResponse"][];
         };
@@ -2704,6 +2705,12 @@ export interface components {
         TransactionSource: {
             bank: components["schemas"]["Bank"];
             accountCurrency: string;
+        };
+        /** @enum {string} */
+        WebhookState: "Off" | "Pending" | "Registered" | "Failed";
+        WebhookStatusResponse: {
+            state: components["schemas"]["WebhookState"];
+            lastFailure: null | components["schemas"]["SyncFailureResponse"];
         };
         YearBalancesResponse: {
             singleTax: components["schemas"]["KindYearBalance"];
