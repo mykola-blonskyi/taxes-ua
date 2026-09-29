@@ -27,6 +27,11 @@ internal sealed class BudgetPayment
 
     public string? Note { get; set; }
 
+    // The bank operation this payment was confirmed or linked from, both set or neither (Rule 12).
+    public Guid? BankAccountId { get; set; }
+
+    public string? ExternalId { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

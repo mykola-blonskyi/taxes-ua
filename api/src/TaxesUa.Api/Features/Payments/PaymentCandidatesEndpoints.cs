@@ -1,0 +1,263 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Monobank;
+using TaxesUa.Api.Features.Settings;
+using TaxesUa.Engine;
+
+namespace TaxesUa.Api.Features.Payments;
+
+public static class PaymentCandidatesEndpoints
+{
+    public static IEndpointRouteBuilder MapPaymentCandidatesApi(this IEndpointRouteBuilder routes)
+    {
+        var candidates = routes.MapGroup("/payments/candidates").WithTags("Payments").RequireAuthorization();
+
+        // Every year at once, as the transaction review: a backfill can leave candidates in any year.
+        candidates.MapGet("", async (
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                var pending = await database.BudgetPaymentCandidates
+                    .Where(row => row.UserId == user.Id && row.Status == CandidateStatus.Pending)
+                    .OrderByDescending(row => row.BankTime)
+                    .ToListAsync(cancellationToken);
+                var ibans = pending.Select(row => row.CounterIban).Distinct().ToList();
+                var learned = (await database.BudgetPaymentCandidates
+                        .Where(row => row.UserId == user.Id
+                            && row.Status == CandidateStatus.Confirmed
+                            && ibans.Contains(row.CounterIban))
+                        .Select(row => new { row.CounterIban, row.ConfirmedKind, row.ResolvedAt })
+                        .ToListAsync(cancellationToken))
+                    .GroupBy(row => row.CounterIban)
+                    .ToDictionary(group => group.Key, group => group.MaxBy(row => row.ResolvedAt)!.ConfirmedKind);
+                var paidOn = pending.Select(row => row.PaidOn).Distinct().ToList();
+                var manual = await database.BudgetPayments
+                    .Where(row => row.UserId == user.Id && row.ExternalId == null && paidOn.Contains(row.PaidOn))
+                    .OrderBy(row => row.CreatedAt)
+                    .ToListAsync(cancellationToken);
+
+                return Results.Ok(pending
+                    .Select(row => new PaymentCandidateResponse(
+                        row.Id,
+                        row.PaidOn,
+                        row.AmountKop,
+                        row.CounterName,
+                        row.CounterIban,
+                        row.Purpose,
+                        TreasuryPayment.Suggest(row.CounterIban, row.Purpose, learned.GetValueOrDefault(row.CounterIban)),
+                        [.. Matches(row, manual).Select(payment => new PaymentMatchResponse(
+                            payment.Id,
+                            payment.Kind,
+                            payment.PeriodYear,
+                            payment.PeriodQuarter,
+                            payment.PeriodMonth,
+                            payment.Note))]))
+                    .ToArray());
+            })
+            .Produces<PaymentCandidateResponse[]>()
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        candidates.MapPost("/{id:guid}/confirm", async (
+                Guid id,
+                ConfirmCandidateRequest request,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                TimeProvider time,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                // The sync inserts candidates under the same lock, and a second confirm must see the first.
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await LockOwnerAsync(database, user.Id, cancellationToken);
+                var candidate = await database.BudgetPaymentCandidates
+                    .FirstOrDefaultAsync(row => row.Id == id && row.UserId == user.Id, cancellationToken);
+                if (candidate is null)
+                {
+                    return Missing(id);
+                }
+
+                if (candidate.Status != CandidateStatus.Pending)
+                {
+                    return Conflict($"The candidate is already {candidate.Status}. Reload the list.");
+                }
+
+                var matches = Matches(
+                    candidate,
+                    await database.BudgetPayments
+                        .Where(row => row.UserId == user.Id
+                            && row.ExternalId == null
+                            && row.PaidOn == candidate.PaidOn
+                            && row.Kind == request.Kind)
+                        .ToListAsync(cancellationToken));
+                var now = time.GetUtcNow();
+                BudgetPayment payment;
+                if (request.LinkPaymentId is { } linkId)
+                {
+                    if (matches.FirstOrDefault(row => row.Id == linkId) is not { } match)
+                    {
+                        return Conflict("The payment to link no longer has this date, kind and amount. Reload the list.");
+                    }
+
+                    payment = match;
+                }
+                else if (matches.Count > 0)
+                {
+                    // A payment the owner typed since the list was read would otherwise be recorded twice.
+                    return Conflict("A payment you recorded has the same date, kind and amount. Reload to link it.");
+                }
+                else
+                {
+                    var paymentRequest = new PaymentRequest(
+                        candidate.PaidOn,
+                        request.Kind,
+                        candidate.AmountKop,
+                        request.PeriodYear,
+                        request.PeriodQuarter,
+                        request.PeriodMonth,
+                        Note: null);
+                    if (PaymentsEndpoints.Validate(paymentRequest) is { } errors)
+                    {
+                        return Results.ValidationProblem(errors);
+                    }
+
+                    payment = new BudgetPayment { Id = Guid.NewGuid(), UserId = user.Id, CreatedAt = now };
+                    PaymentsEndpoints.Apply(payment, paymentRequest, now);
+                    database.BudgetPayments.Add(payment);
+                }
+
+                payment.BankAccountId = candidate.BankAccountId;
+                payment.ExternalId = candidate.ExternalId;
+                payment.UpdatedAt = now;
+                candidate.Status = CandidateStatus.Confirmed;
+                candidate.ConfirmedKind = request.Kind;
+                candidate.ResolvedAt = now;
+                await database.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+
+                var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
+
+                return Results.Ok(PaymentsEndpoints.ToResponse(payment, settings));
+            })
+            .Produces<PaymentResponse>()
+            .ProducesValidationProblem()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        candidates.MapPost("/{id:guid}/dismiss", async (
+                Guid id,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                TimeProvider time,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await LockOwnerAsync(database, user.Id, cancellationToken);
+                var candidate = await database.BudgetPaymentCandidates
+                    .FirstOrDefaultAsync(row => row.Id == id && row.UserId == user.Id, cancellationToken);
+                if (candidate is null)
+                {
+                    return Missing(id);
+                }
+
+                if (candidate.Status == CandidateStatus.Confirmed)
+                {
+                    return Conflict("The candidate is already confirmed. Delete its payment instead.");
+                }
+
+                if (candidate.Status == CandidateStatus.Pending)
+                {
+                    candidate.Status = CandidateStatus.Dismissed;
+                    candidate.ResolvedAt = time.GetUtcNow();
+                    await database.SaveChangesAsync(cancellationToken);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+                return Results.NoContent();
+            })
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        return routes;
+    }
+
+    internal static Task<int> CountPendingAsync(AppDbContext database, string userId, CancellationToken cancellationToken) =>
+        database.BudgetPaymentCandidates.CountAsync(
+            row => row.UserId == userId && row.Status == CandidateStatus.Pending, cancellationToken);
+
+    // A payment the owner typed for the same operation: same Kyiv date and amount, and not yet linked to
+    // any bank operation. The kind is the one the owner picks, so every kind is offered.
+    private static List<BudgetPayment> Matches(BudgetPaymentCandidate candidate, IEnumerable<BudgetPayment> manual) =>
+        [.. manual.Where(payment => payment.ExternalId is null
+            && payment.PaidOn == candidate.PaidOn
+            && payment.AmountKop == candidate.AmountKop)];
+
+    private static Task LockOwnerAsync(AppDbContext database, string userId, CancellationToken cancellationToken) =>
+        database.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
+
+    private static IResult Missing(Guid id) => Results.Problem(
+        statusCode: StatusCodes.Status404NotFound,
+        title: $"No payment candidate exists with id {id}.");
+
+    private static IResult Conflict(string title) =>
+        Results.Problem(statusCode: StatusCodes.Status409Conflict, title: title);
+}
+
+/// <summary>
+/// <c>LinkPaymentId</c> names one of the candidate's matches of <c>Kind</c> to link instead of creating a
+/// payment; the period is then the linked payment's own and the one sent is not read.
+/// </summary>
+internal sealed record ConfirmCandidateRequest(
+    PaymentKind Kind,
+    int PeriodYear,
+    int? PeriodQuarter,
+    int? PeriodMonth,
+    Guid? LinkPaymentId);
+
+/// <summary>
+/// A pending candidate. <c>SuggestedKind</c> is null when nothing points to one kind. <c>Matches</c> are
+/// the payments the owner typed with the same date and amount and no bank operation, of any kind: the
+/// one of the kind being confirmed is offered for linking.
+/// </summary>
+internal sealed record PaymentCandidateResponse(
+    Guid Id,
+    DateOnly PaidOn,
+    long AmountKop,
+    string? CounterName,
+    string CounterIban,
+    string? Purpose,
+    PaymentKind? SuggestedKind,
+    PaymentMatchResponse[] Matches);
+
+internal sealed record PaymentMatchResponse(
+    Guid Id,
+    PaymentKind Kind,
+    int PeriodYear,
+    int? PeriodQuarter,
+    int? PeriodMonth,
+    string? Note);

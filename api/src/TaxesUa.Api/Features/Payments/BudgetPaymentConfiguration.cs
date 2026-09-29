@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Monobank;
 
 namespace TaxesUa.Api.Features.Payments;
 
@@ -19,6 +20,14 @@ internal sealed class BudgetPaymentConfiguration : IEntityTypeConfiguration<Budg
 
         builder.Property(payment => payment.Note).HasMaxLength(1000);
 
+        builder.HasOne<BankAccount>()
+            .WithMany()
+            .HasForeignKey(payment => payment.BankAccountId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasIndex(payment => new { payment.BankAccountId, payment.ExternalId }).IsUnique();
+        builder.Property(payment => payment.ExternalId).HasMaxLength(200);
+
         builder.ToTable(table =>
         {
             table.HasCheckConstraint(
@@ -31,6 +40,9 @@ internal sealed class BudgetPaymentConfiguration : IEntityTypeConfiguration<Budg
                 "CK_BudgetPayments_PeriodMonth",
                 "\"PeriodMonth\" IS NULL OR \"PeriodMonth\" BETWEEN 1 AND 12");
             table.HasCheckConstraint("CK_BudgetPayments_AmountKop", "\"AmountKop\" > 0");
+            table.HasCheckConstraint(
+                "CK_BudgetPayments_BankOperation",
+                "(\"BankAccountId\" IS NULL) = (\"ExternalId\" IS NULL)");
         });
     }
 }

@@ -1818,6 +1818,183 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/payments/candidates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PaymentCandidateResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/candidates/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ConfirmCandidateRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PaymentResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/candidates/{id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/backup": {
         parameters: {
             query?: never;
@@ -2222,6 +2399,7 @@ export interface components {
             budgetPayments: components["schemas"]["BudgetPaymentBackup"][];
             bankAccounts: components["schemas"]["BankAccountBackup"][];
             importBatches: components["schemas"]["ImportBatchBackup"][];
+            budgetPaymentCandidates: components["schemas"]["PaymentCandidateBackup"][];
         };
         /** @enum {string} */
         Bank: "Monobank" | "PrivatBank" | "Other";
@@ -2255,15 +2433,31 @@ export interface components {
             /** Format: int32 */
             periodMonth: null | number | string;
             note: null | string;
+            /** Format: uuid */
+            bankAccountId: null | string;
+            externalId: null | string;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
         };
+        /** @enum {string} */
+        CandidateStatus: "Pending" | "Confirmed" | "Dismissed";
         ClientBackup: {
             /** Format: uuid */
             id: string;
             name: string;
+        };
+        ConfirmCandidateRequest: {
+            kind: components["schemas"]["PaymentKind"];
+            /** Format: int32 */
+            periodYear: number | string;
+            /** Format: int32 */
+            periodQuarter: null | number | string;
+            /** Format: int32 */
+            periodMonth: null | number | string;
+            /** Format: uuid */
+            linkPaymentId: null | string;
         };
         ConfirmRequest: {
             kind: components["schemas"]["TransactionKind"];
@@ -2486,12 +2680,57 @@ export interface components {
         PasskeyCredentialSubmission: {
             credentialJson: null | string;
         };
+        PaymentCandidateBackup: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            bankAccountId: string;
+            externalId: string;
+            /** Format: date-time */
+            bankTime: string;
+            /** Format: int64 */
+            amountKop: number | string;
+            counterIban: string;
+            counterName: null | string;
+            purpose: null | string;
+            status: components["schemas"]["CandidateStatus"];
+            confirmedKind: null | components["schemas"]["PaymentKind"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            resolvedAt: null | string;
+        };
+        PaymentCandidateResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            paidOn: string;
+            /** Format: int64 */
+            amountKop: number | string;
+            counterName: null | string;
+            counterIban: string;
+            purpose: null | string;
+            suggestedKind: null | components["schemas"]["PaymentKind"];
+            matches: components["schemas"]["PaymentMatchResponse"][];
+        };
         /** @enum {string} */
         PaymentKind: "SingleTax" | "MilitaryLevy" | "Esv";
         PaymentListResponse: {
             /** Format: int32 */
             year: number | string;
             items: components["schemas"]["PaymentResponse"][];
+        };
+        PaymentMatchResponse: {
+            /** Format: uuid */
+            id: string;
+            kind: components["schemas"]["PaymentKind"];
+            /** Format: int32 */
+            periodYear: number | string;
+            /** Format: int32 */
+            periodQuarter: null | number | string;
+            /** Format: int32 */
+            periodMonth: null | number | string;
+            note: null | string;
         };
         /** @enum {string} */
         PaymentMode: "Quarterly" | "MonthlyAdvance";

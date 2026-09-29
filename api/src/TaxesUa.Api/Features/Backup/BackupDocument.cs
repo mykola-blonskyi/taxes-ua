@@ -25,11 +25,15 @@ internal sealed record BackupDocument(
     TransactionBackup[] Transactions,
     BudgetPaymentBackup[] BudgetPayments,
     BankAccountBackup[] BankAccounts,
-    ImportBatchBackup[] ImportBatches)
+    ImportBatchBackup[] ImportBatches,
+    PaymentCandidateBackup[] BudgetPaymentCandidates)
 {
-    // 2 added bankAccounts, importBatches and the transactions' import fields (#76). A version 1 file
-    // is upgraded to this shape before it is read, see UpgradeFromVersion1.
-    public const int CurrentSchemaVersion = 2;
+    // 2 added bankAccounts, importBatches and the transactions' import fields (#76); 3 added
+    // budgetPaymentCandidates and the payments' bank operation (#80). An older file is upgraded to this
+    // shape one version at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 3;
+
+    private const int MaxExternalIdLength = 200;
 
     public static BackupDocument From(
         SettingsEntity? settings,
@@ -37,26 +41,48 @@ internal sealed record BackupDocument(
         IEnumerable<Transaction> transactions,
         IEnumerable<BudgetPayment> payments,
         IEnumerable<BankAccount> bankAccounts,
-        IEnumerable<ImportBatch> importBatches) => new(
+        IEnumerable<ImportBatch> importBatches,
+        IEnumerable<BudgetPaymentCandidate> candidates) => new(
         CurrentSchemaVersion,
         settings is null ? null : SettingsBackup.From(settings),
         [.. clients.Select(client => new ClientBackup(client.Id, client.Name))],
         [.. transactions.Select(TransactionBackup.From)],
         [.. payments.Select(BudgetPaymentBackup.From)],
         [.. bankAccounts.Select(BankAccountBackup.From)],
-        [.. importBatches.Select(ImportBatchBackup.Of)]);
+        [.. importBatches.Select(ImportBatchBackup.Of)],
+        [.. candidates.Select(PaymentCandidateBackup.From)]);
 
     // Bank accounts are left out: a restore matches them to the owner's rows by bank and external id.
     public IEnumerable<Guid> Ids() =>
         Clients.Select(client => client.Id)
             .Concat(Transactions.Select(transaction => transaction.Id))
             .Concat(BudgetPayments.Select(payment => payment.Id))
-            .Concat(ImportBatches.Select(batch => batch.Id));
+            .Concat(ImportBatches.Select(batch => batch.Id))
+            .Concat(BudgetPaymentCandidates.Select(candidate => candidate.Id));
+
+    public static void Upgrade(JsonObject root, int version)
+    {
+        if (version == 1)
+        {
+            UpgradeFromVersion1(root);
+        }
+
+        if (version <= 2)
+        {
+            UpgradeFromVersion2(root);
+        }
+    }
+
+    public static string? ExternalIdError(string externalId) => externalId switch
+    {
+        { Length: 0 or > MaxExternalIdLength } => $"externalId must be 1 to {MaxExternalIdLength} characters.",
+        _ when TextRules.HasDisallowedControlChar(externalId) => "externalId must not contain a control character.",
+        _ => null,
+    };
 
     // A version 1 file predates bank imports: no accounts, no batches, and every row the owner's own.
-    public static void UpgradeFromVersion1(JsonObject root)
+    private static void UpgradeFromVersion1(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
         root["bankAccounts"] = new JsonArray();
         root["importBatches"] = new JsonArray();
         if (root["transactions"] is not JsonArray transactions)
@@ -75,6 +101,23 @@ internal sealed record BackupDocument(
         }
     }
 
+    // A version 2 file predates budget payment candidates: every payment was typed by the owner.
+    private static void UpgradeFromVersion2(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        root["budgetPaymentCandidates"] = new JsonArray();
+        if (root["budgetPayments"] is not JsonArray payments)
+        {
+            return;
+        }
+
+        foreach (var payment in payments.OfType<JsonObject>())
+        {
+            payment["bankAccountId"] = null;
+            payment["externalId"] = null;
+        }
+    }
+
     /// <summary>
     /// Every rule a row must meet that the file alone can answer, through the same validators the
     /// endpoints run. The refund links need the receipts' stored state, so
@@ -87,11 +130,12 @@ internal sealed record BackupDocument(
             || Array.Exists(Transactions, row => row is null)
             || Array.Exists(BudgetPayments, row => row is null)
             || Array.Exists(BankAccounts, row => row is null)
-            || Array.Exists(ImportBatches, row => row is null))
+            || Array.Exists(ImportBatches, row => row is null)
+            || Array.Exists(BudgetPaymentCandidates, row => row is null))
         {
             return new()
             {
-                ["file"] = ["clients, transactions, budgetPayments, bankAccounts and importBatches must not contain null."],
+                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches and budgetPaymentCandidates must not contain null."],
             };
         }
 
@@ -231,6 +275,7 @@ internal sealed record BackupDocument(
         }
 
         var seenPaymentIds = new HashSet<Guid>();
+        var paymentOperations = new HashSet<(Guid, string)>();
         for (var i = 0; i < BudgetPayments.Length; i++)
         {
             var payment = BudgetPayments[i];
@@ -239,7 +284,37 @@ internal sealed record BackupDocument(
                 errors[$"budgetPayments[{i}].id"] = ["id must be a non-empty id no other payment has."];
             }
 
+            if (payment.OperationError(accountIds) is var (key, message))
+            {
+                errors[$"budgetPayments[{i}].{key}"] = [message];
+            }
+            else if (payment is { BankAccountId: { } accountId, ExternalId: { } externalId }
+                && !paymentOperations.Add((accountId, externalId)))
+            {
+                errors[$"budgetPayments[{i}].externalId"] = ["externalId must differ from every other payment's of the same bank account."];
+            }
+
             Merge($"budgetPayments[{i}]", PaymentsEndpoints.Validate(payment.ToRequest()));
+        }
+
+        var seenCandidateIds = new HashSet<Guid>();
+        var candidateOperations = new HashSet<(Guid, string)>();
+        for (var i = 0; i < BudgetPaymentCandidates.Length; i++)
+        {
+            var candidate = BudgetPaymentCandidates[i];
+            if (candidate.Id == Guid.Empty || !seenCandidateIds.Add(candidate.Id))
+            {
+                errors[$"budgetPaymentCandidates[{i}].id"] = ["id must be a non-empty id no other candidate has."];
+            }
+
+            if (candidate.Error(accountIds) is var (key, message))
+            {
+                errors[$"budgetPaymentCandidates[{i}].{key}"] = [message];
+            }
+            else if (!candidateOperations.Add((candidate.BankAccountId, candidate.ExternalId)))
+            {
+                errors[$"budgetPaymentCandidates[{i}].externalId"] = ["externalId must differ from every other candidate's of the same bank account."];
+            }
         }
 
         return errors.Count == 0 ? null : errors;
@@ -322,8 +397,6 @@ internal sealed record TransactionBackup(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
-    private const int MaxExternalIdLength = 200;
-
     public static TransactionBackup From(Transaction row) => new(
         row.Id,
         row.ValueDate,
@@ -362,10 +435,7 @@ internal sealed record TransactionBackup(
             ("refundsTransactionId", "refundsTransactionId must be null on a dismissed transaction."),
         { BankAccountId: { } accountId } when !accountIds.Contains(accountId) =>
             ("bankAccountId", "bankAccountId must be the id of one of the bank accounts."),
-        { ExternalId: { Length: 0 or > MaxExternalIdLength } } =>
-            ("externalId", $"externalId must be 1 to {MaxExternalIdLength} characters."),
-        { ExternalId: { } externalId } when TextRules.HasDisallowedControlChar(externalId) =>
-            ("externalId", "externalId must not contain a control character."),
+        { ExternalId: { } externalId } when BackupDocument.ExternalIdError(externalId) is { } error => ("externalId", error),
         { Counterparty: { Length: > TransactionsEndpoints.MaxClientNameLength } } =>
             ("counterparty", $"counterparty must not exceed {TransactionsEndpoints.MaxClientNameLength} characters."),
         { Counterparty: { } counterparty } when TextRules.HasDisallowedControlChar(counterparty) =>
@@ -455,6 +525,8 @@ internal sealed record BudgetPaymentBackup(
     int? PeriodQuarter,
     int? PeriodMonth,
     string? Note,
+    Guid? BankAccountId,
+    string? ExternalId,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt)
 {
@@ -467,17 +539,104 @@ internal sealed record BudgetPaymentBackup(
         row.PeriodQuarter,
         row.PeriodMonth,
         row.Note,
+        row.BankAccountId,
+        row.ExternalId,
         row.CreatedAt,
         row.UpdatedAt);
 
+    public (string Key, string Message)? OperationError(IReadOnlySet<Guid> accountIds) => this switch
+    {
+        { BankAccountId: null, ExternalId: not null } or { BankAccountId: not null, ExternalId: null } =>
+            ("externalId", "bankAccountId and externalId are set together or not at all."),
+        { BankAccountId: { } accountId } when !accountIds.Contains(accountId) =>
+            ("bankAccountId", "bankAccountId must be the id of one of the bank accounts."),
+        { ExternalId: { } externalId } when BackupDocument.ExternalIdError(externalId) is { } error => ("externalId", error),
+        _ => null,
+    };
+
     public PaymentRequest ToRequest() => new(PaidOn, Kind, AmountKop, PeriodYear, PeriodQuarter, PeriodMonth, Note);
 
-    public BudgetPayment ToEntity(string userId, Func<Guid, Guid> id)
+    public BudgetPayment ToEntity(string userId, Func<Guid, Guid> id, Func<Guid, Guid> accountId)
     {
-        var row = new BudgetPayment { Id = id(Id), UserId = userId, CreatedAt = CreatedAt.ToUniversalTime() };
+        var row = new BudgetPayment
+        {
+            Id = id(Id),
+            UserId = userId,
+            BankAccountId = BankAccountId is { } bankAccountId ? accountId(bankAccountId) : null,
+            ExternalId = ExternalId,
+            CreatedAt = CreatedAt.ToUniversalTime(),
+        };
         PaymentsEndpoints.Apply(row, ToRequest(), UpdatedAt.ToUniversalTime());
         return row;
     }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record PaymentCandidateBackup(
+    Guid Id,
+    Guid BankAccountId,
+    string ExternalId,
+    DateTimeOffset BankTime,
+    long AmountKop,
+    string CounterIban,
+    string? CounterName,
+    string? Purpose,
+    CandidateStatus Status,
+    PaymentKind? ConfirmedKind,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset? ResolvedAt)
+{
+    public static PaymentCandidateBackup From(BudgetPaymentCandidate row) => new(
+        row.Id,
+        row.BankAccountId,
+        row.ExternalId,
+        row.BankTime,
+        row.AmountKop,
+        row.CounterIban,
+        row.CounterName,
+        row.Purpose,
+        row.Status,
+        row.ConfirmedKind,
+        row.CreatedAt,
+        row.ResolvedAt);
+
+    // The column limits and check constraints of BudgetPaymentCandidateConfiguration, and the IBAN form
+    // the sync stores, so the next candidate to the same account still finds what the owner confirmed.
+    public (string Key, string Message)? Error(IReadOnlySet<Guid> accountIds) => this switch
+    {
+        _ when !accountIds.Contains(BankAccountId) =>
+            ("bankAccountId", "bankAccountId must be the id of one of the bank accounts."),
+        _ when BackupDocument.ExternalIdError(ExternalId) is { } error => ("externalId", error),
+        { AmountKop: <= 0 } => ("amountKop", "amountKop must be positive."),
+        _ when !TreasuryPayment.IsTreasury(CounterIban) || TreasuryPayment.Normalize(CounterIban) != CounterIban =>
+            ("counterIban", "counterIban must be a Treasury IBAN in capitals without spaces."),
+        { CounterName.Length: > TransactionsEndpoints.MaxClientNameLength } =>
+            ("counterName", $"counterName must not exceed {TransactionsEndpoints.MaxClientNameLength} characters."),
+        { Purpose.Length: > TransactionsEndpoints.MaxDescriptionLength } =>
+            ("purpose", $"purpose must not exceed {TransactionsEndpoints.MaxDescriptionLength} characters."),
+        _ when new[] { CounterName, Purpose }.Any(text => text is not null && TextRules.HasDisallowedControlChar(text)) =>
+            ("purpose", "counterName and purpose must not contain a control character."),
+        { Status: CandidateStatus.Confirmed, ConfirmedKind: null } or { Status: not CandidateStatus.Confirmed, ConfirmedKind: not null } =>
+            ("confirmedKind", "confirmedKind is set exactly when status is Confirmed."),
+        _ => null,
+    };
+
+    public BudgetPaymentCandidate ToEntity(string userId, Func<Guid, Guid> id, Func<Guid, Guid> accountId) => new()
+    {
+        Id = id(Id),
+        UserId = userId,
+        BankAccountId = accountId(BankAccountId),
+        ExternalId = ExternalId,
+        BankTime = BankTime.ToUniversalTime(),
+        AmountKop = AmountKop,
+        CounterIban = CounterIban,
+        CounterName = CounterName,
+        Purpose = Purpose,
+        Status = Status,
+        ConfirmedKind = ConfirmedKind,
+        CreatedAt = CreatedAt.ToUniversalTime(),
+        ResolvedAt = ResolvedAt?.ToUniversalTime(),
+    };
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

@@ -274,6 +274,7 @@ api.MapTransactionsApi();
 api.MapExportApi();
 api.MapFxApi();
 api.MapPaymentsApi();
+api.MapPaymentCandidatesApi();
 api.MapBackupApi();
 api.MapImportApi();
 api.MapAuditApi();

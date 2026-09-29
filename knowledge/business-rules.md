@@ -277,10 +277,10 @@ a token that cannot be decrypted, a window with 500 or more operations in one se
 paging cannot split and which is therefore not committed, an unexpected error) is kept on the account with its time and reason
 and shown in settings until a window of that account is imported again.
 
-It records an operation only when
-it is a credit (`amount > 0`) that the bank reports settled (`hold` is false), in UAH, USD or EUR.
-Debits are not recorded (budget payments are a later ticket), and a held credit waits for a later
-sync, so a reversed authorisation never counts as income.
+It records an operation as a transaction only when it is a credit (`amount > 0`) that the bank
+reports settled (`hold` is false), in UAH, USD or EUR. A held credit waits for a later sync, so a
+reversed authorisation never counts as income. A debit is never a transaction; a settled debit to the
+Treasury becomes a budget payment candidate (below) and every other debit is ignored.
 
 An imported credit goes through the same recording as a manual entry: Rule 1's no-future-date check,
 Rule 2's NBU rate on the credit date, fixed at write time, and the client found or created by the
@@ -322,8 +322,9 @@ sync leaves that row as the owner last saved it, whatever the bank now says, so 
 the fixed rate always win. The one exception is the sale pairing above, which moves an unreviewed
 row's suggestion and nothing else: an unreviewed row carries no owner decision to override. A credit
 that could not be recorded (on hold, another currency, a failed check, an NBU rate not yet
-published) writes nothing and is counted as skipped; the next sync tries it again. Debits and operations already recorded count as neither imported nor skipped, so a repeated
-sync reads 0 and 0.
+published) writes nothing and is counted as skipped; the next sync tries it again. A new budget payment
+candidate counts as imported. Other debits and operations already recorded count as neither imported
+nor skipped, so a repeated sync reads 0 and 0.
 
 Deleting an imported row does not remove it: it becomes `Dismissed`, a tombstone that counts in no
 figure (income, periods, the dashboard and its limit, exports) and appears in no list, while still
@@ -331,3 +332,42 @@ holding its operation id, so no later sync records the operation again. The back
 tombstone, so a restore followed by a sync does not bring it back either; a file whose dismissed row
 names no bank operation or still links a receipt is refused. A row the owner typed is deleted
 outright, as before.
+
+A settled debit on a followed UAH FOP account whose counterparty IBAN is a Treasury account becomes
+a budget payment candidate (#80), in the same database transaction as the window's transactions. A
+Treasury account is recognised by NBU bank id `899998` at IBAN positions 5 to 10; every Treasury
+account carries it, budget and ESV alike, and Є-Казна rejects a payment whose recipient account and
+code do not match, so a settled payment's recipient is trustworthy. The budget classification code
+is not in the IBAN and regional accounts are re-issued (the military levy's on 1 July 2026), so the
+app keeps no national account table. A candidate is one operation id on its account whatever its
+status (`Pending`, `Confirmed`, `Dismissed`), so a sync never offers it again once resolved. A
+candidate counts in no figure until it is confirmed, and the dashboard's review warning counts
+pending candidates together with unreviewed transactions.
+
+Its suggested kind is worked out each time the list is read, first match wins:
+
+1. The kind the owner last confirmed for a candidate to the same IBAN. The owner pays the same few
+   accounts every time, so after one confirmation every pending and later payment to that account
+   is suggested the same, a backfill's included.
+2. The purpose (the bank's description and the payer's comment): `ЄСВ`, `єдин… (соціальн…) внес…`
+   or code `71040000` is ESV; `ВЗ`, `військов… збір/збору` or code `11011000`, `11011700`,
+   `11011800` is the military levy; `ЄП`, `єдин… подат…` or code `18050400` is the single tax. Case
+   does not matter, and the old `*;101;<РНОКПП>;…;;;` form reads the same. A purpose naming more
+   than one kind suggests none.
+3. An IBAN whose account part starts with `00003556` (balance account 3556 of the regional tax
+   office) is ESV.
+4. Otherwise nothing is suggested and the owner picks the kind.
+
+The period is prefilled with what the home screen would record for that kind: the oldest open
+quarter of its debt, or the month of a Rule 6 advance, and the quarter of the payment date when the
+kind owes nothing. The owner can change the kind and the period before confirming.
+
+Confirming creates a `BudgetPayment` carrying the operation's `ExternalId` and `BankAccountId`, dated
+by the Kyiv date of the operation and for its amount, which moves the balances and the next step
+as any payment does. A payment the owner typed with the same date, kind and amount and no bank
+operation is offered as the match; accepting it links that payment to the operation, keeping its
+period and note, instead of creating a second one. Confirming without a link while such a payment
+exists is refused, so a payment typed after the list was read is still offered rather than recorded
+twice; so is confirming a candidate already confirmed or dismissed, or linking a payment that no
+longer matches. Dismissing hides the candidate for good. Deleting a payment confirmed from a
+candidate deletes the payment only; the candidate stays confirmed.

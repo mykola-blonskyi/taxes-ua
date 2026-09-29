@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Transactions;
 
 namespace TaxesUa.Api.Features.Monobank;
@@ -12,7 +13,7 @@ namespace TaxesUa.Api.Features.Monobank;
 /// window lands, from the backfill start) to now, and records each settled credit, with the kind
 /// <see cref="ReceiptClassifier"/> suggests, through <see cref="TransactionRecorder"/>, the same
 /// operation a manual entry takes. An operation whose id the account already holds is never recorded
-/// again.
+/// again. A settled debit to the Treasury becomes a <see cref="BudgetPaymentCandidate"/> instead.
 /// </summary>
 internal sealed class MonobankStatementImport(
     AppDbContext database,
@@ -271,6 +272,7 @@ internal sealed class MonobankStatementImport(
         }
 
         await MoveStoredSuggestionsAsync(statement, suggestions, cancellationToken);
+        imported += await StoreCandidatesAsync(ownerId, account, statement, cancellationToken);
 
         await database.ImportBatches
             .Where(row => row.Id == batch.Id)
@@ -382,6 +384,45 @@ internal sealed class MonobankStatementImport(
             Currency = currency,
         }));
         await database.SaveChangesAsync(cancellationToken);
+    }
+
+    // A payment into the budget is always in hryvnia, so only a UAH account's debits are read. A candidate
+    // of any status still holds its operation id, so a confirmed or dismissed one never comes back.
+    private async Task<int> StoreCandidatesAsync(
+        string ownerId, BankAccount account, Statement statement, CancellationToken cancellationToken)
+    {
+        if (IsoCurrency.FromNumeric(account.CurrencyCode) is not Currency.UAH)
+        {
+            return 0;
+        }
+
+        var payments = statement.Items
+            .Where(item => item.Amount < 0 && !item.Hold && TreasuryPayment.IsTreasury(item.CounterIban))
+            .DistinctBy(item => item.Id)
+            .ToList();
+        var ids = payments.Select(item => item.Id).ToList();
+        var stored = await database.BudgetPaymentCandidates
+            .Where(row => row.BankAccountId == account.Id && ids.Contains(row.ExternalId))
+            .Select(row => row.ExternalId)
+            .ToListAsync(cancellationToken);
+        var fresh = payments.ExceptBy(stored, item => item.Id).ToList();
+        var now = time.GetUtcNow();
+        database.BudgetPaymentCandidates.AddRange(fresh.Select(item => new BudgetPaymentCandidate
+        {
+            Id = Guid.NewGuid(),
+            UserId = ownerId,
+            BankAccountId = account.Id,
+            ExternalId = item.Id,
+            BankTime = item.Time,
+            AmountKop = -item.Amount,
+            CounterIban = TreasuryPayment.Normalize(item.CounterIban)!,
+            CounterName = Fit(item.CounterName?.Trim(), TransactionsEndpoints.MaxClientNameLength),
+            Purpose = Fit(Describe(item), TransactionsEndpoints.MaxDescriptionLength),
+            Status = CandidateStatus.Pending,
+            CreatedAt = now,
+        }));
+        await database.SaveChangesAsync(cancellationToken);
+        return fresh.Count;
     }
 
     // One classification over the window's fresh credits, the hryvnia legs already stored around it and

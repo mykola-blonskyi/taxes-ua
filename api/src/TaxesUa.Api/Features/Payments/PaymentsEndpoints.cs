@@ -188,6 +188,9 @@ public static class PaymentsEndpoints
         row.UpdatedAt = now;
     }
 
+    internal static PaymentResponse ToResponse(BudgetPayment row, SettingsEntity settings) =>
+        ToResponse(row, IsBeforeRegistration(row, settings));
+
     private static PaymentResponse ToResponse(BudgetPayment row, bool beforeRegistration) => new(
         row.Id,
         row.PaidOn,

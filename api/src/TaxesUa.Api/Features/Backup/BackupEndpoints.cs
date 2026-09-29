@@ -147,9 +147,16 @@ public static class BackupEndpoints
             .OrderBy(row => row.CreatedAt)
             .ThenBy(row => row.Id)
             .ToListAsync(cancellationToken);
+        // Resolved candidates travel too, so a restore followed by a sync does not offer them again.
+        var candidates = await database.BudgetPaymentCandidates.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .OrderBy(row => row.BankTime)
+            .ThenBy(row => row.Id)
+            .ToListAsync(cancellationToken);
 
         // The monobank connection, and the token it holds, is never part of a backup (ADR-011).
-        return BackupDocument.From(settings, clients, transactions, payments, bankAccounts, importBatches);
+        return BackupDocument.From(
+            settings, clients, transactions, payments, bankAccounts, importBatches, candidates);
     }
 
     // Returns the refund-link errors, having rolled everything back, or null once the owner's data is
@@ -177,6 +184,7 @@ public static class BackupEndpoints
         await database.ImportBatches.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.Clients.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.BudgetPayments.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.BudgetPaymentCandidates.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.Settings.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
 
         var id = await IdMappingAsync(database, document, cancellationToken);
@@ -190,7 +198,10 @@ public static class BackupEndpoints
         database.ImportBatches.AddRange(document.ImportBatches.Select(batch => batch.ToEntity(userId, id, accountId)));
         var transactions = document.Transactions.Select(row => row.ToEntity(userId, id, accountId)).ToArray();
         database.Transactions.AddRange(transactions);
-        database.BudgetPayments.AddRange(document.BudgetPayments.Select(payment => payment.ToEntity(userId, id)));
+        database.BudgetPayments.AddRange(
+            document.BudgetPayments.Select(payment => payment.ToEntity(userId, id, accountId)));
+        database.BudgetPaymentCandidates.AddRange(
+            document.BudgetPaymentCandidates.Select(candidate => candidate.ToEntity(userId, id, accountId)));
         database.AuditLog.Add(AuditEntry.Restored(
             userId,
             time.GetUtcNow(),
@@ -237,7 +248,8 @@ public static class BackupEndpoints
         var taken = await database.Clients.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
             || await database.Transactions.IgnoreQueryFilters().AnyAsync(row => ids.Contains(row.Id), cancellationToken)
             || await database.BudgetPayments.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
-            || await database.ImportBatches.AnyAsync(row => ids.Contains(row.Id), cancellationToken);
+            || await database.ImportBatches.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
+            || await database.BudgetPaymentCandidates.AnyAsync(row => ids.Contains(row.Id), cancellationToken);
         if (!taken)
         {
             return fileId => fileId;
@@ -330,18 +342,15 @@ public static class BackupEndpoints
                 return false;
             }
 
-            if (number is not (1 or BackupDocument.CurrentSchemaVersion))
+            if (number is < 1 or > BackupDocument.CurrentSchemaVersion)
             {
                 reason = $"Backup schemaVersion {number} is not supported. This version restores schemaVersion "
-                    + $"1 and {BackupDocument.CurrentSchemaVersion}.";
+                    + $"1 to {BackupDocument.CurrentSchemaVersion}.";
                 return false;
             }
 
             var upgraded = JsonNode.Parse(body)!.AsObject();
-            if (number == 1)
-            {
-                BackupDocument.UpgradeFromVersion1(upgraded);
-            }
+            BackupDocument.Upgrade(upgraded, number);
 
             // An object root never deserializes to null.
             document = upgraded.Deserialize<BackupDocument>(options)!;
