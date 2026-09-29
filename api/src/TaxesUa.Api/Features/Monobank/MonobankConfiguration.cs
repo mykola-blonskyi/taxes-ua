@@ -21,6 +21,7 @@ internal sealed class BankAccountConfiguration : IEntityTypeConfiguration<BankAc
         builder.Property(account => account.Name).HasMaxLength(200);
         builder.Property(account => account.Iban).HasMaxLength(34);
         builder.Property(account => account.AccountType).HasMaxLength(50);
+        builder.Property(account => account.LastFailure).HasConversion<string>().HasMaxLength(30);
     }
 }
 

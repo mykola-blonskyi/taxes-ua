@@ -51,7 +51,10 @@ internal abstract record StatementResult
 
     public sealed record InvalidToken : StatementResult;
 
-    public sealed record Unavailable(string Reason) : StatementResult;
+    // 429. RetryAfter is the bank's Retry-After header when it sent one.
+    public sealed record RateLimited(TimeSpan? RetryAfter) : StatementResult;
+
+    public sealed record Unavailable(SyncFailure Failure) : StatementResult;
 }
 
 /// <summary>
@@ -59,20 +62,19 @@ internal abstract record StatementResult
 /// HttpClient like NbuRateClient so tests replace its primary handler instead of reaching the real bank
 /// (ADR-011). Answers are parsed into records here; no business rule lives in this class.
 /// </summary>
-internal sealed class MonobankClient(HttpClient http, ILogger<MonobankClient> logger)
+internal sealed class MonobankClient(HttpClient http, TimeProvider time, ILogger<MonobankClient> logger)
 {
     // monobank answers at most this many operations per statement call; a full page means older ones remain.
     public const int StatementPageSize = 500;
-
-    private const string Unreadable = "monobank's response could not be read.";
 
     public async Task<ClientInfoResult> GetClientInfoAsync(string token, CancellationToken cancellationToken) =>
         await GetAsync("personal/client-info", token, "client-info", cancellationToken) switch
         {
             Answer.Body body => Read(body.Text, "client-info", ParseClientInfo)
-                ?? new ClientInfoResult.Unavailable(Unreadable),
+                ?? new ClientInfoResult.Unavailable(Describe(SyncFailure.UnreadableAnswer)),
             Answer.InvalidToken => new ClientInfoResult.InvalidToken(),
-            Answer.Unavailable unavailable => new ClientInfoResult.Unavailable(unavailable.Reason),
+            Answer.RateLimited => new ClientInfoResult.Unavailable(Describe(SyncFailure.RateLimited)),
+            Answer.Unavailable unavailable => new ClientInfoResult.Unavailable(Describe(unavailable.Failure)),
             _ => throw new UnreachableException(),
         };
 
@@ -83,9 +85,10 @@ internal sealed class MonobankClient(HttpClient http, ILogger<MonobankClient> lo
         return await GetAsync(path, token, "statement", cancellationToken) switch
         {
             Answer.Body body => Read(body.Text, "statement", ParseStatement)
-                ?? new StatementResult.Unavailable(Unreadable),
+                ?? new StatementResult.Unavailable(SyncFailure.UnreadableAnswer),
             Answer.InvalidToken => new StatementResult.InvalidToken(),
-            Answer.Unavailable unavailable => new StatementResult.Unavailable(unavailable.Reason),
+            Answer.RateLimited limited => new StatementResult.RateLimited(limited.RetryAfter),
+            Answer.Unavailable unavailable => new StatementResult.Unavailable(unavailable.Failure),
             _ => throw new UnreachableException(),
         };
     }
@@ -103,12 +106,12 @@ internal sealed class MonobankClient(HttpClient http, ILogger<MonobankClient> lo
         catch (HttpRequestException exception)
         {
             logger.LogWarning(exception, "monobank {Method} request failed.", method);
-            return new Answer.Unavailable("monobank did not answer.");
+            return new Answer.Unavailable(SyncFailure.BankUnreachable);
         }
         catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogWarning("monobank {Method} did not answer within {Timeout}.", method, http.Timeout);
-            return new Answer.Unavailable("monobank did not answer in time.");
+            return new Answer.Unavailable(SyncFailure.BankTimeout);
         }
 
         using (response)
@@ -118,15 +121,36 @@ internal sealed class MonobankClient(HttpClient http, ILogger<MonobankClient> lo
                 return new Answer.InvalidToken();
             }
 
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                return new Answer.RateLimited(RetryAfter(response));
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 logger.LogWarning("monobank {Method} answered {StatusCode}.", method, (int)response.StatusCode);
-                return new Answer.Unavailable("monobank answered with an unexpected status.");
+                return new Answer.Unavailable(SyncFailure.BankError);
             }
 
             return new Answer.Body(await response.Content.ReadAsStringAsync(cancellationToken));
         }
     }
+
+    private TimeSpan? RetryAfter(HttpResponseMessage response) => response.Headers.RetryAfter switch
+    {
+        { Delta: { } delta } => delta,
+        { Date: { } date } => date - time.GetUtcNow(),
+        _ => null,
+    };
+
+    private static string Describe(SyncFailure failure) => failure switch
+    {
+        SyncFailure.BankUnreachable => "monobank did not answer.",
+        SyncFailure.BankTimeout => "monobank did not answer in time.",
+        SyncFailure.RateLimited => "monobank asked to wait before the next request.",
+        SyncFailure.UnreadableAnswer => "monobank's response could not be read.",
+        _ => "monobank answered with an unexpected status.",
+    };
 
     // Never the exception's own message in the result: it can quote the response body back, and an
     // Unavailable reason flows straight into a ProblemDetails response. The exception (never the token,
@@ -271,6 +295,8 @@ internal sealed class MonobankClient(HttpClient http, ILogger<MonobankClient> lo
 
         public sealed record InvalidToken : Answer;
 
-        public sealed record Unavailable(string Reason) : Answer;
+        public sealed record RateLimited(TimeSpan? RetryAfter) : Answer;
+
+        public sealed record Unavailable(SyncFailure Failure) : Answer;
     }
 }

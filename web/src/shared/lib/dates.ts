@@ -28,6 +28,12 @@ export function currentYearInKyiv(): number {
   return Number(todayInKyiv().slice(0, 4));
 }
 
+export function formatMonthInKyiv(iso: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "Europe/Kyiv" }).format(
+    new Date(iso),
+  );
+}
+
 // Change-log timestamps must read in Kyiv time regardless of the viewer's browser zone.
 export function formatInstantInKyiv(iso: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, {

@@ -12,6 +12,12 @@ internal static class KyivTime
 
     public static DateTime NowInKyiv(this TimeProvider time) => TimeZoneInfo.ConvertTime(time.GetUtcNow(), Kyiv).DateTime;
 
+    public static DateTimeOffset KyivMidnight(this DateOnly date)
+    {
+        var midnight = date.ToDateTime(TimeOnly.MinValue);
+        return new DateTimeOffset(midnight, Kyiv.GetUtcOffset(midnight)).ToUniversalTime();
+    }
+
     public static DateOnly KyivDate(this DateTimeOffset instant) =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, Kyiv).DateTime);
 }

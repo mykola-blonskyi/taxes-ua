@@ -10,8 +10,9 @@ import {
   useSaveMonobankToken,
   useSyncMonobank,
   type MonobankAccountResponse,
+  type MonobankConnectionResponse,
 } from "@/data/monobank/useMonobank";
-import { formatInstantInKyiv } from "@/shared/lib/dates";
+import { formatDateOnly, formatInstantInKyiv, formatMonthInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
 import { CheckboxField, TextField } from "@/shared/ui/fields";
 
@@ -37,9 +38,10 @@ export function MonobankConnectionSection() {
 function MonobankConnectionBody({
   connection,
 }: {
-  connection: { connected: boolean; accounts: MonobankAccountResponse[] };
+  connection: MonobankConnectionResponse;
 }) {
   const t = useTranslations("settings.monobank");
+  const locale = useLocale();
   const saveToken = useSaveMonobankToken();
   const saveAccounts = useSaveFollowedMonobankAccounts();
   const disconnect = useDisconnectMonobank();
@@ -61,6 +63,7 @@ function MonobankConnectionBody({
   const followedCount = fopAccounts.filter((account) => account.isFollowed).length;
   const syncing = connection.accounts.some((account) => account.syncPending);
   const unsupportedAccounts = connection.accounts.filter((account) => !account.isFop);
+  const tokenRejected = connection.tokenRejectedAt !== null;
 
   function submitToken(event: React.FormEvent) {
     event.preventDefault();
@@ -119,6 +122,12 @@ function MonobankConnectionBody({
         ) : null}
       </div>
 
+      {tokenRejected ? (
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          {t("tokenRejected")}
+        </p>
+      ) : null}
+
       {disconnectFailure ? <p className="text-sm text-destructive">{`${t("disconnectFailed")} ${disconnectFailure.message}`}</p> : null}
 
       {editingToken ? (
@@ -154,7 +163,7 @@ function MonobankConnectionBody({
           <Button
             type="button"
             size="sm"
-            disabled={sync.isPending || syncing || followedCount === 0}
+            disabled={sync.isPending || syncing || followedCount === 0 || tokenRejected}
             onClick={() => sync.mutate()}
           >
             {sync.isPending || syncing ? t("syncing") : t("syncNow")}
@@ -163,6 +172,14 @@ function MonobankConnectionBody({
             <span className="text-xs text-muted-foreground">{t("syncNothingFollowed")}</span>
           ) : null}
         </div>
+      ) : null}
+
+      {connection.connected ? (
+        <p className="text-xs text-muted-foreground">
+          {connection.backfillStart.fromRegistrationDate
+            ? t("backfillFrom", { date: formatDateOnly(connection.backfillStart.from, locale) })
+            : t("backfillFromYearStart", { date: formatDateOnly(connection.backfillStart.from, locale) })}
+        </p>
       ) : null}
 
       {syncFailure ? <p className="text-sm text-destructive">{`${t("syncFailed")} ${syncFailure.message}`}</p> : null}
@@ -211,17 +228,37 @@ function SyncStatus({ account }: { account: MonobankAccountResponse }) {
   const t = useTranslations("settings.monobank");
   const locale = useLocale();
 
-  const text = account.syncPending
-    ? t("syncQueued")
-    : account.lastSync
-      ? t("lastSync", {
-          at: formatInstantInKyiv(account.lastSync.at, locale),
-          imported: account.lastSync.importedCount,
-          skipped: account.lastSync.skippedCount,
-        })
-      : account.isFollowed
-        ? t("neverSynced")
-        : null;
+  if (!account.isFollowed && !account.lastSync) {
+    return null;
+  }
 
-  return text ? <p className="min-w-0 break-words pl-6 text-xs text-muted-foreground">{text}</p> : null;
+  const progress = account.backfillComplete
+    ? t("backfillComplete")
+    : account.syncedThrough
+      ? t("backfillReached", { month: formatMonthInKyiv(account.syncedThrough, locale) })
+      : t("neverSynced");
+  const lastSync = account.lastSync
+    ? t("lastSync", {
+        at: formatInstantInKyiv(account.lastSync.at, locale),
+        imported: account.lastSync.importedCount,
+        skipped: account.lastSync.skippedCount,
+      })
+    : null;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5 pl-6 text-xs">
+      <p className="min-w-0 break-words text-muted-foreground">
+        {account.syncPending ? `${progress} · ${t("syncQueued")}` : progress}
+      </p>
+      {lastSync ? <p className="min-w-0 break-words text-muted-foreground">{lastSync}</p> : null}
+      {account.lastFailure ? (
+        <p className="min-w-0 break-words text-destructive">
+          {t("lastFailure", {
+            at: formatInstantInKyiv(account.lastFailure.at, locale),
+            reason: t(`failure.${account.lastFailure.reason}`),
+          })}
+        </p>
+      ) : null}
+    </div>
+  );
 }

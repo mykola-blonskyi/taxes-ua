@@ -370,7 +370,23 @@
       "syncFailed": "Не удалось запустить синхронизацию.",
       "syncQueued": "В очереди на синхронизацию",
       "lastSync": "Последняя синхронизация {at}: добавлено {imported}, пропущено {skipped}",
-      "neverSynced": "Ещё не синхронизировано"
+      "neverSynced": "Ещё не синхронизировано",
+      "tokenRejected": "monobank отклонил токен. Синхронизация остановлена: замените токен, и она продолжится с того места, где остановилась.",
+      "backfillFrom": "История операций загружается с даты регистрации ФОП, {date}",
+      "backfillFromYearStart": "Дата регистрации ФОП не указана в настройках, поэтому история операций загружается с {date}",
+      "backfillReached": "История загружается, достигнуто: {month}",
+      "backfillComplete": "История загружена",
+      "lastFailure": "Синхронизация не удалась {at}: {reason}",
+      "failure": {
+        "BankUnreachable": "monobank не ответил",
+        "BankTimeout": "monobank не ответил вовремя",
+        "BankError": "monobank вернул ошибку",
+        "UnreadableAnswer": "не удалось прочитать ответ monobank",
+        "RateLimited": "monobank ограничил число запросов",
+        "TokenUnreadable": "не удалось расшифровать сохранённый токен, замените его",
+        "TooManyInOneSecond": "более 500 операций за одну секунду, этот период не загружен",
+        "Unexpected": "внутренняя ошибка приложения"
+      }
     },
     "taxYears": {
       "history": "История",

@@ -38,4 +38,27 @@ internal sealed class BankAccount
     public bool IsActive { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
+
+    // The end of the last statement window whose rows are committed, written in the same database
+    // transaction as those rows. Null until the first window lands; the backfill starts from the
+    // registration date then (Rule 12).
+    public DateTimeOffset? SyncedThrough { get; set; }
+
+    // The last sync that failed for a reason other than a rejected token, kept until a window of this
+    // account imports again. Both set or both null.
+    public DateTimeOffset? LastFailedAt { get; set; }
+
+    public SyncFailure? LastFailure { get; set; }
+}
+
+internal enum SyncFailure
+{
+    BankUnreachable,
+    BankTimeout,
+    BankError,
+    UnreadableAnswer,
+    RateLimited,
+    TokenUnreadable,
+    TooManyInOneSecond,
+    Unexpected,
 }

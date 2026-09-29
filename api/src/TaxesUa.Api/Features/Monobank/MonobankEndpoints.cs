@@ -17,6 +17,7 @@ public static class MonobankEndpoints
                 AppDbContext database,
                 TokenEncryptor encryptor,
                 MonobankSyncQueue queue,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -31,7 +32,7 @@ public static class MonobankEndpoints
                     return Results.Unauthorized();
                 }
 
-                return Results.Ok(await LoadStatusAsync(database, queue, user.Id, cancellationToken));
+                return Results.Ok(await LoadStatusAsync(database, queue, time, user.Id, cancellationToken));
             })
             .Produces<MonobankConnectionResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -44,6 +45,7 @@ public static class MonobankEndpoints
                 TokenEncryptor encryptor,
                 MonobankSyncQueue queue,
                 MonobankClient client,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -84,8 +86,11 @@ public static class MonobankEndpoints
                             statusCode: StatusCodes.Status502BadGateway);
 
                     case ClientInfoResult.Found found:
-                        await SaveConnectionAsync(database, encryptor, user.Id, request.Token, found.Info, cancellationToken);
-                        return Results.Ok(await LoadStatusAsync(database, queue, user.Id, cancellationToken));
+                        await SaveConnectionAsync(
+                            database, encryptor, user.Id, request.Token, found.Info, cancellationToken);
+                        await EnqueueFollowedAsync(database, queue, user.Id, cancellationToken);
+
+                        return Results.Ok(await LoadStatusAsync(database, queue, time, user.Id, cancellationToken));
 
                     default:
                         throw new InvalidOperationException($"Unhandled {nameof(ClientInfoResult)}.");
@@ -103,6 +108,7 @@ public static class MonobankEndpoints
                 AppDbContext database,
                 TokenEncryptor encryptor,
                 MonobankSyncQueue queue,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -130,16 +136,27 @@ public static class MonobankEndpoints
                     .ToListAsync(cancellationToken);
 
                 var chosen = new HashSet<string>(request.FollowedExternalIds, StringComparer.Ordinal);
+                var newlyFollowed = new List<Guid>();
                 foreach (var account in accounts)
                 {
                     // Only a FOP account can ever be followed; a non-FOP id in the request is silently
                     // ignored rather than accepted and then never synced, which would look like a bug.
-                    account.IsActive = account.IsFop && chosen.Contains(account.ExternalId);
+                    var follow = account.IsFop && chosen.Contains(account.ExternalId);
+                    if (follow && !account.IsActive)
+                    {
+                        newlyFollowed.Add(account.Id);
+                    }
+
+                    account.IsActive = follow;
                 }
 
                 await database.SaveChangesAsync(cancellationToken);
+                foreach (var accountId in newlyFollowed)
+                {
+                    queue.Enqueue(new SyncWork(user.Id, accountId));
+                }
 
-                return Results.Ok(await LoadStatusAsync(database, queue, user.Id, cancellationToken));
+                return Results.Ok(await LoadStatusAsync(database, queue, time, user.Id, cancellationToken));
             })
             .Produces<MonobankConnectionResponse>()
             .ProducesValidationProblem()
@@ -178,6 +195,7 @@ public static class MonobankEndpoints
                 AppDbContext database,
                 TokenEncryptor encryptor,
                 MonobankSyncQueue queue,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -192,27 +210,26 @@ public static class MonobankEndpoints
                     return Results.Unauthorized();
                 }
 
-                if (!await database.MonobankConnections.AnyAsync(connection => connection.UserId == user.Id, cancellationToken))
+                var connection = await database.MonobankConnections.AsNoTracking()
+                    .FirstOrDefaultAsync(row => row.UserId == user.Id, cancellationToken);
+                if (connection is null)
                 {
                     return Results.Problem(
                         title: "Connect monobank before syncing.",
                         statusCode: StatusCodes.Status409Conflict);
                 }
 
-                var followed = await database.BankAccounts
-                    .Where(account => account.UserId == user.Id
-                        && account.Bank == Bank.Monobank
-                        && account.IsFop
-                        && account.IsActive)
-                    .Select(account => account.Id)
-                    .ToListAsync(cancellationToken);
-                foreach (var accountId in followed)
+                if (connection.RejectedAt is not null)
                 {
-                    queue.Enqueue(new SyncWork(user.Id, accountId));
+                    return Results.Problem(
+                        title: "monobank rejected the token; replace it before syncing.",
+                        statusCode: StatusCodes.Status409Conflict);
                 }
 
+                await EnqueueFollowedAsync(database, queue, user.Id, cancellationToken);
+
                 return Results.Accepted(
-                    "/api/monobank/connection", await LoadStatusAsync(database, queue, user.Id, cancellationToken));
+                    "/api/monobank/connection", await LoadStatusAsync(database, queue, time, user.Id, cancellationToken));
             })
             .Produces<MonobankConnectionResponse>(StatusCodes.Status202Accepted)
             .Produces(StatusCodes.Status401Unauthorized)
@@ -228,6 +245,22 @@ public static class MonobankEndpoints
             + "stored safely.",
         statusCode: StatusCodes.Status503ServiceUnavailable,
         type: "https://taxes-ua/problems/monobank-not-configured");
+
+    internal static async Task EnqueueFollowedAsync(
+        AppDbContext database, MonobankSyncQueue queue, string userId, CancellationToken cancellationToken)
+    {
+        var followed = await database.BankAccounts
+            .Where(account => account.UserId == userId
+                && account.Bank == Bank.Monobank
+                && account.IsFop
+                && account.IsActive)
+            .Select(account => account.Id)
+            .ToListAsync(cancellationToken);
+        foreach (var accountId in followed)
+        {
+            queue.Enqueue(new SyncWork(userId, accountId));
+        }
+    }
 
     private static async Task SaveConnectionAsync(
         AppDbContext database,
@@ -247,6 +280,13 @@ public static class MonobankEndpoints
         connection.EncryptedToken = encryptor.Encrypt(token);
         connection.MonobankClientId = info.ClientId;
         connection.ConnectedAt = DateTimeOffset.UtcNow;
+        connection.RejectedAt = null;
+        // A rejection written by the worker after this row was read must still be cleared, so the column
+        // is written even when the tracked value was already null.
+        if (database.Entry(connection).State != EntityState.Added)
+        {
+            database.Entry(connection).Property(row => row.RejectedAt).IsModified = true;
+        }
 
         var existing = await database.BankAccounts
             .Where(account => account.UserId == userId && account.Bank == Bank.Monobank)
@@ -306,9 +346,15 @@ public static class MonobankEndpoints
     }
 
     private static async Task<MonobankConnectionResponse> LoadStatusAsync(
-        AppDbContext database, MonobankSyncQueue queue, string userId, CancellationToken cancellationToken)
+        AppDbContext database, MonobankSyncQueue queue, TimeProvider time, string userId, CancellationToken cancellationToken)
     {
-        var connected = await database.MonobankConnections.AnyAsync(connection => connection.UserId == userId, cancellationToken);
+        var connection = await database.MonobankConnections.AsNoTracking()
+            .FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        var registeredOn = await database.Settings
+            .Where(row => row.UserId == userId)
+            .Select(row => row.FopRegistrationDate)
+            .FirstOrDefaultAsync(cancellationToken);
+        var backfilledUntil = time.GetUtcNow() - MonobankStatementImport.Window;
 
         var accounts = await database.BankAccounts
             .Where(account => account.UserId == userId && account.Bank == Bank.Monobank)
@@ -322,14 +368,20 @@ public static class MonobankEndpoints
             .ToDictionaryAsync(batch => batch.BankAccountId, cancellationToken);
 
         return new MonobankConnectionResponse(
-            Connected: connected,
+            Connected: connection is not null,
+            TokenRejectedAt: connection?.RejectedAt,
+            BackfillStart: new BackfillStartResponse(
+                MonobankStatementImport.BackfillStart(registeredOn, time.TodayInKyiv()),
+                FromRegistrationDate: registeredOn is not null),
             Accounts: [.. accounts.Select(account => ToResponse(
                 account,
                 queue.IsPending(new SyncWork(userId, account.Id)),
-                lastBatches.GetValueOrDefault(account.Id)))]);
+                lastBatches.GetValueOrDefault(account.Id),
+                backfilledUntil))]);
     }
 
-    private static MonobankAccountResponse ToResponse(BankAccount account, bool syncPending, ImportBatch? lastSync) => new(
+    private static MonobankAccountResponse ToResponse(
+        BankAccount account, bool syncPending, ImportBatch? lastSync, DateTimeOffset backfilledUntil) => new(
         ExternalId: account.ExternalId,
         Bank: account.Bank,
         Currency: IsoCurrency.Display(account.CurrencyCode),
@@ -340,7 +392,12 @@ public static class MonobankEndpoints
         SyncPending: syncPending,
         LastSync: lastSync is null
             ? null
-            : new LastSyncResponse(lastSync.CreatedAt, lastSync.From, lastSync.To, lastSync.ImportedCount, lastSync.SkippedCount));
+            : new LastSyncResponse(lastSync.CreatedAt, lastSync.From, lastSync.To, lastSync.ImportedCount, lastSync.SkippedCount),
+        SyncedThrough: account.SyncedThrough,
+        BackfillComplete: account.SyncedThrough >= backfilledUntil,
+        LastFailure: account is { LastFailedAt: { } failedAt, LastFailure: { } failure }
+            ? new SyncFailureResponse(failedAt, failure)
+            : null);
 
     // Keeps only the last 4 characters, e.g. "UA•••••••••••••••••••1234", so the owner can recognise
     // an account without the full IBAN sitting in a response or on screen.
@@ -374,7 +431,16 @@ internal sealed record MonobankAccountResponse(
     bool IsSupported,
     bool IsFollowed,
     bool SyncPending,
-    LastSyncResponse? LastSync);
+    LastSyncResponse? LastSync,
+    DateTimeOffset? SyncedThrough,
+    bool BackfillComplete,
+    SyncFailureResponse? LastFailure);
+
+internal sealed record SyncFailureResponse(DateTimeOffset At, SyncFailure Reason);
+
+// The day an account's first sync reads from: the FOP registration date, or 1 January of the current
+// year when settings have none.
+internal sealed record BackfillStartResponse(DateOnly From, bool FromRegistrationDate);
 
 internal sealed record LastSyncResponse(
     DateTimeOffset At,
@@ -385,4 +451,6 @@ internal sealed record LastSyncResponse(
 
 internal sealed record MonobankConnectionResponse(
     bool Connected,
+    DateTimeOffset? TokenRejectedAt,
+    BackfillStartResponse BackfillStart,
     IReadOnlyList<MonobankAccountResponse> Accounts);

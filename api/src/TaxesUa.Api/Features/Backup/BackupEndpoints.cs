@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Transactions;
 using HttpJsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
 
@@ -53,6 +54,7 @@ public static class BackupEndpoints
                 AppDbContext database,
                 IOptions<HttpJsonOptions> json,
                 TimeProvider time,
+                MonobankSyncQueue queue,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -93,6 +95,9 @@ public static class BackupEndpoints
                 {
                     return Results.ValidationProblem(linkErrors, title: "The backup file breaks the rules below.");
                 }
+
+                // The restore cleared every sync cursor; walking the history again brings back what the file lacks.
+                await MonobankEndpoints.EnqueueFollowedAsync(database, queue, user.Id, cancellationToken);
 
                 return Results.Ok(new RestoreResponse(
                     document.Clients.Length, document.Transactions.Length, document.BudgetPayments.Length));
@@ -240,7 +245,7 @@ public static class BackupEndpoints
 
     // Accounts are not replaced: the monobank connection reconciles them against the bank, and a sync
     // after reconnecting must find the rows its transactions point at. A file account the owner already
-    // holds (same bank and external id) maps to that row as it stands; any other is inserted, under a
+    // holds (same bank and external id) maps to that row; any other is inserted, under a
     // fresh id if the file's id is taken.
     private static async Task<Func<Guid, Guid>> MatchBankAccountsAsync(
         AppDbContext database, string userId, BankAccountBackup[] accounts, CancellationToken cancellationToken)
@@ -248,6 +253,16 @@ public static class BackupEndpoints
         var owned = await database.BankAccounts
             .Where(row => row.UserId == userId)
             .ToListAsync(cancellationToken);
+
+        // The restored transactions replace the synced ones, so no cursor can vouch for them; the next
+        // sync walks again from the backfill start and the ExternalId check skips what the file holds.
+        foreach (var row in owned)
+        {
+            row.SyncedThrough = null;
+            row.LastFailedAt = null;
+            row.LastFailure = null;
+        }
+
         var fileIds = accounts.Select(account => account.Id).ToArray();
         var taken = await database.BankAccounts
             .Where(row => fileIds.Contains(row.Id))

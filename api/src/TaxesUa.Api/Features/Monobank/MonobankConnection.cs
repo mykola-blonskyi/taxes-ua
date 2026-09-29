@@ -18,4 +18,8 @@ internal sealed class MonobankConnection
     public string MonobankClientId { get; set; } = string.Empty;
 
     public DateTimeOffset ConnectedAt { get; set; }
+
+    // When monobank answered 401 or 403 to a statement call with this token. Every sync of the owner
+    // stops until a new token is saved, which clears it.
+    public DateTimeOffset? RejectedAt { get; set; }
 }
