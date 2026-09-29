@@ -31,6 +31,7 @@ services:
       Auth__Passkey__ServerDomain: ${PASSKEY_SERVER_DOMAIN:-}
       DataProtection__KeysPath: /var/lib/taxes-ua/keys
       Monobank__TokenEncryptionKeyBase64: ${MONOBANK_TOKEN_ENCRYPTION_KEY:-}
+      Monobank__PublicBaseUrl: ${MONOBANK_PUBLIC_BASE_URL:-}
     volumes:
       - dataprotection-keys:/var/lib/taxes-ua/keys
     expose:

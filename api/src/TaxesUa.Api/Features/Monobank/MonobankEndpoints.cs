@@ -17,6 +17,7 @@ public static class MonobankEndpoints
                 AppDbContext database,
                 TokenEncryptor encryptor,
                 MonobankSyncQueue queue,
+                MonobankWebhooks webhooks,
                 TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
@@ -32,7 +33,7 @@ public static class MonobankEndpoints
                     return Results.Unauthorized();
                 }
 
-                return Results.Ok(await LoadStatusAsync(database, queue, time, user.Id, cancellationToken));
+                return Results.Ok(await LoadStatusAsync(database, queue, webhooks, time, user.Id, cancellationToken));
             })
             .Produces<MonobankConnectionResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -44,6 +45,7 @@ public static class MonobankEndpoints
                 AppDbContext database,
                 TokenEncryptor encryptor,
                 MonobankSyncQueue queue,
+                MonobankWebhooks webhooks,
                 MonobankClient client,
                 TimeProvider time,
                 HttpContext http,
@@ -89,8 +91,9 @@ public static class MonobankEndpoints
                         await SaveConnectionAsync(
                             database, encryptor, user.Id, request.Token, found.Info, cancellationToken);
                         await EnqueueFollowedAsync(database, queue, user.Id, cancellationToken);
+                        webhooks.Reconcile(user.Id);
 
-                        return Results.Ok(await LoadStatusAsync(database, queue, time, user.Id, cancellationToken));
+                        return Results.Ok(await LoadStatusAsync(database, queue, webhooks, time, user.Id, cancellationToken));
 
                     default:
                         throw new InvalidOperationException($"Unhandled {nameof(ClientInfoResult)}.");
@@ -108,6 +111,7 @@ public static class MonobankEndpoints
                 AppDbContext database,
                 TokenEncryptor encryptor,
                 MonobankSyncQueue queue,
+                MonobankWebhooks webhooks,
                 TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
@@ -156,7 +160,7 @@ public static class MonobankEndpoints
                     queue.Enqueue(new SyncWork(user.Id, accountId));
                 }
 
-                return Results.Ok(await LoadStatusAsync(database, queue, time, user.Id, cancellationToken));
+                return Results.Ok(await LoadStatusAsync(database, queue, webhooks, time, user.Id, cancellationToken));
             })
             .Produces<MonobankConnectionResponse>()
             .ProducesValidationProblem()
@@ -166,6 +170,7 @@ public static class MonobankEndpoints
         monobank.MapDelete("/connection", async (
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                MonobankWebhooks webhooks,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -182,6 +187,10 @@ public static class MonobankEndpoints
                 {
                     database.MonobankConnections.Remove(connection);
                     await database.SaveChangesAsync(cancellationToken);
+                    if (webhooks.IsConfigured || connection.WebhookUrl is not null)
+                    {
+                        webhooks.Clear(user.Id, connection.EncryptedToken);
+                    }
                 }
 
                 return Results.NoContent();
@@ -195,6 +204,7 @@ public static class MonobankEndpoints
                 AppDbContext database,
                 TokenEncryptor encryptor,
                 MonobankSyncQueue queue,
+                MonobankWebhooks webhooks,
                 TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
@@ -229,15 +239,43 @@ public static class MonobankEndpoints
                 await EnqueueFollowedAsync(database, queue, user.Id, cancellationToken);
 
                 return Results.Accepted(
-                    "/api/monobank/connection", await LoadStatusAsync(database, queue, time, user.Id, cancellationToken));
+                    "/api/monobank/connection", await LoadStatusAsync(database, queue, webhooks, time, user.Id, cancellationToken));
             })
             .Produces<MonobankConnectionResponse>(StatusCodes.Status202Accepted)
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
+        // monobank's own endpoints (ADR-012): anonymous, found only by the secret in the path, and
+        // never reading the body, so a forged notification can at most queue a statement read.
+        routes.MapGet(MonobankWebhooks.Route + "{secret}", async (
+                string secret, AppDbContext database, CancellationToken cancellationToken) =>
+                await OwnerOfSecretAsync(database, secret, cancellationToken) is null ? Results.NotFound() : Results.Ok())
+            .AllowAnonymous()
+            .ExcludeFromDescription();
+
+        routes.MapPost(MonobankWebhooks.Route + "{secret}", async (
+                string secret, AppDbContext database, MonobankSyncQueue queue, CancellationToken cancellationToken) =>
+            {
+                if (await OwnerOfSecretAsync(database, secret, cancellationToken) is not { } ownerId)
+                {
+                    return Results.NotFound();
+                }
+
+                await EnqueueFollowedAsync(database, queue, ownerId, cancellationToken);
+                return Results.Ok();
+            })
+            .AllowAnonymous()
+            .ExcludeFromDescription();
+
         return routes;
     }
+
+    private static Task<string?> OwnerOfSecretAsync(AppDbContext database, string secret, CancellationToken cancellationToken) =>
+        database.MonobankConnections
+            .Where(row => row.WebhookSecret == secret)
+            .Select(row => row.UserId)
+            .FirstOrDefaultAsync(cancellationToken);
 
     private static IResult NotConfigured() => Results.Problem(
         title: "monobank is not configured.",
@@ -281,11 +319,16 @@ public static class MonobankEndpoints
         connection.MonobankClientId = info.ClientId;
         connection.ConnectedAt = DateTimeOffset.UtcNow;
         connection.RejectedAt = null;
-        // A rejection written by the worker after this row was read must still be cleared, so the column
-        // is written even when the tracked value was already null.
+        connection.WebhookSecret = MonobankWebhooks.NewSecret();
+        connection.WebhookFailedAt = null;
+        connection.WebhookFailure = null;
+        // A rejection or failed registration written by a worker after this row was read must still be
+        // cleared, so the columns are written even when the tracked values were already null.
         if (database.Entry(connection).State != EntityState.Added)
         {
             database.Entry(connection).Property(row => row.RejectedAt).IsModified = true;
+            database.Entry(connection).Property(row => row.WebhookFailedAt).IsModified = true;
+            database.Entry(connection).Property(row => row.WebhookFailure).IsModified = true;
         }
 
         var existing = await database.BankAccounts
@@ -346,7 +389,12 @@ public static class MonobankEndpoints
     }
 
     private static async Task<MonobankConnectionResponse> LoadStatusAsync(
-        AppDbContext database, MonobankSyncQueue queue, TimeProvider time, string userId, CancellationToken cancellationToken)
+        AppDbContext database,
+        MonobankSyncQueue queue,
+        MonobankWebhooks webhooks,
+        TimeProvider time,
+        string userId,
+        CancellationToken cancellationToken)
     {
         var connection = await database.MonobankConnections.AsNoTracking()
             .FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
@@ -354,8 +402,6 @@ public static class MonobankEndpoints
             .Where(row => row.UserId == userId)
             .Select(row => row.FopRegistrationDate)
             .FirstOrDefaultAsync(cancellationToken);
-        var backfilledUntil = time.GetUtcNow() - MonobankStatementImport.Window;
-
         var accounts = await database.BankAccounts
             .Where(account => account.UserId == userId && account.Bank == Bank.Monobank)
             .OrderBy(account => account.ExternalId)
@@ -370,18 +416,24 @@ public static class MonobankEndpoints
         return new MonobankConnectionResponse(
             Connected: connection is not null,
             TokenRejectedAt: connection?.RejectedAt,
+            Webhook: connection is null
+                ? null
+                : new WebhookStatusResponse(
+                    webhooks.StateOf(connection),
+                    connection is { WebhookFailedAt: { } webhookFailedAt, WebhookFailure: { } webhookFailure }
+                        ? new SyncFailureResponse(webhookFailedAt, webhookFailure)
+                        : null),
             BackfillStart: new BackfillStartResponse(
                 MonobankStatementImport.BackfillStart(registeredOn, time.TodayInKyiv()),
                 FromRegistrationDate: registeredOn is not null),
             Accounts: [.. accounts.Select(account => ToResponse(
                 account,
                 queue.IsPending(new SyncWork(userId, account.Id)),
-                lastBatches.GetValueOrDefault(account.Id),
-                backfilledUntil))]);
+                lastBatches.GetValueOrDefault(account.Id)))]);
     }
 
     private static MonobankAccountResponse ToResponse(
-        BankAccount account, bool syncPending, ImportBatch? lastSync, DateTimeOffset backfilledUntil) => new(
+        BankAccount account, bool syncPending, ImportBatch? lastSync) => new(
         ExternalId: account.ExternalId,
         Bank: account.Bank,
         Currency: IsoCurrency.Display(account.CurrencyCode),
@@ -394,7 +446,7 @@ public static class MonobankEndpoints
             ? null
             : new LastSyncResponse(lastSync.CreatedAt, lastSync.From, lastSync.To, lastSync.ImportedCount, lastSync.SkippedCount),
         SyncedThrough: account.SyncedThrough,
-        BackfillComplete: account.SyncedThrough >= backfilledUntil,
+        BackfillComplete: account.HistoryImportedAt is not null,
         LastFailure: account is { LastFailedAt: { } failedAt, LastFailure: { } failure }
             ? new SyncFailureResponse(failedAt, failure)
             : null);
@@ -438,6 +490,9 @@ internal sealed record MonobankAccountResponse(
 
 internal sealed record SyncFailureResponse(DateTimeOffset At, SyncFailure Reason);
 
+// LastFailure is the last failed registration, kept until one succeeds, so it can accompany Pending.
+internal sealed record WebhookStatusResponse(WebhookState State, SyncFailureResponse? LastFailure);
+
 // The day an account's first sync reads from: the FOP registration date, or 1 January of the current
 // year when settings have none.
 internal sealed record BackfillStartResponse(DateOnly From, bool FromRegistrationDate);
@@ -452,5 +507,6 @@ internal sealed record LastSyncResponse(
 internal sealed record MonobankConnectionResponse(
     bool Connected,
     DateTimeOffset? TokenRejectedAt,
+    WebhookStatusResponse? Webhook,
     BackfillStartResponse BackfillStart,
     IReadOnlyList<MonobankAccountResponse> Accounts);

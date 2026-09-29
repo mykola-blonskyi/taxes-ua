@@ -37,5 +37,9 @@ internal sealed class MonobankConnectionConfiguration : IEntityTypeConfiguration
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Property(connection => connection.MonobankClientId).HasMaxLength(100);
+        builder.Property(connection => connection.WebhookSecret).HasMaxLength(64);
+        builder.HasIndex(connection => connection.WebhookSecret).IsUnique();
+        builder.Property(connection => connection.WebhookUrl).HasMaxLength(500);
+        builder.Property(connection => connection.WebhookFailure).HasConversion<string>().HasMaxLength(30);
     }
 }

@@ -11,6 +11,7 @@ import {
   useSyncMonobank,
   type MonobankAccountResponse,
   type MonobankConnectionResponse,
+  type WebhookStatusResponse,
 } from "@/data/monobank/useMonobank";
 import { formatDateOnly, formatInstantInKyiv, formatMonthInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
@@ -182,6 +183,8 @@ function MonobankConnectionBody({
         </p>
       ) : null}
 
+      {connection.webhook && !tokenRejected ? <WebhookStatus webhook={connection.webhook} /> : null}
+
       {syncFailure ? <p className="text-sm text-destructive">{`${t("syncFailed")} ${syncFailure.message}`}</p> : null}
 
       {accountsFailure ? <p className="text-sm text-destructive">{`${t("accountsSaveFailed")} ${accountsFailure.message}`}</p> : null}
@@ -261,4 +264,22 @@ function SyncStatus({ account }: { account: MonobankAccountResponse }) {
       ) : null}
     </div>
   );
+}
+
+function WebhookStatus({ webhook }: { webhook: WebhookStatusResponse }) {
+  const t = useTranslations("settings.monobank");
+  const locale = useLocale();
+
+  if (webhook.state === "Failed" && webhook.lastFailure) {
+    return (
+      <p className="min-w-0 break-words text-xs text-destructive">
+        {t("webhook.failedAt", {
+          at: formatInstantInKyiv(webhook.lastFailure.at, locale),
+          reason: t(`failure.${webhook.lastFailure.reason}`),
+        })}
+      </p>
+    );
+  }
+
+  return <p className="min-w-0 break-words text-xs text-muted-foreground">{t(`webhook.${webhook.state}`)}</p>;
 }

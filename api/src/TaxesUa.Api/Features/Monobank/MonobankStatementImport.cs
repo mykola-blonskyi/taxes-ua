@@ -275,6 +275,7 @@ internal sealed class MonobankStatementImport(
             .ExecuteUpdateAsync(
                 setters => setters
                     .SetProperty(row => row.SyncedThrough, statement.To)
+                    .SetProperty(row => row.HistoryImportedAt, row => row.HistoryImportedAt ?? (statement.ReachesNow ? statement.To : null))
                     .SetProperty(row => row.LastFailedAt, (DateTimeOffset?)null)
                     .SetProperty(row => row.LastFailure, (SyncFailure?)null),
                 cancellationToken);

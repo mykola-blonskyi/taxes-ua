@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 
@@ -54,20 +55,26 @@ internal sealed class MonobankSyncWorker(
         await using var scope = scopes.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var behind = time.GetUtcNow() - MonobankStatementImport.Window;
-        var unfinished = await database.BankAccounts
-            .Where(account => account.Bank == Bank.Monobank
-                && account.IsFop
-                && account.IsActive
-                && (account.SyncedThrough == null || account.SyncedThrough < behind)
-                && database.MonobankConnections.Any(connection =>
-                    connection.UserId == account.UserId && connection.RejectedAt == null))
-            .Select(account => new SyncWork(account.UserId, account.Id))
+        var unfinished = await Syncable(
+                database, account => account.SyncedThrough == null || account.SyncedThrough < behind)
             .ToListAsync(stoppingToken);
         foreach (var work in unfinished)
         {
             queue.Enqueue(work);
         }
     }
+
+    // Every followed FOP account whose owner's token was not rejected, narrowed by where.
+    internal static IQueryable<SyncWork> Syncable(
+        AppDbContext database, Expression<Func<BankAccount, bool>>? where = null) =>
+        database.BankAccounts
+            .Where(account => account.Bank == Bank.Monobank
+                && account.IsFop
+                && account.IsActive
+                && database.MonobankConnections.Any(connection =>
+                    connection.UserId == account.UserId && connection.RejectedAt == null))
+            .Where(where ?? (_ => true))
+            .Select(account => new SyncWork(account.UserId, account.Id));
 
     private async Task RecordUnexpectedAsync(SyncWork work, CancellationToken stoppingToken)
     {

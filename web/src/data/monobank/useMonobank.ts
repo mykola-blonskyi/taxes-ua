@@ -8,6 +8,7 @@ import { transactionsQueryKey } from "@/data/transactions/useTransactions";
 export type MonobankConnectionResponse = components["schemas"]["MonobankConnectionResponse"];
 export type MonobankAccountResponse = components["schemas"]["MonobankAccountResponse"];
 export type LastSyncResponse = components["schemas"]["LastSyncResponse"];
+export type WebhookStatusResponse = components["schemas"]["WebhookStatusResponse"];
 
 export const monobankQueryKey = ["monobank", "connection"] as const;
 
@@ -31,8 +32,10 @@ export function useMonobankConnection() {
     // A 503 (not configured) is a steady state the settings section renders on its own, not a
     // transient failure worth retrying.
     retry: false,
-    // The worker paces statement calls a minute apart, so a sync of several accounts takes minutes.
-    refetchInterval: (query) => (isSyncing(query.state.data) ? 5_000 : false),
+    // The worker paces statement calls a minute apart, so a sync of several accounts takes minutes, and a
+    // webhook registration waits for its own minute after a token replaced within the last one.
+    refetchInterval: (query) =>
+      isSyncing(query.state.data) || query.state.data?.webhook?.state === "Pending" ? 5_000 : false,
   });
 }
 

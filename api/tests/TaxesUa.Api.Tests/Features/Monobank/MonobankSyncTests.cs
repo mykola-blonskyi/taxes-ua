@@ -21,7 +21,7 @@ namespace TaxesUa.Api.Tests.Features.Monobank;
 // The owners are shared by every test in this class, so each test runs in a year of its own, names
 // accounts no other test uses and sets its own registration date; a token save deactivates every
 // account the new client-info omits.
-public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFixture>
+public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
     private static readonly JsonSerializerOptions Json =
         new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
@@ -605,16 +605,18 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
             return StubNbuHandler.Json(match.Currency is null ? "[]" : StubNbuHandler.Row(match.Currency, match.Date, match.Rate));
         });
 
-    private SyncApp Create(DateTimeOffset now, FakeBank bank, StubNbuHandler? nbu = null)
+    private SyncApp Create(DateTimeOffset now, FakeBank bank, StubNbuHandler? nbu = null, string? publicBaseUrl = null)
     {
         var clock = new FakeTimeProvider(now);
         var handler = new StubMonobankHandler(bank.Respond, clock);
-        var factory = fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
-        {
-            services.AddSingleton<TimeProvider>(clock);
-            services.AddHttpClient<MonobankClient>().ConfigurePrimaryHttpMessageHandler(() => handler);
-            services.AddHttpClient<NbuRateClient>().ConfigurePrimaryHttpMessageHandler(() => nbu ?? Nbu());
-        }));
+        var factory = fixture.CreateApplication(builder => builder
+            .UseSetting("Monobank:PublicBaseUrl", publicBaseUrl ?? string.Empty)
+            .ConfigureTestServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(clock);
+                services.AddHttpClient<MonobankClient>().ConfigurePrimaryHttpMessageHandler(() => handler);
+                services.AddHttpClient<NbuRateClient>().ConfigurePrimaryHttpMessageHandler(() => nbu ?? Nbu());
+            }));
         return new SyncApp(factory, clock, handler);
     }
 
@@ -739,6 +741,14 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
 
         public bool StatementsFail { get; set; }
 
+        public bool WebhookFails { get; set; }
+
+        public bool WebhookRejects { get; set; }
+
+        private readonly ConcurrentQueue<(string Token, string Url)> _webhooks = new();
+
+        public (string Token, string Url)[] Webhooks => [.. _webhooks];
+
         private readonly ConcurrentDictionary<string, byte> _accounts = new();
 
         private int _rateLimited;
@@ -787,6 +797,23 @@ public sealed class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFix
             if (path is ["personal", "client-info"])
             {
                 return StubMonobankHandler.Json(clientInfo);
+            }
+
+            if (path is ["personal", "webhook"] && request.Method == HttpMethod.Post)
+            {
+                if (WebhookFails)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.BadRequest);
+                }
+
+                if (WebhookRejects)
+                {
+                    return new HttpResponseMessage(HttpStatusCode.Forbidden);
+                }
+
+                var body = Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                _webhooks.Enqueue((token, body.GetProperty("webHookUrl").GetString()!));
+                return new HttpResponseMessage(HttpStatusCode.OK);
             }
 
             if (path is not ["personal", "statement", var accountId, var fromText, var toText])

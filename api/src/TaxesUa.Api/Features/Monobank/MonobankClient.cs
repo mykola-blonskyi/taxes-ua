@@ -57,8 +57,19 @@ internal abstract record StatementResult
     public sealed record Unavailable(SyncFailure Failure) : StatementResult;
 }
 
+internal abstract record WebhookResult
+{
+    private WebhookResult() { }
+
+    public sealed record Set : WebhookResult;
+
+    public sealed record InvalidToken : WebhookResult;
+
+    public sealed record Unavailable(SyncFailure Failure) : WebhookResult;
+}
+
 /// <summary>
-/// The monobank personal API's <c>client-info</c> and <c>statement</c> endpoints, registered as a typed
+/// The monobank personal API's <c>client-info</c>, <c>statement</c> and <c>webhook</c> endpoints, registered as a typed
 /// HttpClient like NbuRateClient so tests replace its primary handler instead of reaching the real bank
 /// (ADR-011). Answers are parsed into records here; no business rule lives in this class.
 /// </summary>
@@ -68,7 +79,7 @@ internal sealed class MonobankClient(HttpClient http, TimeProvider time, ILogger
     public const int StatementPageSize = 500;
 
     public async Task<ClientInfoResult> GetClientInfoAsync(string token, CancellationToken cancellationToken) =>
-        await GetAsync("personal/client-info", token, "client-info", cancellationToken) switch
+        await SendAsync(HttpMethod.Get, "personal/client-info", token, "client-info", null, cancellationToken) switch
         {
             Answer.Body body => Read(body.Text, "client-info", ParseClientInfo)
                 ?? new ClientInfoResult.Unavailable(Describe(SyncFailure.UnreadableAnswer)),
@@ -82,7 +93,7 @@ internal sealed class MonobankClient(HttpClient http, TimeProvider time, ILogger
         string token, string accountId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
     {
         var path = $"personal/statement/{Uri.EscapeDataString(accountId)}/{from.ToUnixTimeSeconds()}/{to.ToUnixTimeSeconds()}";
-        return await GetAsync(path, token, "statement", cancellationToken) switch
+        return await SendAsync(HttpMethod.Get, path, token, "statement", null, cancellationToken) switch
         {
             Answer.Body body => Read(body.Text, "statement", ParseStatement)
                 ?? new StatementResult.Unavailable(SyncFailure.UnreadableAnswer),
@@ -93,9 +104,27 @@ internal sealed class MonobankClient(HttpClient http, TimeProvider time, ILogger
         };
     }
 
-    private async Task<Answer> GetAsync(string path, string token, string method, CancellationToken cancellationToken)
+    // monobank checks a non-empty URL with a GET that must answer 200 before it answers here, and an
+    // empty URL removes the webhook.
+    public async Task<WebhookResult> SetWebhookAsync(string token, string url, CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        // Serialized up front so the request carries a Content-Length: JsonContent streams chunked.
+        var content = new StringContent(
+            JsonSerializer.Serialize(new { webHookUrl = url }), System.Text.Encoding.UTF8, "application/json");
+        return await SendAsync(HttpMethod.Post, "personal/webhook", token, "webhook", content, cancellationToken) switch
+        {
+            Answer.Body => new WebhookResult.Set(),
+            Answer.InvalidToken => new WebhookResult.InvalidToken(),
+            Answer.RateLimited => new WebhookResult.Unavailable(SyncFailure.RateLimited),
+            Answer.Unavailable unavailable => new WebhookResult.Unavailable(unavailable.Failure),
+            _ => throw new UnreachableException(),
+        };
+    }
+
+    private async Task<Answer> SendAsync(
+        HttpMethod httpMethod, string path, string token, string method, HttpContent? content, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(httpMethod, path) { Content = content };
         request.Headers.Add("X-Token", token);
 
         HttpResponseMessage response;

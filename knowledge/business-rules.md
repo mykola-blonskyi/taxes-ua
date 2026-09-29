@@ -241,9 +241,24 @@ cursor: setting an earlier registration date later does not re-read the months b
 After the backfill, every sync is the last 31 days. The next window starts at the second the previous
 one ended; an operation on that boundary is read twice and recorded once.
 
+A sync is queued by "sync now", by saving a token or following an account, by the bank's webhook
+and by the nightly run. The webhook (ADR-012) is a signal only: a POST to the owner's secret path
+queues a sync of every followed account and its body is never read, so an operation is recorded only
+from the statement the sync reads with the owner's token. The queue holds at most one waiting copy
+of an account, so a burst of notifications costs at most one sync beyond the running one. An
+unknown secret gets 404 and queues nothing. The webhook is registered only when a public base URL is
+configured; its registration never blocks saving a token, and a failure is shown in settings. The
+nightly run, at 03:00 in Kyiv, queues every followed account of every connection whose token was not
+rejected, whatever its cursor says, so an operation no webhook announced is imported by morning.
+
+An account's history counts as imported from the moment a window reaching the present is first
+committed, and stays so however old the cursor grows (a missed night, a bank outage). Settings
+shows "history loading, reached <month>" only before that. A restore clears the mark with the
+cursor.
+
 The sync queue lives in memory, so on start the app queues again every followed account whose cursor
 is missing or older than 31 days, unless its owner's token was rejected. A restore clears every
-account's cursor and last failure, since the restored transactions replace the synced ones, and queues
+account's cursor, history mark and last failure, since the restored transactions replace the synced ones, and queues
 the followed accounts, which walk again from the start and record only what the file lacks. Each
 window commits only while the walk still holds: the cursor is still where the walk left it, the
 account is still followed, and the connection still has the token the walk read and is not rejected.

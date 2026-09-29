@@ -22,4 +22,17 @@ internal sealed class MonobankConnection
     // When monobank answered 401 or 403 to a statement call with this token. Every sync of the owner
     // stops until a new token is saved, which clears it.
     public DateTimeOffset? RejectedAt { get; set; }
+
+    // The random path segment of this owner's webhook URL (ADR-012), 64 hex characters. A new one is
+    // drawn on every token save, so a URL registered for an earlier token stops answering.
+    public string WebhookSecret { get; set; } = string.Empty;
+
+    // The URL monobank last accepted for this token, or null when none is registered. It differs from
+    // the one MonobankWebhooks wants while a registration is pending or has failed.
+    public string? WebhookUrl { get; set; }
+
+    // The last failed registration, kept until one succeeds. Both set or both null.
+    public DateTimeOffset? WebhookFailedAt { get; set; }
+
+    public SyncFailure? WebhookFailure { get; set; }
 }

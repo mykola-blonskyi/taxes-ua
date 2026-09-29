@@ -453,3 +453,65 @@ replace from monobank, asking for a reconnect is an acceptable cost.  The Coolif
 the key once during the runbook's setup step (`docs/deploy.md`) and treats it exactly like the
 Google client secret: set once, rotated by hand when needed.
 
+
+## ADR-012. The monobank webhook is a signal to sync, found by a secret path
+
+Date: 2026-09-29
+
+Status: Accepted
+
+### Context
+
+#79 wants a new operation to appear within a minute or two. monobank can call a URL the app sets
+with `POST /personal/webhook`: it checks the URL once with a GET that must answer 200, then POSTs
+`{type: "StatementItem", data: {account, statementItem}}` for each new operation, retries after 60
+and 600 seconds when the answer is not a 200 within 5 seconds, and then disables the webhook.
+
+The published OpenAPI describes no signature, no shared secret and no source address for these
+requests. Anyone who learns the URL can POST any operation in the bank's shape, and the app cannot
+tell it from the bank's.
+
+### Decision
+
+The webhook is a signal, never a data source. `POST /api/monobank/webhook/{secret}` answers 200 at
+once without reading its body and queues a sync of that owner's followed accounts; the sync reads the
+statement with the owner's token, and only the statement's rows are recorded. A forged body can at
+most cause a statement read the rate gate already paces, and the sync queue keeps at most one waiting
+copy per account however many POSTs arrive.
+
+The URL carries a per-owner secret in its path: 32 random bytes as 64 hex characters, drawn on every
+token save, stored on `MonobankConnection` and unique. The GET and the POST find the owner by it and
+answer 404 for any other value, so the URL both routes the notification and keeps strangers from
+queuing syncs. A token replacement draws a new secret, so a URL an earlier token registered stops
+answering.
+
+The app registers the webhook only when `Monobank:PublicBaseUrl` (`MONOBANK_PUBLIC_BASE_URL`) is set,
+because the bank has to reach it; a local stack leaves it empty and never calls the webhook method.
+Emptying it on a deployment that had registered webhooks removes them at the bank on the next start.
+Registration runs in `MonobankWebhooks`, a hosted service with its own queue, on the rate gate's
+`webhook` slot, after the token is saved, so a slow or failed registration never blocks the
+connection and is shown in settings instead. Disconnecting removes the webhook at the bank with an
+empty URL. On start the service registers again every connection whose stored URL differs from the
+wanted one, and the nightly run (03:00 in Kyiv, `MonobankNightlySync`) sets every webhook again,
+since the bank may have disabled one after three failed deliveries.
+
+### Alternatives Considered
+
+Trusting the body, which would save one statement call per operation. Without a signature that lets
+anyone who learns the URL insert income, the one number the owner files with the tax office.
+
+A fixed path authenticated some other way. monobank sends no header to check and publishes no
+address range to allow, so the path is the only secret the request can carry.
+
+Reading the body only to pick the account to sync. It narrows a sync from all followed accounts to
+one, but the account id in the body is as forgeable as the rest, and a sync of three accounts costs
+three paced calls.
+
+### Consequences
+
+A new operation arrives one statement call after the notification, so within a minute unless the
+gate is busy with a backfill. Leaking the secret lets a stranger queue statement reads, which the
+queue and the gate bound; it never lets them read or write data. The secret appears wherever a
+proxy logs request paths, so replacing the token is the way to rotate it. A webhook the bank
+disabled costs at most a day's delay, because the nightly run re-reads the last 31 days and sets the
+webhook again.
