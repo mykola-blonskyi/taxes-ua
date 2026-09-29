@@ -2100,6 +2100,11 @@ export interface components {
             before: null | Record<string, never>;
             after: null | Record<string, never>;
         };
+        BackfillStartResponse: {
+            /** Format: date */
+            from: string;
+            fromRegistrationDate: boolean;
+        };
         BackupDocument: {
             /** Format: int32 */
             schemaVersion: number | string;
@@ -2309,9 +2314,16 @@ export interface components {
             isFollowed: boolean;
             syncPending: boolean;
             lastSync: null | components["schemas"]["LastSyncResponse"];
+            /** Format: date-time */
+            syncedThrough: null | string;
+            backfillComplete: boolean;
+            lastFailure: null | components["schemas"]["SyncFailureResponse"];
         };
         MonobankConnectionResponse: {
             connected: boolean;
+            /** Format: date-time */
+            tokenRejectedAt: null | string;
+            backfillStart: components["schemas"]["BackfillStartResponse"];
             accounts: components["schemas"]["MonobankAccountResponse"][];
         };
         MonobankTokenRequest: {
@@ -2527,6 +2539,13 @@ export interface components {
             locale: string;
             theme: string;
             defaultCurrency: string;
+        };
+        /** @enum {string} */
+        SyncFailure: "BankUnreachable" | "BankTimeout" | "BankError" | "UnreadableAnswer" | "RateLimited" | "TokenUnreadable" | "Unexpected";
+        SyncFailureResponse: {
+            /** Format: date-time */
+            at: string;
+            reason: components["schemas"]["SyncFailure"];
         };
         TaxBurdenResponse: {
             /** Format: int64 */
