@@ -2,11 +2,19 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { Maximize2Icon, XIcon } from "lucide-react";
+import { Dialog } from "radix-ui";
 import { useTranslations } from "next-intl";
 import { formatPlainAmount, parseHryvnia } from "@/shared/lib/money";
+import { Button } from "@/shared/ui/button";
 import { CopyField } from "@/shared/ui/copy-field";
 import { TextField } from "@/shared/ui/fields";
+import { NbuQrCode } from "@/shared/ui/nbu-qr";
 import { Sheet } from "@/shared/ui/sheet";
+
+// Every recipient here is a Treasury account. False hides the QR behind a note, for when a real scan
+// shows banks refuse an NBU QR for a budget transfer (#100).
+const qrForTreasuryAccounts = true;
 
 const missingLabels = {
   iban: "missing.iban",
@@ -20,6 +28,8 @@ type PayDetails = {
   purpose: string;
   recipient: { iban: string; name: string; code: string } | null;
   missing: string[];
+  qrContent: string | null;
+  amountKop: number | string;
 };
 
 export function PayPanel({
@@ -164,6 +174,56 @@ function Details({
         copyValue={amountKop === null ? null : formatPlainAmount(amountKop)}
       />
       <CopyField {...copyProps(t("purpose"))} value={details.purpose} />
+      <QrBlock details={details} amountKop={amountKop} />
+    </div>
+  );
+}
+
+function QrBlock({ details, amountKop }: { details: PayDetails; amountKop: number | null }) {
+  const t = useTranslations("pay");
+  const [enlarged, setEnlarged] = useState(false);
+
+  if (!qrForTreasuryAccounts) {
+    return <p className="text-sm text-muted-foreground">{t("qrTreasuryOff")}</p>;
+  }
+  if (details.qrContent === null) {
+    return <p className="text-sm text-muted-foreground">{t("qrUnavailable")}</p>;
+  }
+  // keepPreviousData keeps the old amount's details on screen while the new ones load.
+  if (amountKop === null || Number(details.amountKop) !== amountKop) {
+    return <p className="text-sm text-muted-foreground">{t("qrUpdating")}</p>;
+  }
+
+  return (
+    <div className="flex min-w-0 flex-col items-center gap-2">
+      <div className="w-full max-w-[240px]">
+        <NbuQrCode content={details.qrContent} label={t("qrLabel")} />
+      </div>
+      <p className="text-center text-sm text-muted-foreground">{t("qrHint")}</p>
+      <Dialog.Root open={enlarged} onOpenChange={setEnlarged}>
+        <Dialog.Trigger asChild>
+          <Button type="button" variant="outline" size="sm">
+            <Maximize2Icon />
+            {t("qrEnlarge")}
+          </Button>
+        </Dialog.Trigger>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/60" />
+          <Dialog.Content
+            aria-describedby={undefined}
+            className="fixed left-1/2 top-1/2 z-[60] w-[min(90vw,90vh)] -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-2 outline-none"
+          >
+            <Dialog.Title className="sr-only">{t("qrLabel")}</Dialog.Title>
+            <Dialog.Close
+              aria-label={t("close")}
+              className="absolute -right-2 -top-2 rounded-full border bg-background p-1.5 text-foreground shadow outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <XIcon className="size-5" />
+            </Dialog.Close>
+            <NbuQrCode content={details.qrContent} label={t("qrLabel")} />
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }
