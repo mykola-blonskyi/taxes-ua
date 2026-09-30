@@ -9,7 +9,15 @@ import { cn } from "@/shared/lib/utils";
 
 type Warnings = PeriodsResponse["warnings"];
 
-export function PeriodWarnings({ year, warnings }: { year: number; warnings: Warnings }) {
+export function PeriodWarnings({
+  year,
+  warnings,
+  limitCrossing,
+}: {
+  year: number;
+  warnings: Warnings;
+  limitCrossing: PeriodsResponse["limitCrossing"];
+}) {
   const t = useTranslations("periods");
 
   const excludedOperationCount = Number(warnings.excludedOperationCount);
@@ -23,14 +31,30 @@ export function PeriodWarnings({ year, warnings }: { year: number; warnings: War
     warnings.yearBeforeRegistration ||
     missingTaxYear !== null ||
     excludedOperationCount > 0 ||
-    negativeQuarters.length > 0;
+    negativeQuarters.length > 0 ||
+    limitCrossing !== null;
 
   if (!hasWarning) {
     return null;
   }
 
+  const switchQuarter = limitCrossing === null ? 0 : Number(limitCrossing.switchFromQuarter);
+  const switchYear = limitCrossing === null ? 0 : Number(limitCrossing.switchFromYear);
+  const skipped = Array.from({ length: Math.max(0, 5 - switchQuarter) }, (_, index) => switchQuarter + index)
+    .map((quarter) => t("quarterNumber", { quarter }))
+    .join(", ");
+
   return (
     <ul className="flex flex-col gap-1.5">
+      {limitCrossing !== null ? (
+        <WarningItem tone="destructive">
+          <span className="font-semibold">{t("warnings.limitCrossing", { quarter: Number(limitCrossing.quarter) })}</span>{" "}
+          {switchYear > year
+            ? t("warnings.limitCrossingNextYear", { switchQuarter, switchYear })
+            : t("warnings.limitCrossingSameYear", { quarters: skipped, switchQuarter, switchYear })}
+        </WarningItem>
+      ) : null}
+
       {warnings.taxYearUnverified ? (
         <WarningItem tone="destructive">
           {t("warnings.taxYearUnverified", { year })}{" "}

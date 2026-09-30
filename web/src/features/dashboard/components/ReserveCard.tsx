@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import type { Reserve } from "@/data/dashboard/useDashboard";
+import type { DashboardResponse, Reserve } from "@/data/dashboard/useDashboard";
 import { formatMoney } from "@/shared/lib/money";
 import { formatLongDate } from "./debt";
 import { DaysLeft } from "./DebtParts";
@@ -12,7 +12,15 @@ const kinds = [
   ["Esv", "esvKop"],
 ] as const;
 
-export function ReserveCard({ reserve, today }: { reserve: Reserve; today: string }) {
+export function ReserveCard({
+  reserve,
+  today,
+  limitCrossing,
+}: {
+  reserve: Reserve;
+  today: string;
+  limitCrossing: DashboardResponse["limitCrossing"];
+}) {
   const t = useTranslations("dashboard.reserve");
   const tKinds = useTranslations("payments.kinds");
   const locale = useLocale();
@@ -46,6 +54,14 @@ export function ReserveCard({ reserve, today }: { reserve: Reserve; today: strin
         </ul>
       )}
       <p className="text-xs text-muted-foreground">{t("hint")}</p>
+      {limitCrossing ? (
+        <p className="break-words text-xs text-destructive">
+          {t("crossingNote", {
+            switchQuarter: Number(limitCrossing.switchFromQuarter),
+            switchYear: Number(limitCrossing.switchFromYear),
+          })}
+        </p>
+      ) : null}
     </section>
   );
 }

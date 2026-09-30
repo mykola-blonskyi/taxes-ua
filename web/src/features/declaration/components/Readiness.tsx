@@ -58,8 +58,8 @@ export function Readiness({ year, readiness }: { year: number; readiness: Declar
     },
     {
       key: "limit",
-      met: !readiness.incomeOverLimit,
-      text: readiness.incomeOverLimit ? t("limitUnmet") : t("limitMet"),
+      met: !readiness.outsideGroup3,
+      text: readiness.outsideGroup3 ? t("limitUnmet") : t("limitMet"),
     },
   ];
 
