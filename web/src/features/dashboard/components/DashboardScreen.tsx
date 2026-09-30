@@ -123,7 +123,7 @@ function LimitCrossingWarning({ crossing }: { crossing: NonNullable<DashboardRes
       className="flex min-w-0 flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-4"
     >
       <h3 className="break-words text-sm font-semibold text-destructive">
-        {t("title", { quarter: Number(crossing.quarter) })}
+        {t("title", { quarter: Number(crossing.quarter), year: Number(crossing.year) })}
       </h3>
       <p className="break-words text-sm text-destructive">
         {t("text", {
@@ -131,6 +131,14 @@ function LimitCrossingWarning({ crossing }: { crossing: NonNullable<DashboardRes
           switchYear: Number(crossing.switchFromYear),
         })}
       </p>
+      {crossing.backOnGroup3From ? (
+        <p className="break-words text-sm text-muted-foreground">
+          {t("back", {
+            quarter: Number(crossing.backOnGroup3From.quarter),
+            year: Number(crossing.backOnGroup3From.year),
+          })}
+        </p>
+      ) : null}
     </section>
   );
 }

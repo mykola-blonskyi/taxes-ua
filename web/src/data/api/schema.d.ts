@@ -4516,11 +4516,14 @@ export interface components {
         };
         LimitCrossingResponse: {
             /** Format: int32 */
+            year: number | string;
+            /** Format: int32 */
             quarter: number | string;
             /** Format: int32 */
             switchFromYear: number | string;
             /** Format: int32 */
             switchFromQuarter: number | string;
+            backOnGroup3From: null | components["schemas"]["YearQuarter"];
         };
         /** @enum {string} */
         LimitLevel: "Ok" | "Warn" | "Exceeded";
@@ -4862,6 +4865,7 @@ export interface components {
             locale: string;
             theme: string;
             defaultCurrency: string;
+            backOnGroup3From: null | components["schemas"]["YearQuarter"];
         };
         SettingsRequest: {
             /** Format: date */
@@ -4875,6 +4879,7 @@ export interface components {
             locale: string;
             theme: string;
             defaultCurrency: string;
+            backOnGroup3From?: null | components["schemas"]["YearQuarter"];
         };
         SettingsResponse: {
             /** Format: date */
@@ -4888,6 +4893,7 @@ export interface components {
             locale: string;
             theme: string;
             defaultCurrency: string;
+            backOnGroup3From: null | components["schemas"]["YearQuarter"];
         };
         /** @enum {string} */
         SyncFailure: "BankUnreachable" | "BankTimeout" | "BankError" | "UnreadableAnswer" | "RateLimited" | "TokenUnreadable" | "TooManyInOneSecond" | "Unexpected";
@@ -5126,6 +5132,12 @@ export interface components {
             singleTax: components["schemas"]["KindYearBalance"];
             militaryLevy: components["schemas"]["KindYearBalance"];
             esv: components["schemas"]["KindYearBalance"];
+        };
+        YearQuarter: {
+            /** Format: int32 */
+            year: number | string;
+            /** Format: int32 */
+            quarter: number | string;
         };
     };
     responses: never;

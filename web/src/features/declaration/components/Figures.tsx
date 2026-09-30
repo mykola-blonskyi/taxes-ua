@@ -36,7 +36,10 @@ export function Figures({ declaration }: { declaration: DeclarationResponse }) {
   const t = useTranslations("declaration.figures");
   const locale = useLocale();
   const { figures, limitCrossing } = declaration;
-  const crossedHere = limitCrossing !== null && Number(limitCrossing.quarter) === Number(declaration.quarter);
+  const crossedHere =
+    limitCrossing !== null &&
+    Number(limitCrossing.year) === Number(declaration.year) &&
+    Number(limitCrossing.quarter) === Number(declaration.quarter);
   const rates = {
     singleTax: formatLabelRate(Number(declaration.singleTaxRateBp), locale),
     excess: formatLabelRate(Number(declaration.excessRateBp), locale),
@@ -64,6 +67,7 @@ export function Figures({ declaration }: { declaration: DeclarationResponse }) {
           {limitCrossing
             ? t("afterGroup3", {
                 quarter: Number(limitCrossing.quarter),
+                year: Number(limitCrossing.year),
                 switchQuarter: Number(limitCrossing.switchFromQuarter),
                 switchYear: Number(limitCrossing.switchFromYear),
               })
