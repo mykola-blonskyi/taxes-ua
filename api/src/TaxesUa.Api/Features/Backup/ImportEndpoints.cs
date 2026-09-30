@@ -262,6 +262,12 @@ public static class ImportEndpoints
             foreach (var month in months.Where(month => month.Year == year))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (!loaded.Viewed.Accrual.InGroup3((month.Month + 2) / 3))
+                {
+                    nothingDue += Kinds.Length;
+                    continue;
+                }
+
                 var accrued = loaded.Viewed.Accrual.Months[month.Month - 1];
                 var recommended = new DateOnly(year, month.Month, 1).AddMonths(1)
                     .AddDays(loaded.Viewed.Config.AdvanceRecommendedDay - 1);

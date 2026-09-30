@@ -19,7 +19,7 @@ internal static class DeclarationReadiness
         bool registrationDateSet,
         InvoicingDetails? invoicing,
         DeclarationDetails? details,
-        bool incomeOverLimit,
+        bool outsideGroup3,
         PaymentLedger? ledger)
     {
         var missingDetails = DeclarationDetails.Missing(invoicing, details);
@@ -28,7 +28,7 @@ internal static class DeclarationReadiness
             && taxYearVerified
             && registrationDateSet
             && missingDetails.Length == 0
-            && !incomeOverLimit;
+            && !outsideGroup3;
 
         return new DeclarationReadinessResponse(
             receiptsToReview,
@@ -36,7 +36,7 @@ internal static class DeclarationReadiness
             taxYearVerified,
             registrationDateSet,
             missingDetails,
-            incomeOverLimit,
+            outsideGroup3,
             new UnpaidResponse(
                 Remaining(ledger?.SingleTax),
                 Remaining(ledger?.MilitaryLevy),
@@ -51,8 +51,9 @@ internal static class DeclarationReadiness
 
 /// <summary>
 /// Every item but <c>Unpaid</c> blocks <c>Ready</c>: receipts or payment candidates left to review,
-/// an unverified tax year, no registration date, a missing detail, and income over the limit, whose
-/// 15% lines the app does not fill yet (#118). <c>ReceiptsToReview</c> counts the year's imports
+/// an unverified tax year, no registration date, a missing detail, and a quarter after the one the
+/// limit was crossed in, which has no group 3 declaration (Rule 4). The crossing quarter itself does not
+/// block: its 15% lines are filled. <c>ReceiptsToReview</c> counts the year's imports
 /// through the quarter's end; <c>PendingPaymentCandidates</c> counts the pending ones whose payment
 /// date in Kyiv falls in the quarter.
 /// </summary>
@@ -62,7 +63,7 @@ internal sealed record DeclarationReadinessResponse(
     bool TaxYearVerified,
     bool RegistrationDateSet,
     DeclarationDetailField[] MissingDetails,
-    bool IncomeOverLimit,
+    bool OutsideGroup3,
     UnpaidResponse Unpaid,
     bool Ready);
 

@@ -14,6 +14,7 @@ using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
+using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
@@ -46,7 +47,7 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
         var declaration = await Get(owner, year, 2);
 
         Assert.Equal(
-            new DeclarationFiguresResponse(22_222_221, 1_111_111, 617_284, 493_827, 222_222, 123_457, 98_765, null),
+            new DeclarationFiguresResponse(22_222_221, 0, 22_222_221, 0, 1_111_111, 1_111_111, 617_284, 493_827, 222_222, 123_457, 98_765, null),
             declaration.Figures);
         Assert.Equal((500, 100), (declaration.SingleTaxRateBp, declaration.MilitaryLevyRateBp));
         Assert.Equal(
@@ -233,7 +234,7 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
     }
 
     [Fact]
-    public async Task Income_over_the_limit_withholds_the_figures_and_blocks_the_declaration()
+    public async Task The_crossing_quarter_declares_its_excess_and_a_later_quarter_has_no_group_3_declaration()
     {
         const int year = 2086;
         await using var application = At(new DateOnly(year, 7, 5));
@@ -243,10 +244,17 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
         await PostIncome(owner, new DateOnly(year, 5, 10), 500_000);
 
         var under = await Get(owner, year, 1);
-        var over = await Get(owner, year, 2);
+        var crossed = await Get(owner, year, 2);
+        var after = await Get(owner, year, 3);
 
-        Assert.Equal((false, true, true), (under.Readiness.IncomeOverLimit, under.Readiness.Ready, under.Figures is not null));
-        Assert.Equal((true, false, true), (over.Readiness.IncomeOverLimit, over.Readiness.Ready, over.Figures is null));
+        Assert.Equal((false, true, 0L), (under.Readiness.OutsideGroup3, under.Readiness.Ready, under.Figures!.ExcessIncomeKop));
+        Assert.Equal(
+            new DeclarationFiguresResponse(864_700, 135_300, 1_000_000, 20_295, 43_235, 63_530, 25_000, 38_530, 10_000, 5_000, 5_000, null),
+            crossed.Figures);
+        Assert.Equal((false, true, 1_500), (crossed.Readiness.OutsideGroup3, crossed.Readiness.Ready, crossed.ExcessRateBp));
+        Assert.Equal(new LimitCrossingResponse(2, year, 3), crossed.LimitCrossing);
+        Assert.Equal((true, false, true), (after.Readiness.OutsideGroup3, after.Readiness.Ready, after.Figures is null));
+        Assert.Equal(new LimitCrossingResponse(2, year, 3), after.LimitCrossing);
     }
 
     [Fact]
