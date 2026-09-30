@@ -37,8 +37,9 @@ internal sealed record BackupDocument(
     // 2 added bankAccounts, importBatches and the transactions' import fields (#76); 3 added
     // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91); 5 added
     // the clients' details (#90); 6 added invoices (#92); 7 added declarationDetails and declarationFilings
-    // (#110). An older file is upgraded to this shape one version at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 7;
+    // (#110); 8 added the receipts' invoice links (#93). An older file is upgraded to this shape one version
+    // at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 8;
 
     private const int MaxExternalIdLength = 200;
 
@@ -107,6 +108,11 @@ internal sealed record BackupDocument(
         if (version <= 6)
         {
             UpgradeFromVersion6(root);
+        }
+
+        if (version <= 7)
+        {
+            UpgradeFromVersion7(root);
         }
     }
 
@@ -192,9 +198,24 @@ internal sealed record BackupDocument(
     // A version 6 file predates the declaration: no details and nothing marked filed.
     private static void UpgradeFromVersion6(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 7;
         root["declarationDetails"] = null;
         root["declarationFilings"] = new JsonArray();
+    }
+
+    // A version 7 file predates paying an invoice with a receipt: no receipt is linked.
+    private static void UpgradeFromVersion7(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        if (root["transactions"] is not JsonArray transactions)
+        {
+            return;
+        }
+
+        foreach (var transaction in transactions.OfType<JsonObject>())
+        {
+            transaction["invoiceId"] = null;
+        }
     }
 
     /// <summary>
@@ -276,6 +297,7 @@ internal sealed record BackupDocument(
         }
 
         var invoiceIds = new HashSet<Guid>();
+        var invoicesById = new Dictionary<Guid, InvoiceBackup>();
         var invoiceNumbers = new HashSet<(int, int)>();
         for (var i = 0; i < Invoices.Length; i++)
         {
@@ -283,6 +305,10 @@ internal sealed record BackupDocument(
             if (invoice.Id == Guid.Empty || !invoiceIds.Add(invoice.Id))
             {
                 errors[$"invoices[{i}].id"] = ["id must be a non-empty id no other invoice has."];
+            }
+            else
+            {
+                invoicesById[invoice.Id] = invoice;
             }
 
             if (!clientNames.ContainsKey(invoice.ClientId))
@@ -368,6 +394,11 @@ internal sealed record BackupDocument(
                 // ValidateLinksAsync says the same after the insert, but two refunds linking each other
                 // are a cycle EF cannot order, so the insert itself would fail first.
                 errors[$"{at}.refundsTransactionId"] = ["refundsTransactionId must be the id of an Income transaction."];
+            }
+
+            if (transaction.InvoiceError(invoicesById) is { } invoiceError)
+            {
+                errors[$"{at}.invoiceId"] = [invoiceError];
             }
 
             if (transaction.ImportError(accountIds, batchAccounts) is var (importKey, importMessage))
@@ -529,6 +560,7 @@ internal sealed record TransactionBackup(
     string? NonIncomeReason,
     Guid? ClientId,
     Guid? RefundsTransactionId,
+    Guid? InvoiceId,
     string? InvoiceNumber,
     string? Description,
     Guid? BankAccountId,
@@ -553,6 +585,7 @@ internal sealed record TransactionBackup(
         row.NonIncomeReason,
         row.ClientId,
         row.RefundsTransactionId,
+        row.InvoiceId,
         row.InvoiceNumber,
         row.Description,
         row.BankAccountId,
@@ -588,6 +621,35 @@ internal sealed record TransactionBackup(
             ("importBatchId", "importBatchId must be the id of an import batch of the same bank account."),
         _ => null,
     };
+
+    // What linking leaves on a receipt (Rule 14): a confirmed Income row in the currency of an issued
+    // invoice, carrying its number. Linking confirms an imported receipt, and dismissing one unlinks it.
+    public string? InvoiceError(IReadOnlyDictionary<Guid, InvoiceBackup> invoices)
+    {
+        if (InvoiceId is not { } invoiceId)
+        {
+            return null;
+        }
+
+        if (!invoices.TryGetValue(invoiceId, out var invoice))
+        {
+            return "invoiceId must be the id of one of the invoices.";
+        }
+
+        var number = invoice is { NumberYear: { } year, NumberSequence: { } sequence }
+            ? InvoiceNumbers.Format(year, sequence)
+            : null;
+
+        return this switch
+        {
+            _ when Kind != TransactionKind.Income || ReviewStatus != ReviewStatus.Confirmed =>
+                "invoiceId is set only on a confirmed Income transaction.",
+            _ when invoice.Status != InvoiceStatus.Issued => "invoiceId must be the id of an issued invoice.",
+            _ when Currency != invoice.Currency => $"A receipt paying a {invoice.Currency} invoice must be in {invoice.Currency}.",
+            _ when InvoiceNumber?.Trim() != number => "invoiceNumber must be the number of the invoice the receipt pays.",
+            _ => null,
+        };
+    }
 
     // A foreign rate travels as the manual rate so the endpoint's own range check covers it, whichever
     // source fixed it.
@@ -644,6 +706,7 @@ internal sealed record TransactionBackup(
             NonIncomeReason = text.NonIncomeReason,
             ClientId = ClientId is { } clientId ? id(clientId) : null,
             RefundsTransactionId = RefundsTransactionId is { } receiptId ? id(receiptId) : null,
+            InvoiceId = InvoiceId is { } invoiceId ? id(invoiceId) : null,
             InvoiceNumber = text.InvoiceNumber,
             Description = text.Description,
             BankAccountId = BankAccountId is { } bankAccountId ? accountId(bankAccountId) : null,

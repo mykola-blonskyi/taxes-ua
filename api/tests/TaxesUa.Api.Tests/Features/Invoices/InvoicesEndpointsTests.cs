@@ -22,7 +22,7 @@ namespace TaxesUa.Api.Tests.Features.Invoices;
 // clients. The second owner never saves invoicing details, which the missing-requisites test relies on.
 public sealed class InvoicesEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
-    private static readonly JsonSerializerOptions Json =
+    internal static readonly JsonSerializerOptions Json =
         new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
     private static readonly DateOnly Today = new(2040, 3, 10);
@@ -452,7 +452,7 @@ public sealed class InvoicesEndpointsTests(ApiFixture fixture) : IClassFixture<A
         fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
             services.AddSingleton<TimeProvider>(new FakeTime(new DateTimeOffset(Today, new TimeOnly(10, 0), TimeSpan.Zero)))));
 
-    private static async Task SaveDetails(
+    internal static async Task SaveDetails(
         HttpClient owner, string sellerNameEn = "FOP Test Testovych", string iban = InvoicingTestData.ValidIban)
     {
         var request = new InvoicingDetailsRequest(
@@ -484,7 +484,7 @@ public sealed class InvoicesEndpointsTests(ApiFixture fixture) : IClassFixture<A
         Assert.Equal(HttpStatusCode.NoContent, (await owner.PutAsync("/api/settings/invoicing/signature", content)).StatusCode);
     }
 
-    private static ClientRequest ClientBody(string name, string? address = "1 Main St, Springfield", bool complete = true) => new(
+    internal static ClientRequest ClientBody(string name, string? address = "1 Main St, Springfield", bool complete = true) => new(
         name,
         complete ? address : null,
         complete ? "US" : null,
@@ -493,17 +493,17 @@ public sealed class InvoicesEndpointsTests(ApiFixture fixture) : IClassFixture<A
         Currency.USD,
         null);
 
-    private static async Task<ClientResponse> CreateClient(HttpClient owner, string name, bool complete = true)
+    internal static async Task<ClientResponse> CreateClient(HttpClient owner, string name, bool complete = true)
     {
         var response = await owner.PostAsJsonAsync("/api/clients", ClientBody(name, complete: complete), Json);
         Assert.True(response.StatusCode == HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
         return (await response.Content.ReadFromJsonAsync<ClientResponse>(Json))!;
     }
 
-    private static InvoiceLineRequest Line(string en, string uk, InvoiceUnit unit, long quantityThousandths, long rateMinor) =>
+    internal static InvoiceLineRequest Line(string en, string uk, InvoiceUnit unit, long quantityThousandths, long rateMinor) =>
         new(en, uk, unit, quantityThousandths, rateMinor);
 
-    private static InvoiceRequest Request(
+    internal static InvoiceRequest Request(
         Guid clientId, DateOnly issueDate, InvoiceLineRequest[]? lines = null, Currency currency = Currency.USD) => new(
         clientId,
         issueDate,
@@ -511,7 +511,7 @@ public sealed class InvoicesEndpointsTests(ApiFixture fixture) : IClassFixture<A
         currency,
         lines ?? [Line("Consulting", "Консультації", InvoiceUnit.Hour, 1_000, 100_00)]);
 
-    private static async Task<InvoiceResponse> CreateDraft(
+    internal static async Task<InvoiceResponse> CreateDraft(
         HttpClient owner,
         Guid clientId,
         DateOnly issueDate,
@@ -523,14 +523,14 @@ public sealed class InvoicesEndpointsTests(ApiFixture fixture) : IClassFixture<A
         return (await response.Content.ReadFromJsonAsync<InvoiceResponse>(Json))!;
     }
 
-    private static async Task<InvoiceResponse> Issue(HttpClient owner, Guid id)
+    internal static async Task<InvoiceResponse> Issue(HttpClient owner, Guid id)
     {
         var response = await owner.PostAsync($"/api/invoices/{id}/issue", null);
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         return (await response.Content.ReadFromJsonAsync<InvoiceResponse>(Json))!;
     }
 
-    private static Task<HttpResponseMessage> Cancel(HttpClient owner, Guid id, string reason) =>
+    internal static Task<HttpResponseMessage> Cancel(HttpClient owner, Guid id, string reason) =>
         owner.PostAsJsonAsync($"/api/invoices/{id}/cancel", new CancelInvoiceRequest(reason), Json);
 
     private static async Task<string> PdfText(HttpClient owner, Guid id)

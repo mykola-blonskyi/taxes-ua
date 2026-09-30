@@ -259,7 +259,13 @@ Fields:
   refunds linked to one receipt total at most its `AmountMinor`, compared in that currency, not in
   hryvnia. A receipt with linked refunds cannot be deleted and keeps its kind (`Income`) and
   currency.
-- `ClientId?`, `InvoiceId?`, `InvoiceNumber?`, `Description`, `Counterparty`.
+- `ClientId?`, `Description`, `Counterparty`.
+- `InvoiceId?` the issued invoice this receipt pays (#93): set only by linking, only on a confirmed
+  `Income` row in the invoice's currency, to the same owner's issued invoice. A receipt pays at most one
+  invoice. `InvoiceNumber?` is free text on an unlinked receipt; linking overwrites it with the invoice's
+  number and unlinking clears it. While linked, the receipt keeps its kind, currency and number (an edit
+  changing them is refused). Deleting a linked receipt removes the link with it; dismissing an imported
+  one clears both fields.
 - `BankAccountId?` the account an imported row came from, and `ExternalId?` the bank's operation id,
   unique together. Both are set on an imported row and neither on a typed one.
 - `BankTime?` the bank's own instant for the operation; `ValueDate` is its Kyiv date.
@@ -365,7 +371,7 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (7), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (8), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
 payment details and the signature as base64 with its content type), `Invoices` (with their lines, their
 number as year and sequence, the frozen snapshot and the frozen signature as base64), `DeclarationDetails?`,
@@ -378,15 +384,16 @@ in it, so the file carries no bank access. Version 2 added the bank accounts, th
 the transactions' import fields (#76); version 3 added the budget payment candidates, all statuses,
 and the payments' bank operation (#80); version 4 added the invoicing details (#91); version 5 added the
 clients' details (#90); version 6 added the invoices (#92); version 7 added the declaration details and
-the filed marks (#110). A version 1 file still restores, read as having none of them and every transaction
-`Confirmed`, a version 2 file as having no candidates and every payment typed by the owner, a version 1 to 3
-file as having no invoicing details, so the owner's are cleared like the rest, a version 1 to 4 file as
-having no details on any client, a version 1 to 5 file as having no invoices, and a version 1 to 6 file as
-having no declaration details and nothing marked filed; a file of a version this build does not know is
-refused by its version number rather than by whichever field it added.
+the filed marks (#110); version 8 added the receipts' `InvoiceId` (#93). A version 1 file still restores,
+read as having none of them and every transaction `Confirmed`, a version 2 file as having no candidates and
+every payment typed by the owner, a version 1 to 3 file as having no invoicing details, so the owner's are
+cleared like the rest, a version 1 to 4 file as having no details on any client, a version 1 to 5 file as
+having no invoices, a version 1 to 6 file as having no declaration details and nothing marked filed, and a
+version 1 to 7 file as having no receipt linked to an invoice; a file of a version this build does not know
+is refused by its version number rather than by whichever field it added.
 
 A restore replaces the owner's settings, invoicing details, declaration details, filed marks, clients, invoices, transactions, payments, candidates and import batches in one
-database transaction and passes every row through the endpoints' own validation, refund links
+database transaction and passes every row through the endpoints' own validation, refund and invoice links
 included; any violation changes nothing. Bank accounts are matched rather than replaced (see
 `BankAccount`). Ids are kept, so a restore after a wipe reproduces the same file. When another owner
 still holds one of the ids, every id in the file is replaced by a fresh one and the links follow.
@@ -524,8 +531,17 @@ invoicing details and the client live, marked DRAFT. Issuing an issued invoice r
 issuing a cancelled one is refused. An issued invoice is never edited or deleted (409): it is cancelled
 with a reason and keeps its number, and its PDF, marked CANCELLED, is still rendered from the
 snapshot. Duplicating any invoice creates a draft dated today with the source's client, currency, lines
-and payment term. Paid and overdue come with the receipt links of #93.
+and payment term. An invoice with receipts linked cannot be cancelled (409) until they are unlinked.
+
+Payment (#93): receipts link to an issued invoice (`Transaction.InvoiceId`). Derived on read and never
+stored, the API returns `Standing: Draft | Issued | Overdue | Paid | Cancelled`, `PaidMinor` (the linked
+receipts less the refunds linked to each) and `DueMinor` (the total less `PaidMinor`, null on a draft and
+a cancelled invoice); an invoice also lists its receipts. Paid when `PaidMinor` reaches the total;
+overdue when issued, not paid and today in Kyiv is after `DueDate` (Rule 14). The owner links from the
+invoice, choosing among unlinked receipts in its currency of its client or of no client, newest first,
+or from the receipt, choosing among the open invoices in its currency of its client (any client's when
+it names none), closest due date first.
 
 Audited as `Invoice`: `Create`, `Update` (edits, issue, cancel) and `Delete` of a draft.
 
-Relationships: belongs to `User` and `Client`.
+Relationships: belongs to `User` and `Client`, has many `Transaction` (the receipts paying it).

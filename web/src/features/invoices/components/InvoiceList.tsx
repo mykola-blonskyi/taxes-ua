@@ -71,7 +71,7 @@ export function InvoiceList({ onOpen, onNew }: { onOpen: (id: string) => void; o
               >
                 <span className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                   <span className="break-words font-medium">{invoice.number ?? t("list.draftNumber")}</span>
-                  <InvoiceStatusBadge status={invoice.status} />
+                  <InvoiceStatusBadge standing={invoice.standing} />
                 </span>
                 <span className="break-words text-sm">{invoice.clientName}</span>
                 <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -85,6 +85,11 @@ export function InvoiceList({ onOpen, onNew }: { onOpen: (id: string) => void; o
                     {formatAmount(Number(invoice.totalMinor), invoice.currency, locale)}
                   </span>
                 </span>
+                {invoice.dueMinor !== null && invoice.standing !== "Paid" ? (
+                  <span className="text-xs text-muted-foreground">
+                    {t("list.due", { amount: formatAmount(Number(invoice.dueMinor), invoice.currency, locale) })}
+                  </span>
+                ) : null}
               </button>
             </li>
           ))}

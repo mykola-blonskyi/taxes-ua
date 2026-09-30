@@ -26,11 +26,13 @@ export function DashboardScreen() {
 
   const { nextStep, today } = data;
   const needsReview = Number(data.needsReviewCount);
+  const overdueInvoices = Number(data.overdueInvoiceCount);
 
   return (
     <div className="flex flex-col gap-6">
       {needsReview > 0 ? <ReviewWarning count={needsReview} /> : null}
       {data.declaration ? <DeclarationDue due={data.declaration} today={today} /> : null}
+      {overdueInvoices > 0 ? <OverdueInvoicesNotice count={overdueInvoices} /> : null}
       {nextStep.state === "Pay" ? (
         <>
           <HeroCard now={nextStep.now} today={today} busy={isFetching} />
@@ -142,6 +144,19 @@ function DeclarationDue({ due, today }: { due: NonNullable<DashboardResponse["de
         href={declarationHref(year, quarter)}
         className="text-sm font-medium text-primary underline-offset-4 hover:underline"
       >
+        {t("cta")}
+      </Link>
+    </section>
+  );
+}
+
+function OverdueInvoicesNotice({ count }: { count: number }) {
+  const t = useTranslations("dashboard.overdueInvoices");
+
+  return (
+    <section className="flex flex-col gap-2 rounded-lg border bg-muted p-4">
+      <h3 className="text-sm font-semibold text-destructive">{t("title", { count })}</h3>
+      <Link href="/invoices" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
         {t("cta")}
       </Link>
     </section>

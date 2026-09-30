@@ -7,6 +7,7 @@ using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
+using TaxesUa.Api.Features.Transactions;
 
 namespace TaxesUa.Api.Features.Invoices;
 
@@ -24,6 +25,7 @@ public static class InvoicesEndpoints
                 int? year,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -56,7 +58,13 @@ public static class InvoicesEndpoints
                     .ThenByDescending(invoice => invoice.CreatedAt)
                     .ToListAsync(cancellationToken);
 
-                return Results.Ok(rows.Select(ToSummary).ToArray());
+                var receipts = await InvoicePayments.ReceiptsAsync(
+                    database, user.Id, [.. rows.Select(invoice => invoice.Id)], cancellationToken);
+                var today = time.TodayInKyiv();
+
+                return Results.Ok(rows
+                    .Select(invoice => ToSummary(invoice, InvoicePayments.Balance(invoice, receipts[invoice.Id], today)))
+                    .ToArray());
             })
             .Produces<InvoiceSummary[]>()
             .Produces(StatusCodes.Status401Unauthorized);
@@ -65,6 +73,7 @@ public static class InvoicesEndpoints
                 Guid id,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -76,7 +85,7 @@ public static class InvoicesEndpoints
 
                 var invoice = await FindAsync(database, user.Id, id, cancellationToken);
 
-                return invoice is null ? Missing(id) : Results.Ok(ToResponse(invoice));
+                return invoice is null ? Missing(id) : Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
             })
             .Produces<InvoiceResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -121,7 +130,7 @@ public static class InvoicesEndpoints
                 database.Invoices.Add(invoice);
                 await database.SaveChangesAsync(cancellationToken);
 
-                return Results.Created($"/api/invoices/{invoice.Id}", ToResponse(invoice));
+                return Results.Created($"/api/invoices/{invoice.Id}", await ResponseAsync(database, invoice, time, cancellationToken));
             })
             .Produces<InvoiceResponse>(StatusCodes.Status201Created)
             .ProducesValidationProblem()
@@ -172,7 +181,7 @@ public static class InvoicesEndpoints
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                return Results.Ok(ToResponse(invoice));
+                return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
             })
             .Produces<InvoiceResponse>()
             .ProducesValidationProblem()
@@ -258,7 +267,7 @@ public static class InvoicesEndpoints
                 database.Invoices.Add(copy);
                 await database.SaveChangesAsync(cancellationToken);
 
-                return Results.Created($"/api/invoices/{copy.Id}", ToResponse(copy));
+                return Results.Created($"/api/invoices/{copy.Id}", await ResponseAsync(database, copy, time, cancellationToken));
             })
             .Produces<InvoiceResponse>(StatusCodes.Status201Created)
             .Produces(StatusCodes.Status401Unauthorized)
@@ -291,7 +300,7 @@ public static class InvoicesEndpoints
                 switch (invoice.Status)
                 {
                     case InvoiceStatus.Issued:
-                        return Results.Ok(ToResponse(invoice));
+                        return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
                     case InvoiceStatus.Cancelled:
                         return Results.Problem(
                             statusCode: StatusCodes.Status409Conflict,
@@ -324,7 +333,7 @@ public static class InvoicesEndpoints
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                return Results.Ok(ToResponse(invoice));
+                return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
             })
             .Produces<InvoiceResponse>()
             .ProducesValidationProblem()
@@ -368,7 +377,15 @@ public static class InvoicesEndpoints
                             statusCode: StatusCodes.Status409Conflict,
                             title: "A draft has no number to account for. Delete it instead.");
                     case InvoiceStatus.Cancelled:
-                        return Results.Ok(ToResponse(invoice));
+                        return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
+                }
+
+                // A link always points at an issued invoice, so the receipts leave before the invoice goes.
+                if (await database.Transactions.AnyAsync(row => row.InvoiceId == invoice.Id, cancellationToken))
+                {
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status409Conflict,
+                        title: $"Invoice {invoice.Number} has receipts linked. Unlink them before cancelling it.");
                 }
 
                 var now = time.GetUtcNow();
@@ -379,7 +396,7 @@ public static class InvoicesEndpoints
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                return Results.Ok(ToResponse(invoice));
+                return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
             })
             .Produces<InvoiceResponse>()
             .ProducesValidationProblem()
@@ -430,6 +447,206 @@ public static class InvoicesEndpoints
                 return Results.File(InvoicePdf.ToPdf(model), "application/pdf");
             })
             .Produces<byte[]>(StatusCodes.Status200OK, "application/pdf")
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        invoices.MapPost("/{id:guid}/receipts/{receiptId:guid}", async (
+                Guid id,
+                Guid receiptId,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                TimeProvider time,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                var invoice = await FindAsync(database, user.Id, id, cancellationToken);
+                if (invoice is null)
+                {
+                    return Missing(id);
+                }
+
+                var receipt = await database.Transactions
+                    .FirstOrDefaultAsync(row => row.Id == receiptId && row.UserId == user.Id, cancellationToken);
+                if (receipt is null)
+                {
+                    return MissingReceipt(receiptId);
+                }
+
+                if (receipt.InvoiceId != invoice.Id)
+                {
+                    var linked = await InvoicePayments.ReceiptsAsync(database, user.Id, [invoice.Id], cancellationToken);
+                    if (InvoicePayments.LinkConflict(invoice, receipt, InvoicePayments.PaidMinor(linked[invoice.Id])) is { } conflict)
+                    {
+                        return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: conflict);
+                    }
+
+                    // Linking is the owner's word on what the money is, so it reviews an imported receipt
+                    // and a sync can no longer move its kind.
+                    receipt.InvoiceId = invoice.Id;
+                    receipt.InvoiceNumber = invoice.Number;
+                    receipt.ReviewStatus = ReviewStatus.Confirmed;
+                    receipt.UpdatedAt = time.GetUtcNow();
+                    await database.SaveChangesAsync(cancellationToken);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+
+                return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
+            })
+            .Produces<InvoiceResponse>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
+
+        invoices.MapDelete("/{id:guid}/receipts/{receiptId:guid}", async (
+                Guid id,
+                Guid receiptId,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                TimeProvider time,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                var invoice = await FindAsync(database, user.Id, id, cancellationToken);
+                if (invoice is null)
+                {
+                    return Missing(id);
+                }
+
+                var receipt = await database.Transactions
+                    .FirstOrDefaultAsync(row => row.Id == receiptId && row.UserId == user.Id, cancellationToken);
+                if (receipt is null)
+                {
+                    return MissingReceipt(receiptId);
+                }
+
+                if (receipt.InvoiceId == invoice.Id)
+                {
+                    receipt.InvoiceId = null;
+                    receipt.InvoiceNumber = null;
+                    receipt.UpdatedAt = time.GetUtcNow();
+                    await database.SaveChangesAsync(cancellationToken);
+                }
+
+                await transaction.CommitAsync(cancellationToken);
+
+                return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
+            })
+            .Produces<InvoiceResponse>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        // Newest first: unlinked, in the invoice's currency, and the invoice's client's or no client's, so
+        // a receipt typed without a client is not stranded.
+        invoices.MapGet("/{id:guid}/receipt-options", async (
+                Guid id,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                var invoice = await FindAsync(database, user.Id, id, cancellationToken, tracked: false);
+                if (invoice is null)
+                {
+                    return Missing(id);
+                }
+
+                if (invoice.Status != InvoiceStatus.Issued)
+                {
+                    return Results.Ok(Array.Empty<ReceiptOption>());
+                }
+
+                var options = await database.Transactions.AsNoTracking()
+                    .Where(row => row.UserId == user.Id
+                        && row.Kind == TransactionKind.Income
+                        && row.InvoiceId == null
+                        && row.Currency == invoice.Currency
+                        && (row.ClientId == invoice.ClientId || row.ClientId == null))
+                    .OrderByDescending(row => row.ValueDate)
+                    .ThenByDescending(row => row.CreatedAt)
+                    .Select(row => new ReceiptOption(
+                        row.Id,
+                        row.ValueDate,
+                        row.AmountMinor,
+                        row.Currency,
+                        row.Client == null ? null : row.Client.Name))
+                    .ToArrayAsync(cancellationToken);
+
+                return Results.Ok(options);
+            })
+            .Produces<ReceiptOption[]>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound);
+
+        // Closest due date first: issued, not paid, in the receipt's currency, and its client's, or any
+        // client's when the receipt names none.
+        invoices.MapGet("/payable-by/{receiptId:guid}", async (
+                Guid receiptId,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                TimeProvider time,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                var receipt = await database.Transactions.AsNoTracking()
+                    .FirstOrDefaultAsync(row => row.Id == receiptId && row.UserId == user.Id, cancellationToken);
+                if (receipt is null)
+                {
+                    return MissingReceipt(receiptId);
+                }
+
+                if (receipt is not { Kind: TransactionKind.Income, InvoiceId: null })
+                {
+                    return Results.Ok(Array.Empty<InvoiceSummary>());
+                }
+
+                var candidates = await database.Invoices.AsNoTracking().Include(invoice => invoice.Client)
+                    .Where(invoice => invoice.UserId == user.Id
+                        && invoice.Status == InvoiceStatus.Issued
+                        && invoice.Currency == receipt.Currency
+                        && (receipt.ClientId == null || invoice.ClientId == receipt.ClientId))
+                    .OrderBy(invoice => invoice.DueDate)
+                    .ThenBy(invoice => invoice.NumberYear)
+                    .ThenBy(invoice => invoice.NumberSequence)
+                    .ToListAsync(cancellationToken);
+                var receipts = await InvoicePayments.ReceiptsAsync(
+                    database, user.Id, [.. candidates.Select(invoice => invoice.Id)], cancellationToken);
+                var today = time.TodayInKyiv();
+
+                return Results.Ok(candidates
+                    .Select(invoice => ToSummary(invoice, InvoicePayments.Balance(invoice, receipts[invoice.Id], today)))
+                    .Where(summary => summary.Standing != InvoiceStanding.Paid)
+                    .ToArray());
+            })
+            .Produces<InvoiceSummary[]>()
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
@@ -517,20 +734,37 @@ public static class InvoicesEndpoints
 
     private static string ClientName(Invoice invoice) => invoice.Snapshot?.Buyer.Name ?? invoice.Client?.Name ?? string.Empty;
 
-    private static InvoiceSummary ToSummary(Invoice invoice) => new(
+    private static IResult MissingReceipt(Guid id) => Results.Problem(
+        statusCode: StatusCodes.Status404NotFound,
+        title: $"No transaction exists with id {id}.");
+
+    private static async Task<InvoiceResponse> ResponseAsync(
+        AppDbContext database, Invoice invoice, TimeProvider time, CancellationToken cancellationToken)
+    {
+        var receipts = await InvoicePayments.ReceiptsAsync(database, invoice.UserId, [invoice.Id], cancellationToken);
+        LinkedReceipt[] linked = [.. receipts[invoice.Id]];
+
+        return ToResponse(invoice, InvoicePayments.Balance(invoice, linked, time.TodayInKyiv()), linked);
+    }
+
+    private static InvoiceSummary ToSummary(Invoice invoice, InvoiceBalance balance) => new(
         invoice.Id,
         invoice.Status,
+        balance.Standing,
         invoice.Number,
         invoice.ClientId,
         ClientName(invoice),
         invoice.IssueDate,
         invoice.DueDate,
         invoice.Currency,
-        invoice.TotalMinor);
+        invoice.TotalMinor,
+        balance.PaidMinor,
+        balance.DueMinor);
 
-    private static InvoiceResponse ToResponse(Invoice invoice) => new(
+    private static InvoiceResponse ToResponse(Invoice invoice, InvoiceBalance balance, LinkedReceipt[] receipts) => new(
         invoice.Id,
         invoice.Status,
+        balance.Standing,
         invoice.Number,
         invoice.ClientId,
         ClientName(invoice),
@@ -545,22 +779,32 @@ public static class InvoicesEndpoints
             line.RateMinor,
             InvoiceRules.LineAmountMinor(line.QuantityThousandths, line.RateMinor)))],
         invoice.TotalMinor,
+        balance.PaidMinor,
+        balance.DueMinor,
+        receipts,
         invoice.CancelReason,
         invoice.IssuedAt,
         invoice.CancelledAt,
         FileName(invoice));
 }
 
+/// <summary>
+/// <c>Status</c> is the stored lifecycle; <c>Standing</c> is what the owner sees, an issued invoice read
+/// as paid or overdue from its linked receipts (Rule 14).
+/// </summary>
 internal sealed record InvoiceSummary(
     Guid Id,
     InvoiceStatus Status,
+    InvoiceStanding Standing,
     string? Number,
     Guid ClientId,
     string ClientName,
     DateOnly IssueDate,
     DateOnly DueDate,
     Currency Currency,
-    long TotalMinor);
+    long TotalMinor,
+    long PaidMinor,
+    long? DueMinor);
 
 internal sealed record InvoiceLineResponse(
     string DescriptionEn,
@@ -573,6 +817,7 @@ internal sealed record InvoiceLineResponse(
 internal sealed record InvoiceResponse(
     Guid Id,
     InvoiceStatus Status,
+    InvoiceStanding Standing,
     string? Number,
     Guid ClientId,
     string ClientName,
@@ -581,6 +826,9 @@ internal sealed record InvoiceResponse(
     Currency Currency,
     InvoiceLineResponse[] Lines,
     long TotalMinor,
+    long PaidMinor,
+    long? DueMinor,
+    LinkedReceipt[] Receipts,
     string? CancelReason,
     DateTimeOffset? IssuedAt,
     DateTimeOffset? CancelledAt,
