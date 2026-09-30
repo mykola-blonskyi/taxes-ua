@@ -98,7 +98,7 @@ export function PeriodsScreen() {
 
           <section className="flex flex-col gap-2">
             <h3 className="text-base font-semibold">{t("declarationTitle")}</h3>
-            <DeclarationNumbers quarters={periods.quarters} />
+            <DeclarationNumbers year={Number(periods.year)} quarters={periods.quarters} />
           </section>
         </>
       ) : null}
