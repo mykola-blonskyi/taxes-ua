@@ -205,7 +205,11 @@ public sealed partial class MonobankSyncTests
         }
 
         Assert.Equal(77_00, Assert.Single((await List(owner, 2040)).Items).AmountMinor);
-        Assert.Equal(new DateTimeOffset(2040, 6, 11, 0, 0, 0, TimeSpan.Zero), bank.StatementCalls(app.Handler)[calls].At);
+        // The drain loop advances the clock while the worker is still reading, so the call lands at
+        // the run's instant or a few fake seconds after it, never before.
+        var at = bank.StatementCalls(app.Handler)[calls].At;
+        var run = new DateTimeOffset(2040, 6, 11, 0, 0, 0, TimeSpan.Zero);
+        Assert.InRange(at, run, run.AddMinutes(1));
     }
 
     [Fact]
