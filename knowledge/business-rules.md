@@ -434,10 +434,15 @@ into the invoice. The issued PDF is rendered from that copy only, so a later cha
 details or to the client never changes a document already sent, and the lines, dates and currency of
 an issued invoice cannot be edited. A draft's preview reads the live data and is marked DRAFT.
 
-Amounts. Integer minor units of the invoice currency. A line is quantity (in thousandths) times rate,
-rounded once half away from zero; the total is the sum of the rounded lines.
+Amounts. Integer minor units of the invoice currency. A line is quantity (in thousandths, at most 100 000 units) times
+rate, rounded once half away from zero; the total is the sum of the rounded lines.
 
 Retention. An issued or cancelled invoice is kept for at least 1095 days from the day the declaration
 covering its income was filed, or from that declaration's deadline if it was not (Tax Code art. 44.3).
 The period is extended by the time limitation periods were suspended under martial law. The app never
 deletes an issued or cancelled invoice; deleting is only for drafts.
+
+Restore. A restore replaces the owner's data with a file, but never drops an issued or cancelled invoice: a
+number that is already out in the world must not be reused by the next issue. A file that lacks the
+number of any issued or cancelled invoice the owner holds is refused, naming those numbers, and nothing
+is changed. Drafts hold no number and may be dropped.

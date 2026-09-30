@@ -19,9 +19,10 @@ internal sealed record InvoiceRequest(
     Currency Currency,
     InvoiceLineRequest[] Lines)
 {
+    // JSON can put null in the array; it is kept so Validate reports it instead of a 500.
     public InvoiceRequest Normalized() => this with
     {
-        Lines = [.. (Lines ?? []).Select(line => line with
+        Lines = [.. (Lines ?? []).Select(line => line is null ? null! : line with
         {
             DescriptionEn = line.DescriptionEn?.Trim() ?? string.Empty,
             DescriptionUk = line.DescriptionUk?.Trim() ?? string.Empty,
@@ -53,8 +54,8 @@ internal static class InvoiceRules
 
     public const int MaxCancelReasonLength = 500;
 
-    /// <summary>A quantity of at most one million, with up to three decimals, held as whole thousandths.</summary>
-    public const long MaxQuantityThousandths = 1_000_000_000;
+    /// <summary>A quantity of at most 100 000, with up to three decimals, held as whole thousandths.</summary>
+    public const long MaxQuantityThousandths = 100_000_000;
 
     // 10 billion in the currency, far above any invoice a FOP writes, and far below where a long
     // could overflow in a total of fifty lines.
@@ -125,7 +126,7 @@ internal static class InvoiceRules
             if (line.QuantityThousandths is <= 0 or > MaxQuantityThousandths)
             {
                 errors[$"{at}.quantityThousandths"] =
-                    [$"quantityThousandths must be 1 to {MaxQuantityThousandths}: a quantity above 0 and at most 1 000 000, in thousandths."];
+                    [$"quantityThousandths must be 1 to {MaxQuantityThousandths}: a quantity above 0 and at most 100 000, in thousandths."];
             }
             else if (line.RateMinor < 0 || line.RateMinor > MaxAmountMinor)
             {

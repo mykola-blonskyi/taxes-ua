@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -125,6 +126,38 @@ public sealed class InvoicesEndpointsTests(ApiFixture fixture) : IClassFixture<A
 
         Assert.Equal([44_43, 1, 8, 1_234_567_89], draft.Lines.Select(line => line.AmountMinor));
         Assert.Equal(44_43 + 1 + 8 + 1_234_567_89, draft.TotalMinor);
+    }
+
+    [Fact]
+    public async Task A_null_line_is_a_validation_error_on_create_and_update()
+    {
+        await using var application = App();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var client = await CreateClient(owner, "Null Line Ltd");
+        var draft = await CreateDraft(owner, client.Id, new DateOnly(2046, 5, 1));
+        var body = $$"""{"clientId":"{{client.Id}}","issueDate":"2046-05-01","dueDate":"2046-05-15","currency":"USD","lines":[null]}""";
+
+        var created = await owner.PostAsync("/api/invoices", new StringContent(body, Encoding.UTF8, "application/json"));
+        var updated = await owner.PutAsync($"/api/invoices/{draft.Id}", new StringContent(body, Encoding.UTF8, "application/json"));
+
+        Assert.Contains("lines[0]", (await Errors(created)).Keys);
+        Assert.Contains("lines[0]", (await Errors(updated)).Keys);
+    }
+
+    [Fact]
+    public async Task A_quantity_is_at_most_100_000_units()
+    {
+        await using var application = App();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var client = await CreateClient(owner, "Quantity Ltd");
+
+        var atLimit = await owner.PostAsJsonAsync("/api/invoices", Request(
+            client.Id, new DateOnly(2047, 5, 1), [Line("Bulk", "Оптом", InvoiceUnit.Hour, 100_000_000, 1_00)]), Json);
+        var overLimit = await owner.PostAsJsonAsync("/api/invoices", Request(
+            client.Id, new DateOnly(2047, 5, 1), [Line("Bulk", "Оптом", InvoiceUnit.Hour, 100_000_001, 1_00)]), Json);
+
+        Assert.Equal(HttpStatusCode.Created, atLimit.StatusCode);
+        Assert.Contains("lines[0].quantityThousandths", (await Errors(overLimit)).Keys);
     }
 
     [Fact]

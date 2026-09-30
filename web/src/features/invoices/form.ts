@@ -7,7 +7,7 @@ import type {
 } from "@/data/invoices/useInvoices";
 import { parseHryvnia } from "@/shared/lib/money";
 
-export const maxQuantityThousandths = 1_000_000;
+export const maxQuantityThousandths = 100_000_000;
 
 export type LineForm = {
   key: number;

@@ -561,7 +561,9 @@ sending one without the other.
 
 ### Consequences
 
-An issued invoice survives any later edit, a restore and a rename of the client. A layout change does
+An issued invoice survives any later edit and a rename of the client. A restore refuses a file that
+lacks the number of an issued or cancelled invoice the owner holds, so a number sent to a client is
+never reused; drafts may be dropped. A layout change does
 reach old invoices when they are downloaded again, so the layout must only ever add or reposition, never
 drop a requisite. Paid and overdue (#93) read the invoice's own total and currency, never the snapshot.
 The country name is frozen in English as ICU spelled it at issue.

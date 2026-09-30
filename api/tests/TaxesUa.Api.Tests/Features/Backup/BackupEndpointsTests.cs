@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
@@ -53,7 +54,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Empty);
+        await Wipe(owner);
         await SeedThroughTheApi(owner);
 
         var backup = await Backup(owner);
@@ -66,7 +67,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Contains(document.Transactions, row => row.RefundsTransactionId is not null);
         Assert.Equal(2, document.BudgetPayments.Length);
 
-        await Restore(owner, Empty);
+        await Wipe(owner);
         Assert.Equal(Normalized(Empty), Normalized(await Backup(owner)));
 
         var restored = await Restore(owner, backup);
@@ -163,6 +164,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             row.Remove("externalId");
         }
 
+        await DropInvoices();
         await Restore(owner, current.ToJsonString());
         var restored = await Backup(owner);
 
@@ -183,6 +185,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         version3.Remove("invoicingDetails");
         RemoveClientDetails(version3);
 
+        await DropInvoices();
         Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version3.ToJsonString()));
 
         var details = await owner.GetFromJsonAsync<InvoicingDetailsResponse>("/api/settings/invoicing", Json);
@@ -199,7 +202,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Empty);
+        await Wipe(owner);
 
         await Restore(owner, Baseline().ToJsonString());
 
@@ -246,6 +249,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         version5["schemaVersion"] = 5;
         version5.Remove("invoices");
 
+        await DropInvoices();
         Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version5.ToJsonString()));
 
         var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
@@ -259,7 +263,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Empty);
+        await Wipe(owner);
 
         await Restore(owner, Baseline().ToJsonString());
 
@@ -273,6 +277,91 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(
             HttpStatusCode.Conflict,
             (await owner.DeleteAsync($"/api/clients/{ClientId}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_restore_that_would_drop_an_issued_invoice_is_refused_and_changes_nothing()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+        try
+        {
+            await Restore(owner, Baseline().ToJsonString());
+            var older = await Backup(owner);
+
+            var draft = await CreateDraftInvoice(owner);
+            var issued = await IssueInvoice(owner, draft);
+            Assert.Equal("2031-002", issued.Number);
+            var newer = await Backup(owner);
+
+            var response = await Post(owner, older);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(["2031-002"], problem.RootElement.GetProperty("errors").GetProperty("missingInvoices")
+                .EnumerateArray().Select(item => item.GetString()));
+            Assert.Equal(newer, await Backup(owner));
+
+            var next = await IssueInvoice(owner, await CreateDraftInvoice(owner));
+            Assert.Equal("2031-003", next.Number);
+
+            var withAll = await Backup(owner);
+            Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, withAll));
+        }
+        finally
+        {
+            await Wipe(owner);
+        }
+    }
+
+    [Fact]
+    public async Task A_restore_names_every_dropped_cancelled_or_issued_number_but_may_drop_drafts()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+        try
+        {
+            await Restore(owner, Baseline().ToJsonString());
+            var older = await Backup(owner);
+            var second = await IssueInvoice(owner, await CreateDraftInvoice(owner));
+            await IssueInvoice(owner, await CreateDraftInvoice(owner));
+            Assert.Equal(HttpStatusCode.OK, (await owner.PostAsJsonAsync(
+                $"/api/invoices/{second.Id}/cancel", new CancelInvoiceRequest("Duplicate"), Json)).StatusCode);
+
+            var response = await Post(owner, older);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(["2031-002", "2031-003"], problem.RootElement.GetProperty("errors").GetProperty("missingInvoices")
+                .EnumerateArray().Select(item => item.GetString()));
+
+            var withoutDrafts = JsonNode.Parse(await Backup(owner))!.AsObject();
+            withoutDrafts["invoices"] = new JsonArray(withoutDrafts["invoices"]!.AsArray()
+                .Where(row => row!["status"]!.GetValue<string>() != "Draft").Select(row => row!.DeepClone()).ToArray());
+            Assert.Equal(HttpStatusCode.OK, (await Post(owner, withoutDrafts.ToJsonString())).StatusCode);
+        }
+        finally
+        {
+            await Wipe(owner);
+        }
+    }
+
+    private async Task<InvoiceResponse> CreateDraftInvoice(HttpClient owner)
+    {
+        var response = await owner.PostAsJsonAsync("/api/invoices", new InvoiceRequest(
+            ClientId, Today, Today.AddDays(14), Currency.EUR,
+            [new InvoiceLineRequest("Consulting", "Консультації", InvoiceUnit.Hour, 1_000, 100_00)]), Json);
+        Assert.True(response.StatusCode == HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<InvoiceResponse>(Json))!;
+    }
+
+    private static async Task<InvoiceResponse> IssueInvoice(HttpClient owner, InvoiceResponse draft)
+    {
+        var response = await owner.PostAsync($"/api/invoices/{draft.Id}/issue", null);
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<InvoiceResponse>(Json))!;
     }
 
     [Fact]
@@ -299,7 +388,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Empty);
+        await Wipe(owner);
         await SeedThroughTheApi(owner);
         var backup = await Backup(owner);
         var before = await History(owner, entity: null, id: null);
@@ -402,7 +491,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Empty);
+        await Wipe(owner);
         var file = Baseline().ToJsonString();
 
         var responses = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Post(owner, file)));
@@ -889,6 +978,19 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
     private static Task<HttpResponseMessage> Post(HttpClient client, string file) =>
         client.PostAsync("/api/restore", new StringContent(file, Encoding.UTF8, "application/json"));
+
+    // A restore never drops an issued invoice, so a test that needs one gone deletes it directly.
+    private async Task DropInvoices()
+    {
+        await using var scope = fixture.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Invoices.ExecuteDeleteAsync();
+    }
+
+    private async Task Wipe(HttpClient owner)
+    {
+        await DropInvoices();
+        await Restore(owner, Empty);
+    }
 
     private static async Task<RestoreResponse> Restore(HttpClient owner, string file)
     {
