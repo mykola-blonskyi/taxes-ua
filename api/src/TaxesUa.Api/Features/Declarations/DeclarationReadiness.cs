@@ -12,8 +12,7 @@ internal static class DeclarationReadiness
 {
     /// <param name="ledger">Rule 7's ledger, or null outside it, where nothing counts as unpaid.</param>
     public static DeclarationReadinessResponse Evaluate(
-        int year,
-        int quarter,
+        DateOnly filingDeadline,
         int receiptsToReview,
         int pendingPaymentCandidates,
         bool taxYearVerified,
@@ -45,7 +44,7 @@ internal static class DeclarationReadiness
             ready);
 
         long Remaining(KindLedger? kind) => kind?.Obligations
-            .Where(obligation => obligation.Year == year && obligation.Quarter <= quarter)
+            .Where(obligation => obligation.DueDate <= filingDeadline)
             .Sum(obligation => obligation.RemainingKop) ?? 0;
     }
 }
@@ -54,8 +53,8 @@ internal static class DeclarationReadiness
 /// Every item but <c>Unpaid</c> blocks <c>Ready</c>: receipts or payment candidates left to review,
 /// an unverified tax year, no registration date, a missing detail, and income over the limit, whose
 /// 15% lines the app does not fill yet (#118). <c>ReceiptsToReview</c> counts the year's imports
-/// through the quarter's end; <c>PendingPaymentCandidates</c> counts every pending one, whatever its
-/// year.
+/// through the quarter's end; <c>PendingPaymentCandidates</c> counts the pending ones whose payment
+/// date in Kyiv falls in the quarter.
 /// </summary>
 internal sealed record DeclarationReadinessResponse(
     int ReceiptsToReview,
@@ -68,7 +67,7 @@ internal sealed record DeclarationReadinessResponse(
     bool Ready);
 
 /// <summary>
-/// A warning only: what the year's obligations through the quarter still owe per kind, as Rule 7
-/// allocated the payments. Paying is not part of filing, so it never blocks the declaration.
+/// A warning only: what every year's obligations that have fallen due by the quarter's filing deadline
+/// still owe per kind, as Rule 7 allocated the payments. Paying is not part of filing, so it never blocks the declaration.
 /// </summary>
 internal sealed record UnpaidResponse(long SingleTaxKop, long MilitaryLevyKop, long EsvKop);

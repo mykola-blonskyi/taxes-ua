@@ -25,8 +25,8 @@ namespace TaxesUa.Api.Tests.Features.Declarations;
 
 // ApiFixture is an IClassFixture, so this class owns its database. xUnit runs one class's tests in
 // sequence but in no fixed order, so each test uses a year of its own and first sets the registration
-// date and details it needs. Pending payment candidates count across years, so the one test that
-// adds one resolves it again. The clock is in the 2080s because the test client drops a session
+// date and details it needs. A pending payment candidate is the owner's across every test, so the
+// one test that adds one resolves it again. The clock is in the 2080s because the test client drops a session
 // cookie whose expiry is already past on the real clock.
 public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
@@ -72,8 +72,43 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
 
         var readiness = (await Get(owner, year, 2)).Readiness;
 
-        Assert.Equal(new UnpaidResponse(493_827, 222_222, 6 * 190_234), readiness.Unpaid);
+        Assert.Equal(new UnpaidResponse(0, 123_457, 6 * 190_234), readiness.Unpaid);
         Assert.True(readiness.Ready);
+    }
+
+    [Fact]
+    public async Task Unpaid_obligations_include_what_earlier_years_still_owe_once_it_has_fallen_due()
+    {
+        const int year = 2094;
+        await using var application = At(new DateOnly(year, 7, 5));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year);
+        await SetUp(owner, year - 1);
+        await PostIncome(owner, new DateOnly(year - 1, 10, 10), 1_000_000);
+
+        var readiness = (await Get(owner, year, 1)).Readiness;
+
+        Assert.Equal(50_000, readiness.Unpaid.SingleTaxKop);
+        Assert.Equal(10_000, readiness.Unpaid.MilitaryLevyKop);
+        Assert.True(readiness.Unpaid.EsvKop >= 12 * 190_234, readiness.Unpaid.EsvKop.ToString());
+        Assert.True(readiness.Ready);
+    }
+
+    [Fact]
+    public async Task Unpaid_obligations_leave_out_what_falls_due_after_the_quarters_filing_deadline()
+    {
+        const int year = 2095;
+        await using var application = At(new DateOnly(year, 7, 5));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year);
+        await PostIncome(owner, new DateOnly(year, 1, 20), 1_000_000);
+        await PostIncome(owner, new DateOnly(year, 4, 15), 1_000_000);
+
+        var first = (await Get(owner, year, 1)).Readiness.Unpaid;
+        var second = (await Get(owner, year, 2)).Readiness.Unpaid;
+
+        Assert.Equal(0, first.SingleTaxKop);
+        Assert.Equal(50_000, second.SingleTaxKop);
     }
 
     [Fact]
@@ -100,23 +135,43 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
     }
 
     [Fact]
-    public async Task A_pending_payment_candidate_blocks_the_declaration_until_it_is_resolved()
+    public async Task A_pending_payment_candidate_blocks_only_the_quarter_its_payment_date_falls_in()
     {
         const int year = 2083;
-        await using var application = At(new DateOnly(year, 4, 20));
+        await using var application = At(new DateOnly(year, 7, 20));
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         await SetUp(owner, year);
         var candidate = await AddPendingCandidate(application, new DateTimeOffset(year, 4, 15, 9, 0, 0, TimeSpan.Zero));
 
-        var before = (await Get(owner, year, 1)).Readiness;
+        var other = (await Get(owner, year, 1)).Readiness;
+        Assert.Equal((0, true), (other.PendingPaymentCandidates, other.Ready));
+        var later = (await Get(owner, year, 3)).Readiness;
+        Assert.Equal((0, true), (later.PendingPaymentCandidates, later.Ready));
+        var before = (await Get(owner, year, 2)).Readiness;
         Assert.Equal((1, false), (before.PendingPaymentCandidates, before.Ready));
 
         Assert.Equal(
             HttpStatusCode.NoContent,
             (await owner.PostAsync($"/api/payments/candidates/{candidate}/dismiss", null)).StatusCode);
 
-        var after = (await Get(owner, year, 1)).Readiness;
+        var after = (await Get(owner, year, 2)).Readiness;
         Assert.Equal((0, true), (after.PendingPaymentCandidates, after.Ready));
+    }
+
+    [Fact]
+    public async Task A_candidate_is_placed_by_its_payment_date_in_Kyiv_at_the_quarters_edges()
+    {
+        const int year = 2093;
+        await using var application = At(new DateOnly(year, 7, 20));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year);
+        // 21:30 UTC on 31 March is 00:30 on 1 April in Kyiv, so the payment belongs to the second quarter.
+        var candidate = await AddPendingCandidate(application, new DateTimeOffset(year, 3, 31, 21, 30, 0, TimeSpan.Zero));
+
+        Assert.Equal(0, (await Get(owner, year, 1)).Readiness.PendingPaymentCandidates);
+        Assert.Equal(1, (await Get(owner, year, 2)).Readiness.PendingPaymentCandidates);
+
+        await owner.PostAsync($"/api/payments/candidates/{candidate}/dismiss", null);
     }
 
     [Fact]

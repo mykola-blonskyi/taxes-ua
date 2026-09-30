@@ -210,6 +210,20 @@ public static class PaymentCandidatesEndpoints
         database.BudgetPaymentCandidates.CountAsync(
             row => row.UserId == userId && row.Status == CandidateStatus.Pending, cancellationToken);
 
+    /// <summary>Pending candidates whose payment date in Kyiv falls in <paramref name="first"/> to <paramref name="last"/>.</summary>
+    internal static Task<int> CountPendingAsync(
+        AppDbContext database, string userId, DateOnly first, DateOnly last, CancellationToken cancellationToken)
+    {
+        var from = first.KyivMidnight();
+        var until = last.AddDays(1).KyivMidnight();
+        return database.BudgetPaymentCandidates.CountAsync(
+            row => row.UserId == userId
+                && row.Status == CandidateStatus.Pending
+                && row.BankTime >= from
+                && row.BankTime < until,
+            cancellationToken);
+    }
+
     // A payment the owner typed for the same operation: same Kyiv date and amount, and not yet linked to
     // any bank operation. The kind is the one the owner picks, so every kind is offered.
     private static List<BudgetPayment> Matches(BudgetPaymentCandidate candidate, IEnumerable<BudgetPayment> manual) =>

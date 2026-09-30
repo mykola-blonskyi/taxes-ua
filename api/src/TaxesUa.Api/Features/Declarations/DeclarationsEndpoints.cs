@@ -53,7 +53,7 @@ public static class DeclarationsEndpoints
                         && row.ValueDate <= quarterEnd,
                     cancellationToken);
                 var pendingCandidates = await PaymentCandidatesEndpoints.CountPendingAsync(
-                    database, user.Id, cancellationToken);
+                    database, user.Id, QuarterStart(year, quarter), quarterEnd, cancellationToken);
                 var invoicing = await database.InvoicingDetails.AsNoTracking()
                     .FirstOrDefaultAsync(row => row.UserId == user.Id, cancellationToken);
                 var details = await database.DeclarationDetails.AsNoTracking()
@@ -76,8 +76,7 @@ public static class DeclarationsEndpoints
                     config.SingleTaxRateBp,
                     config.MilitaryLevyRateBp,
                     DeclarationReadiness.Evaluate(
-                        year,
-                        quarter,
+                        deadlines.Declaration.Due,
                         receiptsToReview,
                         pendingCandidates,
                         viewed.Config.VerifiedAt is not null,
@@ -193,6 +192,8 @@ public static class DeclarationsEndpoints
 
         return errors.Count == 0 ? null : errors;
     }
+
+    private static DateOnly QuarterStart(int year, int quarter) => new(year, 3 * quarter - 2, 1);
 
     internal static DateOnly QuarterEnd(int year, int quarter) =>
         new DateOnly(year, 3 * quarter, 1).AddMonths(1).AddDays(-1);

@@ -496,7 +496,8 @@ and 98,765.43 UAH on 15 April:
 The declaration is ready when nothing below blocks it. These block:
 
 - an imported receipt of the year dated up to the quarter's end still waiting for review (Rule 12);
-- a budget payment candidate still pending, of any year;
+- a budget payment candidate still pending whose payment date in Kyiv falls in the quarter (a
+  candidate of another quarter does not block this one);
 - the year's `TaxYearConfig` not verified (Rule 9);
 - no registration date (Rule 8);
 - a missing detail: the name and RNOKPP (read from the invoicing details, never stored twice), the
@@ -504,8 +505,10 @@ The declaration is ready when nothing below blocks it. These block:
   activity), and the address as in the register;
 - income over the limit, as above.
 
-What the year's obligations through the quarter still owe per kind (Rule 7) is shown as a warning and
-never blocks: paying is not filing.
+What the Rule 7 ledger still owes per kind, across years, from every obligation that has fallen due
+by the quarter's filing deadline (Rule 5), is shown as a warning and never blocks: paying is not
+filing. Debt left over from an earlier year counts; the quarter's own tax does not, since it falls due
+after the filing deadline.
 
 The owner marks a quarter's declaration as filed, per year and quarter: the date it was filed (after
 the quarter's end and not after today in Kyiv) and its type, reporting, new reporting or clarifying.
