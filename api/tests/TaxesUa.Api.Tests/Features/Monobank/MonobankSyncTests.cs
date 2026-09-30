@@ -711,7 +711,8 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         string? CounterName = null,
         string? Description = null,
         string? Comment = null,
-        string? CounterIban = null)
+        string? CounterIban = null,
+        string? CounterEdrpou = "12345678")
     {
         public object ToJson() => new
         {
@@ -728,7 +729,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
             cashbackAmount = 0,
             balance = 0,
             comment = Comment,
-            counterEdrpou = "12345678",
+            counterEdrpou = CounterEdrpou,
             counterIban = CounterIban ?? "UA000000000000000000000000000",
             counterName = CounterName,
         };

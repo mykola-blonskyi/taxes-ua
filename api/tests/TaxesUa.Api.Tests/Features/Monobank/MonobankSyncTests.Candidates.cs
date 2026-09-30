@@ -89,7 +89,7 @@ public sealed partial class MonobankSyncTests
 
         var confirmed = await ConfirmCandidate(owner, candidate, PaymentKind.Esv, year, quarter: 1);
         Assert.Equal(HttpStatusCode.OK, confirmed.StatusCode);
-        var payment = (await confirmed.Content.ReadFromJsonAsync<PaymentResponse>(Json))!;
+        var payment = (await confirmed.Content.ReadFromJsonAsync<ConfirmCandidateResponse>(Json))!.Payment;
         Assert.Equal(
             (new DateOnly(year, 4, 28), PaymentKind.Esv, owed.AmountKop, year, (int?)1),
             (payment.PaidOn, payment.Kind, payment.AmountKop, payment.PeriodYear, payment.PeriodQuarter));
@@ -139,7 +139,7 @@ public sealed partial class MonobankSyncTests
 
         var linked = await ConfirmCandidate(owner, candidate, PaymentKind.SingleTax, year, quarter: 1, link: typed.Id);
         Assert.Equal(HttpStatusCode.OK, linked.StatusCode);
-        Assert.Equal(typed, (await linked.Content.ReadFromJsonAsync<PaymentResponse>(Json))!);
+        Assert.Equal(typed, (await linked.Content.ReadFromJsonAsync<ConfirmCandidateResponse>(Json))!.Payment);
         Assert.Equal(typed, Assert.Single(await Payments(owner, year - 1)));
         Assert.Empty(await Payments(owner, year));
         Assert.Empty(await Candidates(owner, year));
@@ -280,7 +280,7 @@ public sealed partial class MonobankSyncTests
         Assert.Equal(HttpStatusCode.NoContent, (await Dismiss(owner, candidates[300_00])).StatusCode);
 
         var confirmed = await ConfirmCandidate(owner, candidates[100_00], PaymentKind.Esv, year, quarter: 1);
-        var payment = (await confirmed.Content.ReadFromJsonAsync<PaymentResponse>(Json))!;
+        var payment = (await confirmed.Content.ReadFromJsonAsync<ConfirmCandidateResponse>(Json))!.Payment;
         Assert.Equal(PaymentKind.Esv, Assert.Single(await Candidates(owner, year)).SuggestedKind);
 
         Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/payments/{payment.Id}")).StatusCode);
@@ -308,7 +308,7 @@ public sealed partial class MonobankSyncTests
         var candidates = (await Candidates(owner, year)).ToDictionary(row => row.AmountKop);
 
         var confirmed = await ConfirmCandidate(owner, candidates[100_00], PaymentKind.Esv, year, quarter: 1);
-        var payment = (await confirmed.Content.ReadFromJsonAsync<PaymentResponse>(Json))!;
+        var payment = (await confirmed.Content.ReadFromJsonAsync<ConfirmCandidateResponse>(Json))!.Payment;
         Assert.Equal(PaymentKind.Esv, Assert.Single(await Candidates(owner, year)).SuggestedKind);
 
         var edited = await owner.PutAsJsonAsync(
@@ -339,7 +339,7 @@ public sealed partial class MonobankSyncTests
         var separate = await ConfirmCandidate(owner, candidate, PaymentKind.SingleTax, year, quarter: 1, recordSeparately: true);
 
         Assert.Equal(HttpStatusCode.OK, separate.StatusCode);
-        var recorded = (await separate.Content.ReadFromJsonAsync<PaymentResponse>(Json))!;
+        var recorded = (await separate.Content.ReadFromJsonAsync<ConfirmCandidateResponse>(Json))!.Payment;
         Assert.NotEqual(typed.Id, recorded.Id);
         Assert.Equal(new[] { typed.Id, recorded.Id }.Order(), (await Payments(owner, year)).Select(row => row.Id).Order());
         Assert.Empty(await Candidates(owner, year));

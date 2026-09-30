@@ -37,6 +37,7 @@ internal sealed class AuditSaveChangesInterceptor(
         [typeof(Client)] = AuditedEntity.Client,
         [typeof(Invoice)] = AuditedEntity.Invoice,
         [typeof(BudgetPayment)] = AuditedEntity.BudgetPayment,
+        [typeof(TreasuryAccount)] = AuditedEntity.TreasuryAccount,
         [typeof(SettingsEntity)] = AuditedEntity.Settings,
         [typeof(InvoicingDetails)] = AuditedEntity.InvoicingDetails,
         [typeof(InvoicingPaymentDetails)] = AuditedEntity.InvoicingDetails,

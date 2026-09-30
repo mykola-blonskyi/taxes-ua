@@ -40,6 +40,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<BudgetPaymentCandidate> BudgetPaymentCandidates => Set<BudgetPaymentCandidate>();
 
+    public DbSet<TreasuryAccount> TreasuryAccounts => Set<TreasuryAccount>();
+
     public DbSet<AuditEntry> AuditLog => Set<AuditEntry>();
 
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();

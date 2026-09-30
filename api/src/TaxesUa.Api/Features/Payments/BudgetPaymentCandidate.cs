@@ -31,6 +31,9 @@ internal sealed class BudgetPaymentCandidate
 
     public string? CounterName { get; set; }
 
+    // The counterparty's code as the bank sent it: the recipient code of the account a confirmation teaches.
+    public string? CounterEdrpou { get; set; }
+
     // The bank's description and the payer's comment, as an imported transaction keeps them.
     public string? Purpose { get; set; }
 
@@ -75,6 +78,7 @@ internal sealed class BudgetPaymentCandidateConfiguration : IEntityTypeConfigura
         builder.Property(candidate => candidate.ExternalId).HasMaxLength(200);
         builder.Property(candidate => candidate.CounterIban).HasMaxLength(34);
         builder.Property(candidate => candidate.CounterName).HasMaxLength(200);
+        builder.Property(candidate => candidate.CounterEdrpou).HasMaxLength(TreasuryAccountsEndpoints.MaxEdrpouLength);
         builder.Property(candidate => candidate.Purpose).HasMaxLength(1000);
 
         builder.ToTable(table =>
