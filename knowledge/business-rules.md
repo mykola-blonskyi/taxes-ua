@@ -661,4 +661,24 @@ The RNOKPP is not in the purpose, it travels as the payer code of the transfer. 
 format is never produced. This phrasing (nominative month after `за`, year with `року`) is the decision;
 the order fixes the elements, not the grammatical case of the month.
 
+The QR (#100) follows NBU Resolution No. 97 of 19.08.2025 as amended by No. 128, format 003
+(Appendix 4, verified against the text on zakon.rada.gov.ua): `https://qr.bank.gov.ua/` and the Base64URL
+(no padding) of seventeen LF-separated UTF-8 fields: `BCD`, `003`, `1` (UTF-8), `UCT`, an empty reserved
+field, the recipient name, the IBAN, the amount, the recipient code, the category/purpose code, an empty
+reference, the purpose, an empty display text, the field-lock mask `FEFF` (only the amount editable; the
+resolution requires fields 1-5, 11 and 14-17 locked), and empty validity, creation time and signature. The
+amount is `UAH` and the shortest form: no fraction for whole hryvnias (`UAH3`), otherwise exactly two
+digits (`UAH1234.50`, never `UAH1234.5`), at most `UAH999999999.99`. The whole content is at most 507
+bytes. A recipient or amount that does not fit gives no QR, and the copy buttons still serve.
+
+The image uses error correction Q, or M when Q does not fit, a QR version from 10 to 17, and the hryvnia
+sign in a white circle at the centre whose diameter follows the version (17 modules for version 10, 19
+for 11-12, 21 for 13, 23 for 14-15, 25 for 16-17), the sign inscribed in a circle 4 modules smaller.
+
+Unverified until the owner scans a Treasury payment with a real banking app: the category/purpose code
+(`TAXS/TAXS`, the ISO 20022 "Tax Payment" code in both lists; the resolution's only example is
+`SUPP/SUPP`, and no NBU or bank text names one for budget transfers), whether a bank accepts a QR for a
+budget account at all, and whether it splits the leading `101` into the payment type field. If banks
+refuse, the QR is hidden for Treasury accounts behind one flag in the panel, with a note.
+
 Once the bank operation is confirmed (#80), the debt moves as it does for any payment.

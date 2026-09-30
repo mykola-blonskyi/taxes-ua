@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -96,6 +97,49 @@ public sealed class PaymentDetailsEndpointsTests(ApiFixture fixture) : IClassFix
         Assert.Equal(["iban", "recipientName", "recipientCode"], details.Missing);
         Assert.Equal("101 єдиний податок за III квартал 2026 року", details.Purpose);
         Assert.Equal(123_456, details.AmountKop);
+        Assert.Null(details.QrContent);
+    }
+
+    [Fact]
+    public async Task A_complete_recipient_gives_the_nbu_qr_of_the_same_details()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await PutManual(owner, PaymentKind.MilitaryLevy, "ГУ ДПС у м.Києві", "43141912");
+
+        var details = await Details(owner, "kind=MilitaryLevy&periodYear=2026&periodQuarter=3&amountKop=123456");
+
+        Assert.Equal(
+            ["BCD", "003", "1", "UCT", "", "ГУ ДПС у м.Києві", Iban, "UAH1234.56", "43141912", NbuQr.CategoryPurpose, "",
+                "101 військовий збір за III квартал 2026 року", "", "FEFF", "", "", ""],
+            QrFields(details.QrContent!));
+    }
+
+    [Fact]
+    public async Task Another_amount_rebuilds_the_qr()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await PutManual(owner, PaymentKind.SingleTax, "ГУ ДПС у м.Києві", "43141912");
+
+        var owed = await Details(owner, QuarterQuery);
+        var ahead = await Details(owner, "kind=SingleTax&periodYear=2026&periodQuarter=3&amountKop=300000");
+
+        Assert.Equal("UAH1234.56", QrFields(owed.QrContent!)[7]);
+        Assert.Equal("UAH3000", QrFields(ahead.QrContent!)[7]);
+    }
+
+    [Fact]
+    public async Task An_amount_beyond_the_qr_format_keeps_the_recipient_and_gives_no_qr()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await PutManual(owner, PaymentKind.SingleTax, "ГУ ДПС у м.Києві", "43141912");
+
+        var details = await Details(owner, "kind=SingleTax&periodYear=2026&periodQuarter=3&amountKop=100000000000");
+
+        Assert.NotNull(details.Recipient);
+        Assert.Null(details.QrContent);
     }
 
     [Fact]
@@ -109,6 +153,7 @@ public sealed class PaymentDetailsEndpointsTests(ApiFixture fixture) : IClassFix
 
         Assert.Null(details.Recipient);
         Assert.Equal(["recipientCode"], details.Missing);
+        Assert.Null(details.QrContent);
     }
 
     [Theory]
@@ -265,6 +310,12 @@ public sealed class PaymentDetailsEndpointsTests(ApiFixture fixture) : IClassFix
             LearnedAt = DateTimeOffset.UtcNow,
         });
         await database.SaveChangesAsync();
+    }
+
+    private static string[] QrFields(string content)
+    {
+        Assert.StartsWith(NbuQr.StartCode, content);
+        return Encoding.UTF8.GetString(Base64Url.DecodeFromChars(content.AsSpan(NbuQr.StartCode.Length))).Split('\n');
     }
 
     private static async Task<PaymentDetailsResponse> Details(HttpClient client, string query)

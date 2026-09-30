@@ -57,6 +57,7 @@ public static class PaymentDetailsEndpoints
                     ? PaymentPurpose.ForQuarter(kind, periodYear, quarter)
                     : PaymentPurpose.ForMonth(kind, periodYear, periodMonth!.Value);
 
+                var complete = missing.Length == 0;
                 return Results.Ok(new PaymentDetailsResponse(
                     kind,
                     periodYear,
@@ -64,8 +65,9 @@ public static class PaymentDetailsEndpoints
                     periodMonth,
                     amountKop,
                     purpose,
-                    missing.Length == 0 ? new PaymentRecipientResponse(iban!, name!, code!, source) : null,
-                    missing));
+                    complete ? new PaymentRecipientResponse(iban!, name!, code!, source) : null,
+                    missing,
+                    complete ? NbuQr.Content(name!, iban!, code!, amountKop, purpose) : null));
             })
             .WithTags("Payments")
             .RequireAuthorization()
@@ -141,6 +143,7 @@ internal sealed record PaymentDetailsResponse(
     long AmountKop,
     string Purpose,
     PaymentRecipientResponse? Recipient,
-    string[] Missing);
+    string[] Missing,
+    string? QrContent);
 
 internal sealed record PaymentRecipientResponse(string Iban, string Name, string Code, TreasuryAccountSource Source);
