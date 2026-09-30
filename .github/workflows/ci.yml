@@ -73,5 +73,12 @@ jobs:
           COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
           COOLIFY_WEBHOOK_TOKEN: ${{ secrets.COOLIFY_WEBHOOK_TOKEN }}
         run: |
+          case "$COOLIFY_WEBHOOK_URL" in
+            */api/v1/deploy\?*uuid=*) ;;
+            *)
+              echo "::error::COOLIFY_WEBHOOK_URL must be the resource's Deploy Webhook (auth required), https://<coolify>/api/v1/deploy?uuid=<uuid>&force=false"
+              exit 1
+              ;;
+          esac
           curl --fail --silent --show-error --max-time 60 --request GET "$COOLIFY_WEBHOOK_URL" \
             --header "Authorization: Bearer $COOLIFY_WEBHOOK_TOKEN" > /dev/null
