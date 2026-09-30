@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
+using TaxesUa.Api.Features.Dashboard;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Monobank;
@@ -354,6 +355,48 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
         Assert.Equal(HttpStatusCode.Unauthorized, (await visitor.DeleteAsync("/api/declarations/2090/1/filing")).StatusCode);
     }
 
+    [Fact]
+    public async Task The_home_screen_names_the_declaration_due_until_it_is_marked_filed()
+    {
+        const int year = 2091;
+        var today = new DateOnly(year, 4, 5);
+        await using var application = At(today);
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year);
+        var due = (await Get(owner, year, 1)).Filing.Due;
+
+        Assert.Equal(
+            new DeclarationDueResponse(year, 1, due, due.DayNumber - today.DayNumber),
+            (await Dashboard(owner)).Declaration);
+
+        await Mark(owner, year, 1, new DeclarationFilingRequest(today, DeclarationType.Reporting));
+        Assert.Null((await Dashboard(owner)).Declaration);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/declarations/{year}/1/filing")).StatusCode);
+        Assert.NotNull((await Dashboard(owner)).Declaration);
+    }
+
+    [Theory]
+    [InlineData("2091-06-10", null, null)]
+    [InlineData("2091-03-20", null, null)]
+    [InlineData("2092-01-10", 2091, 4)]
+    public async Task The_home_screen_entry_shows_only_inside_the_last_ended_quarters_filing_window(
+        string todayIso, int? year, int? quarter)
+    {
+        await using var setup = At(new DateOnly(2091, 4, 5));
+        using (var owner = await ApiFixture.SignIn(setup, ApiFixture.AllowedEmail))
+        {
+            await SetUp(owner, 2091);
+        }
+
+        await using var application = At(DateOnly.Parse(todayIso));
+        using var client = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+
+        var entry = (await Dashboard(client)).Declaration;
+
+        Assert.Equal((year, quarter), (entry?.Year, entry?.Quarter));
+    }
+
     private WebApplicationFactory<Program> At(DateOnly today) =>
         fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
             services.AddSingleton<TimeProvider>(
@@ -492,4 +535,7 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         return (await response.Content.ReadFromJsonAsync<DeclarationFilingResponse>(Json))!;
     }
+
+    private static async Task<DashboardResponse> Dashboard(HttpClient owner) =>
+        (await owner.GetFromJsonAsync<DashboardResponse>("/api/dashboard", Json))!;
 }
