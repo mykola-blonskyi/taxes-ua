@@ -38,6 +38,19 @@ public sealed class InvoicePdfTests
         Assert.Contains("Total / Разом: 1 000.00 EUR", Text(pdf));
     }
 
+    [Theory]
+    [InlineData("Draft", "DRAFT")]
+    [InlineData("Cancelled", "CANCELLED")]
+    public void The_status_mark_sits_above_the_title_without_touching_it(string status, string mark)
+    {
+        using var pdf = PdfDocument.Open(InvoicePdf.ToPdf(Model(null) with { Status = Enum.Parse<InvoiceStatus>(status) }));
+
+        var words = pdf.GetPage(1).GetWords().ToList();
+        var markBox = words.First(word => word.Text == mark).BoundingBox;
+        var titleBox = words.First(word => word.Text == "Invoice").BoundingBox;
+        Assert.True(markBox.Bottom > titleBox.Top, $"{mark} bottom {markBox.Bottom} is above the title top {titleBox.Top}");
+    }
+
     [Fact]
     public void Fifty_lines_run_onto_further_pages_with_every_line_and_the_total()
     {

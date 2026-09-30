@@ -125,7 +125,9 @@ internal static class InvoicePdf
         section.PageSetup.Orientation = Orientation.Portrait;
         section.PageSetup.LeftMargin = Unit.FromMillimeter(MarginMm);
         section.PageSetup.RightMargin = Unit.FromMillimeter(MarginMm);
-        section.PageSetup.TopMargin = Unit.FromMillimeter(MarginMm);
+        // The top margin leaves the header band free for the DRAFT or CANCELLED mark.
+        section.PageSetup.TopMargin = Unit.FromMillimeter(MarginMm + 8);
+        section.PageSetup.HeaderDistance = Unit.FromMillimeter(8);
         section.PageSetup.BottomMargin = Unit.FromMillimeter(MarginMm);
 
         if (Mark(invoice.Status) is { } mark)
