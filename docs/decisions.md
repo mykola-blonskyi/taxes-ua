@@ -699,3 +699,62 @@ A new form version means replacing the vendored schemas and the writer together,
 the README says how. The vendored copies come from a mirror, so the owner confirms once by hand that they
 match the register before the file is relied on. Import into the Cabinet is proved by hand, not by
 tests. Stored files do not follow later edits: preparing the file again replaces it.
+
+---
+
+## ADR-019. Compute reminders at each run and claim each one in a sent log before sending
+
+
+Date: 2026-09-30
+
+Status: Accepted
+
+### Context
+
+#108 sends deadline reminders (Rule 17). What a reminder says depends on what is owed when it goes out:
+a payment recorded on Monday must drop Tuesday's reminder or shrink its amount. It has to reach each
+channel once, across restarts, redeploys and a run that overlaps another, and a reminder whose moment
+passed while the server was down should still go out if it can still help. A Telegram send cannot be
+part of a database transaction, so a crash between sending and recording leaves one of the two undone.
+
+### Decision
+
+Reminders are computed, not scheduled. A pure planner in the engine, `ReminderPlan.Due`, takes the ledger
+years, the Rule 7 allocation, the advances in advance mode, the filed marks and the Kyiv day and time,
+and returns what is due now. A hosted worker runs it for every owner with an enabled channel every 5
+minutes and at start.
+
+Delivery is at most once. Before sending, the worker inserts a `SentReminder` row keyed by owner, date,
+kinds, offset and channel, and commits it; the unique key makes a second, concurrent run fail that
+insert and skip. The row gets `DeliveredAt` when the channel accepts the message. A transient failure
+deletes the row so a later run retries; a permanent one keeps it. A crash after the insert leaves the row,
+and the message is never sent again.
+
+Channels are behind `IReminderChannel` (kind, availability, send). Telegram's wraps `TelegramDelivery`,
+so its retries, its failure record and its 403 switch-off apply to reminders unchanged; email (#107) adds
+one class.
+
+### Alternatives Considered
+
+Pre-scheduled reminder rows, which the domain model first sketched. Each payment, refund, settings change
+or filed mark would have to find and rewrite the rows it affects, and a missed rewrite sends a wrong
+amount. Computing costs one ledger load per owner per run, which the home screen already does per
+request.
+
+Send, then record (at least once). A crash or redeploy between the two, or a run cut off by shutdown
+while Telegram holds the request, sends the same reminder again on restart. A duplicate tax reminder
+teaches the owner to ignore them; a lost one is covered by the next moment for the same date (1 day
+before, on the day) and by the home screen.
+
+Recording each kind separately. The key would be simpler to reason about, but one message names several
+kinds, and a partial record would either repeat the message or lose kinds from it. The log keeps the
+message's kinds instead, and a run compares its kinds with the union already sent for the date, offset
+and channel.
+
+### Consequences
+
+The amount is always the current one, and a paid obligation is never reminded. Downtime costs nothing up
+to the date: the latest passed moment goes out late with the real number of days left. A crash at the
+wrong instant loses one message, never duplicates one. The sent log is not backed up (domain model,
+`SentReminder`). The planner is a pure function with table tests, and the worker is tested with fake time
+and the Telegram stub.

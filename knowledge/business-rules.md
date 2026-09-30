@@ -714,3 +714,49 @@ budget account at all, and whether it splits the leading `101` into the payment 
 refuse, the QR is hidden for Treasury accounts behind one flag in the panel, with a note.
 
 Once the bank operation is confirmed (#80), the debt moves as it does for any payment.
+
+---
+
+## Rule 17. Reminders
+
+The app reminds the owner of each date that still has something to do, through every channel the owner
+connected and switched on (Telegram, and email once #107 adds it). Nothing is scheduled ahead: every run
+computes the reminders due from the Rule 7 ledger, the filed marks and the settings, so the amount is what
+is owed when the message is sent, and a payment recorded in between changes the amount or drops the
+reminder.
+
+What is reminded:
+
+- A payment deadline (Rule 5) of a kind whose obligation there still owes something after Rule 7's
+  allocation, with that remainder. A kind paid in full is left out, and a date with nothing owed has no
+  payment reminder.
+- In `MonthlyAdvance` mode, each advance's recommended date (Rule 6) while the advance through that month
+  has anything left, with the unpaid remainder of the quarter's earlier months added, as on the home
+  screen. An advance dated on or after its quarter's own deadline is left to the quarterly reminder.
+- A quarter's declaration deadline (Rule 5) while the quarter is not marked filed (Rule 15), for every
+  group 3 quarter that ends on or after the registration date.
+
+A quarter outside group 3 after a limit crossing (Rule 4) has no obligations and no declaration, so
+nothing of it is reminded. Everything due on one date comes in one message, and the single tax and the
+military levy keep an amount each.
+
+The moments are 7 days before, 1 day before and on the date, each at 09:00 in Kyiv, and, for a payment
+still owed, the day after at 09:00. The date is the shifted one the app shows (Rule 5). Only the latest
+moment that has passed is due, so a server that was down through the 7-day moment and is back after the
+1-day one sends one message, which counts the days actually left. A reminder before the date that was
+missed is sent late, up to the end of the date. The day-after reminder goes out on that day only, so a
+debt is flagged overdue once and a first run never replays old ones. An advance is never overdue (Rule
+6), and a declaration is not reminded after its deadline.
+
+Each message is sent at most once per channel. It is recorded per owner, date, kinds, moment and channel
+before it is sent, so neither a restart, a redeploy nor two runs at once can send it twice. A date and
+moment already sent for every kind a run would name is not sent again, so paying the levy after the 7-day
+message does not repeat it; a kind no message of that date and moment named yet, such as a newly owed
+one, is sent with everything due. A crash between the record and the send loses that one message rather
+than risk a second. A transient failure (Telegram unreachable, slow, rate limiting or a server error,
+after the channel's own retries) removes the record, so a later run tries again within the window. A
+permanent one keeps it and shows on the channel in settings; a blocked bot also switches the channel off.
+
+A message is plain text in the owner's interface language (uk or ru): the date and the days left, one
+line per item (the kind and period with the amount owed now, or the declaration to file), and a link to
+the app's home screen, where the pay panel is. The runs are 5 minutes apart.
