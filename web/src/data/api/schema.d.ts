@@ -4051,6 +4051,7 @@ export interface components {
             credits: components["schemas"]["KindCreditResponse"][];
             burden: null | components["schemas"]["TaxBurdenResponse"];
             limit: null | components["schemas"]["LimitStatusResponse"];
+            limitCrossing: null | components["schemas"]["LimitCrossingResponse"];
             reserve: null | components["schemas"]["ReserveResponse"];
             /** Format: int32 */
             needsReviewCount: number | string;
@@ -4105,7 +4106,15 @@ export interface components {
             /** Format: int64 */
             incomeKop: number | string;
             /** Format: int64 */
+            excessIncomeKop: number | string;
+            /** Format: int64 */
+            totalIncomeKop: number | string;
+            /** Format: int64 */
+            excessTaxKop: number | string;
+            /** Format: int64 */
             singleTaxKop: number | string;
+            /** Format: int64 */
+            totalSingleTaxKop: number | string;
             /** Format: int64 */
             previousSingleTaxKop: number | string;
             /** Format: int64 */
@@ -4155,7 +4164,7 @@ export interface components {
             taxYearVerified: boolean;
             registrationDateSet: boolean;
             missingDetails: ("Name" | "Rnokpp" | "TaxOffice" | "Kved" | "Address")[];
-            incomeOverLimit: boolean;
+            outsideGroup3: boolean;
             unpaid: components["schemas"]["UnpaidResponse"];
             ready: boolean;
         };
@@ -4167,8 +4176,11 @@ export interface components {
             filing: components["schemas"]["Deadline"];
             payment: components["schemas"]["Deadline"];
             figures: null | components["schemas"]["DeclarationFiguresResponse"];
+            limitCrossing: null | components["schemas"]["LimitCrossingResponse"];
             /** Format: int32 */
             singleTaxRateBp: number | string;
+            /** Format: int32 */
+            excessRateBp: number | string;
             /** Format: int32 */
             militaryLevyRateBp: number | string;
             readiness: components["schemas"]["DeclarationReadinessResponse"];
@@ -4502,6 +4514,14 @@ export interface components {
             /** Format: int32 */
             skippedCount: number | string;
         };
+        LimitCrossingResponse: {
+            /** Format: int32 */
+            quarter: number | string;
+            /** Format: int32 */
+            switchFromYear: number | string;
+            /** Format: int32 */
+            switchFromQuarter: number | string;
+        };
         /** @enum {string} */
         LimitLevel: "Ok" | "Warn" | "Exceeded";
         LimitStatusResponse: {
@@ -4714,6 +4734,7 @@ export interface components {
             /** Format: int32 */
             year: number | string;
             warnings: components["schemas"]["PeriodWarnings"];
+            limitCrossing: null | components["schemas"]["LimitCrossingResponse"];
             quarters: components["schemas"]["QuarterPeriodResponse"][];
             months: null | components["schemas"]["MonthPeriodResponse"][];
             balances: null | components["schemas"]["YearBalancesResponse"];
@@ -4763,6 +4784,10 @@ export interface components {
             cumulativeIncomeKop: number | string;
             /** Format: int64 */
             cumulativeSingleTaxKop: number | string;
+            /** Format: int64 */
+            cumulativeExcessIncomeKop: number | string;
+            /** Format: int64 */
+            cumulativeExcessTaxKop: number | string;
             /** Format: int64 */
             cumulativeMilitaryLevyKop: number | string;
             deadlines: components["schemas"]["QuarterDeadlines"];

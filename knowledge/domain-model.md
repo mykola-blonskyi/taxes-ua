@@ -111,10 +111,23 @@ undoing deletes it. Audited as `DeclarationFiling`. Relationships: belongs to `U
 Responsibilities: the group 3 lines of one quarter's declaration (Rule 15). Not stored; read off the
 year's accruals.
 
-Fields: `Year`, `Quarter`, `IncomeKop` (06, 08), `SingleTaxKop` (11, 12), `PreviousSingleTaxKop` (13),
-`SingleTaxPayableKop` (14.1, 14), `MilitaryLevyKop` (23), `PreviousMilitaryLevyKop` (24),
-`MilitaryLevyPayableKop` (25), `EsvKop?` (21, Q4 only). The payable lines are negative after a refund
-that shrank the cumulative income.
+Fields: `Year`, `Quarter`, `IncomeKop` (06, up to the limit), `ExcessIncomeKop` (07, over the limit),
+`TotalIncomeKop` (08), `SingleTaxKop` (11), `ExcessTaxKop` (09), `TotalSingleTaxKop` (12),
+`PreviousSingleTaxKop` (13), `SingleTaxPayableKop` (14.1, 14), `MilitaryLevyKop` (23),
+`PreviousMilitaryLevyKop` (24), `MilitaryLevyPayableKop` (25), `EsvKop?` (21, Q4 only). The payable
+lines are negative after a refund that shrank the cumulative income. Lines 07 and 09 are nonzero only
+in the quarter the limit is crossed in; a later quarter of that year has no group 3 declaration.
+
+---
+
+### LimitCrossing (computed)
+
+Responsibilities: says that the year's income went over its limit (Rule 4) and where group 3 ends.
+Not stored; read off the year's accruals.
+
+Fields: `Year`, `Quarter` (the quarter the limit was crossed in, the last one accrued),
+`SwitchFromYear`, `SwitchFromQuarter` (the next quarter, the next year's Q1 after a Q4 crossing). The
+year's accruals, obligations, advances, reserve and declarations stop at `Quarter`.
 
 ---
 
