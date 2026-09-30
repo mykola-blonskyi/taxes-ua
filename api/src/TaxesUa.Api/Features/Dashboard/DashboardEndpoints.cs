@@ -50,19 +50,7 @@ public static class DashboardEndpoints
                 }
 
                 var settings = loaded.Viewed.Settings.ToEngineInput();
-                PaymentLedger? ledger = null;
-                LedgerYear[] ledgerYears = [];
-                if (loaded.Ledger is [var first, ..])
-                {
-                    var payments = await PaymentsEndpoints.LoadEngineInputAsync(
-                        database, user.Id, first.Accrual.Year, loaded.Ledger[^1].Accrual.Year, cancellationToken);
-                    ledgerYears = [.. loaded.Ledger.Select(each => new LedgerYear(each.Accrual, each.Config.ToEngineInput()))];
-                    ledger = Balances.ForYears(
-                        ledgerYears,
-                        settings,
-                        payments,
-                        today);
-                }
+                var ledger = await loaded.PaymentLedgerAsync(database, user.Id, today, cancellationToken);
 
                 var step = NextStep.Find(
                     ledger, settings.FopRegistrationDate, today, ledger is null ? null : loaded.AdvancesOf(ledger));
@@ -71,7 +59,7 @@ public static class DashboardEndpoints
                     : null;
 
                 var reserve = ledger is not null && step is NextStep.Pay or NextStep.AllDone
-                    ? TaxReserve.Needed(ledger, ledgerYears, today)
+                    ? TaxReserve.Needed(ledger, loaded.LedgerYears, today)
                     : null;
 
                 // Unconditional, unlike burden: the limit bar should show even before there is any
