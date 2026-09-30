@@ -2,13 +2,14 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/data/api/client";
-import type { components } from "@/data/api/schema";
+import type { components, paths } from "@/data/api/schema";
 import { periodsQueryKey } from "@/data/periods/usePeriods";
 
 export type DeclarationResponse = components["schemas"]["DeclarationResponse"];
 export type DeclarationFigures = components["schemas"]["DeclarationFiguresResponse"];
 export type DeclarationReadiness = components["schemas"]["DeclarationReadinessResponse"];
 export type DeclarationFiling = components["schemas"]["DeclarationFilingResponse"];
+export type DeclarationFile = components["schemas"]["DeclarationFileResponse"];
 export type DeclarationType = components["schemas"]["DeclarationType"];
 export type DeclarationDetailField = DeclarationReadiness["missingDetails"][number];
 export type DeclarationDetailsRequest = components["schemas"]["DeclarationDetailsRequest"];
@@ -31,6 +32,34 @@ export function useDeclaration(year: number, quarter: number) {
       return data;
     },
     retry: (failureCount, error) => !(error instanceof ApiError && error.status === 404) && failureCount < 1,
+  });
+}
+
+type FilePath = Extract<keyof paths, "/api/declarations/{year}/{quarter}/files/{type}">;
+
+// Typed against the generated schema, so a renamed or removed download endpoint fails the build.
+export function declarationFileUrl(year: number, quarter: number, type: DeclarationType): string {
+  const path: FilePath = "/api/declarations/{year}/{quarter}/files/{type}";
+
+  return path
+    .replace("{year}", String(year))
+    .replace("{quarter}", String(quarter))
+    .replace("{type}", encodeURIComponent(type));
+}
+
+export function useGenerateDeclarationFile(year: number, quarter: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (type: DeclarationType) => {
+      const { data } = await api.POST("/api/declarations/{year}/{quarter}/files", {
+        params: { path: { year, quarter } },
+        body: { type },
+      });
+
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...declarationsQueryKey, year, quarter] }),
   });
 }
 

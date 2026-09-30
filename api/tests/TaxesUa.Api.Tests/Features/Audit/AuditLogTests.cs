@@ -8,6 +8,7 @@ using Npgsql;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Notifications;
@@ -246,6 +247,9 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
             // channel they set up is audited, and a code is a secret that must not reach any log.
             typeof(NotificationLinkCode),
             typeof(TelegramPollState),
+            // A generated file is derived from rows that are audited themselves; its bytes are no
+            // change the owner made.
+            typeof(DeclarationFile),
         ];
 
         await using var scope = fixture.CreateScope();

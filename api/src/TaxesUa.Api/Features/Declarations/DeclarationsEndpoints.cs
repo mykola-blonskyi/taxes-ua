@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Net.Http.Headers;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
+using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Engine;
 
@@ -32,66 +34,128 @@ public static class DeclarationsEndpoints
                     return Results.Unauthorized();
                 }
 
-                var loaded = await YearAccruals.LoadAsync(database, user.Id, year, cancellationToken);
-                if (Unavailable(loaded, year, quarter) is { } problem)
-                {
-                    return problem;
-                }
-
-                var viewed = loaded!.Viewed;
-                var config = viewed.Config.ToEngineInput();
-                var settings = viewed.Settings.ToEngineInput();
-                var incomeKop = IncomeThrough(loaded, quarter);
-                var inGroup3 = viewed.Accrual.InGroup3(quarter);
-
-                var yearStart = new DateOnly(year, 1, 1);
-                var quarterEnd = QuarterEnd(year, quarter);
-                var receiptsToReview = await database.Transactions.CountAsync(
-                    row => row.UserId == user.Id
-                        && row.ReviewStatus == ReviewStatus.NeedsReview
-                        && row.ValueDate >= yearStart
-                        && row.ValueDate <= quarterEnd,
-                    cancellationToken);
-                var pendingCandidates = await PaymentCandidatesEndpoints.CountPendingAsync(
-                    database, user.Id, QuarterStart(year, quarter), quarterEnd, cancellationToken);
-                var invoicing = await database.InvoicingDetails.AsNoTracking()
-                    .FirstOrDefaultAsync(row => row.UserId == user.Id, cancellationToken);
-                var details = await database.DeclarationDetails.AsNoTracking()
-                    .FirstOrDefaultAsync(row => row.UserId == user.Id, cancellationToken);
-                var ledger = loaded.ViewedIsInLedger
-                    ? await loaded.PaymentLedgerAsync(database, user.Id, time.TodayInKyiv(), cancellationToken)
-                    : null;
-                var filing = await database.DeclarationFilings.AsNoTracking()
-                    .FirstOrDefaultAsync(
-                        row => row.UserId == user.Id && row.Year == year && row.Quarter == quarter,
-                        cancellationToken);
-
-                var deadlines = DeadlineCalendar.ForQuarter(year, quarter, config, settings);
-                return Results.Ok(new DeclarationResponse(
-                    year,
-                    quarter,
-                    deadlines.Declaration,
-                    deadlines.TaxPayment,
-                    inGroup3 ? ToFigures(Declaration.ForQuarter(viewed.Accrual, quarter)) : null,
-                    LimitCrossingResponse.Of(viewed),
-                    config.SingleTaxRateBp,
-                    config.ExcessRateBp,
-                    config.MilitaryLevyRateBp,
-                    DeclarationReadiness.Evaluate(
-                        deadlines.Declaration.Due,
-                        receiptsToReview,
-                        pendingCandidates,
-                        viewed.Config.VerifiedAt is not null,
-                        settings.FopRegistrationDate is not null,
-                        invoicing,
-                        details,
-                        !inGroup3,
-                        ledger),
-                    filing is null ? null : ToFiling(filing, incomeKop)));
+                var (declaration, problem) = await LoadAsync(database, user.Id, year, quarter, time, cancellationToken);
+                return problem ?? Results.Ok(declaration!.Response);
             })
             .Produces<DeclarationResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound);
+
+        declarations.MapPost("/files", async (
+                int year,
+                int quarter,
+                DeclarationFileRequest request,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                TimeProvider time,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                var (declaration, problem) = await LoadAsync(database, user.Id, year, quarter, time, cancellationToken);
+                if (problem is not null)
+                {
+                    return problem;
+                }
+
+                if (!declaration!.Response.Readiness.Ready || declaration.Figures is not { } figures)
+                {
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status409Conflict,
+                        title: $"The declaration for quarter {quarter} of {year} is not ready, so it has no file.");
+                }
+
+                // Ready means no detail is missing, so both rows and every value the header reads exist.
+                var invoicing = declaration.Invoicing!;
+                var details = declaration.Details!;
+                var header = new F0103309.DeclarationHeader(
+                    invoicing.Rnokpp,
+                    details.TaxOfficeRegion!.Value,
+                    details.TaxOfficeDistrict!.Value,
+                    details.TaxOfficeName,
+                    invoicing.SellerNameUk,
+                    details.Address,
+                    details.KvedCodes);
+                var errors = F0103309.Unwritable(header);
+                F0103309.DeclarationXml? xml = null;
+                if (errors.Length == 0)
+                {
+                    xml = F0103309.Write(figures, header, request.Type, time.TodayInKyiv());
+                    errors = F0103309.SchemaErrors(xml.Content);
+                }
+
+                if (errors.Length > 0)
+                {
+                    return Results.ValidationProblem(
+                        new Dictionary<string, string[]> { ["file"] = errors },
+                        statusCode: StatusCodes.Status422UnprocessableEntity,
+                        title: "The declaration's data cannot produce a file that passes the F0103309 schema.");
+                }
+
+                var file = await database.DeclarationFiles.FindAsync([user.Id, year, quarter, request.Type], cancellationToken);
+                if (file is null)
+                {
+                    file = new DeclarationFile { UserId = user.Id, Year = year, Quarter = quarter, Type = request.Type };
+                    database.DeclarationFiles.Add(file);
+                }
+
+                file.FileName = xml!.FileName;
+                file.Content = xml.Content;
+                file.GeneratedAt = time.GetUtcNow();
+                await database.SaveChangesAsync(cancellationToken);
+
+                return Results.Ok(new DeclarationFileResponse(file.Type, file.FileName, file.GeneratedAt));
+            })
+            .Produces<DeclarationFileResponse>()
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesValidationProblem(StatusCodes.Status422UnprocessableEntity);
+
+        declarations.MapGet("/files/{type}", async (
+                int year,
+                int quarter,
+                DeclarationType type,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                if (!Enum.IsDefined(type))
+                {
+                    return Results.NotFound();
+                }
+
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                var file = await database.DeclarationFiles.AsNoTracking()
+                    .FirstOrDefaultAsync(
+                        row => row.UserId == user.Id && row.Year == year && row.Quarter == quarter && row.Type == type,
+                        cancellationToken);
+                if (file is null)
+                {
+                    return Results.NotFound();
+                }
+
+                var disposition = new ContentDispositionHeaderValue("attachment");
+                disposition.SetHttpFileName(file.FileName);
+                http.Response.Headers.ContentDisposition = disposition.ToString();
+                http.Response.Headers.CacheControl = "private, no-store";
+
+                return Results.File(file.Content, "application/xml");
+            })
+            .Produces<byte[]>(StatusCodes.Status200OK, "application/xml")
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound);
 
         declarations.MapPut("/filing", async (
                 int year,
@@ -195,6 +259,90 @@ public static class DeclarationsEndpoints
         return errors.Count == 0 ? null : errors;
     }
 
+    /// <summary>
+    /// What GET shows and POST /files writes from, loaded in one place so the two cannot disagree on
+    /// the figures or the readiness.
+    /// </summary>
+    private static async Task<(QuarterDeclaration? Declaration, IResult? Problem)> LoadAsync(
+        AppDbContext database,
+        string userId,
+        int year,
+        int quarter,
+        TimeProvider time,
+        CancellationToken cancellationToken)
+    {
+        var loaded = await YearAccruals.LoadAsync(database, userId, year, cancellationToken);
+        if (Unavailable(loaded, year, quarter) is { } problem)
+        {
+            return (null, problem);
+        }
+
+        var viewed = loaded!.Viewed;
+        var config = viewed.Config.ToEngineInput();
+        var settings = viewed.Settings.ToEngineInput();
+        var incomeKop = IncomeThrough(loaded, quarter);
+        var inGroup3 = viewed.Accrual.InGroup3(quarter);
+
+        var yearStart = new DateOnly(year, 1, 1);
+        var quarterEnd = QuarterEnd(year, quarter);
+        var receiptsToReview = await database.Transactions.CountAsync(
+            row => row.UserId == userId
+                && row.ReviewStatus == ReviewStatus.NeedsReview
+                && row.ValueDate >= yearStart
+                && row.ValueDate <= quarterEnd,
+            cancellationToken);
+        var pendingCandidates = await PaymentCandidatesEndpoints.CountPendingAsync(
+            database, userId, QuarterStart(year, quarter), quarterEnd, cancellationToken);
+        var invoicing = await database.InvoicingDetails.AsNoTracking()
+            .FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        var details = await database.DeclarationDetails.AsNoTracking()
+            .FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        var ledger = loaded.ViewedIsInLedger
+            ? await loaded.PaymentLedgerAsync(database, userId, time.TodayInKyiv(), cancellationToken)
+            : null;
+        var filing = await database.DeclarationFilings.AsNoTracking()
+            .FirstOrDefaultAsync(
+                row => row.UserId == userId && row.Year == year && row.Quarter == quarter,
+                cancellationToken);
+        var files = await database.DeclarationFiles.AsNoTracking()
+            .Where(row => row.UserId == userId && row.Year == year && row.Quarter == quarter)
+            .OrderBy(row => row.Type)
+            .Select(row => new DeclarationFileResponse(row.Type, row.FileName, row.GeneratedAt))
+            .ToArrayAsync(cancellationToken);
+
+        var figures = inGroup3 ? Declaration.ForQuarter(viewed.Accrual, quarter) : null;
+        var deadlines = DeadlineCalendar.ForQuarter(year, quarter, config, settings);
+        var response = new DeclarationResponse(
+            year,
+            quarter,
+            deadlines.Declaration,
+            deadlines.TaxPayment,
+            figures is null ? null : ToFigures(figures),
+            LimitCrossingResponse.Of(viewed),
+            config.SingleTaxRateBp,
+            config.ExcessRateBp,
+            config.MilitaryLevyRateBp,
+            DeclarationReadiness.Evaluate(
+                deadlines.Declaration.Due,
+                receiptsToReview,
+                pendingCandidates,
+                viewed.Config.VerifiedAt is not null,
+                settings.FopRegistrationDate is not null,
+                invoicing,
+                details,
+                !inGroup3,
+                ledger),
+            filing is null ? null : ToFiling(filing, incomeKop),
+            files);
+        return (new QuarterDeclaration(response, figures, invoicing, details), null);
+    }
+
+    private sealed record QuarterDeclaration(
+        DeclarationResponse Response,
+        DeclarationFigures? Figures,
+        InvoicingDetails? Invoicing,
+        DeclarationDetails? Details);
+
     private static DateOnly QuarterStart(int year, int quarter) => new(year, 3 * quarter - 2, 1);
 
     internal static DateOnly QuarterEnd(int year, int quarter) =>
@@ -263,7 +411,8 @@ internal sealed record DeclarationResponse(
     int ExcessRateBp,
     int MilitaryLevyRateBp,
     DeclarationReadinessResponse Readiness,
-    DeclarationFilingResponse? Filed);
+    DeclarationFilingResponse? Filed,
+    DeclarationFileResponse[] Files);
 
 /// <summary>
 /// The form's group 3 lines, as <see cref="DeclarationFigures"/> names them: 06, 07, 08, 09, 11, 12,
@@ -282,6 +431,12 @@ internal sealed record DeclarationFiguresResponse(
     long PreviousMilitaryLevyKop,
     long MilitaryLevyPayableKop,
     long? EsvKop);
+
+/// <summary>The type decides C_DOC_STAN and the HZ, HZN or HZU mark.</summary>
+internal sealed record DeclarationFileRequest(DeclarationType Type);
+
+/// <summary>The last file prepared for the quarter and type; its bytes are at <c>GET files/{type}</c>.</summary>
+internal sealed record DeclarationFileResponse(DeclarationType Type, string FileName, DateTimeOffset GeneratedAt);
 
 internal sealed record DeclarationFilingRequest(DateOnly FiledOn, DeclarationType Type);
 

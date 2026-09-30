@@ -219,7 +219,7 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         await SetUp(owner, year);
         await PutInvoicing(owner, name: "");
-        await PutDetails(owner, new DeclarationDetailsRequest(26, 5, [], "Київ"));
+        await PutDetails(owner, new DeclarationDetailsRequest(26, 5, "ГУ ДПС у м. Києві", [], "Київ"));
 
         var before = (await Get(owner, year, 1)).Readiness;
         Assert.Equal([DeclarationDetailField.Name, DeclarationDetailField.Kved], before.MissingDetails);
@@ -465,11 +465,12 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
             services.AddSingleton<TimeProvider>(
                 new FakeTime(new DateTimeOffset(today, new TimeOnly(9, 0), TimeSpan.Zero)))));
 
-    private static readonly DeclarationDetailsRequest CompleteDetails = new(26, 5, ["62.01"], "Київ, вул. Тестова 1");
+    internal static readonly DeclarationDetailsRequest CompleteDetails =
+        new(26, 5, "ГУ ДПС у м. Києві", ["62.01"], "Київ, вул. Тестова 1");
 
     // A verified tax year with the 2026 parameters, the registration on 1 January, and every detail
     // the declaration needs, so each test breaks exactly the one thing it is about.
-    private static async Task SetUp(HttpClient owner, int year, int incomeLimitMinWages = 1_167)
+    internal static async Task SetUp(HttpClient owner, int year, int incomeLimitMinWages = 1_167)
     {
         Assert.Equal(
             HttpStatusCode.OK,
@@ -517,13 +518,13 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings/invoicing", request, Json)).StatusCode);
     }
 
-    private static async Task PutDetails(HttpClient owner, DeclarationDetailsRequest request) =>
+    internal static async Task PutDetails(HttpClient owner, DeclarationDetailsRequest request) =>
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings/declaration", request, Json)).StatusCode);
 
     private static TransactionRequest Income(DateOnly valueDate, long amountKop) =>
         new(valueDate, amountKop, Currency.UAH, null, TransactionKind.Income, null, null, null, null, null);
 
-    private static async Task<TransactionResponse> PostIncome(HttpClient owner, DateOnly valueDate, long amountKop)
+    internal static async Task<TransactionResponse> PostIncome(HttpClient owner, DateOnly valueDate, long amountKop)
     {
         var response = await owner.PostAsJsonAsync("/api/transactions", Income(valueDate, amountKop), Json);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);

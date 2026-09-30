@@ -19,6 +19,9 @@ internal sealed class DeclarationDetails
     /// <summary>The tax office's district code within the region, C_RAJ.</summary>
     public int? TaxOfficeDistrict { get; set; }
 
+    /// <summary>The tax office's name as the declaration's header prints it, HSTI.</summary>
+    public string TaxOfficeName { get; set; } = string.Empty;
+
     /// <summary>The first is the main activity.</summary>
     public string[] KvedCodes { get; set; } = [];
 
@@ -41,7 +44,7 @@ internal sealed class DeclarationDetails
             missing.Add(DeclarationDetailField.Rnokpp);
         }
 
-        if (details?.TaxOfficeRegion is null)
+        if (details?.TaxOfficeRegion is null || details.TaxOfficeName.Length == 0)
         {
             missing.Add(DeclarationDetailField.TaxOffice);
         }

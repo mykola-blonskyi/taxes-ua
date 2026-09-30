@@ -39,7 +39,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":11,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"treasuryAccounts":[],"notificationChannels":[]}""";
+        """{"schemaVersion":12,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[]}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -128,6 +128,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var version1 = Baseline();
         version1["schemaVersion"] = 1;
         version1.Remove("treasuryAccounts");
+        version1.Remove("declarationFiles");
         version1.Remove("bankAccounts");
         version1.Remove("importBatches");
         version1.Remove("invoicingDetails");
@@ -163,11 +164,13 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         current["invoices"] = new JsonArray();
         current["treasuryAccounts"] = new JsonArray();
         current["notificationChannels"] = new JsonArray();
+        current["declarationFiles"] = new JsonArray();
         current["settings"]!["backOnGroup3From"] = null;
         var version2 = current.DeepClone().AsObject();
         version2["schemaVersion"] = 2;
         version2.Remove("treasuryAccounts");
         version2.Remove("notificationChannels");
+        version2.Remove("declarationFiles");
         version2.Remove("invoicingDetails");
         version2.Remove("declarationDetails");
         version2.Remove("declarationFilings");
@@ -198,6 +201,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var version3 = Baseline();
         version3["schemaVersion"] = 3;
         version3.Remove("treasuryAccounts");
+        version3.Remove("declarationFiles");
         version3.Remove("invoicingDetails");
         RemoveClientDetails(version3);
 
@@ -243,6 +247,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var version6 = Baseline();
         version6["schemaVersion"] = 6;
         version6.Remove("treasuryAccounts");
+        version6.Remove("declarationFiles");
         version6.Remove("declarationDetails");
         version6.Remove("declarationFilings");
 
@@ -270,6 +275,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var version9 = Baseline();
         version9["schemaVersion"] = 9;
         version9["settings"]!.AsObject().Remove("backOnGroup3From");
+        version9.Remove("declarationFiles");
+        version9["declarationDetails"]!.AsObject().Remove("taxOfficeName");
         await Restore(owner, version9.ToJsonString());
         var upgraded = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
 
@@ -311,13 +318,58 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
         var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>("/api/settings/declaration", Json);
         Assert.Equal(
-            (26, 5, "62.01 63.11", "Київ, вул. Тестова 1", 0),
-            (details!.TaxOfficeRegion, details.TaxOfficeDistrict, string.Join(' ', details.KvedCodes), details.Address,
-                details.MissingDetails.Length));
+            (26, 5, "ГУ ДПС у м. Києві", "62.01 63.11", "Київ, вул. Тестова 1", 0),
+            (details!.TaxOfficeRegion, details.TaxOfficeDistrict, details.TaxOfficeName, string.Join(' ', details.KvedCodes),
+                details.Address, details.MissingDetails.Length));
         var backup = JsonSerializer.Deserialize<BackupDocument>(await Backup(owner), Json)!;
         Assert.Equal(
             [(2030, 4, DeclarationType.Reporting), (2031, 1, DeclarationType.Clarifying)],
             backup.DeclarationFilings.Select(filing => (filing.Year, filing.Quarter, filing.Type)));
+    }
+
+    [Fact]
+    public async Task A_restore_brings_back_the_declaration_files_byte_for_byte()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+
+        await Restore(owner, Baseline().ToJsonString());
+
+        await using var scope = fixture.CreateScope();
+        var files = await scope.ServiceProvider.GetRequiredService<AppDbContext>().DeclarationFiles.AsNoTracking()
+            .OrderBy(row => row.Type)
+            .ToListAsync();
+        Assert.Equal(
+            [
+                (DeclarationType.Reporting, "26051234567890F0103309100000000120320312605.xml", DeclarationFileBytes),
+                (DeclarationType.Clarifying, "26051234567890F0103309300000000120320312605.xml", new byte[] { 0x3C, 0x00, 0xFF }),
+            ],
+            files.Select(row => (row.Type, row.FileName, row.Content)));
+        Assert.Equal(new DateTimeOffset(2031, 5, 1, 9, 30, 0, TimeSpan.Zero), files[0].GeneratedAt);
+        var backup = JsonSerializer.Deserialize<BackupDocument>(await Backup(owner), Json)!;
+        Assert.Equal(DeclarationFileBytes, backup.DeclarationFiles[0].Content);
+    }
+
+    [Fact]
+    public async Task A_version_11_file_restores_with_no_declaration_files_and_no_tax_office_name()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+        var version11 = Baseline();
+        version11["schemaVersion"] = 11;
+        version11.Remove("declarationFiles");
+        version11["declarationDetails"]!.AsObject().Remove("taxOfficeName");
+
+        await Restore(owner, version11.ToJsonString());
+
+        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
+        Assert.Empty(backup["declarationFiles"]!.AsArray());
+        Assert.Equal(string.Empty, backup["declarationDetails"]!["taxOfficeName"]!.GetValue<string>());
+        var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>("/api/settings/declaration", Json);
+        Assert.Equal([DeclarationDetailField.TaxOffice], details!.MissingDetails);
     }
 
     [Fact]
@@ -328,6 +380,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var version4 = Baseline();
         version4["schemaVersion"] = 4;
         version4.Remove("treasuryAccounts");
+        version4.Remove("declarationFiles");
         RemoveClientDetails(version4);
 
         await DropInvoices();
@@ -352,6 +405,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var version5 = Baseline();
         version5["schemaVersion"] = 5;
         version5.Remove("treasuryAccounts");
+        version5.Remove("declarationFiles");
         version5.Remove("invoices");
 
         await DropInvoices();
@@ -372,6 +426,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var version8 = Baseline();
         version8["schemaVersion"] = 8;
         version8.Remove("treasuryAccounts");
+        version8.Remove("declarationFiles");
         var account = AddAccount(version8);
         AddCandidate(version8, account, TreasuryIban, "Pending", null);
         version8["budgetPaymentCandidates"]![0]!.AsObject().Remove("counterEdrpou");
@@ -633,6 +688,13 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "declaration type out of the enum", null },
         { "a malformed KVED code", "declarationDetails.kvedCodes[1]" },
         { "a district without a region", "declarationDetails.taxOfficeRegion" },
+        { "a tax office name with a control character", "declarationDetails.taxOfficeName" },
+        { "a null declaration file", "file" },
+        { "a declaration file for quarter 5", "declarationFiles[0].quarter" },
+        { "a declaration file not named .xml", "declarationFiles[0].fileName" },
+        { "an empty declaration file", "declarationFiles[0].content" },
+        { "a declaration file over 1 MiB", "declarationFiles[0].content" },
+        { "two declaration files of one type", "declarationFiles[1].type" },
     };
 
     [Theory]
@@ -734,6 +796,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [typeof(Invoice)] = typeof(InvoiceBackup),
             [typeof(DeclarationDetails)] = typeof(DeclarationDetailsBackup),
             [typeof(DeclarationFiling)] = typeof(DeclarationFilingBackup),
+            [typeof(DeclarationFile)] = typeof(DeclarationFileBackup),
             [typeof(TreasuryAccount)] = typeof(TreasuryAccountBackup),
             [typeof(NotificationChannel)] = typeof(NotificationChannelBackup),
         };
@@ -830,7 +893,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync(
             "/api/settings/declaration",
-            new DeclarationDetailsRequest(26, 5, ["62.01"], "Київ, вул. Тестова 1"),
+            new DeclarationDetailsRequest(26, 5, "ГУ ДПС у м. Києві", ["62.01"], "Київ, вул. Тестова 1"),
             Json)).StatusCode);
 
         var orphan = await PostTransaction(owner, Transaction(new DateOnly(2031, 1, 20), 1_000, clientName: "Gone Ltd"));
@@ -965,10 +1028,16 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                     [new InvoiceLine("Support", "Підтримка", InvoiceUnit.Month, 1_000, 500_00)],
                     null, null, null, null, null, null, created.AddDays(1), created.AddDays(1)),
             ],
-            new DeclarationDetailsBackup(26, 5, ["62.01", "63.11"], "Київ, вул. Тестова 1"),
+            new DeclarationDetailsBackup(26, 5, "ГУ ДПС у м. Києві", ["62.01", "63.11"], "Київ, вул. Тестова 1"),
             [
                 new DeclarationFilingBackup(2030, 4, new DateOnly(2031, 2, 3), DeclarationType.Reporting, 90_000_000, created, created),
                 new DeclarationFilingBackup(2031, 1, new DateOnly(2031, 5, 5), DeclarationType.Clarifying, 4_900_000, created, created),
+            ],
+            [
+                new DeclarationFileBackup(
+                    2031, 1, DeclarationType.Reporting, "26051234567890F0103309100000000120320312605.xml", DeclarationFileBytes, created),
+                new DeclarationFileBackup(
+                    2031, 1, DeclarationType.Clarifying, "26051234567890F0103309300000000120320312605.xml", [0x3C, 0x00, 0xFF], created.AddDays(4)),
             ],
             [
                 new TreasuryAccountBackup(
@@ -1189,6 +1258,27 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             case "a district without a region":
                 file["declarationDetails"]!["taxOfficeRegion"] = null;
                 break;
+            case "a tax office name with a control character":
+                file["declarationDetails"]!["taxOfficeName"] = "ГУ ДПС\u0007";
+                break;
+            case "a null declaration file":
+                file["declarationFiles"]!.AsArray().Add(null);
+                break;
+            case "a declaration file for quarter 5":
+                file["declarationFiles"]![0]!["quarter"] = 5;
+                break;
+            case "a declaration file not named .xml":
+                file["declarationFiles"]![0]!["fileName"] = "declaration.pdf";
+                break;
+            case "an empty declaration file":
+                file["declarationFiles"]![0]!["content"] = string.Empty;
+                break;
+            case "a declaration file over 1 MiB":
+                file["declarationFiles"]![0]!["content"] = Convert.ToBase64String(new byte[1024 * 1024 + 1]);
+                break;
+            case "two declaration files of one type":
+                file["declarationFiles"]![1]!["type"] = "Reporting";
+                break;
             case "not JSON":
                 return "{\"schemaVersion\":1,";
             default:
@@ -1199,6 +1289,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     private const string TreasuryIban = "UA358999980333159998000026011";
+
+    // Not XML at all: a restore carries the stored bytes without reading them, and 0xCF 0xB2 are windows-1251.
+    private static readonly byte[] DeclarationFileBytes = [0x3C, 0xCF, 0xB2, 0x3E];
 
     private const string LearnedTreasuryIban = "UA148999980313181000026007233";
 

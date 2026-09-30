@@ -2151,6 +2151,135 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/declarations/{year}/{quarter}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                    quarter: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeclarationFileRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeclarationFileResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/declarations/{year}/{quarter}/files/{type}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                    quarter: number;
+                    type: components["schemas"]["DeclarationType"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/xml": string;
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/declarations/{year}/{quarter}/filing": {
         parameters: {
             query?: never;
@@ -4258,6 +4387,7 @@ export interface components {
             invoices: components["schemas"]["InvoiceBackup"][];
             declarationDetails: null | components["schemas"]["DeclarationDetailsBackup"];
             declarationFilings: components["schemas"]["DeclarationFilingBackup"][];
+            declarationFiles: components["schemas"]["DeclarationFileBackup"][];
             treasuryAccounts: components["schemas"]["TreasuryAccountBackup"][];
             notificationChannels: components["schemas"]["NotificationChannelBackup"][];
         };
@@ -4387,6 +4517,7 @@ export interface components {
             taxOfficeRegion: null | number | string;
             /** Format: int32 */
             taxOfficeDistrict: null | number | string;
+            taxOfficeName: string;
             kvedCodes: string[];
             address: string;
         };
@@ -4395,6 +4526,7 @@ export interface components {
             taxOfficeRegion: null | number | string;
             /** Format: int32 */
             taxOfficeDistrict: null | number | string;
+            taxOfficeName: string;
             kvedCodes: string[];
             address: string;
         };
@@ -4405,6 +4537,7 @@ export interface components {
             taxOfficeRegion: null | number | string;
             /** Format: int32 */
             taxOfficeDistrict: null | number | string;
+            taxOfficeName: string;
             kvedCodes: string[];
             address: string;
             missingDetails: ("Name" | "Rnokpp" | "TaxOffice" | "Kved" | "Address")[];
@@ -4444,6 +4577,27 @@ export interface components {
             militaryLevyPayableKop: number | string;
             /** Format: int64 */
             esvKop: null | number | string;
+        };
+        DeclarationFileBackup: {
+            /** Format: int32 */
+            year: number | string;
+            /** Format: int32 */
+            quarter: number | string;
+            type: components["schemas"]["DeclarationType"];
+            fileName: string;
+            /** Format: byte */
+            content: string;
+            /** Format: date-time */
+            generatedAt: string;
+        };
+        DeclarationFileRequest: {
+            type: components["schemas"]["DeclarationType"];
+        };
+        DeclarationFileResponse: {
+            type: components["schemas"]["DeclarationType"];
+            fileName: string;
+            /** Format: date-time */
+            generatedAt: string;
         };
         DeclarationFilingBackup: {
             /** Format: int32 */
@@ -4502,6 +4656,7 @@ export interface components {
             militaryLevyRateBp: number | string;
             readiness: components["schemas"]["DeclarationReadinessResponse"];
             filed: null | components["schemas"]["DeclarationFilingResponse"];
+            files: components["schemas"]["DeclarationFileResponse"][];
         };
         /** @enum {string} */
         DeclarationType: "Reporting" | "NewReporting" | "Clarifying";

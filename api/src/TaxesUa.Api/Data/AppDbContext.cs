@@ -27,6 +27,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<DeclarationFiling> DeclarationFilings => Set<DeclarationFiling>();
 
+    public DbSet<DeclarationFile> DeclarationFiles => Set<DeclarationFile>();
+
     public DbSet<TaxYearConfig> TaxYearConfigs => Set<TaxYearConfig>();
 
     public DbSet<Transaction> Transactions => Set<Transaction>();

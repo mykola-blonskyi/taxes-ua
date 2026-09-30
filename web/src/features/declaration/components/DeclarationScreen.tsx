@@ -13,6 +13,7 @@ import { daysBetween, isAfter, lastEndedQuarter, periodFrom, shiftQuarter, type 
 import { Figures } from "./Figures";
 import { FilingMark } from "./FilingMark";
 import { Readiness } from "./Readiness";
+import { XmlFile } from "./XmlFile";
 
 export function DeclarationScreen({ year, quarter }: { year?: string; quarter?: string }) {
   const t = useTranslations("declaration");
@@ -97,6 +98,7 @@ function Declaration({ declaration, period, today }: { declaration: DeclarationR
       <FilingMark filed={declaration.filed} period={period} today={today} />
       <Readiness year={period.year} readiness={declaration.readiness} />
       <Figures declaration={declaration} />
+      <XmlFile declaration={declaration} period={period} />
     </>
   );
 }

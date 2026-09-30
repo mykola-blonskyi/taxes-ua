@@ -24,6 +24,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Features/Declarations/Golden/*.xml" Link="Golden/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\TaxesUa.Api\TaxesUa.Api.csproj" />
   </ItemGroup>
 
