@@ -299,6 +299,18 @@ remainders added, a figure to read like the tax burden), `RecommendedDate`.
 
 ---
 
+### TaxReserve (computed)
+
+Responsibilities: how much to keep aside for taxes (Rule 13). Not stored; read off the accruals and
+the Rule 7 allocation, and never fed back into a balance.
+
+Fields: per receipt `SetAside` (`SingleTaxKop`, `MilitaryLevyKop`; zero for a non-income kind,
+negative for a refund, absent for a row Rule 8 excludes); in total `Dues`, one per due date, oldest
+first, each with the `SingleTaxKop`, `MilitaryLevyKop` and `EsvKop` still needed by then, and
+`TotalKop` (the dues added).
+
+---
+
 ### FxRate
 
 Responsibilities: a cache of NBU exchange rates.

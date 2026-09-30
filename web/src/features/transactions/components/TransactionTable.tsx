@@ -99,6 +99,15 @@ function TransactionRow({
         ) : null}
       </div>
 
+      {transaction.setAside && !nonIncome ? (
+        <p className="min-w-0 break-words text-xs text-muted-foreground">
+          {t(transaction.kind === "RefundToClient" ? "row.setAsideRelease" : "row.setAside", {
+            singleTax: formatMoney(Math.abs(Number(transaction.setAside.singleTaxKop)), locale),
+            levy: formatMoney(Math.abs(Number(transaction.setAside.militaryLevyKop)), locale),
+          })}
+        </p>
+      ) : null}
+
       {transaction.description ? (
         <p className="min-w-0 break-words text-xs text-muted-foreground">{transaction.description}</p>
       ) : null}

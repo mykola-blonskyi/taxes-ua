@@ -45,17 +45,20 @@ public static class DashboardEndpoints
                         [],
                         null,
                         null,
+                        null,
                         needsReview));
                 }
 
                 var settings = loaded.Viewed.Settings.ToEngineInput();
                 PaymentLedger? ledger = null;
+                LedgerYear[] ledgerYears = [];
                 if (loaded.Ledger is [var first, ..])
                 {
                     var payments = await PaymentsEndpoints.LoadEngineInputAsync(
                         database, user.Id, first.Accrual.Year, loaded.Ledger[^1].Accrual.Year, cancellationToken);
+                    ledgerYears = [.. loaded.Ledger.Select(each => new LedgerYear(each.Accrual, each.Config.ToEngineInput()))];
                     ledger = Balances.ForYears(
-                        [.. loaded.Ledger.Select(each => new LedgerYear(each.Accrual, each.Config.ToEngineInput()))],
+                        ledgerYears,
                         settings,
                         payments,
                         today);
@@ -65,6 +68,10 @@ public static class DashboardEndpoints
                     ledger, settings.FopRegistrationDate, today, ledger is null ? null : loaded.AdvancesOf(ledger));
                 var burden = step is NextStep.Pay or NextStep.AllDone
                     ? loaded.Viewed.Accrual.BurdenThrough((today.Month + 2) / 3)
+                    : null;
+
+                var reserve = ledger is not null && step is NextStep.Pay or NextStep.AllDone
+                    ? TaxReserve.Needed(ledger, ledgerYears, today)
                     : null;
 
                 // Unconditional, unlike burden: the limit bar should show even before there is any
@@ -79,6 +86,7 @@ public static class DashboardEndpoints
                     ledger is null ? [] : Credits(ledger),
                     burden is null ? null : new TaxBurdenResponse(burden.IncomeKop, burden.TaxKop, burden.RateBp),
                     ToLimit(limit),
+                    reserve is null ? null : ToReserve(reserve, today),
                     needsReview));
             })
             .WithTags("Dashboard")
@@ -122,6 +130,19 @@ public static class DashboardEndpoints
         debt.DueDate.DayNumber - today.DayNumber,
         debt.AdvanceMonth);
 
+    private static ReserveResponse ToReserve(ReserveNeed reserve, DateOnly today) => new(
+        reserve.TotalKop,
+        [
+            .. reserve.Dues.Select(due => new ReserveDueResponse(
+                due.DueDate,
+                due.Status,
+                due.DueDate.DayNumber - today.DayNumber,
+                due.SingleTaxKop,
+                due.MilitaryLevyKop,
+                due.EsvKop,
+                due.TotalKop)),
+        ]);
+
     private static LimitStatusResponse ToLimit(LimitStatus limit) => new(
         limit.IncomeKop,
         limit.LimitKop,
@@ -136,7 +157,8 @@ public static class DashboardEndpoints
 /// <c>Credits</c> lists each kind with unspent credit, which the ledger only holds once nothing of that
 /// kind is owed. <c>Burden</c> is sent only for a year the ledger covers. <c>Limit</c> is sent
 /// whenever a tax year is configured, unlike <c>Burden</c>, since the limit bar should show even
-/// before there is any next-step debt. <c>NeedsReviewCount</c> is the number of imported transactions
+/// before there is any next-step debt. <c>Reserve</c> is sent when the registration date is set and
+/// reached, with the same rule as <c>Burden</c>. <c>NeedsReviewCount</c> is the number of imported transactions
 /// the owner has not reviewed, which the figures already count under their suggested kinds, and of
 /// budget payment candidates, which count nowhere until confirmed.
 /// </summary>
@@ -146,6 +168,7 @@ internal sealed record DashboardResponse(
     KindCreditResponse[] Credits,
     TaxBurdenResponse? Burden,
     LimitStatusResponse? Limit,
+    ReserveResponse? Reserve,
     int NeedsReviewCount);
 
 internal enum NextStepState
@@ -207,3 +230,19 @@ internal sealed record LimitStatusResponse(
     long RemainingKop,
     long ExcessKop,
     long ExcessTaxKop);
+
+/// <summary>
+/// What the taxes need by now (Rule 13): every accrued and unpaid amount plus the current quarter to
+/// date, grouped by due date, oldest first. <c>TotalKop</c> adds the kinds, which is why it is a
+/// derived figure and not a balance.
+/// </summary>
+internal sealed record ReserveResponse(long TotalKop, ReserveDueResponse[] Dues);
+
+internal sealed record ReserveDueResponse(
+    DateOnly DueDate,
+    ObligationStatus Status,
+    int DaysLeft,
+    long SingleTaxKop,
+    long MilitaryLevyKop,
+    long EsvKop,
+    long TotalKop);
