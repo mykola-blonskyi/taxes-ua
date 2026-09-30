@@ -62,5 +62,7 @@ export function useDeleteClient() {
       await api.DELETE("/api/clients/{id}", { params: { path: { id } } });
     },
     onSuccess: invalidate,
+    // A 409 means a receipt now points at the client, so the list's receipt count is stale.
+    onError: invalidate,
   });
 }

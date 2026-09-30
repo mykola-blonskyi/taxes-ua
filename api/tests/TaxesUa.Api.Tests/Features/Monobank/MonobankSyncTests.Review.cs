@@ -260,6 +260,35 @@ public sealed partial class MonobankSyncTests
         await AssertOnlyTheManualRowCounts(owner, year, manual.Id);
     }
 
+    [Fact]
+    public async Task A_client_only_a_dismissed_import_points_at_can_be_deleted_and_the_tombstone_forgets_it()
+    {
+        const int year = 2078;
+        var bank = new FakeBank();
+        bank.Connect("token-dismissed-client", ("dismissed-client-uah", 980));
+        bank.Put("dismissed-client-uah", new Operation(
+            "op-dismissed-client", At(year, 6, 1, 9), 500_00, 980, CounterName: "Dismissed Buyer"));
+        await using var app = Create(At(year, 6, 10, 10), bank);
+        await EmptyLedger(app, ApiFixture.SecondAllowedEmail);
+        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-dismissed-client");
+        var imported = Assert.Single((await List(owner, year)).Items);
+        var clients = await owner.GetFromJsonAsync<ClientResponse[]>("/api/clients", Json);
+        var client = Assert.Single(clients!, row => row.Name == "Dismissed Buyer");
+        Assert.Equal(HttpStatusCode.Conflict, (await owner.DeleteAsync($"/api/clients/{client.Id}")).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/transactions/{imported.Id}")).StatusCode);
+
+        clients = await owner.GetFromJsonAsync<ClientResponse[]>("/api/clients", Json);
+        Assert.Equal(0, Assert.Single(clients!, row => row.Id == client.Id).ReceiptCount);
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/clients/{client.Id}")).StatusCode);
+
+        var stored = Parse(await owner.GetStringAsync("/api/backup")).GetProperty("transactions").EnumerateArray()
+            .Single(row => row.GetProperty("id").GetGuid() == imported.Id);
+        Assert.Equal("Dismissed", stored.GetProperty("reviewStatus").GetString());
+        Assert.Equal("op-dismissed-client", stored.GetProperty("externalId").GetString());
+        Assert.Equal(JsonValueKind.Null, stored.GetProperty("clientId").ValueKind);
+    }
+
     private static async Task EmptyLedger(SyncApp app, string email)
     {
         using var owner = await ApiFixture.SignIn(app.Factory, email);

@@ -137,9 +137,8 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const saving = createClient.isPending || updateClient.isPending;
-  const saveFailure = [createClient.error, updateClient.error].find((error) => error instanceof ApiError) as
-    | ApiError
-    | undefined;
+  const saveError = createClient.error ?? updateClient.error;
+  const saveFailure = saveError instanceof ApiError ? saveError : undefined;
   const deleteFailure = deleteClient.error instanceof ApiError ? deleteClient.error : null;
   const fieldErrors = saveFailure?.errors;
   const rejectedFields = Object.keys(fieldErrors ?? {}).length > 0;
@@ -170,8 +169,10 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
         <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {t("validationError")}
         </p>
-      ) : saveFailure ? (
-        <p className="text-sm text-destructive">{`${t("saveFailed")} ${saveFailure.message}`}</p>
+      ) : saveError ? (
+        <p className="text-sm text-destructive">
+          {saveFailure ? `${t("saveFailed")} ${saveFailure.message}` : t("saveFailedGeneric")}
+        </p>
       ) : null}
 
       <TextField
@@ -287,9 +288,13 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
               {!canDelete ? <span className="text-xs text-muted-foreground">{t("deleteBlocked")}</span> : null}
             </div>
           )}
-          {deleteFailure ? (
+          {deleteClient.error ? (
             <p className="text-sm text-destructive">
-              {deleteFailure.status === 409 ? t("deleteBlocked") : `${t("deleteFailed")} ${deleteFailure.message}`}
+              {deleteFailure === null
+                ? t("deleteFailedGeneric")
+                : deleteFailure.status === 409
+                  ? t("deleteBlocked")
+                  : `${t("deleteFailed")} ${deleteFailure.message}`}
             </p>
           ) : null}
         </div>
