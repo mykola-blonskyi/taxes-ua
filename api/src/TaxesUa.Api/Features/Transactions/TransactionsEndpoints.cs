@@ -73,8 +73,9 @@ public static class TransactionsEndpoints
 
                 var totalIncomeKop = IncomeLedger.ForYear(
                     year, rows.Select(row => row.ToEngineInput()).ToList(), settings.ToEngineInput()).TotalIncomeKop;
+                var setAside = await SetAsideOfAsync(database, settings, rows, cancellationToken);
                 var items = rows
-                    .Select(row => ToResponse(row, row.Client?.Name, IsBeforeRegistration(row, settings)))
+                    .Select(row => ToResponse(row, row.Client?.Name, IsBeforeRegistration(row, settings), setAside(row)))
                     .ToArray();
 
                 return Results.Ok(new TransactionListResponse(
@@ -109,11 +110,18 @@ public static class TransactionsEndpoints
                 var result = await TransactionRecorder.RecordAsync(
                     database, user.Id, request, provenance: null, rates, time.TodayInKyiv(), cancellationToken);
 
+                if (result is RecordTransactionResult.Success recorded)
+                {
+                    var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
+                    var setAside = await SetAsideOfAsync(database, settings, [recorded.Row], cancellationToken);
+
+                    return Results.Created(
+                        $"/api/transactions/{recorded.Row.Id}",
+                        ToResponse(recorded.Row, recorded.ClientName, recorded.BeforeRegistration, setAside(recorded.Row)));
+                }
+
                 return result switch
                 {
-                    RecordTransactionResult.Success success => Results.Created(
-                        $"/api/transactions/{success.Row.Id}",
-                        ToResponse(success.Row, success.ClientName, success.BeforeRegistration)),
                     RecordTransactionResult.Invalid invalid => Results.ValidationProblem(invalid.Errors),
                     RecordTransactionResult.RateUnavailable unavailable =>
                         FxEndpoints.RateUnavailable(unavailable.Currency, unavailable.Date, unavailable.Lookup),
@@ -188,8 +196,9 @@ public static class TransactionsEndpoints
 
                 var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
                 var beforeRegistration = IsBeforeRegistration(row, settings);
+                var setAside = await SetAsideOfAsync(database, settings, [row], cancellationToken);
 
-                return Results.Ok(ToResponse(row, normalized.ClientName, beforeRegistration));
+                return Results.Ok(ToResponse(row, normalized.ClientName, beforeRegistration, setAside(row)));
             })
             .Produces<TransactionResponse>()
             .ProducesValidationProblem()
@@ -294,7 +303,9 @@ public static class TransactionsEndpoints
 
                 var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
 
-                return Results.Ok(ToResponse(row, row.Client?.Name, IsBeforeRegistration(row, settings)));
+                var setAside = await SetAsideOfAsync(database, settings, [row], cancellationToken);
+
+                return Results.Ok(ToResponse(row, row.Client?.Name, IsBeforeRegistration(row, settings), setAside(row)));
             })
             .Produces<TransactionResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -325,8 +336,10 @@ public static class TransactionsEndpoints
                     .ThenByDescending(row => row.CreatedAt)
                     .ToListAsync(cancellationToken);
 
+                var setAside = await SetAsideOfAsync(database, settings, rows, cancellationToken);
+
                 return Results.Ok(rows
-                    .Select(row => ToResponse(row, row.Client?.Name, IsBeforeRegistration(row, settings)))
+                    .Select(row => ToResponse(row, row.Client?.Name, IsBeforeRegistration(row, settings), setAside(row)))
                     .ToArray());
             })
             .Produces<TransactionResponse[]>()
@@ -568,7 +581,32 @@ public static class TransactionsEndpoints
         return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
 
-    private static TransactionResponse ToResponse(Transaction row, string? clientName, bool beforeRegistration) =>
+    // Rule 13: the rates are the row's year's, read from the stored year parameters. A year without a
+    // row, or an owner without a registration date, has no rate to apply, so the row shows none.
+    private static async Task<Func<Transaction, SetAsideResponse?>> SetAsideOfAsync(
+        AppDbContext database,
+        SettingsEntity settings,
+        IReadOnlyCollection<Transaction> rows,
+        CancellationToken cancellationToken)
+    {
+        if (settings.FopRegistrationDate is not { } registrationDate || rows.Count == 0)
+        {
+            return _ => null;
+        }
+
+        var years = rows.Select(row => row.ValueDate.Year).Distinct().ToArray();
+        var configs = await database.TaxYearConfigs
+            .Where(config => years.Contains(config.Year))
+            .ToDictionaryAsync(config => config.Year, config => config.ToEngineInput(), cancellationToken);
+
+        return row => configs.TryGetValue(row.ValueDate.Year, out var config)
+            && TaxReserve.SetAsideFor(row.ToEngineInput(), config, registrationDate) is { } setAside
+                ? new SetAsideResponse(setAside.SingleTaxKop, setAside.MilitaryLevyKop)
+                : null;
+    }
+
+    private static TransactionResponse ToResponse(
+        Transaction row, string? clientName, bool beforeRegistration, SetAsideResponse? setAside) =>
         new(
             row.Id,
             row.ValueDate,
@@ -590,7 +628,8 @@ public static class TransactionsEndpoints
             row.BankAccount is { } account
                 ? new TransactionSource(account.Bank, IsoCurrency.Display(account.CurrencyCode))
                 : null,
-            row.ReviewStatus);
+            row.ReviewStatus,
+            setAside);
 
     private static Dictionary<string, string[]> YearOutOfRange() => new()
     {
@@ -739,7 +778,15 @@ internal sealed record TransactionResponse(
     bool BeforeRegistration,
     RefundedReceipt? RefundsReceipt,
     TransactionSource? Source,
-    ReviewStatus ReviewStatus);
+    ReviewStatus ReviewStatus,
+    SetAsideResponse? SetAside);
+
+/// <summary>
+/// What to set aside from a receipt for tax (Rule 13): its hryvnia amount times its year's rates, zero
+/// for a non-income kind and negative for a refund. Null when the operation is left out of income
+/// (Rule 8) or no rate is configured for its year.
+/// </summary>
+internal sealed record SetAsideResponse(long SingleTaxKop, long MilitaryLevyKop);
 
 internal sealed record ConfirmRequest(TransactionKind Kind);
 

@@ -2910,6 +2910,7 @@ export interface components {
             credits: components["schemas"]["KindCreditResponse"][];
             burden: null | components["schemas"]["TaxBurdenResponse"];
             limit: null | components["schemas"]["LimitStatusResponse"];
+            reserve: null | components["schemas"]["ReserveResponse"];
             /** Format: int32 */
             needsReviewCount: number | string;
         };
@@ -3354,6 +3355,26 @@ export interface components {
             amountMinor: number | string;
             currency: components["schemas"]["Currency"];
         };
+        ReserveDueResponse: {
+            /** Format: date */
+            dueDate: string;
+            status: components["schemas"]["ObligationStatus"];
+            /** Format: int32 */
+            daysLeft: number | string;
+            /** Format: int64 */
+            singleTaxKop: number | string;
+            /** Format: int64 */
+            militaryLevyKop: number | string;
+            /** Format: int64 */
+            esvKop: number | string;
+            /** Format: int64 */
+            totalKop: number | string;
+        };
+        ReserveResponse: {
+            /** Format: int64 */
+            totalKop: number | string;
+            dues: components["schemas"]["ReserveDueResponse"][];
+        };
         RestoreResponse: {
             /** Format: int32 */
             clients: number | string;
@@ -3364,6 +3385,12 @@ export interface components {
         };
         /** @enum {string} */
         ReviewStatus: "Confirmed" | "NeedsReview" | "Dismissed";
+        SetAsideResponse: {
+            /** Format: int64 */
+            singleTaxKop: number | string;
+            /** Format: int64 */
+            militaryLevyKop: number | string;
+        };
         SettingsBackup: {
             /** Format: date */
             fopRegistrationDate: null | string;
@@ -3564,6 +3591,7 @@ export interface components {
             refundsReceipt: null | components["schemas"]["RefundedReceipt"];
             source: null | components["schemas"]["TransactionSource"];
             reviewStatus: components["schemas"]["ReviewStatus"];
+            setAside: null | components["schemas"]["SetAsideResponse"];
         };
         TransactionSource: {
             bank: components["schemas"]["Bank"];

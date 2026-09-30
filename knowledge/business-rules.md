@@ -378,3 +378,33 @@ Deleting the payment makes the candidate pending again, clearing its confirmed k
 time: the operation is offered again and the deleted confirmation no longer feeds the kind learned
 for its IBAN. Changing the payment's kind changes the candidate's confirmed kind to the new one, as
 the owner's latest word on that IBAN. A dismissed candidate is never revived.
+
+---
+
+## Rule 13. Tax reserve
+
+The reserve is a derived figure. It introduces no accrual, deadline or allocation of its own; it reads
+what Rules 3, 5 and 7 already produce, so it never changes a balance and no payment reads it back.
+Unlike a balance it adds the kinds together (as the tax burden does), because the owner sets aside
+one sum.
+
+Per receipt, the amount to set aside is its hryvnia amount times the single-tax and military-levy
+rates of the year of its `ValueDate`, each rounded once (Rule 10), from `TaxYearConfig` and never from
+code. A non-income kind sets aside zero. A refund sets aside the negative of what its amount would
+have, which releases reserve. A row Rule 8 leaves out of income (before registration, or a refund of
+such a receipt) shows none. Each receipt rounds on its own, so the receipts of a quarter can differ
+from the quarter's accrual by a kopeck; the total below is read from the accrual, not summed from
+receipts.
+
+The total needed for taxes is, per kind and per obligation, what has accrued by today minus what the
+Rule 7 allocation put against it, floored at zero, added over the ledger:
+
+- A quarter that has ended counts its whole accrual.
+- The current quarter counts its single tax and military levy on the income so far, and its ESV for
+  the months begun, the current month included (ESV accrues up front, Rule 7, but is not yet owed for
+  months to come).
+- A later quarter counts nothing, so money paid ahead of it does not lower what is needed now.
+
+The figure is grouped by the obligation's due date (Rule 5), oldest first, with each kind kept
+apart inside a group. It is the same in `Quarterly` and `MonthlyAdvance` mode, because the mode
+changes recommendations only (Rule 6). It needs a registration date and does not need a bank.

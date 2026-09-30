@@ -9,6 +9,7 @@ import { formatLongDate } from "./debt";
 import { DaysLeft, DebtPeriod } from "./DebtParts";
 import { HeroCard } from "./HeroCard";
 import { LimitBar } from "./LimitBar";
+import { ReserveCard } from "./ReserveCard";
 
 export function DashboardScreen() {
   const t = useTranslations("dashboard");
@@ -36,6 +37,7 @@ export function DashboardScreen() {
       ) : (
         <StateCard response={data} />
       )}
+      {data.reserve ? <ReserveCard reserve={data.reserve} today={today} /> : null}
       {data.credits.length > 0 ? <Credits credits={data.credits} /> : null}
       {data.burden ? <Burden burden={data.burden} /> : null}
       {data.limit ? <LimitBar limit={data.limit} /> : null}
