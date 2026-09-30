@@ -39,19 +39,26 @@ internal static partial class TreasuryPayment
         && normalized.StartsWith("UA", StringComparison.Ordinal)
         && normalized.AsSpan(4, TreasuryBankId.Length).SequenceEqual(TreasuryBankId);
 
-    public static PaymentKind? Suggest(string iban, string? purpose, PaymentKind? learned) =>
-        learned ?? FromPurpose(purpose) ?? FromAccount(iban);
-
-    private static PaymentKind? FromPurpose(string? purpose)
+    public static PaymentKind? Suggest(string iban, string? purpose, PaymentKind? learned)
     {
-        if (string.IsNullOrWhiteSpace(purpose))
+        if (learned is not null)
         {
-            return null;
+            return learned;
         }
 
-        var named = Keywords.Where(keyword => keyword.Pattern.IsMatch(purpose)).Select(keyword => keyword.Kind).ToArray();
-        return named is [var kind] ? kind : null;
+        // A purpose naming several kinds is ambiguous, and the account hint must not settle it.
+        return KindsNamed(purpose) switch
+        {
+            [] => FromAccount(iban),
+            [var kind] => kind,
+            _ => null,
+        };
     }
+
+    private static PaymentKind[] KindsNamed(string? purpose) =>
+        string.IsNullOrWhiteSpace(purpose)
+            ? []
+            : [.. Keywords.Where(keyword => keyword.Pattern.IsMatch(purpose)).Select(keyword => keyword.Kind)];
 
     private static PaymentKind? FromAccount(string iban) =>
         Normalize(iban) is { Length: UkrainianIbanLength } normalized

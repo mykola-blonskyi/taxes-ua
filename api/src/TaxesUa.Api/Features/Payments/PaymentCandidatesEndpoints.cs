@@ -116,7 +116,7 @@ public static class PaymentCandidatesEndpoints
 
                     payment = match;
                 }
-                else if (matches.Count > 0)
+                else if (matches.Count > 0 && !request.RecordSeparately)
                 {
                     // A payment the owner typed since the list was read would otherwise be recorded twice.
                     return Conflict("A payment you recorded has the same date, kind and amount. Reload to link it.");
@@ -217,7 +217,48 @@ public static class PaymentCandidatesEndpoints
             && payment.PaidOn == candidate.PaidOn
             && payment.AmountKop == candidate.AmountKop)];
 
-    private static Task LockOwnerAsync(AppDbContext database, string userId, CancellationToken cancellationToken) =>
+    /// <summary>
+    /// Follows a change to a payment that came from a bank operation onto its candidate, in the caller's
+    /// transaction: a deleted payment (<paramref name="kind"/> null) makes the operation pending again, and
+    /// an edited one makes its new kind the owner's latest word on the account.
+    /// </summary>
+    internal static async Task FollowPaymentAsync(
+        AppDbContext database,
+        BudgetPayment payment,
+        PaymentKind? kind,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (payment.BankAccountId is not { } accountId || payment.ExternalId is not { } externalId)
+        {
+            return;
+        }
+
+        var candidate = await database.BudgetPaymentCandidates.FirstOrDefaultAsync(
+            row => row.UserId == payment.UserId
+                && row.BankAccountId == accountId
+                && row.ExternalId == externalId
+                && row.Status == CandidateStatus.Confirmed,
+            cancellationToken);
+        if (candidate is null)
+        {
+            return;
+        }
+
+        if (kind is { } newKind)
+        {
+            candidate.ConfirmedKind = newKind;
+            candidate.ResolvedAt = now;
+        }
+        else
+        {
+            candidate.Status = CandidateStatus.Pending;
+            candidate.ConfirmedKind = null;
+            candidate.ResolvedAt = null;
+        }
+    }
+
+    internal static Task LockOwnerAsync(AppDbContext database, string userId, CancellationToken cancellationToken) =>
         database.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
 
     private static IResult Missing(Guid id) => Results.Problem(
@@ -231,13 +272,16 @@ public static class PaymentCandidatesEndpoints
 /// <summary>
 /// <c>LinkPaymentId</c> names one of the candidate's matches of <c>Kind</c> to link instead of creating a
 /// payment; the period is then the linked payment's own and the one sent is not read.
+/// <c>RecordSeparately</c> records a new payment even though the owner typed one with the same date, kind
+/// and amount; a <c>LinkPaymentId</c> takes precedence over it.
 /// </summary>
 internal sealed record ConfirmCandidateRequest(
     PaymentKind Kind,
     int PeriodYear,
     int? PeriodQuarter,
     int? PeriodMonth,
-    Guid? LinkPaymentId);
+    Guid? LinkPaymentId,
+    bool RecordSeparately = false);
 
 /// <summary>
 /// A pending candidate. <c>SuggestedKind</c> is null when nothing points to one kind. <c>Matches</c> are

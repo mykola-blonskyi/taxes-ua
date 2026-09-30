@@ -104,7 +104,7 @@ function CandidateCard({ candidate, dashboard }: { candidate: PaymentCandidate; 
     setState({ kind, ...defaultPeriod(dashboard, kind, candidate.paidOn) });
   }
 
-  function confirm() {
+  function confirm(recordSeparately = false) {
     if (!state.kind) {
       return;
     }
@@ -115,7 +115,8 @@ function CandidateCard({ candidate, dashboard }: { candidate: PaymentCandidate; 
         kind: state.kind,
         periodYear: state.periodYear,
         ...fromPeriodValue(state.period),
-        linkPaymentId: match?.id ?? null,
+        linkPaymentId: recordSeparately ? null : (match?.id ?? null),
+        recordSeparately,
       },
     });
   }
@@ -202,10 +203,22 @@ function CandidateCard({ candidate, dashboard }: { candidate: PaymentCandidate; 
               size="sm"
               aria-label={`${match ? t("link") : t("confirm")}: ${cardName}`}
               disabled={!state.kind || pending}
-              onClick={confirm}
+              onClick={() => confirm()}
             >
               {match ? t("link") : t("confirm")}
             </Button>
+            {match ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label={`${t("recordSeparately")}: ${cardName}`}
+                disabled={!state.kind || pending}
+                onClick={() => confirm(true)}
+              >
+                {t("recordSeparately")}
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"

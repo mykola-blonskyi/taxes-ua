@@ -2458,6 +2458,8 @@ export interface components {
             periodMonth: null | number | string;
             /** Format: uuid */
             linkPaymentId: null | string;
+            /** @default false */
+            recordSeparately?: boolean;
         };
         ConfirmRequest: {
             kind: components["schemas"]["TransactionKind"];

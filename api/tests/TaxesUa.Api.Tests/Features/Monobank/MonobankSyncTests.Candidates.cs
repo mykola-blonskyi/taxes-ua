@@ -23,6 +23,12 @@ public sealed partial class MonobankSyncTests
     // that learning pays an account no other test of these shared owners confirms.
     private const string LearnedIban = "UA048999980313000000026001234";
 
+    // Each test that confirms or edits a payment pays an account of its own: what the owner confirms for
+    // an account is suggested for every later payment to it.
+    private const string DeletedIban = "UA508999980313111111026001235";
+
+    private const string EditedIban = "UA518999980313111111026001236";
+
     private const string ShopIban = "UA753220010000026001234567891";
 
     [Fact]
@@ -258,6 +264,101 @@ public sealed partial class MonobankSyncTests
         Assert.Equal((0, 0), Counts(await Status(owner), "cand-backup-uah"));
     }
 
+    [Fact]
+    public async Task Deleting_a_payment_confirmed_from_a_candidate_offers_the_operation_again_and_forgets_the_confirmation()
+    {
+        const int year = 2069;
+        var bank = new FakeBank();
+        bank.Connect("token-cand-delete", ("cand-delete-uah", 980));
+        bank.Put("cand-delete-uah", new Operation("op-cand-del-1", At(year, 4, 1, 9), -100_00, 980, Comment: "Єдиний податок", CounterIban: DeletedIban));
+        bank.Put("cand-delete-uah", new Operation("op-cand-del-2", At(year, 4, 2, 9), -200_00, 980, Comment: "Оплата", CounterIban: DeletedIban));
+        bank.Put("cand-delete-uah", new Operation("op-cand-del-3", At(year, 4, 3, 9), -300_00, 980, Comment: "Оплата", CounterIban: BudgetIban));
+        await using var app = Create(At(year, 4, 5, 10), bank);
+        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-cand-delete");
+        var candidates = (await Candidates(owner, year)).ToDictionary(row => row.AmountKop);
+        var waiting = await NeedsReviewCount(owner);
+        Assert.Equal(HttpStatusCode.NoContent, (await Dismiss(owner, candidates[300_00])).StatusCode);
+
+        var confirmed = await ConfirmCandidate(owner, candidates[100_00], PaymentKind.Esv, year, quarter: 1);
+        var payment = (await confirmed.Content.ReadFromJsonAsync<PaymentResponse>(Json))!;
+        Assert.Equal(PaymentKind.Esv, Assert.Single(await Candidates(owner, year)).SuggestedKind);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/payments/{payment.Id}")).StatusCode);
+
+        var offered = (await Candidates(owner, year)).ToDictionary(row => row.AmountKop);
+        Assert.Equal([100_00L, 200_00L], offered.Keys.Order());
+        Assert.Equal(PaymentKind.SingleTax, offered[100_00].SuggestedKind);
+        Assert.Null(offered[200_00].SuggestedKind);
+        Assert.Equal(waiting - 1, await NeedsReviewCount(owner));
+        Assert.Empty(await Payments(owner, year));
+        await Sync(app, owner);
+        Assert.Equal(2, (await Candidates(owner, year)).Length);
+    }
+
+    [Fact]
+    public async Task Changing_the_kind_of_a_payment_confirmed_from_a_candidate_changes_what_its_account_is_suggested()
+    {
+        const int year = 2070;
+        var bank = new FakeBank();
+        bank.Connect("token-cand-edit", ("cand-edit-uah", 980));
+        bank.Put("cand-edit-uah", new Operation("op-cand-edit-1", At(year, 4, 1, 9), -100_00, 980, CounterIban: EditedIban));
+        bank.Put("cand-edit-uah", new Operation("op-cand-edit-2", At(year, 4, 2, 9), -200_00, 980, Comment: "Оплата", CounterIban: EditedIban));
+        await using var app = Create(At(year, 4, 5, 10), bank);
+        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-cand-edit");
+        var candidates = (await Candidates(owner, year)).ToDictionary(row => row.AmountKop);
+
+        var confirmed = await ConfirmCandidate(owner, candidates[100_00], PaymentKind.Esv, year, quarter: 1);
+        var payment = (await confirmed.Content.ReadFromJsonAsync<PaymentResponse>(Json))!;
+        Assert.Equal(PaymentKind.Esv, Assert.Single(await Candidates(owner, year)).SuggestedKind);
+
+        var edited = await owner.PutAsJsonAsync(
+            $"/api/payments/{payment.Id}",
+            new PaymentRequest(payment.PaidOn, PaymentKind.MilitaryLevy, payment.AmountKop, year, 1, null, null),
+            Json);
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+
+        Assert.Equal(PaymentKind.MilitaryLevy, Assert.Single(await Candidates(owner, year)).SuggestedKind);
+    }
+
+    [Fact]
+    public async Task A_payment_can_be_recorded_separately_from_one_typed_by_hand_with_the_same_date_kind_and_amount()
+    {
+        const int year = 2071;
+        var bank = new FakeBank();
+        bank.Connect("token-cand-separate", ("cand-separate-uah", 980));
+        bank.Put("cand-separate-uah", new Operation("op-cand-separate", At(year, 2, 10, 9), -3_000_00, 980, Comment: "ЄП", CounterIban: BudgetIban));
+        await using var app = Create(At(year, 2, 12, 10), bank);
+        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-cand-separate");
+        var typed = await PostPayment(owner, new PaymentRequest(new DateOnly(year, 2, 10), PaymentKind.SingleTax, 3_000_00, year, 1, null, "typed"));
+        await Sync(app, owner);
+        var candidate = Assert.Single(await Candidates(owner, year));
+
+        Assert.Equal(HttpStatusCode.Conflict, (await ConfirmCandidate(owner, candidate, PaymentKind.SingleTax, year, quarter: 1)).StatusCode);
+        Assert.Single(await Payments(owner, year));
+
+        var separate = await ConfirmCandidate(owner, candidate, PaymentKind.SingleTax, year, quarter: 1, recordSeparately: true);
+
+        Assert.Equal(HttpStatusCode.OK, separate.StatusCode);
+        var recorded = (await separate.Content.ReadFromJsonAsync<PaymentResponse>(Json))!;
+        Assert.NotEqual(typed.Id, recorded.Id);
+        Assert.Equal(new[] { typed.Id, recorded.Id }.Order(), (await Payments(owner, year)).Select(row => row.Id).Order());
+        Assert.Empty(await Candidates(owner, year));
+    }
+
+    [Fact]
+    public async Task A_sync_that_finds_only_a_candidate_reports_it_as_imported()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-cand-count", ("cand-count-uah", 980));
+        await using var app = Create(At(2072, 3, 5, 10), bank);
+        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-cand-count");
+        bank.Put("cand-count-uah", new Operation("op-cand-count", At(2072, 3, 2, 9), -100_00, 980, CounterIban: BudgetIban));
+
+        await Sync(app, owner);
+
+        Assert.Equal((1, 0), Counts(await Status(owner), "cand-count-uah"));
+    }
+
     private static async Task RegisterOn(HttpClient owner, int year)
     {
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync($"/api/tax-years/{year}", TaxYear(), Json)).StatusCode);
@@ -283,10 +384,10 @@ public sealed partial class MonobankSyncTests
     }
 
     private static Task<HttpResponseMessage> ConfirmCandidate(
-        HttpClient owner, PaymentCandidateResponse candidate, PaymentKind kind, int year, int quarter, Guid? link = null) =>
+        HttpClient owner, PaymentCandidateResponse candidate, PaymentKind kind, int year, int quarter, Guid? link = null, bool recordSeparately = false) =>
         owner.PostAsJsonAsync(
             $"/api/payments/candidates/{candidate.Id}/confirm",
-            new ConfirmCandidateRequest(kind, year, quarter, null, link),
+            new ConfirmCandidateRequest(kind, year, quarter, null, link, recordSeparately),
             Json);
 
     private static Task<HttpResponseMessage> Dismiss(HttpClient owner, PaymentCandidateResponse candidate) =>

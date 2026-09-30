@@ -353,7 +353,7 @@ Its suggested kind is worked out each time the list is read, first match wins:
    or code `71040000` is ESV; `ВЗ`, `військов… збір/збору` or code `11011000`, `11011700`,
    `11011800` is the military levy; `ЄП`, `єдин… подат…` or code `18050400` is the single tax. Case
    does not matter, and the old `*;101;<РНОКПП>;…;;;` form reads the same. A purpose naming more
-   than one kind suggests none.
+   than one kind suggests none, and the account hint below does not apply to it either.
 3. An IBAN whose account part starts with `00003556` (balance account 3556 of the regional tax
    office) is ESV.
 4. Otherwise nothing is suggested and the owner picks the kind.
@@ -368,6 +368,13 @@ as any payment does. A payment the owner typed with the same date, kind and amou
 operation is offered as the match; accepting it links that payment to the operation, keeping its
 period and note, instead of creating a second one. Confirming without a link while such a payment
 exists is refused, so a payment typed after the list was read is still offered rather than recorded
-twice; so is confirming a candidate already confirmed or dismissed, or linking a payment that no
-longer matches. Dismissing hides the candidate for good. Deleting a payment confirmed from a
-candidate deletes the payment only; the candidate stays confirmed.
+twice, unless the owner says to record separately (`recordSeparately`), for a genuinely second
+payment of the same date, kind and amount; then a new payment is created and the typed one is left
+alone. Confirming a candidate already confirmed or dismissed, or linking a payment that no longer
+matches, is refused too. Dismissing hides the candidate for good.
+
+A payment that carries a bank operation keeps its candidate in step, in the same transaction.
+Deleting the payment makes the candidate pending again, clearing its confirmed kind and resolved
+time: the operation is offered again and the deleted confirmation no longer feeds the kind learned
+for its IBAN. Changing the payment's kind changes the candidate's confirmed kind to the new one, as
+the owner's latest word on that IBAN. A dismissed candidate is never revived.

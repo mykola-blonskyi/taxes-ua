@@ -109,6 +109,9 @@ public static class PaymentsEndpoints
                     return Results.Unauthorized();
                 }
 
+                // Under the owner's lock, as a confirm is, so a candidate is never read half-changed.
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
                 var row = await database.BudgetPayments
                     .FirstOrDefaultAsync(p => p.Id == id && p.UserId == user.Id, cancellationToken);
                 if (row is null)
@@ -116,8 +119,11 @@ public static class PaymentsEndpoints
                     return Missing(id);
                 }
 
-                Apply(row, request, DateTimeOffset.UtcNow);
+                var now = DateTimeOffset.UtcNow;
+                Apply(row, request, now);
+                await PaymentCandidatesEndpoints.FollowPaymentAsync(database, row, request.Kind, now, cancellationToken);
                 await database.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
 
                 var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
 
@@ -141,6 +147,8 @@ public static class PaymentsEndpoints
                     return Results.Unauthorized();
                 }
 
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
                 var row = await database.BudgetPayments
                     .FirstOrDefaultAsync(p => p.Id == id && p.UserId == user.Id, cancellationToken);
                 if (row is null)
@@ -149,7 +157,9 @@ public static class PaymentsEndpoints
                 }
 
                 database.BudgetPayments.Remove(row);
+                await PaymentCandidatesEndpoints.FollowPaymentAsync(database, row, null, DateTimeOffset.UtcNow, cancellationToken);
                 await database.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
 
                 return Results.NoContent();
             })
