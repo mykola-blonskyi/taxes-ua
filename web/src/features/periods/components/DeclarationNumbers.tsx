@@ -38,7 +38,19 @@ export function DeclarationNumbers({ year, quarters }: { year: number; quarters:
       key: "cumulativeSingleTax",
       header: t("singleTax"),
       numeric: true,
-      cell: (quarter) => formatMoney(Number(quarter.cumulativeSingleTaxKop), locale),
+      cell: (quarter) => (
+        <>
+          {formatMoney(Number(quarter.cumulativeSingleTaxKop), locale)}
+          {Number(quarter.cumulativeExcessIncomeKop) > 0 ? (
+            <span className="block whitespace-normal break-words text-xs font-normal text-muted-foreground">
+              {t("excessNote", {
+                income: formatMoney(Number(quarter.cumulativeExcessIncomeKop), locale),
+                tax: formatMoney(Number(quarter.cumulativeExcessTaxKop), locale),
+              })}
+            </span>
+          ) : null}
+        </>
+      ),
     },
     {
       key: "cumulativeMilitaryLevy",

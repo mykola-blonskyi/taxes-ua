@@ -9,7 +9,15 @@ import { cn } from "@/shared/lib/utils";
 
 type Warnings = PeriodsResponse["warnings"];
 
-export function PeriodWarnings({ year, warnings }: { year: number; warnings: Warnings }) {
+export function PeriodWarnings({
+  year,
+  warnings,
+  limitCrossing,
+}: {
+  year: number;
+  warnings: Warnings;
+  limitCrossing: PeriodsResponse["limitCrossing"];
+}) {
   const t = useTranslations("periods");
 
   const excludedOperationCount = Number(warnings.excludedOperationCount);
@@ -23,7 +31,8 @@ export function PeriodWarnings({ year, warnings }: { year: number; warnings: War
     warnings.yearBeforeRegistration ||
     missingTaxYear !== null ||
     excludedOperationCount > 0 ||
-    negativeQuarters.length > 0;
+    negativeQuarters.length > 0 ||
+    limitCrossing !== null;
 
   if (!hasWarning) {
     return null;
@@ -31,6 +40,8 @@ export function PeriodWarnings({ year, warnings }: { year: number; warnings: War
 
   return (
     <ul className="flex flex-col gap-1.5">
+      {limitCrossing !== null ? <LimitCrossingItem year={year} crossing={limitCrossing} /> : null}
+
       {warnings.taxYearUnverified ? (
         <WarningItem tone="destructive">
           {t("warnings.taxYearUnverified", { year })}{" "}
@@ -80,6 +91,43 @@ export function PeriodWarnings({ year, warnings }: { year: number; warnings: War
       ) : null}
     </ul>
   );
+}
+
+function LimitCrossingItem({
+  year,
+  crossing,
+}: {
+  year: number;
+  crossing: NonNullable<PeriodsResponse["limitCrossing"]>;
+}) {
+  const t = useTranslations("periods");
+  const switchFrom = { year: Number(crossing.switchFromYear), quarter: Number(crossing.switchFromQuarter) };
+  const back = crossing.backOnGroup3From
+    ? { year: Number(crossing.backOnGroup3From.year), quarter: Number(crossing.backOnGroup3From.quarter) }
+    : null;
+  const notComputed = [1, 2, 3, 4].filter(
+    (quarter) => !isBefore({ year, quarter }, switchFrom) && (back === null || isBefore({ year, quarter }, back)),
+  );
+  const switchValues = { switchQuarter: switchFrom.quarter, switchYear: switchFrom.year };
+
+  return (
+    <WarningItem tone="destructive">
+      <span className="font-semibold">
+        {t("warnings.limitCrossing", { quarter: Number(crossing.quarter), year: Number(crossing.year) })}
+      </span>{" "}
+      {notComputed.length === 0
+        ? t("warnings.limitCrossingNextYear", switchValues)
+        : t("warnings.limitCrossingNotComputed", {
+            quarters: notComputed.map((quarter) => t("quarterNumber", { quarter })).join(", "),
+            ...switchValues,
+          })}
+      {back !== null ? <> {t("warnings.backOnGroup3", back)}</> : null}
+    </WarningItem>
+  );
+}
+
+function isBefore(left: { year: number; quarter: number }, right: { year: number; quarter: number }): boolean {
+  return left.year < right.year || (left.year === right.year && left.quarter < right.quarter);
 }
 
 function WarningItem({ tone, children }: { tone: "destructive" | "muted"; children: ReactNode }) {

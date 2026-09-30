@@ -50,6 +50,8 @@ type FormState = {
   locale: string;
   theme: string;
   defaultCurrency: string;
+  backOnGroup3FromYear: string;
+  backOnGroup3FromQuarter: string;
 };
 
 function toFormState(settings: SettingsRequest): FormState {
@@ -64,13 +66,20 @@ function toFormState(settings: SettingsRequest): FormState {
     locale: settings.locale,
     theme: settings.theme,
     defaultCurrency: settings.defaultCurrency,
+    backOnGroup3FromYear: settings.backOnGroup3From ? String(settings.backOnGroup3From.year) : "",
+    backOnGroup3FromQuarter: settings.backOnGroup3From ? String(settings.backOnGroup3From.quarter) : "",
   };
 }
 
-function toRequest(form: FormState): SettingsRequest {
+// Half a quarter is sent as zeros rather than dropped, so the api rejects it under backOnGroup3From.
+function toRequest({ backOnGroup3FromYear, backOnGroup3FromQuarter, ...form }: FormState): SettingsRequest {
   return {
     ...form,
     fopRegistrationDate: form.fopRegistrationDate === "" ? null : form.fopRegistrationDate,
+    backOnGroup3From:
+      backOnGroup3FromYear === "" && backOnGroup3FromQuarter === ""
+        ? null
+        : { year: Number(backOnGroup3FromYear) || 0, quarter: Number(backOnGroup3FromQuarter) || 0 },
   };
 }
 
@@ -233,6 +242,38 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
         {fieldErrors?.weekendDays && fieldErrors.weekendDays.length > 0 ? (
           <ul className="text-xs text-destructive">
             {fieldErrors.weekendDays.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        ) : null}
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium">{tFop("backOnGroup3")}</legend>
+        <p className="text-xs text-muted-foreground">{tFop("backOnGroup3Hint")}</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField
+            id="back-on-group-3-year"
+            label={tFop("backOnGroup3Year")}
+            type="number"
+            inputMode="numeric"
+            value={form.backOnGroup3FromYear}
+            onChange={(value) => setForm((current) => ({ ...current, backOnGroup3FromYear: value }))}
+          />
+          <SelectField
+            id="back-on-group-3-quarter"
+            label={tFop("backOnGroup3Quarter")}
+            value={form.backOnGroup3FromQuarter}
+            onChange={(value) => setForm((current) => ({ ...current, backOnGroup3FromQuarter: value }))}
+            options={[
+              { value: "", label: tFop("backOnGroup3None") },
+              ...[1, 2, 3, 4].map((quarter) => ({ value: String(quarter), label: `Q${quarter}` })),
+            ]}
+          />
+        </div>
+        {fieldErrors?.backOnGroup3From && fieldErrors.backOnGroup3From.length > 0 ? (
+          <ul className="text-xs text-destructive">
+            {fieldErrors.backOnGroup3From.map((message) => (
               <li key={message}>{message}</li>
             ))}
           </ul>

@@ -30,6 +30,7 @@ export function DashboardScreen() {
 
   return (
     <div className="flex flex-col gap-6">
+      {data.limitCrossing ? <LimitCrossingWarning crossing={data.limitCrossing} /> : null}
       {needsReview > 0 ? <ReviewWarning count={needsReview} /> : null}
       {data.declaration ? <DeclarationDue due={data.declaration} today={today} /> : null}
       {overdueInvoices > 0 ? <OverdueInvoicesNotice count={overdueInvoices} /> : null}
@@ -41,7 +42,9 @@ export function DashboardScreen() {
       ) : (
         <StateCard response={data} />
       )}
-      {data.reserve ? <ReserveCard reserve={data.reserve} today={today} /> : null}
+      {data.reserve ? (
+        <ReserveCard reserve={data.reserve} today={today} limitCrossing={data.limitCrossing} />
+      ) : null}
       {data.credits.length > 0 ? <Credits credits={data.credits} /> : null}
       {data.burden ? <Burden burden={data.burden} /> : null}
       {data.limit ? <LimitBar limit={data.limit} /> : null}
@@ -107,6 +110,35 @@ function Card({
       </h3>
       <p className="text-sm text-muted-foreground">{text}</p>
       {children}
+    </section>
+  );
+}
+
+function LimitCrossingWarning({ crossing }: { crossing: NonNullable<DashboardResponse["limitCrossing"]> }) {
+  const t = useTranslations("dashboard.limitCrossing");
+
+  return (
+    <section
+      role="alert"
+      className="flex min-w-0 flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-4"
+    >
+      <h3 className="break-words text-sm font-semibold text-destructive">
+        {t("title", { quarter: Number(crossing.quarter), year: Number(crossing.year) })}
+      </h3>
+      <p className="break-words text-sm text-destructive">
+        {t("text", {
+          switchQuarter: Number(crossing.switchFromQuarter),
+          switchYear: Number(crossing.switchFromYear),
+        })}
+      </p>
+      {crossing.backOnGroup3From ? (
+        <p className="break-words text-sm text-muted-foreground">
+          {t("back", {
+            quarter: Number(crossing.backOnGroup3From.quarter),
+            year: Number(crossing.backOnGroup3From.year),
+          })}
+        </p>
+      ) : null}
     </section>
   );
 }

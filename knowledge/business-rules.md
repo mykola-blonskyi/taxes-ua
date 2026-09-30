@@ -58,8 +58,9 @@ other accrual (Rule 8), so the limit bar never counts it.
 Warnings at 85% and 100% of the limit: at or above 85% of the limit is `Warn`, at or above the
 limit itself is `Exceeded`. Both boundaries are inclusive, so income at exactly 85.00% is already
 `Warn` and income at exactly 100.00% is already `Exceeded`; one kopeck under either line stays at
-the level below it. `Exceeded` is a business fact, not a display threshold: it marks that a
-switch to another tax system is required, whatever warn thresholds happen to be configured.
+the level below it. `Exceeded` is a business fact, not a display threshold: it marks that the limit is used up, whatever
+warn thresholds happen to be configured, and the switch to another tax system follows once income is
+over it (crossing, below).
 
 `RemainingKop` is the amount left before the next boundary not yet crossed: while below 85%, the
 amount left to 85%; from 85% up to the limit, the amount left to the limit; once `Exceeded`, 0
@@ -67,6 +68,45 @@ amount left to 85%; from 85% up to the limit, the amount left to the limit; once
 
 Excess is taxed at `ExcessRateBp` (15%), computed on the excess over the limit only (not on the
 whole income), with the same integer half-up rounding as every other tax figure (Rule 10).
+
+Crossing (owner decision 2026-09-30, #118). The crossing quarter is the first quarter whose cumulative
+income at its end is over the limit; income exactly at the limit has no excess and crosses nothing (Tax
+Code art. 291.4 allows income that does not exceed it). In that quarter the excess tax accrues as single
+tax: the year-to-date single tax is `SingleTaxRateBp` on the income up to the limit plus `ExcessRateBp`
+on the income above it, each rounded once, and the quarter's accrual is that minus what earlier quarters
+accrued, as in Rule 3. It is owed with that quarter's single tax, by the same deadline (Rule 5), and
+Rule 7 settles it in the single tax ledger: it is a single tax at another rate (Tax Code art. 293.4),
+paid to the same budget account under the same code, so the Treasury cannot tell a payment of it apart
+and a fourth kind would ask the owner to split what the bank never splits. The military levy stays on
+the whole income, the excess included (the declaration's line 23 covers lines 05 to 07). Months follow
+the same year-to-date function, so Rule 6's advances of the crossing quarter carry the excess and still
+add up to the quarter.
+
+From the next quarter on, group 3 no longer applies and the FOP must move to the general system or
+another group. The engine accrues nothing for those quarters, no ESV either, rather than group 3
+figures that would be wrong: their obligations, advances, reserve and declaration are absent, and
+every screen that would show them says the FOP must switch from that quarter instead, naming the
+crossing quarter and the quarter the switch starts from. The warning also says plainly that ESV and
+the general system's taxes are still owed for that period; the app only does not compute them. The
+stop runs across years: after a Q4 crossing the switch starts with the next year's Q1, after a Q1 to
+Q3 crossing with the next quarter, and in both cases every later configured year is outside group 3
+too, whatever its own income. A year missing from the configured run passes the stop on.
+
+Only the owner lifts the stop, with the setting "back on group 3 from" a year and quarter. From that
+quarter on the app computes group 3 again, as a new period: its income, the limit test, the
+cumulative figures and the declaration's lines 13 and 24 start from zero in that quarter, since a
+declaration period for a return to group 3 runs from the quarter of the return, and ESV accrues
+from that quarter too. A setting at or before the crossing quarter lifts nothing; after a later
+crossing the stop is back and the same single setting no longer lifts it. Without the setting
+nothing after the crossing is computed.
+
+A refund does not undo a crossing. Within the crossing quarter it counts as usual, so a refund that
+brings the quarter's cumulative income back to the limit or under means the quarter never crossed.
+Once a quarter has ended over the limit, the switch is due from the next quarter whatever later refunds
+do, so a refund dated after the crossing quarter changes neither the crossing nor its figures; like
+every operation of a quarter outside group 3, it falls in a period the app does not compute. The limit
+bar stops at the crossing quarter too: income after it is not group 3 income, so the bar's excess and
+excess tax are the ones accrued and owed.
 
 ---
 
@@ -413,7 +453,9 @@ one sum.
 Per receipt, the amount to set aside is its hryvnia amount times the single-tax and military-levy
 rates of the year of its `ValueDate`, each rounded once (Rule 10), from `TaxYearConfig` and never from
 code. A non-income kind sets aside zero. A refund sets aside the negative of what its amount would
-have, which releases reserve. A row Rule 8 leaves out of income (before registration, or a refund of
+have at the refund year's rates, which releases reserve. A receipt does not know where it sits against
+the limit, so it sets aside at the single tax rate even past it; the excess tax of Rule 4 is in the
+total below, which reads the accruals. A row Rule 8 leaves out of income (before registration, or a refund of
 such a receipt) shows none. Each receipt rounds on its own, so the receipts of a quarter can differ
 from the quarter's accrual by a kopeck; the total below is read from the accrual, not summed from
 receipts.
@@ -426,6 +468,11 @@ Rule 7 allocation put against it, floored at zero, added over the ledger:
   the months begun, the current month included (ESV accrues up front, Rule 7, but is not yet owed for
   months to come).
 - A later quarter counts nothing, so money paid ahead of it does not lower what is needed now.
+
+The crossing quarter's single tax includes its excess tax, and the quarters after it, in that year
+and in every later year until the owner is back on group 3, have no obligations (Rule 4), so they add
+nothing; the home screen says the FOP must switch instead, and that ESV and the general system's taxes
+are still owed though the app does not compute them.
 
 The figure is grouped by the obligation's due date (Rule 5), oldest first, with each kind kept
 apart inside a group. It is the same in `Quarterly` and `MonthlyAdvance` mode, because the mode
@@ -496,13 +543,19 @@ and the periods screen cannot disagree. Nothing is filed from the app: the owner
 Electronic Cabinet.
 
 The reporting period is cumulative from 1 January: Q1 is the quarter, Q2 the half-year, Q3 nine
-months, Q4 the year. The lines, at 5% and without VAT:
+months, Q4 the year. After a return to group 3 (Rule 4) it runs from the quarter of the return, so
+that quarter's lines 13 and 24 are zero. The lines, without VAT:
 
-- 06, and 08 as the only income line: income through the quarter's end (Rules 1, 2 and 8).
-- 11, and 12 as the only tax line: line 06 at the year's single tax rate, rounded once (Rule 10).
+- 06: income through the quarter's end (Rules 1, 2 and 8) up to the year's limit, taxed at 5%.
+- 07: income through the quarter's end over the limit, taxed at 15% (Rule 4); zero except in the
+  crossing quarter.
+- 08: lines 06 and 07, all the income through the quarter's end.
+- 09: line 07 at the year's excess rate, rounded once (Rule 10).
+- 11: line 06 at the year's single tax rate, rounded once.
+- 12: lines 09 and 11, the total tax.
 - 13: line 12 of the previous quarter's declaration of the same year; zero in Q1.
 - 14.1, and 14 (14.2 is group 4 only): line 12 minus line 13, what the period adds to pay.
-- 23: the military levy on lines 05 to 07, which here is line 06 at the year's levy rate.
+- 23: the military levy on lines 05 to 07, which here is line 08 at the year's levy rate.
 - 24: line 23 of the previous quarter's declaration; zero in Q1.
 - 25: line 23 minus line 24.
 - 21: ESV for the year from annex 1, on the annual (Q4) declaration only: the sum of the year's
@@ -511,9 +564,30 @@ months, Q4 the year. The lines, at 5% and without VAT:
 Every other line stays empty: they belong to other groups, the 3% rate, or corrections. When refunds
 shrink the cumulative income, 14.1 and 25 come out negative and are shown as the arithmetic gives
 them; the form has no separate line for that, and Rule 7 settles the negative part as credit. The
-rates are the declared year's `TaxYearConfig` rates, never code. The 15% lines for income over the
-limit (Rule 4) are not accrued yet (#118): while income through the quarter is over the year's limit,
-no figures are shown and the declaration is not ready.
+rates are the declared year's `TaxYearConfig` rates, never code. A quarter after the crossing quarter
+(Rule 4), in the crossing year or a later one, has no group 3 declaration until the owner is back on
+group 3: no figures are shown, the screen says the FOP must file under the system it moved to, the
+declaration is not ready, and the home screen does not name it as due.
+
+Open question (#112): for a crossing in Q1 to Q3, whether the year's ESV for the group 3 months (line
+21, annex 1) belongs on the crossing quarter's declaration, which is the last group 3 declaration of
+the year. The app fills line 21 only on the Q4 declaration, so after such a crossing it fills it
+nowhere.
+
+Worked example, the crossing quarter: a limit of 10,091,049.00 UAH and receipts of 4,000,000.00 in
+February, 4,000,000.00 in May, 1,500,000.00 in August and 1,000,000.00 in September cross it in Q3:
+
+| Line | Q3 |
+| --- | --- |
+| 06 | 10,091,049.00 |
+| 07 | 408,951.00 |
+| 08 | 10,500,000.00 |
+| 09 | 61,342.65 |
+| 11 | 504,552.45 |
+| 12 | 565,895.10 |
+| 13 | 400,000.00 |
+| 14.1 / 14 | 165,895.10 |
+| 23 | 105,000.00 |
 
 A quarter that ends before the registration date (Rule 8) has no declaration. In a first year
 registered in May, Q1 has none, Q2's line 13 is zero, and income before registration is not in line
@@ -542,7 +616,8 @@ The declaration is ready when nothing below blocks it. These block:
 - a missing detail: the name and RNOKPP (read from the invoicing details, never stored twice), the
   tax office (its region and district codes), at least one KVED code (the first is the main
   activity), and the address as in the register;
-- income over the limit, as above.
+- a quarter outside group 3 after a crossing, as above. The crossing quarter itself does not block,
+  since its lines 07 and 09 are filled.
 
 What the Rule 7 ledger still owes per kind, across years, from every obligation that has fallen due
 by the quarter's filing deadline (Rule 5), is shown as a warning and never blocks: paying is not

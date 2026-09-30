@@ -75,10 +75,10 @@ export function PeriodsScreen() {
       {isError ? <p className="text-sm text-destructive">{t("loadFailed")}</p> : null}
 
       {!periodsLoading && !isError && periods ? (
-        <PeriodWarnings year={Number(periods.year)} warnings={periods.warnings} />
+        <PeriodWarnings year={Number(periods.year)} warnings={periods.warnings} limitCrossing={periods.limitCrossing} />
       ) : null}
 
-      {!periodsLoading && !isError && periods && periods.quarters.length === 0 ? (
+      {!periodsLoading && !isError && periods && periods.quarters.length === 0 && periods.limitCrossing === null ? (
         <p className="text-sm text-muted-foreground">{t("notRegistered")}</p>
       ) : null}
 

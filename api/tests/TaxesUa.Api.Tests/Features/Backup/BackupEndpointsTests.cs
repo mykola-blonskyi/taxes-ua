@@ -38,7 +38,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":9,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"treasuryAccounts":[]}""";
+        """{"schemaVersion":10,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"treasuryAccounts":[]}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -161,6 +161,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         NullClientDetails(current);
         current["invoices"] = new JsonArray();
         current["treasuryAccounts"] = new JsonArray();
+        current["settings"]!["backOnGroup3From"] = null;
         var version2 = current.DeepClone().AsObject();
         version2["schemaVersion"] = 2;
         version2.Remove("treasuryAccounts");
@@ -252,6 +253,26 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(
             [DeclarationDetailField.TaxOffice, DeclarationDetailField.Kved, DeclarationDetailField.Address],
             details!.MissingDetails);
+    }
+
+    [Fact]
+    public async Task A_restore_brings_back_the_return_to_group_3_and_a_version_9_file_has_none()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+
+        await Restore(owner, Baseline().ToJsonString());
+        var restored = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
+        var version9 = Baseline();
+        version9["schemaVersion"] = 9;
+        version9["settings"]!.AsObject().Remove("backOnGroup3From");
+        await Restore(owner, version9.ToJsonString());
+        var upgraded = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
+
+        Assert.Equal(new YearQuarter(2032, 2), restored!.BackOnGroup3From);
+        Assert.Null(upgraded!.BackOnGroup3From);
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
     }
 
     [Fact]
@@ -734,7 +755,11 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 .Where(name => entity != typeof(TreasuryAccount) || name != nameof(TreasuryAccount.Id))
                 // The total is the sum of the lines, recomputed on restore rather than trusted from the file.
                 .Where(name => entity != typeof(Invoice) || name != nameof(Invoice.TotalMinor))
-                .Where(name => entity != typeof(BankAccount) || !syncStateNotBackedUp.Contains(name));
+                .Where(name => entity != typeof(BankAccount) || !syncStateNotBackedUp.Contains(name))
+                // The year and the quarter of the return to group 3 travel as one YearQuarter.
+                .Select(name => entity == typeof(SettingsEntity) && name.StartsWith(nameof(SettingsEntity.BackOnGroup3From), StringComparison.Ordinal)
+                    ? nameof(SettingsEntity.BackOnGroup3From)
+                    : name);
             var carried = record.GetProperties().Select(property => property.Name).ToHashSet();
             Assert.All(columns, column => Assert.Contains(column, carried));
         }
@@ -826,7 +851,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             BackupDocument.CurrentSchemaVersion,
             new SettingsBackup(
                 new DateOnly(2031, 1, 1), PaymentMode.Quarterly, EsvRegistrationMonthPolicy.FullMonth, false, true,
-                true, [DayOfWeek.Saturday, DayOfWeek.Sunday], "uk", "system", "UAH"),
+                true, [DayOfWeek.Saturday, DayOfWeek.Sunday], "uk", "system", "UAH", new YearQuarter(2032, 2)),
             [
                 new ClientBackup(
                     ClientId, "Acme", "1 Main St, Berlin", "DE", "DE123456789", "ap@acme.example", Currency.EUR, "Net 14"),

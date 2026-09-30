@@ -51,6 +51,7 @@ public static class DashboardEndpoints
                         null,
                         null,
                         null,
+                        null,
                         needsReview,
                         declaration,
                         overdueInvoices));
@@ -61,26 +62,31 @@ public static class DashboardEndpoints
 
                 var step = NextStep.Find(
                     ledger, settings.FopRegistrationDate, today, ledger is null ? null : loaded.AdvancesOf(ledger));
-                var burden = step is NextStep.Pay or NextStep.AllDone
-                    ? loaded.Viewed.Accrual.BurdenThrough((today.Month + 2) / 3)
+                var accrual = loaded.Viewed.Accrual;
+                var quarter = (today.Month + 2) / 3;
+                var burden = step is NextStep.Pay or NextStep.AllDone && accrual.InGroup3(quarter)
+                    ? accrual.BurdenThrough(quarter)
                     : null;
 
                 var reserve = ledger is not null && step is NextStep.Pay or NextStep.AllDone
                     ? TaxReserve.Needed(ledger, loaded.LedgerYears, today)
                     : null;
 
-                // Unconditional, unlike burden: the limit bar should show even before there is any
-                // next-step debt.
-                var limit = LimitMonitor.Evaluate(
-                    loaded.Viewed.Accrual.Quarters[^1].Income.CumulativeIncomeKop,
-                    loaded.Viewed.Config.ToEngineInput());
+                // Not tied to the next step, unlike burden: the limit bar should show even before there
+                // is any next-step debt. Income outside group 3 is not group 3 income, so the bar stops
+                // where the accruals do and its excess tax is the one owed; a year with no quarter in
+                // group 3 has no bar.
+                var limit = accrual.Quarters is [.., var last]
+                    ? LimitMonitor.Evaluate(last.Income.CumulativeIncomeKop, loaded.Viewed.Config.ToEngineInput())
+                    : null;
 
                 return Results.Ok(new DashboardResponse(
                     today,
                     ToStep(step, today),
                     ledger is null ? [] : Credits(ledger),
                     burden is null ? null : new TaxBurdenResponse(burden.IncomeKop, burden.TaxKop, burden.RateBp),
-                    ToLimit(limit),
+                    limit is null ? null : ToLimit(limit),
+                    LimitCrossingResponse.Of(loaded.Viewed),
                     reserve is null ? null : ToReserve(reserve, today),
                     needsReview,
                     declaration,
@@ -100,20 +106,17 @@ public static class DashboardEndpoints
         AppDbContext database, string userId, DateOnly today, CancellationToken cancellationToken)
     {
         var (year, quarter) = today.Month <= 3 ? (today.Year - 1, 4) : (today.Year, (today.Month - 1) / 3);
-        var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, userId, cancellationToken);
-        if (settings.FopRegistrationDate is not { } registered || DeclarationsEndpoints.QuarterEnd(year, quarter) < registered)
+        // A quarter outside group 3 (Rule 4) has no group 3 declaration to file.
+        var loaded = await YearAccruals.LoadAsync(database, userId, year, cancellationToken);
+        if (loaded is not { Viewed: var viewed }
+            || viewed.Settings.FopRegistrationDate is not { } registered
+            || DeclarationsEndpoints.QuarterEnd(year, quarter) < registered
+            || !viewed.Accrual.InGroup3(quarter))
         {
             return null;
         }
 
-        var config = await database.TaxYearConfigs.AsNoTracking()
-            .FirstOrDefaultAsync(row => row.Year == year, cancellationToken);
-        if (config is null)
-        {
-            return null;
-        }
-
-        var due = DeadlineCalendar.ForQuarter(year, quarter, config.ToEngineInput(), settings.ToEngineInput())
+        var due = DeadlineCalendar.ForQuarter(year, quarter, viewed.Config.ToEngineInput(), viewed.Settings.ToEngineInput())
             .Declaration.Due;
         if (today > due
             || await database.DeclarationFilings.AnyAsync(
@@ -185,8 +188,10 @@ public static class DashboardEndpoints
 /// <c>Credits</c> lists each kind with unspent credit, which the ledger only holds once nothing of that
 /// kind is owed. <c>Burden</c> is sent only for a year the ledger covers. <c>Limit</c> is sent
 /// whenever a tax year is configured, unlike <c>Burden</c>, since the limit bar should show even
-/// before there is any next-step debt. <c>Reserve</c> is sent when the registration date is set and
-/// reached, with the same rule as <c>Burden</c>. <c>NeedsReviewCount</c> is the number of imported transactions
+/// before there is any next-step debt. <c>LimitCrossing</c> is sent once the year's income went over its
+/// limit (Rule 4): the quarters after it have no obligations, so the next step and the reserve stop at
+/// it, and <c>Burden</c> is not sent while today is past it. <c>Reserve</c> is sent when the
+/// registration date is set and reached, with the same rule as <c>Burden</c>. <c>NeedsReviewCount</c> is the number of imported transactions
 /// the owner has not reviewed, which the figures already count under their suggested kinds, and of
 /// budget payment candidates, which count nowhere until confirmed. <c>Declaration</c> is the last ended
 /// quarter's declaration while it is due and not marked filed (Rule 15). <c>OverdueInvoiceCount</c> is the
@@ -198,6 +203,7 @@ internal sealed record DashboardResponse(
     KindCreditResponse[] Credits,
     TaxBurdenResponse? Burden,
     LimitStatusResponse? Limit,
+    LimitCrossingResponse? LimitCrossing,
     ReserveResponse? Reserve,
     int NeedsReviewCount,
     DeclarationDueResponse? Declaration,

@@ -42,7 +42,7 @@ public static class DeclarationsEndpoints
                 var config = viewed.Config.ToEngineInput();
                 var settings = viewed.Settings.ToEngineInput();
                 var incomeKop = IncomeThrough(loaded, quarter);
-                var incomeOverLimit = LimitMonitor.Evaluate(Math.Max(incomeKop, 0), config).ExcessKop > 0;
+                var inGroup3 = viewed.Accrual.InGroup3(quarter);
 
                 var yearStart = new DateOnly(year, 1, 1);
                 var quarterEnd = QuarterEnd(year, quarter);
@@ -72,8 +72,10 @@ public static class DeclarationsEndpoints
                     quarter,
                     deadlines.Declaration,
                     deadlines.TaxPayment,
-                    incomeOverLimit ? null : ToFigures(Declaration.ForQuarter(viewed.Accrual, quarter)),
+                    inGroup3 ? ToFigures(Declaration.ForQuarter(viewed.Accrual, quarter)) : null,
+                    LimitCrossingResponse.Of(viewed),
                     config.SingleTaxRateBp,
+                    config.ExcessRateBp,
                     config.MilitaryLevyRateBp,
                     DeclarationReadiness.Evaluate(
                         deadlines.Declaration.Due,
@@ -83,7 +85,7 @@ public static class DeclarationsEndpoints
                         settings.FopRegistrationDate is not null,
                         invoicing,
                         details,
-                        incomeOverLimit,
+                        !inGroup3,
                         ledger),
                     filing is null ? null : ToFiling(filing, incomeKop)));
             })
@@ -198,9 +200,15 @@ public static class DeclarationsEndpoints
     internal static DateOnly QuarterEnd(int year, int quarter) =>
         new DateOnly(year, 3 * quarter, 1).AddMonths(1).AddDays(-1);
 
-    // Line 08: what the filed mark snapshots and the post-filing warning compares against.
-    private static long IncomeThrough(LoadedYears loaded, int quarter) =>
-        loaded.Viewed.Accrual.Quarters[quarter - 1].Income.CumulativeIncomeKop;
+    // Line 08: what the filed mark snapshots and the post-filing warning compares against. A quarter
+    // outside group 3 has no line 08, so its mark keeps the income from 1 January.
+    private static long IncomeThrough(LoadedYears loaded, int quarter)
+    {
+        var accrual = loaded.Viewed.Accrual;
+        return accrual.InGroup3(quarter)
+            ? accrual.QuarterOf(quarter).Income.CumulativeIncomeKop
+            : accrual.Income.Quarters[quarter - 1].CumulativeIncomeKop;
+    }
 
     private static IResult? Unavailable(LoadedYears? loaded, int year, int quarter)
     {
@@ -220,7 +228,11 @@ public static class DeclarationsEndpoints
 
     private static DeclarationFiguresResponse ToFigures(DeclarationFigures figures) => new(
         figures.IncomeKop,
+        figures.ExcessIncomeKop,
+        figures.TotalIncomeKop,
+        figures.ExcessTaxKop,
         figures.SingleTaxKop,
+        figures.TotalSingleTaxKop,
         figures.PreviousSingleTaxKop,
         figures.SingleTaxPayableKop,
         figures.MilitaryLevyKop,
@@ -236,9 +248,9 @@ public static class DeclarationsEndpoints
 }
 
 /// <summary>
-/// One quarter's declaration (Rule 15). <c>Figures</c> is null when the income through the quarter
-/// is over the year's limit, because the 15% lines are not filled yet (#118). The rates are the
-/// year's, for the lines' labels.
+/// One quarter's declaration (Rule 15). <c>Figures</c> is null for a quarter after the one named by
+/// <c>LimitCrossing</c>: group 3 ended there (Rule 4), so the quarter has no group 3 declaration. The
+/// rates are the year's, for the lines' labels.
 /// </summary>
 internal sealed record DeclarationResponse(
     int Year,
@@ -246,18 +258,24 @@ internal sealed record DeclarationResponse(
     Deadline Filing,
     Deadline Payment,
     DeclarationFiguresResponse? Figures,
+    LimitCrossingResponse? LimitCrossing,
     int SingleTaxRateBp,
+    int ExcessRateBp,
     int MilitaryLevyRateBp,
     DeclarationReadinessResponse Readiness,
     DeclarationFilingResponse? Filed);
 
 /// <summary>
-/// The form's group 3 lines, as <see cref="DeclarationFigures"/> names them: 06 and 08, 11 and 12,
+/// The form's group 3 lines, as <see cref="DeclarationFigures"/> names them: 06, 07, 08, 09, 11, 12,
 /// 13, 14.1 and 14, 23, 24, 25, and 21 for the annual declaration only.
 /// </summary>
 internal sealed record DeclarationFiguresResponse(
     long IncomeKop,
+    long ExcessIncomeKop,
+    long TotalIncomeKop,
+    long ExcessTaxKop,
     long SingleTaxKop,
+    long TotalSingleTaxKop,
     long PreviousSingleTaxKop,
     long SingleTaxPayableKop,
     long MilitaryLevyKop,

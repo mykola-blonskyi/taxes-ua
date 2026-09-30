@@ -4,17 +4,21 @@ import { useLocale, useTranslations } from "next-intl";
 import type { DeclarationFigures, DeclarationResponse } from "@/data/declarations/useDeclarations";
 import { formatMoney } from "@/shared/lib/money";
 
-type LineKey = "l06" | "l08" | "l11" | "l12" | "l13" | "l14_1" | "l14" | "l21" | "l23" | "l24" | "l25";
+type LineKey = "l06" | "l07" | "l08" | "l09" | "l11" | "l12" | "l13" | "l14_1" | "l14" | "l21" | "l23" | "l24" | "l25";
 
-type Line = { key: LineKey; code: string; kop: (figures: DeclarationFigures) => number | null; rate?: "singleTax" | "militaryLevy" };
+type Line = { key: LineKey; code: string; kop: (figures: DeclarationFigures) => number | null; rate?: "singleTax" | "excess" | "militaryLevy" };
 
-// The form's own order; 06 and 08, 11 and 12, 14.1 and 14 carry the same figure because group 3 at 5 %
-// has nothing else in those lines.
+const nonzero = (kop: number | string): number | null => (Number(kop) === 0 ? null : Number(kop));
+
+// The form's own order. 07 and 09 are empty on the form unless the year's income crossed the limit in this
+// quarter; 14.1 and 14 carry the same figure because group 3 has nothing else in those lines.
 const lines: readonly Line[] = [
   { key: "l06", code: "06", kop: (f) => Number(f.incomeKop), rate: "singleTax" },
-  { key: "l08", code: "08", kop: (f) => Number(f.incomeKop) },
+  { key: "l07", code: "07", kop: (f) => nonzero(f.excessIncomeKop), rate: "excess" },
+  { key: "l08", code: "08", kop: (f) => Number(f.totalIncomeKop) },
+  { key: "l09", code: "09", kop: (f) => nonzero(f.excessTaxKop), rate: "excess" },
   { key: "l11", code: "11", kop: (f) => Number(f.singleTaxKop), rate: "singleTax" },
-  { key: "l12", code: "12", kop: (f) => Number(f.singleTaxKop) },
+  { key: "l12", code: "12", kop: (f) => Number(f.totalSingleTaxKop) },
   { key: "l13", code: "13", kop: (f) => Number(f.previousSingleTaxKop) },
   { key: "l14_1", code: "14.1", kop: (f) => Number(f.singleTaxPayableKop) },
   { key: "l14", code: "14", kop: (f) => Number(f.singleTaxPayableKop) },
@@ -31,9 +35,14 @@ function formatLabelRate(basisPoints: number, locale: string): string {
 export function Figures({ declaration }: { declaration: DeclarationResponse }) {
   const t = useTranslations("declaration.figures");
   const locale = useLocale();
-  const { figures } = declaration;
+  const { figures, limitCrossing } = declaration;
+  const crossedHere =
+    limitCrossing !== null &&
+    Number(limitCrossing.year) === Number(declaration.year) &&
+    Number(limitCrossing.quarter) === Number(declaration.quarter);
   const rates = {
     singleTax: formatLabelRate(Number(declaration.singleTaxRateBp), locale),
+    excess: formatLabelRate(Number(declaration.excessRateBp), locale),
     militaryLevy: formatLabelRate(Number(declaration.militaryLevyRateBp), locale),
   };
 
@@ -45,8 +54,25 @@ export function Figures({ declaration }: { declaration: DeclarationResponse }) {
         </h3>
         <p className="text-xs text-muted-foreground">{t("hint")}</p>
       </div>
+      {limitCrossing !== null && crossedHere ? (
+        <p className="break-words rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          {t("crossing", {
+            switchQuarter: Number(limitCrossing.switchFromQuarter),
+            switchYear: Number(limitCrossing.switchFromYear),
+          })}
+        </p>
+      ) : null}
       {figures === null ? (
-        <p className="text-sm text-muted-foreground">{t("overLimit")}</p>
+        <p className="break-words text-sm text-destructive">
+          {limitCrossing
+            ? t("afterGroup3", {
+                quarter: Number(limitCrossing.quarter),
+                year: Number(limitCrossing.year),
+                switchQuarter: Number(limitCrossing.switchFromQuarter),
+                switchYear: Number(limitCrossing.switchFromYear),
+              })
+            : t("afterGroup3Plain")}
+        </p>
       ) : (
         <table className="w-full text-sm">
           <thead>

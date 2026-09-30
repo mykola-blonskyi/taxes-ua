@@ -69,6 +69,8 @@ public static class PeriodsEndpoints
                 accrual.TotalKop,
                 accrual.Income.CumulativeIncomeKop,
                 accrual.CumulativeSingleTaxKop,
+                accrual.CumulativeExcessIncomeKop,
+                accrual.CumulativeExcessTaxKop,
                 accrual.CumulativeMilitaryLevyKop,
                 DeadlineCalendar.ForQuarter(year, accrual.Income.Quarter, configInput, settingsInput),
                 ToObligations(obligations, year, accrual.Income.Quarter)))
@@ -92,6 +94,7 @@ public static class PeriodsEndpoints
         return new PeriodsResponse(
             year,
             ToWarnings(loadedYears),
+            LimitCrossingResponse.Of(loaded),
             quarters,
             months,
             ledger is null
@@ -178,11 +181,13 @@ public static class PeriodsEndpoints
 
 /// <summary>
 /// <c>Months</c> is sent only in <c>MonthlyAdvance</c> mode and only for a year the ledger covers;
-/// the mode changes nothing else in this response (Rule 6).
+/// the mode changes nothing else in this response (Rule 6). <c>Quarters</c> and <c>Months</c> stop at
+/// the quarter named by <c>LimitCrossing</c>, when the year's income went over its limit (Rule 4).
 /// </summary>
 internal sealed record PeriodsResponse(
     int Year,
     PeriodWarnings Warnings,
+    LimitCrossingResponse? LimitCrossing,
     QuarterPeriodResponse[] Quarters,
     MonthPeriodResponse[]? Months,
     YearBalancesResponse? Balances);
@@ -249,8 +254,29 @@ internal sealed record PeriodWarnings(
     int? MissingTaxYear);
 
 /// <summary>
-/// One quarter's own accruals and the year-to-date figures through it. The cumulative three are the
-/// declaration's numbers: Q1 is the quarter, Q2 the half-year, Q3 nine months, Q4 the year.
+/// Rule 4: the income went over the limit in <c>Quarter</c> of <c>Year</c>, so group 3 ends with it and
+/// nothing is computed from <c>SwitchFromQuarter</c> of <c>SwitchFromYear</c> on, where the FOP must be on
+/// the general system or another group, until <c>BackOnGroup3From</c> when the owner set one after the
+/// crossing. Sent for the crossing's year and for every later year it keeps a quarter of out of group 3.
+/// </summary>
+internal sealed record LimitCrossingResponse(
+    int Year, int Quarter, int SwitchFromYear, int SwitchFromQuarter, YearQuarter? BackOnGroup3From)
+{
+    public static LimitCrossingResponse? Of(YearAccruals year) => year.Accrual.LimitCrossing is not { } crossing
+        ? null
+        : new LimitCrossingResponse(
+            crossing.Year,
+            crossing.Quarter,
+            crossing.SwitchFromYear,
+            crossing.SwitchFromQuarter,
+            year.Settings.BackOnGroup3From is { } back && back > crossing.At ? back : null);
+}
+
+/// <summary>
+/// One quarter's own accruals and the year-to-date figures through it. The cumulative figures are the
+/// declaration's numbers: Q1 is the quarter, Q2 the half-year, Q3 nine months, Q4 the year. The single
+/// tax includes the excess tax, and the two excess figures are the income over the limit and its tax,
+/// nonzero only in the quarter the limit is crossed in (Rule 4).
 /// </summary>
 internal sealed record QuarterPeriodResponse(
     int Quarter,
@@ -261,6 +287,8 @@ internal sealed record QuarterPeriodResponse(
     long TotalKop,
     long CumulativeIncomeKop,
     long CumulativeSingleTaxKop,
+    long CumulativeExcessIncomeKop,
+    long CumulativeExcessTaxKop,
     long CumulativeMilitaryLevyKop,
     QuarterDeadlines Deadlines,
     QuarterObligations? Obligations);

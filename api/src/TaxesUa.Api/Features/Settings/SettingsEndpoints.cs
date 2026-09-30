@@ -2,6 +2,8 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Identity;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Transactions;
+using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Features.Settings;
 
@@ -97,6 +99,8 @@ public static class SettingsEndpoints
         settings.Locale = request.Locale;
         settings.Theme = request.Theme;
         settings.DefaultCurrency = request.DefaultCurrency;
+        settings.BackOnGroup3FromYear = request.BackOnGroup3From?.Year;
+        settings.BackOnGroup3FromQuarter = request.BackOnGroup3From?.Quarter;
     }
 
     private static SettingsResponse ToResponse(Settings settings) => new(
@@ -109,7 +113,8 @@ public static class SettingsEndpoints
         settings.WeekendDays,
         settings.Locale,
         settings.Theme,
-        settings.DefaultCurrency);
+        settings.DefaultCurrency,
+        settings.BackOnGroup3From);
 
     internal static Dictionary<string, string[]>? Validate(SettingsRequest request)
     {
@@ -139,6 +144,12 @@ public static class SettingsEndpoints
             errors[Field(name)] = [$"{name} must leave at least one working day."];
         }
 
+        if (request.BackOnGroup3From is { } back && (back.Quarter is < 1 or > 4 || back.Year is < TransactionsEndpoints.MinYear or > TransactionsEndpoints.MaxYear))
+        {
+            var name = nameof(request.BackOnGroup3From);
+            errors[Field(name)] = [$"{name} must be a quarter from 1 to 4 of a year from {TransactionsEndpoints.MinYear} to {TransactionsEndpoints.MaxYear}."];
+        }
+
         return errors.Count == 0 ? null : errors;
     }
 
@@ -158,7 +169,8 @@ internal sealed record SettingsRequest(
     DayOfWeek[] WeekendDays,
     string Locale,
     string Theme,
-    string DefaultCurrency);
+    string DefaultCurrency,
+    YearQuarter? BackOnGroup3From = null);
 
 internal sealed record SettingsResponse(
     DateOnly? FopRegistrationDate,
@@ -170,4 +182,5 @@ internal sealed record SettingsResponse(
     DayOfWeek[] WeekendDays,
     string Locale,
     string Theme,
-    string DefaultCurrency);
+    string DefaultCurrency,
+    YearQuarter? BackOnGroup3From);
