@@ -45,7 +45,7 @@ public class TaxReserveTests
     }
 
     [Fact]
-    public void A_refund_releases_what_its_receipt_set_aside()
+    public void A_refund_releases_reserve_at_the_rates_of_its_own_year()
     {
         var setAside = TaxReserve.SetAsideFor(
             new TransactionInput.RefundToClient(Date("2026-04-10"), 400_000, Date("2026-02-10")),

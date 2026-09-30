@@ -15,12 +15,17 @@ public enum EsvRegistrationMonthPolicy
 /// <summary>
 /// One quarter of the declaration. The cumulative figures are what the declaration carries; the
 /// per-quarter tax is the cumulative figure minus what the earlier quarters already accrued, and is
-/// negative when refunds shrank the cumulative income (Rule 3, settled per Rule 7).
+/// negative when refunds shrank the cumulative income (Rule 3, settled per Rule 7). The single tax
+/// includes Rule 4's excess tax: <c>CumulativeExcessIncomeKop</c> is the income through the quarter
+/// over the year's limit and <c>CumulativeExcessTaxKop</c> its tax at the excess rate, both zero in
+/// every quarter but the one the limit is crossed in, since no later quarter is accrued.
 /// </summary>
 public sealed record QuarterAccrual(
     QuarterIncome Income,
     long SingleTaxKop,
     long CumulativeSingleTaxKop,
+    long CumulativeExcessIncomeKop,
+    long CumulativeExcessTaxKop,
     long MilitaryLevyKop,
     long CumulativeMilitaryLevyKop,
     long EsvKop)
@@ -44,16 +49,40 @@ public sealed record MonthAccrual(
     public int Quarter => (Month + 2) / 3;
 }
 
-/// <summary>A year of accruals, per month and per quarter.</summary>
+/// <summary>
+/// Rule 4: the year's income went over its limit in <c>Quarter</c>, so group 3 ends with that quarter
+/// and the FOP must be on another system from <c>SwitchFromQuarter</c> of <c>SwitchFromYear</c>, which
+/// is the next year's first quarter when the limit is crossed in Q4.
+/// </summary>
+public sealed record LimitCrossing(int Year, int Quarter)
+{
+    public int SwitchFromYear => Quarter == 4 ? Year + 1 : Year;
+
+    public int SwitchFromQuarter => Quarter == 4 ? 1 : Quarter + 1;
+}
+
+/// <summary>
+/// A year of accruals, per month and per quarter. <c>Income</c> holds every month and quarter of the
+/// year, but <c>Quarters</c> and <c>Months</c> stop at the quarter the limit is crossed in (Rule 4):
+/// group 3 ends there, and a later quarter's tax belongs to a system this engine does not compute, so
+/// it has no accrual rather than a group 3 figure that would be wrong.
+/// </summary>
 public sealed record YearAccrual(
     int Year,
+    YearIncome Income,
     IReadOnlyList<MonthAccrual> Months,
     IReadOnlyList<QuarterAccrual> Quarters,
     IReadOnlyList<EngineWarning> Warnings)
 {
+    public LimitCrossing? LimitCrossing =>
+        Quarters[^1].CumulativeExcessIncomeKop > 0 ? new LimitCrossing(Year, Quarters.Count) : null;
+
+    public bool InGroup3(int quarter) => quarter <= Quarters.Count;
+
     /// <summary>
     /// Stops at <paramref name="quarter"/> because ESV accrues every month of the year up front: the
-    /// whole year's ESV over part of a year's income would overstate the rate until December.
+    /// whole year's ESV over part of a year's income would overstate the rate until December. The
+    /// quarter has to be in group 3.
     /// </summary>
     public TaxBurden BurdenThrough(int quarter) => new(
         Quarters[quarter - 1].Income.CumulativeIncomeKop,
@@ -87,35 +116,51 @@ public static class Accruals
         var esvByMonthKop = EsvByMonth(year, config, settings);
         var warnings = new List<EngineWarning>(income.Warnings);
 
-        var quarters = new QuarterAccrual[4];
+        var quarters = new List<QuarterAccrual>(4);
         var accruedSingleTaxKop = 0L;
         var accruedMilitaryLevyKop = 0L;
         foreach (var quarterIncome in income.Quarters)
         {
-            var cumulativeSingleTaxKop =
-                Money.ApplyBp(quarterIncome.CumulativeIncomeKop, config.SingleTaxRateBp);
-            var cumulativeMilitaryLevyKop =
-                Money.ApplyBp(quarterIncome.CumulativeIncomeKop, config.MilitaryLevyRateBp);
+            var cumulativeIncomeKop = quarterIncome.CumulativeIncomeKop;
+            var excessIncomeKop = Math.Max(cumulativeIncomeKop - config.IncomeLimitKop, 0);
+            var cumulativeSingleTaxKop = SingleTaxOn(cumulativeIncomeKop, config);
+            var cumulativeMilitaryLevyKop = Money.ApplyBp(cumulativeIncomeKop, config.MilitaryLevyRateBp);
 
             if (cumulativeSingleTaxKop < 0 || cumulativeMilitaryLevyKop < 0)
             {
                 warnings.Add(new EngineWarning.NegativeCumulativeTax(quarterIncome.Quarter));
             }
 
-            quarters[quarterIncome.Quarter - 1] = new QuarterAccrual(
+            quarters.Add(new QuarterAccrual(
                 quarterIncome,
                 cumulativeSingleTaxKop - accruedSingleTaxKop,
                 cumulativeSingleTaxKop,
+                excessIncomeKop,
+                Money.ApplyBp(excessIncomeKop, config.ExcessRateBp),
                 cumulativeMilitaryLevyKop - accruedMilitaryLevyKop,
                 cumulativeMilitaryLevyKop,
-                esvByMonthKop[(3 * quarterIncome.Quarter - 3)..(3 * quarterIncome.Quarter)].Sum());
+                esvByMonthKop[(3 * quarterIncome.Quarter - 3)..(3 * quarterIncome.Quarter)].Sum()));
 
             accruedSingleTaxKop = cumulativeSingleTaxKop;
             accruedMilitaryLevyKop = cumulativeMilitaryLevyKop;
+            if (excessIncomeKop > 0)
+            {
+                break;
+            }
         }
 
-        return new YearAccrual(year, MonthsOf(income, esvByMonthKop, config), quarters, warnings);
+        var months = MonthsOf(income, esvByMonthKop, config).Take(3 * quarters.Count).ToArray();
+        return new YearAccrual(year, income, months, quarters, warnings);
     }
+
+    /// <summary>
+    /// Rule 4: the single tax rate up to the limit and the excess rate above it, each rounded once. A
+    /// month and a quarter both split this one function of year-to-date income, so they add up to the
+    /// kopeck.
+    /// </summary>
+    private static long SingleTaxOn(long cumulativeIncomeKop, TaxYearConfigInput config) =>
+        Money.ApplyBp(Math.Min(cumulativeIncomeKop, config.IncomeLimitKop), config.SingleTaxRateBp)
+        + Money.ApplyBp(Math.Max(cumulativeIncomeKop - config.IncomeLimitKop, 0), config.ExcessRateBp);
 
     private static MonthAccrual[] MonthsOf(YearIncome income, long[] esvByMonthKop, TaxYearConfigInput config)
     {
@@ -126,7 +171,7 @@ public static class Accruals
         foreach (var month in income.Months)
         {
             cumulativeIncomeKop += month.IncomeKop;
-            var cumulativeSingleTaxKop = Money.ApplyBp(cumulativeIncomeKop, config.SingleTaxRateBp);
+            var cumulativeSingleTaxKop = SingleTaxOn(cumulativeIncomeKop, config);
             var cumulativeMilitaryLevyKop = Money.ApplyBp(cumulativeIncomeKop, config.MilitaryLevyRateBp);
             months[month.Month - 1] = new MonthAccrual(
                 month.Month,

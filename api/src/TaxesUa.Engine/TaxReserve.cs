@@ -1,8 +1,10 @@
 namespace TaxesUa.Engine;
 
 /// <summary>
-/// The single tax and the military levy to set aside from one receipt. Negative for a refund, which
-/// releases what its receipt had reserved.
+/// The single tax and the military levy to set aside from one receipt, at the rates of the year of its
+/// own date. Negative for a refund, which releases reserve at the refund year's rates, whatever year the
+/// receipt it reverses was taxed in. A receipt knows nothing of the limit, so the excess rate of Rule 4
+/// is carried by the total of <see cref="TaxReserve.Needed"/>, not by this figure.
 /// </summary>
 public sealed record SetAside(long SingleTaxKop, long MilitaryLevyKop);
 

@@ -70,7 +70,7 @@ public static class MonthlyAdvances
         YearAccrual accrual, KindLedger ledger, Func<MonthAccrual, long> accruedKop)
     {
         var ofYear = ledger.Obligations.Where(obligation => obligation.Year == accrual.Year).ToArray();
-        if (ofYear.Length != 4)
+        if (ofYear.Length != accrual.Quarters.Count)
         {
             throw new ArgumentException($"The ledger did not allocate over {accrual.Year}.", nameof(ledger));
         }
