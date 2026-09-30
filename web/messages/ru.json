@@ -644,7 +644,9 @@
       "Backup": "Резервная копия",
       "InvoicingDetails": "Реквизиты для инвойсов",
       "Client": "Клиент",
-      "Invoice": "Инвойс"
+      "Invoice": "Инвойс",
+      "DeclarationDetails": "Данные для декларации",
+      "DeclarationFiling": "Отметка о подаче декларации"
     },
     "values": {
       "yes": "Да",
@@ -756,7 +758,15 @@
       "snapshot": "Реквизиты на момент выставления",
       "cancelReason": "Причина отмены",
       "issuedAt": "Выставлен",
-      "cancelledAt": "Отменён"
+      "cancelledAt": "Отменён",
+      "taxOfficeRegion": "Код области ГНИ",
+      "taxOfficeDistrict": "Код района ГНИ",
+      "kvedCodes": "КВЭДы",
+      "year": "Год",
+      "quarter": "Квартал",
+      "filedOn": "Дата подачи",
+      "type": "Тип декларации",
+      "filedIncomeKop": "Доход на дату подачи"
     }
   },
   "invoices": {
@@ -873,6 +883,13 @@
         "address": "У клиента не указан адрес.",
         "country": "У клиента не указана страна."
       }
+    }
+  },
+  "declaration": {
+    "types": {
+      "Reporting": "Отчетная",
+      "NewReporting": "Отчетная новая",
+      "Clarifying": "Уточняющая"
     }
   }
 }

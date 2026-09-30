@@ -644,7 +644,9 @@
       "Backup": "Резервна копія",
       "InvoicingDetails": "Реквізити для інвойсів",
       "Client": "Клієнт",
-      "Invoice": "Інвойс"
+      "Invoice": "Інвойс",
+      "DeclarationDetails": "Дані для декларації",
+      "DeclarationFiling": "Позначка про подання декларації"
     },
     "values": {
       "yes": "Так",
@@ -756,7 +758,15 @@
       "snapshot": "Реквізити на момент виставлення",
       "cancelReason": "Причина скасування",
       "issuedAt": "Виставлено",
-      "cancelledAt": "Скасовано"
+      "cancelledAt": "Скасовано",
+      "taxOfficeRegion": "Код області ДПІ",
+      "taxOfficeDistrict": "Код району ДПІ",
+      "kvedCodes": "КВЕДи",
+      "year": "Рік",
+      "quarter": "Квартал",
+      "filedOn": "Дата подання",
+      "type": "Тип декларації",
+      "filedIncomeKop": "Дохід на дату подання"
     }
   },
   "invoices": {
@@ -873,6 +883,13 @@
         "address": "У клієнта не вказано адресу.",
         "country": "У клієнта не вказано країну."
       }
+    }
+  },
+  "declaration": {
+    "types": {
+      "Reporting": "Звітна",
+      "NewReporting": "Звітна нова",
+      "Clarifying": "Уточнююча"
     }
   }
 }

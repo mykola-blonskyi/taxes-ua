@@ -44,11 +44,13 @@ function HistoryEntryCard({ entry }: { entry: AuditEntryResponse }) {
   const tTransactionKinds = useTranslations("transactions.kinds");
   const tPaymentKinds = useTranslations("payments.kinds");
   const tFop = useTranslations("settings.fop");
+  const tDeclarationTypes = useTranslations("declaration.types");
   const locale = useLocale();
 
   const dynamicTransactionKinds = asDynamic(tTransactionKinds);
   const dynamicPaymentKinds = asDynamic(tPaymentKinds);
   const dynamicFop = asDynamic(tFop);
+  const dynamicDeclarationTypes = asDynamic(tDeclarationTypes);
   const dynamicT = asDynamic(t);
 
   function enumLabel(key: string, value: string): string | null {
@@ -57,7 +59,9 @@ function HistoryEntryCard({ entry }: { entry: AuditEntryResponse }) {
         ? [entry.entity === "Transaction" ? dynamicTransactionKinds : dynamicPaymentKinds, value]
         : key === "rateSource" || key === "reviewStatus" || key === "status"
           ? [dynamicT, `values.${key}.${value}`]
-          : [dynamicFop, `${key}${value}`];
+          : key === "type"
+            ? [dynamicDeclarationTypes, value]
+            : [dynamicFop, `${key}${value}`];
 
     return translator.has(messageKey) ? translator(messageKey) : null;
   }

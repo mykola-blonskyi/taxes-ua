@@ -99,6 +99,8 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
     "cancelledAt",
   ],
   Backup: ["clients", "transactions", "budgetPayments"],
+  DeclarationDetails: ["taxOfficeRegion", "taxOfficeDistrict", "kvedCodes", "address"],
+  DeclarationFiling: ["year", "quarter", "filedOn", "type", "filedIncomeKop"],
 };
 
 export function orderFields(entity: AuditedEntity, keys: string[]): string[] {
@@ -189,6 +191,7 @@ const exactFormatters: Record<string, FieldFormatter> = {
     Array.isArray(value) ? value.map((entry) => formatDateOnly(String(entry), locale)).join(", ") : String(value),
   weekendDays: ({ value, locale }) =>
     Array.isArray(value) ? value.map((entry) => weekdayName(String(entry), locale)).join(", ") : String(value),
+  kvedCodes: ({ value }) => (Array.isArray(value) ? value.join(", ") : String(value)),
   refundsTransactionId: ({ value }) => String(value).slice(0, 8),
   bankAccountId: ({ value }) => String(value).slice(0, 8),
   importBatchId: ({ value }) => String(value).slice(0, 8),
@@ -198,6 +201,7 @@ const exactFormatters: Record<string, FieldFormatter> = {
   paymentMode: enumValue,
   esvRegistrationMonthPolicy: enumValue,
   rateSource: enumValue,
+  type: enumValue,
 };
 
 // Formatters keyed by field-name suffix, checked when no exact match applies.
