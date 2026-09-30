@@ -10,8 +10,8 @@ Stage 2. Automation (roughly 6–8 days).
       seconds, statements in 31-day windows. FOP accounts are visible (confirmed 2026-09-28).
       Read only, no payment creation. #71.
 - [ ] Reminders: a Telegram bot and email, each toggleable independently. At 7 days, 1 day, and
-      on the deadline itself.
-- [ ] Export deadlines to .ics.
+      on the deadline itself. Spec #104, tickets #105-#108.
+- [ ] Export deadlines to .ics. Ticket #105.
 
 ---
 
@@ -23,7 +23,7 @@ Stage 3. Documents (roughly 5–7 days).
 - [ ] Bilingual EN/UK PDF invoice: IBAN, SWIFT, numbering. Link to a receipt, "paid" status.
       Spec #89, tickets #91-#94.
 - [ ] F0103309 XML declaration per the current DPS schema, for import into the Electronic
-      Cabinet.
+      Cabinet. Spec #109, tickets #110-#112.
 - [ ] Yearly archive, a reminder to keep documents at least 1095 days after the declaration that
       covers them (Tax Code 44.3), extended by any martial-law suspension.
 

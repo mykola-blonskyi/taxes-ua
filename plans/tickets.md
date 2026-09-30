@@ -68,6 +68,27 @@ Spec: issue #97. Mirror: `.scratch/stage-2-pay/`. The app prepares payments (det
 
 Frontier at the start: #101 (#98 waits for #80).
 
+## Stage 2: reminders
+
+Spec: issue #104. Mirror: `.scratch/stage-2-reminders/`.
+
+| # | Ticket | Blocked by |
+| --- | --- | --- |
+| #105 | 01. Subscribe to a private calendar feed of deadlines | none |
+| #106 | 02. Connect Telegram for reminders | none |
+| #107 | 03. Connect email for reminders | none |
+| #108 | 04. Send deadline reminders to connected channels | #106 |
+
+## Stage 3: declaration
+
+Spec: issue #109. Mirror: `.scratch/stage-3-declaration/`. The app prepares the XML; the owner signs and sends in the Cabinet.
+
+| # | Ticket | Blocked by |
+| --- | --- | --- |
+| #110 | 01. Check readiness and mark the quarter's declaration filed | none |
+| #111 | 02. Download the quarterly declaration as F0103309 XML | #110 |
+| #112 | 03. Add the ESV annex to the annual declaration XML | #111 |
+
 ## Stage 3: invoices
 
 Spec: issue #89. Mirror: `.scratch/stage-3-invoices/`. Bilingual EN/UK PDF, frozen at issue, paid by linked receipts.
