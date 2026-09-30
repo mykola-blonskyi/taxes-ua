@@ -51,6 +51,8 @@ internal enum AuditedEntity
     Backup,
     Client,
     Invoice,
+    DeclarationDetails,
+    DeclarationFiling,
 }
 
 internal enum AuditAction

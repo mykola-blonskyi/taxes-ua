@@ -271,6 +271,7 @@ api.MapAuthApi();
 api.MapSettingsApi();
 api.MapInvoicingApi();
 api.MapInvoicesApi();
+api.MapDeclarationDetailsApi();
 api.MapTaxYearsApi();
 api.MapPeriodsApi();
 api.MapTransactionsApi();
