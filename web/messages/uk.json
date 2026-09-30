@@ -686,6 +686,7 @@
       "DeclarationDetails": "Дані для декларації",
       "DeclarationFiling": "Позначка про подання декларації"
     },
+    "filingPeriod": "{quarter} квартал {year}",
     "values": {
       "yes": "Так",
       "no": "Ні",

@@ -686,6 +686,7 @@
       "DeclarationDetails": "Данные для декларации",
       "DeclarationFiling": "Отметка о подаче декларации"
     },
+    "filingPeriod": "{quarter} квартал {year}",
     "values": {
       "yes": "Да",
       "no": "Нет",

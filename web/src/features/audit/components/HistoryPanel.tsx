@@ -87,6 +87,7 @@ function HistoryEntryCard({ entry }: { entry: AuditEntryResponse }) {
 
   const actionLabel = t(`actions.${entry.action}`);
   const entityLabel = t(`entities.${entry.entity}`);
+  const [filingYear, filingQuarter] = entry.entity === "DeclarationFiling" ? entry.entityId.split("/").slice(-2) : [];
   const time = formatInstantInKyiv(entry.at, locale);
 
   return (
@@ -94,7 +95,9 @@ function HistoryEntryCard({ entry }: { entry: AuditEntryResponse }) {
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-baseline gap-2">
           <span className="text-sm font-medium">{actionLabel}</span>
-          <span className="text-sm text-muted-foreground">{entityLabel}</span>
+          <span className="text-sm text-muted-foreground">
+            {filingYear ? `${entityLabel} · ${t("filingPeriod", { year: filingYear, quarter: filingQuarter })}` : entityLabel}
+          </span>
         </div>
         <span className="shrink-0 text-xs text-muted-foreground">{time}</span>
       </div>
