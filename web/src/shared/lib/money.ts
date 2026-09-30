@@ -91,3 +91,11 @@ export function toUahKop(amountMinor: number, rateE4: number): number {
 
   return Number(product < zero ? -rounded : rounded);
 }
+
+// The plain form a bank form accepts: digits and a dot, no spaces or currency sign.
+export function formatPlainAmount(kopecks: number): string {
+  const whole = Math.floor(kopecks / 100);
+  const fraction = String(kopecks % 100).padStart(2, "0");
+
+  return `${whole}.${fraction}`;
+}

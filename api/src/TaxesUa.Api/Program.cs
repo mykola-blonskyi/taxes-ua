@@ -283,6 +283,7 @@ api.MapFxApi();
 api.MapPaymentsApi();
 api.MapPaymentCandidatesApi();
 api.MapTreasuryAccountsApi();
+api.MapPaymentDetailsApi();
 api.MapBackupApi();
 api.MapImportApi();
 api.MapAuditApi();

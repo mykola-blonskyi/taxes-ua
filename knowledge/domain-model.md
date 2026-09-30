@@ -367,6 +367,20 @@ payment, by a sync that fills its candidate's code, and by the settings screen.
 
 ---
 
+### Payment details
+
+Responsibilities: what the Pay panel shows for one obligation (#99, Rule 16). A derived value, not
+stored and not audited: computed on request from the owner's `TreasuryAccount` of the kind.
+
+Fields: `Kind`, `PeriodYear`, `PeriodQuarter?` or `PeriodMonth?` (exactly one), `AmountKop`, `Purpose`
+(Rule 16), `Recipient?` (IBAN, name, code and the account's source, `Learned | Manual`) and `Missing`
+(`iban`, `recipientName`, `recipientCode`, in that order). `Recipient` is set exactly when `Missing` is
+empty.
+
+Relationships: read from `TreasuryAccount` and the year's `TaxYearConfig`; belongs to `User`.
+
+---
+
 ### Obligation (computed)
 
 Responsibilities: what is due and when. Not stored, computed by the engine.

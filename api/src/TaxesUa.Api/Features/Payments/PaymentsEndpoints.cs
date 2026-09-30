@@ -14,7 +14,7 @@ public static class PaymentsEndpoints
 {
     // The same bound TransactionsEndpoints puts on an amount, and for the same reason: it stays inside
     // JS Number.MAX_SAFE_INTEGER, which is what the web reads a kopeck figure as.
-    private const long MaxAmountKop = 100_000_000_000_000;
+    internal const long MaxAmountKop = 100_000_000_000_000;
 
     private const int MaxNoteLength = 1000;
 
@@ -272,10 +272,10 @@ public static class PaymentsEndpoints
         return errors.Count == 0 ? null : errors;
     }
 
-    private static bool InYearRange(int year) =>
+    internal static bool InYearRange(int year) =>
         year >= TransactionsEndpoints.MinYear && year <= TransactionsEndpoints.MaxYear;
 
-    private static string YearRangeMessage(string subject) =>
+    internal static string YearRangeMessage(string subject) =>
         $"{subject} must be between {TransactionsEndpoints.MinYear} and {TransactionsEndpoints.MaxYear}.";
 
     private static string Field(string name) => JsonNamingPolicy.CamelCase.ConvertName(name);

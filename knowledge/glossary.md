@@ -77,3 +77,7 @@ The NBU exchange rate, multiplied by 10,000 and rounded to an integer.
 
 ### Basis point, `Bp`
 One hundredth of a percent. 5% = 500 bp.
+
+### Payment purpose (призначення платежу)
+The purpose line of a budget transfer: `101`, the kind in words, the period and `року`, for example
+`101 єдиний податок за III квартал 2026 року`. Rule 16.
