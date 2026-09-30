@@ -408,3 +408,36 @@ Rule 7 allocation put against it, floored at zero, added over the ledger:
 The figure is grouped by the obligation's due date (Rule 5), oldest first, with each kind kept
 apart inside a group. It is the same in `Quarterly` and `MonthlyAdvance` mode, because the mode
 changes recommendations only (Rule 6). It needs a registration date and does not need a bank.
+
+---
+
+## Rule 14. Invoicing
+
+An invoice is the primary document of a service export (Law 959-XII art. 6; payment is acceptance
+under Civil Code art. 642(2) when the invoice says so). It carries the requisites of Law 996 art. 9 and,
+because primary documents are kept in Ukrainian (MinFin Regulation No. 88), every label and every line
+is printed in English and Ukrainian; texts that exist once (a name, an address) are printed as entered.
+
+Numbering. An invoice gets its number when it is issued, never before, so abandoned drafts leave no
+gaps. The number is `YYYY-NNN`: the year of the issue date and the largest sequence already issued in
+that year plus one, taken under the owner's lock and backed by a unique index, so concurrent issues get
+distinct consecutive numbers. A cancelled invoice keeps its number. No statutory scheme exists; this
+one is a choice for uniqueness and order.
+
+Completeness. Issuing is refused, with every gap named, until the seller's name in Ukrainian and in
+Latin letters, the RNOKPP, the address in both languages, the payment details of the invoice's
+currency, the client's legal name, address and country, and both descriptions of every line are
+present, and the total is above zero.
+
+Freezing. Issuing copies the parties, the currency's payment details, the clauses and the signature
+into the invoice. The issued PDF is rendered from that copy only, so a later change to the invoicing
+details or to the client never changes a document already sent, and the lines, dates and currency of
+an issued invoice cannot be edited. A draft's preview reads the live data and is marked DRAFT.
+
+Amounts. Integer minor units of the invoice currency. A line is quantity (in thousandths) times rate,
+rounded once half away from zero; the total is the sum of the rounded lines.
+
+Retention. An issued or cancelled invoice is kept for at least 1095 days from the day the declaration
+covering its income was filed, or from that declaration's deadline if it was not (Tax Code art. 44.3).
+The period is extended by the time limitation periods were suspended under martial law. The app never
+deletes an issued or cancelled invoice; deleting is only for drafts.

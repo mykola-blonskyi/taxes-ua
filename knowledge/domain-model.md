@@ -189,7 +189,7 @@ a receipt names it (also from a bank import); the receipt's client name then fin
 unique per owner, compared exactly after trimming (case and inner spaces count), and the owner can
 complete a name-only client in place. Renaming changes `Name` only, so every receipt stays linked; a
 later bank import whose counterparty carries the old name creates a client under that name again. A
-client with linked receipts (and, later, invoices) cannot be deleted (409); one without can. A
+client with linked receipts or any invoice cannot be deleted (409); one without can. A
 dismissed import is not a receipt and does not block the deletion.
 
 Audited like the other records: `Create`, `Update` and `Delete` entries, so creating a receipt with a
@@ -325,22 +325,24 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (5), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (6), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
-payment details and the signature as base64 with its content type), each row with its id and every stored column except `UserId` and a
+payment details and the signature as base64 with its content type), `Invoices` (with their lines, their
+number as year and sequence, the frozen snapshot and the frozen signature as base64), each row with its
+id and every stored column except `UserId`, an invoice's `TotalMinor` (recomputed from its lines) and a
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
 which a restore clears.
 `TaxYearConfig` and `FxRate` are left out because they are shared. The monobank connection is never
 in it, so the file carries no bank access. Version 2 added the bank accounts, the import batches and
 the transactions' import fields (#76); version 3 added the budget payment candidates, all statuses,
 and the payments' bank operation (#80); version 4 added the invoicing details (#91); version 5 added the
-clients' details (#90). A version 1 file still restores, read as having none of them and every transaction
+clients' details (#90); version 6 added the invoices (#92). A version 1 file still restores, read as having none of them and every transaction
 `Confirmed`, a version 2 file as having no candidates and every payment typed by the owner, a version 1 to 3
 file as having no invoicing details, so the owner's are cleared like the rest, and a version 1 to 4 file as
-having no details on any client; a file of a version this build does not know is refused by its version
+having no details on any client, and a version 1 to 5 file as having no invoices; a file of a version this build does not know is refused by its version
 number rather than by whichever field it added.
 
-A restore replaces the owner's settings, invoicing details, clients, transactions, payments, candidates and import batches in one
+A restore replaces the owner's settings, invoicing details, clients, invoices, transactions, payments, candidates and import batches in one
 database transaction and passes every row through the endpoints' own validation, refund links
 included; any violation changes nothing. Bank accounts are matched rather than replaced (see
 `BankAccount`). Ids are kept, so a restore after a wipe reproduces the same file. When another owner
@@ -394,10 +396,10 @@ owner confirms are the counts the import writes.
 
 ### AuditLog
 
-Responsibilities: change log for transactions, clients, budget payments, settings and year parameters. One
+Responsibilities: change log for transactions, clients, invoices, budget payments, settings and year parameters. One
 row (`AuditEntry`, table `AuditLog`) per created, changed or deleted record. Append-only.
 
-Fields: `Entity: Transaction | BudgetPayment | Settings | InvoicingDetails | TaxYearConfig | Backup | Client`, `EntityId` (the
+Fields: `Entity: Transaction | BudgetPayment | Settings | InvoicingDetails | TaxYearConfig | Backup | Client | Invoice`, `EntityId` (the
 record's key: a GUID, the year, or the owner's id for Settings; empty for Backup),
 `Action: Create | Update | Delete | Restore`,
 `Before: jsonb` (null on Create), `After: jsonb` (null on Delete), `At` (UTC instant, shown in
@@ -405,7 +407,7 @@ Kyiv time), `UserId`.
 
 A snapshot holds the record's fields by their API names; money stays integer kopecks. It leaves out
 the key, `UserId`, `CreatedAt` and `UpdatedAt`, and a transaction's snapshot carries `clientName`
-instead of `clientId`, and an invoicing snapshot carries `signatureImageBytes` instead of the image.
+instead of `clientId`, and an invoicing or invoice snapshot carries `signatureImageBytes` instead of the image.
 A save that changes nothing but `UpdatedAt` writes no entry.
 
 `UserId` is the record's owner. `TaxYearConfig` is shared by every allowlisted user, so its entry
@@ -447,7 +449,38 @@ Fields: `BankAccountId`, `ExternalId` (the bank's operation id, unique together 
 `BankAccountId`; a sync only inserts), `BankTime`, `AmountMinor` (what left the account, positive),
 `Currency`.
 
-### Invoice (Stage 3)
+### Invoice
 
-`Number`, `ClientId`, `IssueDate`, `DueDate`, `Currency`, `AmountMinor`, `Items: jsonb`,
-`Status: Draft | Sent | Paid`, `PdfPath`.
+Responsibilities: a bilingual English/Ukrainian invoice to one client (#92), the primary document for
+a service export (Rule 14). The PDF is rendered on request, never stored.
+
+Fields:
+
+- `ClientId` (the owner's client; a client with invoices cannot be deleted), `Status: Draft | Issued |
+  Cancelled`, `IssueDate`, `DueDate` (not before the issue date), `Currency: UAH | USD | EUR`.
+- `NumberYear`, `NumberSequence`: null on a draft; set at issue to the issue date's year and the next
+  sequence of that year. The number reads `YYYY-NNN` (`2026-001`). Unique per owner, year and sequence.
+- `Lines: jsonb`, at most 50, each `DescriptionEn`, `DescriptionUk` (up to 500 characters each),
+  `Unit: Service | Hour | Day | Month` (printed as the fixed bilingual pairs "service / послуга", "hour /
+  година", "day / день", "month / місяць"), `QuantityThousandths` (a quantity above 0 and up to
+  1 000 000 with at most three decimals, as whole thousandths) and `RateMinor` (0 or more, in the
+  currency's minor units).
+- `TotalMinor`: the sum of the line amounts, written with the lines. A line's amount is
+  `QuantityThousandths × RateMinor / 1000`, rounded once to a whole minor unit, half away from zero
+  (Rule 10). The printed lines always add up to the printed total.
+- `Snapshot: jsonb?`, `SignatureImage?`, `SignatureContentType?`: null on a draft; at issue, a copy of the
+  seller (both names, RNOKPP, both addresses), the buyer (name, address, country code and its English
+  name, tax id, email), the payment details of the invoice's currency and the six clause texts, and the
+  signature image as it stood then (ADR-013).
+- `CancelReason?` (up to 500), `IssuedAt?`, `CancelledAt?`, `CreatedAt`, `UpdatedAt`.
+
+A draft is created, edited, duplicated and deleted freely, and its PDF preview reads the owner's
+invoicing details and the client live, marked DRAFT. Issuing an issued invoice returns it unchanged;
+issuing a cancelled one is refused. An issued invoice is never edited or deleted (409): it is cancelled
+with a reason and keeps its number, and its PDF, marked CANCELLED, is still rendered from the
+snapshot. Duplicating any invoice creates a draft dated today with the source's client, currency, lines
+and payment term. Paid and overdue come with the receipt links of #93.
+
+Audited as `Invoice`: `Create`, `Update` (edits, issue, cancel) and `Delete` of a draft.
+
+Relationships: belongs to `User` and `Client`.

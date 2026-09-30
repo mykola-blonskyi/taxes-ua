@@ -515,3 +515,53 @@ queue and the gate bound; it never lets them read or write data. The secret appe
 proxy logs request paths, so replacing the token is the way to rotate it. A webhook the bank
 disabled costs at most a day's delay, because the nightly run re-reads the last 31 days and sets the
 webhook again.
+
+---
+
+## ADR-013. Freeze an invoice at issue and render one bilingual PDF from the frozen copy
+
+Date: 2026-09-30
+
+Status: Accepted
+
+### Context
+
+#92 issues invoices to foreign clients. An invoice is a primary document (Rule 14): what the owner sent
+must be what the owner keeps, yet the seller's details, the payment details and the client's address
+all live in records the owner edits later. Primary documents must be in Ukrainian or carry an authentic
+translation, while the client reads English.
+
+### Decision
+
+Issuing is one operation under the owner's advisory lock: check completeness, take the next number of
+the issue date's year, copy the seller, the buyer, the payment details of the invoice's currency, the
+six clause texts and the signature image onto the invoice (`Snapshot` as jsonb, the image as bytes),
+and set `Issued`. The PDF of an issued or cancelled invoice is rendered on every request from that copy
+and the invoice's own lines, never from the live records; a draft renders the same layout from the live
+records with a DRAFT mark, through the same function that builds the copy, so the preview shows what
+issuing would keep.
+
+The PDF is one A4 document with both languages side by side: each label is "English / Українська",
+each line has both descriptions, the clauses sit in two columns, and the payment reference names the
+invoice number in both languages. It uses the existing MigraDoc setup and embedded Noto Sans. A
+signature image PDFsharp cannot read falls back to the seller's name, which is the identifying data the
+invoice needs anyway.
+
+### Alternatives Considered
+
+Storing the rendered PDF at issue. It freezes the bytes rather than the facts, needs file storage and
+a backup of binaries, and a font or layout fix could never reach old invoices. The facts are small and
+render the same document.
+
+Versioning the invoicing details and the client and pointing the invoice at a version. It spreads the
+freeze across three tables and every edit screen for one reader.
+
+Two PDFs, one per language. The Ukrainian translation must accompany the document, and two files invite
+sending one without the other.
+
+### Consequences
+
+An issued invoice survives any later edit, a restore and a rename of the client. A layout change does
+reach old invoices when they are downloaded again, so the layout must only ever add or reposition, never
+drop a requisite. Paid and overdue (#93) read the invoice's own total and currency, never the snapshot.
+The country name is frozen in English as ICU spelled it at issue.
