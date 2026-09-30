@@ -225,7 +225,6 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
     {
         Type[] notAudited =
         [
-            typeof(Client),
             typeof(FxRate),
             typeof(AuditEntry),
             typeof(ApplicationUser),

@@ -49,6 +49,7 @@ internal enum AuditedEntity
     InvoicingDetails,
     TaxYearConfig,
     Backup,
+    Client,
 }
 
 internal enum AuditAction

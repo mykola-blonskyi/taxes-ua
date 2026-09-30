@@ -176,10 +176,24 @@ Relationships: belongs to `User`, 1-to-1.
 
 ### Client
 
-Responsibilities: a counterparty for linking receipts and invoices.
+Responsibilities: a counterparty for linking receipts and invoices, and the buyer's details an invoice
+carries (#90).
 
-Fields: `Name`, `Country`, `Address`, `Email`, `VatId`, `DefaultCurrency`, `Notes`. Only `Name` is
-used in the MVP. A client is created the first time a receipt names it and is unique by name per owner.
+Fields: `Name` (1 to 200 characters), `Address` (the legal address, up to 500), `Country` (ISO 3166-1
+alpha-2, stored in upper case), `VatId` (the tax or VAT id, up to 50), `Email` (up to 254),
+`DefaultCurrency?` (`UAH`, `USD` or `EUR`), `Notes` (up to 2000). Only `Name` is required; a blank
+optional field is stored as null. The API also returns `ReceiptCount`, the receipts linked to the client.
+
+A client is created either by the owner on the Clients tab of Settings or, name only, the first time
+a receipt names it (also from a bank import); the receipt's client name then finds it again. Names are
+unique per owner, compared exactly after trimming (case and inner spaces count), and the owner can
+complete a name-only client in place. Renaming changes `Name` only, so every receipt stays linked; a
+later bank import whose counterparty carries the old name creates a client under that name again. A
+client with linked receipts (and, later, invoices) cannot be deleted (409); one without can. A
+dismissed import is not a receipt and does not block the deletion.
+
+Audited like the other records: `Create`, `Update` and `Delete` entries, so creating a receipt with a
+new client name also logs the client's `Create`.
 
 Relationships: belongs to `User`, has many `Transaction` and `Invoice`.
 
@@ -299,7 +313,7 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (4), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (5), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
 payment details and the signature as base64 with its content type), each row with its id and every stored column except `UserId` and a
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
@@ -307,11 +321,12 @@ which a restore clears.
 `TaxYearConfig` and `FxRate` are left out because they are shared. The monobank connection is never
 in it, so the file carries no bank access. Version 2 added the bank accounts, the import batches and
 the transactions' import fields (#76); version 3 added the budget payment candidates, all statuses,
-and the payments' bank operation (#80); version 4 added the invoicing details (#91). A version 1 file still
-restores, read as having none of them and every transaction `Confirmed`, a version 2 file as having no
-candidates and every payment typed by the owner, and a version 1 to 3 file as having no invoicing details, so
-the owner's are cleared like the rest; a file of a version this build does not know is refused by its
-version number rather than by whichever field it added.
+and the payments' bank operation (#80); version 4 added the invoicing details (#91); version 5 added the
+clients' details (#90). A version 1 file still restores, read as having none of them and every transaction
+`Confirmed`, a version 2 file as having no candidates and every payment typed by the owner, a version 1 to 3
+file as having no invoicing details, so the owner's are cleared like the rest, and a version 1 to 4 file as
+having no details on any client; a file of a version this build does not know is refused by its version
+number rather than by whichever field it added.
 
 A restore replaces the owner's settings, invoicing details, clients, transactions, payments, candidates and import batches in one
 database transaction and passes every row through the endpoints' own validation, refund links
@@ -367,10 +382,10 @@ owner confirms are the counts the import writes.
 
 ### AuditLog
 
-Responsibilities: change log for transactions, budget payments, settings and year parameters. One
+Responsibilities: change log for transactions, clients, budget payments, settings and year parameters. One
 row (`AuditEntry`, table `AuditLog`) per created, changed or deleted record. Append-only.
 
-Fields: `Entity: Transaction | BudgetPayment | Settings | InvoicingDetails | TaxYearConfig | Backup`, `EntityId` (the
+Fields: `Entity: Transaction | BudgetPayment | Settings | InvoicingDetails | TaxYearConfig | Backup | Client`, `EntityId` (the
 record's key: a GUID, the year, or the owner's id for Settings; empty for Backup),
 `Action: Create | Update | Delete | Restore`,
 `Before: jsonb` (null on Create), `After: jsonb` (null on Delete), `At` (UTC instant, shown in

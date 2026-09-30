@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useClients } from "@/data/clients/useClients";
 import { currencies, useFxRate, type Currency } from "@/data/fx/useFxRate";
 import {
-  useClients,
   useCreateTransaction,
   useReceipts,
   useUpdateTransaction,
@@ -342,7 +342,7 @@ export function TransactionForm({
         />
         <datalist id="transaction-clients">
           {(clients ?? []).map((client) => (
-            <option key={client} value={client} />
+            <option key={client.id} value={client.name} />
           ))}
         </datalist>
 

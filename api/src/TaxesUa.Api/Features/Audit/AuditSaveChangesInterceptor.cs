@@ -32,6 +32,7 @@ internal sealed class AuditSaveChangesInterceptor(
     private static readonly Dictionary<Type, AuditedEntity> Audited = new()
     {
         [typeof(Transaction)] = AuditedEntity.Transaction,
+        [typeof(Client)] = AuditedEntity.Client,
         [typeof(BudgetPayment)] = AuditedEntity.BudgetPayment,
         [typeof(SettingsEntity)] = AuditedEntity.Settings,
         [typeof(InvoicingDetails)] = AuditedEntity.InvoicingDetails,

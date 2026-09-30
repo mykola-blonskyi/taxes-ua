@@ -35,7 +35,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":4,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null}""";
+        """{"schemaVersion":5,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -121,6 +121,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         version1.Remove("bankAccounts");
         version1.Remove("importBatches");
         version1.Remove("invoicingDetails");
+        RemoveClientDetails(version1);
         foreach (var row in version1["transactions"]!.AsArray().OfType<JsonObject>())
         {
             foreach (var field in new[] { "bankAccountId", "externalId", "bankTime", "counterparty", "importBatchId", "reviewStatus" })
@@ -145,8 +146,11 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         var current = Baseline();
         current["invoicingDetails"] = null;
+        NullClientDetails(current);
         var version2 = current.DeepClone().AsObject();
         version2["schemaVersion"] = 2;
+        version2.Remove("invoicingDetails");
+        RemoveClientDetails(version2);
         version2.Remove("budgetPaymentCandidates");
         foreach (var row in version2["budgetPayments"]!.AsArray().OfType<JsonObject>())
         {
@@ -172,6 +176,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var version3 = Baseline();
         version3["schemaVersion"] = 3;
         version3.Remove("invoicingDetails");
+        RemoveClientDetails(version3);
 
         Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version3.ToJsonString()));
 
@@ -203,6 +208,45 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(InvoicingTestData.Png, await image.Content.ReadAsByteArrayAsync());
         var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
         Assert.Equal(Convert.ToBase64String(InvoicingTestData.Png), backup["invoicingDetails"]!["signatureImage"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task A_version_4_file_restores_its_clients_with_no_details()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var version4 = Baseline();
+        version4["schemaVersion"] = 4;
+        RemoveClientDetails(version4);
+
+        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version4.ToJsonString()));
+
+        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
+        var acme = backup["clients"]!.AsArray().OfType<JsonObject>().Single(row => row["name"]!.GetValue<string>() == "Acme");
+        foreach (var field in new[] { "address", "country", "vatId", "email", "defaultCurrency", "notes" })
+        {
+            Assert.Null(acme[field]);
+        }
+    }
+
+    [Fact]
+    public async Task Client_details_survive_a_backup_and_restore()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Restore(owner, Baseline().ToJsonString());
+
+        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
+        var acme = backup["clients"]!.AsArray().OfType<JsonObject>().Single(row => row["name"]!.GetValue<string>() == "Acme");
+        Assert.Equal("DE", acme["country"]!.GetValue<string>());
+        Assert.Equal("EUR", acme["defaultCurrency"]!.GetValue<string>());
+        Assert.Equal("Net 14", acme["notes"]!.GetValue<string>());
+
+        var clients = await owner.GetFromJsonAsync<ClientResponse[]>("/api/clients", Json);
+        var listed = Assert.Single(clients!, row => row.Name == "Acme");
+        Assert.Equal(new ClientResponse(
+            ClientId, "Acme", "1 Main St, Berlin", "DE", "DE123456789", "ap@acme.example", Currency.EUR, "Net 14", 1), listed);
     }
 
     [Fact]
@@ -275,6 +319,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "candidate to a non-Treasury account", "budgetPaymentCandidates[0].counterIban" },
         { "confirmed candidate without a kind", "budgetPaymentCandidates[0].confirmedKind" },
         { "a newer schema version", null },
+        { "country that is not ISO 3166-1", "clients[0].country" },
+        { "malformed client email", "clients[0].email" },
         { "no schema version", null },
         { "not JSON", null },
     };
@@ -498,7 +544,11 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             new SettingsBackup(
                 new DateOnly(2031, 1, 1), PaymentMode.Quarterly, EsvRegistrationMonthPolicy.FullMonth, false, true,
                 true, [DayOfWeek.Saturday, DayOfWeek.Sunday], "uk", "system", "UAH"),
-            [new ClientBackup(ClientId, "Acme"), new ClientBackup(Guid.NewGuid(), "Beta")],
+            [
+                new ClientBackup(
+                    ClientId, "Acme", "1 Main St, Berlin", "DE", "DE123456789", "ap@acme.example", Currency.EUR, "Net 14"),
+                new ClientBackup(Guid.NewGuid(), "Beta", null, null, null, null, null, null),
+            ],
             [
                 new TransactionBackup(UahReceiptId, new DateOnly(2031, 2, 1), 100_000, Currency.UAH, Money.RateScale,
                     null, null, 100_000, TransactionKind.Income, null, ClientId, null, null, null, null, null, null, null, null, ReviewStatus.Confirmed, created, created),
@@ -682,6 +732,12 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             case "a newer schema version":
                 file["schemaVersion"] = BackupDocument.CurrentSchemaVersion + 1;
                 break;
+            case "country that is not ISO 3166-1":
+                file["clients"]![0]!["country"] = "XX";
+                break;
+            case "malformed client email":
+                file["clients"]![0]!["email"] = "not an email";
+                break;
             case "no schema version":
                 file.Remove("schemaVersion");
                 break;
@@ -768,6 +824,28 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal("taxes-ua-backup-2031-06-01.json", response.Content.Headers.ContentDisposition?.FileNameStar);
         return await response.Content.ReadAsStringAsync();
+    }
+
+    private static void NullClientDetails(JsonObject file)
+    {
+        foreach (var row in file["clients"]!.AsArray().OfType<JsonObject>())
+        {
+            foreach (var field in new[] { "address", "country", "vatId", "email", "defaultCurrency", "notes" })
+            {
+                row[field] = null;
+            }
+        }
+    }
+
+    private static void RemoveClientDetails(JsonObject file)
+    {
+        foreach (var row in file["clients"]!.AsArray().OfType<JsonObject>())
+        {
+            foreach (var field in new[] { "address", "country", "vatId", "email", "defaultCurrency", "notes" })
+            {
+                row.Remove(field);
+            }
+        }
     }
 
     private static string Normalized(string json) => JsonNode.Parse(json)!.ToJsonString();

@@ -113,14 +113,3 @@ export function useReceipts() {
     },
   });
 }
-
-export function useClients() {
-  return useQuery({
-    queryKey: clientsQueryKey,
-    queryFn: async () => {
-      const { data } = await api.GET("/api/clients");
-
-      return data;
-    },
-  });
-}
