@@ -2,7 +2,7 @@ namespace TaxesUa.Engine;
 
 /// <summary>
 /// The group 3 lines of the single tax declaration (form F0103309) for one reporting period, per
-/// Rule 14 of <c>knowledge/business-rules.md</c>. The period is cumulative from 1 January: Q1 is the
+/// Rule 15 of <c>knowledge/business-rules.md</c>. The period is cumulative from 1 January: Q1 is the
 /// quarter, Q2 the half-year, Q3 nine months, Q4 the year. Only the 5% lines are here: the 15% lines
 /// for income over the limit are not accrued yet (#118), and the other lines belong to other groups
 /// or to corrections.

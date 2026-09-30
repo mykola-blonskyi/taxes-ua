@@ -185,7 +185,7 @@ public static class DashboardEndpoints
 /// reached, with the same rule as <c>Burden</c>. <c>NeedsReviewCount</c> is the number of imported transactions
 /// the owner has not reviewed, which the figures already count under their suggested kinds, and of
 /// budget payment candidates, which count nowhere until confirmed. <c>Declaration</c> is the last ended
-/// quarter's declaration while it is due and not marked filed (Rule 14).
+/// quarter's declaration while it is due and not marked filed (Rule 15).
 /// </summary>
 internal sealed record DashboardResponse(
     DateOnly Today,

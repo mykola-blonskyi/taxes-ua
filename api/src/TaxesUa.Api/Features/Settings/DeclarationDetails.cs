@@ -26,7 +26,7 @@ internal sealed class DeclarationDetails
 
     /// <summary>
     /// What the declaration still lacks, in the order of the form's header. Saving an incomplete set
-    /// is allowed; completeness only decides the declaration's readiness (Rule 14).
+    /// is allowed; completeness only decides the declaration's readiness (Rule 15).
     /// </summary>
     public static DeclarationDetailField[] Missing(InvoicingDetails? invoicing, DeclarationDetails? details)
     {

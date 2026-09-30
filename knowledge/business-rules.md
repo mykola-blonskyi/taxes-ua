@@ -446,3 +446,71 @@ Restore. A restore replaces the owner's data with a file, but never drops an iss
 number that is already out in the world must not be reused by the next issue. A file that lacks the
 number of any issued or cancelled invoice the owner holds is refused, naming those numbers, and nothing
 is changed. Drafts hold no number and may be dropped.
+
+---
+
+## Rule 15. Declaration
+
+The app fills the group 3 lines of the single tax declaration (form F0103309, MinFin order No. 578 as
+amended by No. 57) from what Rule 3 already accrued; it applies no rate of its own, so the declaration
+and the periods screen cannot disagree. Nothing is filed from the app: the owner files in the
+Electronic Cabinet.
+
+The reporting period is cumulative from 1 January: Q1 is the quarter, Q2 the half-year, Q3 nine
+months, Q4 the year. The lines, at 5% and without VAT:
+
+- 06, and 08 as the only income line: income through the quarter's end (Rules 1, 2 and 8).
+- 11, and 12 as the only tax line: line 06 at the year's single tax rate, rounded once (Rule 10).
+- 13: line 12 of the previous quarter's declaration of the same year; zero in Q1.
+- 14.1, and 14 (14.2 is group 4 only): line 12 minus line 13, what the period adds to pay.
+- 23: the military levy on lines 05 to 07, which here is line 06 at the year's levy rate.
+- 24: line 23 of the previous quarter's declaration; zero in Q1.
+- 25: line 23 minus line 24.
+- 21: ESV for the year from annex 1, on the annual (Q4) declaration only: the sum of the year's
+  monthly ESV (Rule 3). Q1 to Q3 leave it empty.
+
+Every other line stays empty: they belong to other groups, the 3% rate, or corrections. When refunds
+shrink the cumulative income, 14.1 and 25 come out negative and are shown as the arithmetic gives
+them; the form has no separate line for that, and Rule 7 settles the negative part as credit. The
+rates are the declared year's `TaxYearConfig` rates, never code. The 15% lines for income over the
+limit (Rule 4) are not accrued yet (#118): while income through the quarter is over the year's limit,
+no figures are shown and the declaration is not ready.
+
+A quarter that ends before the registration date (Rule 8) has no declaration. In a first year
+registered in May, Q1 has none, Q2's line 13 is zero, and income before registration is not in line
+06.
+
+Worked example, 2026 (5% and 1%), registered before 2026, receipts of 123,456.78 UAH on 20 January
+and 98,765.43 UAH on 15 April:
+
+| Line | Q1 | Q2 |
+| --- | --- | --- |
+| 06 / 08 | 123,456.78 | 222,222.21 |
+| 11 / 12 | 6,172.84 | 11,111.11 |
+| 13 | 0.00 | 6,172.84 |
+| 14.1 / 14 | 6,172.84 | 4,938.27 |
+| 23 | 1,234.57 | 2,222.22 |
+| 24 | 0.00 | 1,234.57 |
+| 25 | 1,234.57 | 987.65 |
+
+The declaration is ready when nothing below blocks it. These block:
+
+- an imported receipt of the year dated up to the quarter's end still waiting for review (Rule 12);
+- a budget payment candidate still pending, of any year;
+- the year's `TaxYearConfig` not verified (Rule 9);
+- no registration date (Rule 8);
+- a missing detail: the name and RNOKPP (read from the invoicing details, never stored twice), the
+  tax office (its region and district codes), at least one KVED code (the first is the main
+  activity), and the address as in the register;
+- income over the limit, as above.
+
+What the year's obligations through the quarter still owe per kind (Rule 7) is shown as a warning and
+never blocks: paying is not filing.
+
+The owner marks a quarter's declaration as filed, per year and quarter: the date it was filed (after
+the quarter's end and not after today in Kyiv) and its type, reporting, new reporting or clarifying.
+Marking does not require readiness, marking again replaces the mark, and the mark can be undone. The
+mark keeps line 08 as it stood; when a later change to the year's receipts moves line 08 away from
+it, the mark is flagged as changed since filing, a hint that a clarifying declaration may be needed,
+until the owner marks the quarter again. The home screen names the last ended quarter's declaration
+from the day after the quarter ends through its due date (Rule 5), until it is marked filed.

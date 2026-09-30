@@ -29,6 +29,23 @@ year. Form F0103309.
 cabinet.tax.gov.ua. Where the declaration is signed and the taxpayer's integrated ledger card is
 visible.
 
+### Filed mark
+The owner's record that a quarter's declaration was filed in the Cabinet: the date, the type
+(reporting, new reporting, clarifying) and line 08 as it stood. In code: `DeclarationFiling` (Rule 15).
+
+### Declaration readiness
+Whether a quarter's declaration can be filed from what the app holds: nothing left to review, the
+year verified, the registration date and every declaration detail set, income within the limit.
+Unpaid taxes are a warning, not a blocker (Rule 15).
+
+### KVED
+The classifier of economic activities (KVED, DK 009). A code such as `62.01`; the first of the
+owner's codes is the main activity.
+
+### Tax office code (Kod DPI)
+The tax office the declaration is filed with, as its region code (C_REG) and district code (C_RAJ)
+on the form.
+
 ### Integrated ledger card (taxpayer's ledger)
 The taxpayer's account with the State Tax Service (DPS): accrued, paid, owed or overpaid, per
 payment type. The app's equivalent is the per-kind balances.

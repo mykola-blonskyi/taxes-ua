@@ -4,7 +4,7 @@ using TaxesUa.Engine;
 namespace TaxesUa.Api.Features.Declarations;
 
 /// <summary>
-/// Whether a quarter's declaration can be filed from what the app holds (Rule 14), computed on read
+/// Whether a quarter's declaration can be filed from what the app holds (Rule 15), computed on read
 /// from rows the caller already loaded. Each item is one field the interface words; the api sends no
 /// text, per ADR-002.
 /// </summary>

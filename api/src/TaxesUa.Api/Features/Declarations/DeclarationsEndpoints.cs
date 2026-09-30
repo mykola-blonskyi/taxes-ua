@@ -235,7 +235,7 @@ public static class DeclarationsEndpoints
 }
 
 /// <summary>
-/// One quarter's declaration (Rule 14). <c>Figures</c> is null when the income through the quarter
+/// One quarter's declaration (Rule 15). <c>Figures</c> is null when the income through the quarter
 /// is over the year's limit, because the 15% lines are not filled yet (#118). The rates are the
 /// year's, for the lines' labels.
 /// </summary>

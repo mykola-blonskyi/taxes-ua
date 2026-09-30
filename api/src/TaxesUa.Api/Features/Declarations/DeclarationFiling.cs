@@ -6,7 +6,7 @@ namespace TaxesUa.Api.Features.Declarations;
 
 /// <summary>
 /// The owner's record that a quarter's declaration was filed in the Cabinet, one per owner, year and
-/// quarter (Rule 14). Nothing is filed from here; marking does not require readiness.
+/// quarter (Rule 15). Nothing is filed from here; marking does not require readiness.
 /// </summary>
 internal sealed class DeclarationFiling
 {
