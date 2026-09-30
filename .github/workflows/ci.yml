@@ -71,6 +71,7 @@ jobs:
     needs: [api-test, web-lint-build, docker-api, docker-web, deploy-checks]
     steps:
       - name: Trigger the Coolify deploy webhook
+        # Coolify's /deploy route answers an authenticated GET with 405 despite its docs; it takes POST.
         env:
           COOLIFY_WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
           COOLIFY_WEBHOOK_TOKEN: ${{ secrets.COOLIFY_WEBHOOK_TOKEN }}
@@ -82,5 +83,15 @@ jobs:
               exit 1
               ;;
           esac
-          curl --fail --silent --show-error --max-time 60 --request GET "$COOLIFY_WEBHOOK_URL" \
-            --header "Authorization: Bearer $COOLIFY_WEBHOOK_TOKEN" > /dev/null
+          case "$COOLIFY_WEBHOOK_URL$COOLIFY_WEBHOOK_TOKEN" in
+            *[[:space:]]*|*\"*|*\'*)
+              echo "::error::COOLIFY_WEBHOOK_URL or COOLIFY_WEBHOOK_TOKEN contains whitespace or quotes; paste the bare value"
+              exit 1
+              ;;
+          esac
+          echo "url length ${#COOLIFY_WEBHOOK_URL}, token length ${#COOLIFY_WEBHOOK_TOKEN}"
+          status=$(curl --silent --show-error --max-time 60 --output response.txt --write-out '%{http_code}' \
+            --request POST "$COOLIFY_WEBHOOK_URL" --header "Authorization: Bearer $COOLIFY_WEBHOOK_TOKEN")
+          echo "Coolify answered $status"
+          head -c 500 response.txt; echo
+          test "$status" = 200
