@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
-using TaxesUa.Api.Features.Payments;
 using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Features.Periods;
@@ -32,12 +31,13 @@ public static class PeriodsEndpoints
                     return Missing(year);
                 }
 
-                IReadOnlyList<BudgetPaymentInput> payments = loaded.Ledger is [var first, ..]
-                    ? await PaymentsEndpoints.LoadEngineInputAsync(
-                        database, user.Id, first.Accrual.Year, loaded.Ledger[^1].Accrual.Year, cancellationToken)
-                    : [];
+                // Outside the ledger (no registration date, a year before it, or past a missing year)
+                // no obligation and no balance is sent rather than a wrong one.
+                var ledger = loaded.ViewedIsInLedger
+                    ? await loaded.PaymentLedgerAsync(database, user.Id, time.TodayInKyiv(), cancellationToken)
+                    : null;
 
-                return Results.Ok(ToResponse(loaded, payments, time.TodayInKyiv()));
+                return Results.Ok(ToResponse(loaded, ledger));
             })
             .Produces<PeriodsResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -46,23 +46,13 @@ public static class PeriodsEndpoints
         return routes;
     }
 
-    private static PeriodsResponse ToResponse(
-        LoadedYears loadedYears, IReadOnlyList<BudgetPaymentInput> payments, DateOnly today)
+    private static PeriodsResponse ToResponse(LoadedYears loadedYears, PaymentLedger? ledger)
     {
         var loaded = loadedYears.Viewed;
         var year = loaded.Accrual.Year;
         var configInput = loaded.Config.ToEngineInput();
         var settingsInput = loaded.Settings.ToEngineInput();
         var registrationDate = settingsInput.FopRegistrationDate;
-        // Outside the ledger (no registration date, a year before it, or past a missing year) nothing
-        // can be allocated honestly, so no obligation and no balance is sent rather than a wrong one.
-        var ledger = loadedYears.ViewedIsInLedger
-            ? Balances.ForYears(
-                [.. loadedYears.Ledger.Select(each => new LedgerYear(each.Accrual, each.Config.ToEngineInput()))],
-                settingsInput,
-                payments,
-                today)
-            : null;
         IReadOnlyList<Obligation> obligations = ledger is null
             ? []
             : [.. ledger.SingleTax.Obligations, .. ledger.MilitaryLevy.Obligations, .. ledger.Esv.Obligations];

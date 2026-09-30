@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Backup;
+using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
@@ -37,7 +38,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":6,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[]}""";
+        """{"schemaVersion":7,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[]}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -66,6 +67,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Contains(document.Transactions, row => row.RateSource == RateSource.Manual);
         Assert.Contains(document.Transactions, row => row.RefundsTransactionId is not null);
         Assert.Equal(2, document.BudgetPayments.Length);
+        Assert.Equal(["62.01"], document.DeclarationDetails!.KvedCodes);
 
         await Wipe(owner);
         Assert.Equal(Normalized(Empty), Normalized(await Backup(owner)));
@@ -135,6 +137,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             }
         }
 
+        await DropInvoices();
         Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version1.ToJsonString()));
 
         var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
@@ -151,11 +154,15 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         var current = Baseline();
         current["invoicingDetails"] = null;
+        current["declarationDetails"] = null;
+        current["declarationFilings"] = new JsonArray();
         NullClientDetails(current);
         current["invoices"] = new JsonArray();
         var version2 = current.DeepClone().AsObject();
         version2["schemaVersion"] = 2;
         version2.Remove("invoicingDetails");
+        version2.Remove("declarationDetails");
+        version2.Remove("declarationFilings");
         RemoveClientDetails(version2);
         version2.Remove("budgetPaymentCandidates");
         foreach (var row in version2["budgetPayments"]!.AsArray().OfType<JsonObject>())
@@ -219,6 +226,49 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task A_version_6_file_restores_and_leaves_no_declaration_details_or_filed_marks()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Restore(owner, Baseline().ToJsonString());
+        var version6 = Baseline();
+        version6["schemaVersion"] = 6;
+        version6.Remove("declarationDetails");
+        version6.Remove("declarationFilings");
+
+        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version6.ToJsonString()));
+
+        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
+        Assert.Null(backup["declarationDetails"]);
+        Assert.Empty(backup["declarationFilings"]!.AsArray());
+        var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>("/api/settings/declaration", Json);
+        Assert.Equal(
+            [DeclarationDetailField.TaxOffice, DeclarationDetailField.Kved, DeclarationDetailField.Address],
+            details!.MissingDetails);
+    }
+
+    [Fact]
+    public async Task A_restore_brings_back_the_declaration_details_and_the_filed_marks()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+
+        await Restore(owner, Baseline().ToJsonString());
+
+        var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>("/api/settings/declaration", Json);
+        Assert.Equal(
+            (26, 5, "62.01 63.11", "Київ, вул. Тестова 1", 0),
+            (details!.TaxOfficeRegion, details.TaxOfficeDistrict, string.Join(' ', details.KvedCodes), details.Address,
+                details.MissingDetails.Length));
+        var backup = JsonSerializer.Deserialize<BackupDocument>(await Backup(owner), Json)!;
+        Assert.Equal(
+            [(2030, 4, DeclarationType.Reporting), (2031, 1, DeclarationType.Clarifying)],
+            backup.DeclarationFilings.Select(filing => (filing.Year, filing.Quarter, filing.Type)));
+    }
+
+    [Fact]
     public async Task A_version_4_file_restores_its_clients_with_no_details()
     {
         await using var application = CreateApplication();
@@ -227,6 +277,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         version4["schemaVersion"] = 4;
         RemoveClientDetails(version4);
 
+        await DropInvoices();
         Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version4.ToJsonString()));
 
         var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
@@ -462,6 +513,13 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "malformed client email", "clients[0].email" },
         { "no schema version", null },
         { "not JSON", null },
+        { "filing for quarter 5", "declarationFilings[0].quarter" },
+        { "the same quarter filed twice", "declarationFilings[1].quarter" },
+        { "filed before the quarter ended", "declarationFilings[1].filedOn" },
+        { "filed after today", "declarationFilings[1].filedOn" },
+        { "declaration type out of the enum", null },
+        { "a malformed KVED code", "declarationDetails.kvedCodes[1]" },
+        { "a district without a region", "declarationDetails.taxOfficeRegion" },
     };
 
     [Theory]
@@ -561,6 +619,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [typeof(InvoicingDetails)] = typeof(InvoicingDetailsBackup),
             [typeof(InvoicingPaymentDetails)] = typeof(PaymentDetailsInput),
             [typeof(Invoice)] = typeof(InvoiceBackup),
+            [typeof(DeclarationDetails)] = typeof(DeclarationDetailsBackup),
+            [typeof(DeclarationFiling)] = typeof(DeclarationFilingBackup),
         };
         Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(FxRate)];
         // The change log is history, not state: a restore does not replay it and does not carry it.
@@ -632,6 +692,11 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             "ru",
             "dark",
             "USD"), Json)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync(
+            "/api/settings/declaration",
+            new DeclarationDetailsRequest(26, 5, ["62.01"], "Київ, вул. Тестова 1"),
+            Json)).StatusCode);
 
         var orphan = await PostTransaction(owner, Transaction(new DateOnly(2031, 1, 20), 1_000, clientName: "Gone Ltd"));
         Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/transactions/{orphan.Id}")).StatusCode);
@@ -757,6 +822,11 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                     Currency.EUR,
                     [new InvoiceLine("Support", "Підтримка", InvoiceUnit.Month, 1_000, 500_00)],
                     null, null, null, null, null, null, created.AddDays(1), created.AddDays(1)),
+            ],
+            new DeclarationDetailsBackup(26, 5, ["62.01", "63.11"], "Київ, вул. Тестова 1"),
+            [
+                new DeclarationFilingBackup(2030, 4, new DateOnly(2031, 2, 3), DeclarationType.Reporting, 90_000_000, created, created),
+                new DeclarationFilingBackup(2031, 1, new DateOnly(2031, 5, 5), DeclarationType.Clarifying, 4_900_000, created, created),
             ]);
 
         return JsonSerializer.SerializeToNode(document, Json)!.AsObject();
@@ -927,6 +997,28 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "no schema version":
                 file.Remove("schemaVersion");
+                break;
+            case "filing for quarter 5":
+                file["declarationFilings"]![0]!["quarter"] = 5;
+                break;
+            case "the same quarter filed twice":
+                file["declarationFilings"]![1]!["year"] = 2030;
+                file["declarationFilings"]![1]!["quarter"] = 4;
+                break;
+            case "filed before the quarter ended":
+                file["declarationFilings"]![1]!["filedOn"] = "2031-03-31";
+                break;
+            case "filed after today":
+                file["declarationFilings"]![1]!["filedOn"] = "2031-06-02";
+                break;
+            case "declaration type out of the enum":
+                file["declarationFilings"]![0]!["type"] = "Final";
+                break;
+            case "a malformed KVED code":
+                file["declarationDetails"]!["kvedCodes"] = new JsonArray("62.01", "6201");
+                break;
+            case "a district without a region":
+                file["declarationDetails"]!["taxOfficeRegion"] = null;
                 break;
             case "not JSON":
                 return "{\"schemaVersion\":1,";

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
@@ -20,6 +21,10 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<InvoicingDetails> InvoicingDetails => Set<InvoicingDetails>();
 
     public DbSet<InvoicingPaymentDetails> InvoicingPaymentDetails => Set<InvoicingPaymentDetails>();
+
+    public DbSet<DeclarationDetails> DeclarationDetails => Set<DeclarationDetails>();
+
+    public DbSet<DeclarationFiling> DeclarationFilings => Set<DeclarationFiling>();
 
     public DbSet<TaxYearConfig> TaxYearConfigs => Set<TaxYearConfig>();
 

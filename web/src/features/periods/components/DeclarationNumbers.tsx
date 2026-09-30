@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+import { declarationHref } from "@/shared/constants/navigation";
 import { formatMoney } from "@/shared/lib/money";
 import type { PeriodsResponse } from "@/data/periods/usePeriods";
-import { DeadlineDate } from "./DeadlineDate";
+import { DeadlineDate } from "@/shared/ui/DeadlineDate";
 import { PeriodTable, type PeriodColumn } from "./PeriodTable";
 
 type Quarter = PeriodsResponse["quarters"][number];
@@ -21,7 +23,7 @@ function declarationPeriodLabel(t: ReturnType<typeof useTranslations<"periods">>
   }
 }
 
-export function DeclarationNumbers({ quarters }: { quarters: Quarter[] }) {
+export function DeclarationNumbers({ year, quarters }: { year: number; quarters: Quarter[] }) {
   const t = useTranslations("periods");
   const locale = useLocale();
 
@@ -56,7 +58,14 @@ export function DeclarationNumbers({ quarters }: { quarters: Quarter[] }) {
       rows={quarters}
       columns={columns}
       rowKey={(quarter) => String(quarter.quarter)}
-      rowHeader={(quarter) => declarationPeriodLabel(t, Number(quarter.quarter))}
+      rowHeader={(quarter) => (
+        <Link
+          href={declarationHref(year, Number(quarter.quarter))}
+          className="text-primary underline-offset-4 hover:underline"
+        >
+          {declarationPeriodLabel(t, Number(quarter.quarter))}
+        </Link>
+      )}
       rowHeaderLabel={t("period")}
     />
   );

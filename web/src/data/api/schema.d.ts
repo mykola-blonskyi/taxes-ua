@@ -1429,6 +1429,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/declaration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeclarationDetailsResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeclarationDetailsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeclarationDetailsResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tax-years": {
         parameters: {
             query?: never;
@@ -1738,6 +1819,154 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/declarations/{year}/{quarter}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                    quarter: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeclarationResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/declarations/{year}/{quarter}/filing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                    quarter: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DeclarationFilingRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DeclarationFilingResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                    quarter: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -3274,7 +3503,7 @@ export interface components {
         /** @enum {string} */
         AuditAction: "Create" | "Update" | "Delete" | "Restore";
         /** @enum {string} */
-        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "InvoicingDetails" | "TaxYearConfig" | "Backup" | "Client" | "Invoice";
+        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "InvoicingDetails" | "TaxYearConfig" | "Backup" | "Client" | "Invoice" | "DeclarationDetails" | "DeclarationFiling";
         AuditEntryResponse: {
             /** Format: int64 */
             id: number | string;
@@ -3303,6 +3532,8 @@ export interface components {
             budgetPaymentCandidates: components["schemas"]["PaymentCandidateBackup"][];
             invoicingDetails: null | components["schemas"]["InvoicingDetailsBackup"];
             invoices: components["schemas"]["InvoiceBackup"][];
+            declarationDetails: null | components["schemas"]["DeclarationDetailsBackup"];
+            declarationFilings: components["schemas"]["DeclarationFilingBackup"][];
         };
         /** @enum {string} */
         Bank: "Monobank" | "PrivatBank" | "Other";
@@ -3410,6 +3641,7 @@ export interface components {
             reserve: null | components["schemas"]["ReserveResponse"];
             /** Format: int32 */
             needsReviewCount: number | string;
+            declaration: null | components["schemas"]["DeclarationDueResponse"];
         };
         Deadline: {
             /** Format: date */
@@ -3417,6 +3649,118 @@ export interface components {
             /** Format: date */
             due: string;
         };
+        DeclarationDetailsBackup: {
+            /** Format: int32 */
+            taxOfficeRegion: null | number | string;
+            /** Format: int32 */
+            taxOfficeDistrict: null | number | string;
+            kvedCodes: string[];
+            address: string;
+        };
+        DeclarationDetailsRequest: {
+            /** Format: int32 */
+            taxOfficeRegion: null | number | string;
+            /** Format: int32 */
+            taxOfficeDistrict: null | number | string;
+            kvedCodes: string[];
+            address: string;
+        };
+        DeclarationDetailsResponse: {
+            name: string;
+            rnokpp: string;
+            /** Format: int32 */
+            taxOfficeRegion: null | number | string;
+            /** Format: int32 */
+            taxOfficeDistrict: null | number | string;
+            kvedCodes: string[];
+            address: string;
+            missingDetails: ("Name" | "Rnokpp" | "TaxOffice" | "Kved" | "Address")[];
+        };
+        DeclarationDueResponse: {
+            /** Format: int32 */
+            year: number | string;
+            /** Format: int32 */
+            quarter: number | string;
+            /** Format: date */
+            dueDate: string;
+            /** Format: int32 */
+            daysLeft: number | string;
+        };
+        DeclarationFiguresResponse: {
+            /** Format: int64 */
+            incomeKop: number | string;
+            /** Format: int64 */
+            singleTaxKop: number | string;
+            /** Format: int64 */
+            previousSingleTaxKop: number | string;
+            /** Format: int64 */
+            singleTaxPayableKop: number | string;
+            /** Format: int64 */
+            militaryLevyKop: number | string;
+            /** Format: int64 */
+            previousMilitaryLevyKop: number | string;
+            /** Format: int64 */
+            militaryLevyPayableKop: number | string;
+            /** Format: int64 */
+            esvKop: null | number | string;
+        };
+        DeclarationFilingBackup: {
+            /** Format: int32 */
+            year: number | string;
+            /** Format: int32 */
+            quarter: number | string;
+            /** Format: date */
+            filedOn: string;
+            type: components["schemas"]["DeclarationType"];
+            /** Format: int64 */
+            filedIncomeKop: number | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        DeclarationFilingRequest: {
+            /** Format: date */
+            filedOn: string;
+            type: components["schemas"]["DeclarationType"];
+        };
+        DeclarationFilingResponse: {
+            /** Format: date */
+            filedOn: string;
+            type: components["schemas"]["DeclarationType"];
+            /** Format: int64 */
+            filedIncomeKop: number | string;
+            changedSinceFiling: boolean;
+        };
+        DeclarationReadinessResponse: {
+            /** Format: int32 */
+            receiptsToReview: number | string;
+            /** Format: int32 */
+            pendingPaymentCandidates: number | string;
+            taxYearVerified: boolean;
+            registrationDateSet: boolean;
+            missingDetails: ("Name" | "Rnokpp" | "TaxOffice" | "Kved" | "Address")[];
+            incomeOverLimit: boolean;
+            unpaid: components["schemas"]["UnpaidResponse"];
+            ready: boolean;
+        };
+        DeclarationResponse: {
+            /** Format: int32 */
+            year: number | string;
+            /** Format: int32 */
+            quarter: number | string;
+            filing: components["schemas"]["Deadline"];
+            payment: components["schemas"]["Deadline"];
+            figures: null | components["schemas"]["DeclarationFiguresResponse"];
+            /** Format: int32 */
+            singleTaxRateBp: number | string;
+            /** Format: int32 */
+            militaryLevyRateBp: number | string;
+            readiness: components["schemas"]["DeclarationReadinessResponse"];
+            filed: null | components["schemas"]["DeclarationFilingResponse"];
+        };
+        /** @enum {string} */
+        DeclarationType: "Reporting" | "NewReporting" | "Clarifying";
         /** @enum {string} */
         EsvRegistrationMonthPolicy: "FullMonth" | "Prorated";
         FollowedAccountsRequest: {
@@ -4241,6 +4585,14 @@ export interface components {
         TransactionSource: {
             bank: components["schemas"]["Bank"];
             accountCurrency: string;
+        };
+        UnpaidResponse: {
+            /** Format: int64 */
+            singleTaxKop: number | string;
+            /** Format: int64 */
+            militaryLevyKop: number | string;
+            /** Format: int64 */
+            esvKop: number | string;
         };
         /** @enum {string} */
         WebhookState: "Off" | "Pending" | "Registered" | "Failed";

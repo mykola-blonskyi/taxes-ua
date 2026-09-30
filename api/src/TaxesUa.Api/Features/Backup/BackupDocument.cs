@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
@@ -29,13 +30,15 @@ internal sealed record BackupDocument(
     ImportBatchBackup[] ImportBatches,
     PaymentCandidateBackup[] BudgetPaymentCandidates,
     InvoicingDetailsBackup? InvoicingDetails,
-    InvoiceBackup[] Invoices)
+    InvoiceBackup[] Invoices,
+    DeclarationDetailsBackup? DeclarationDetails,
+    DeclarationFilingBackup[] DeclarationFilings)
 {
     // 2 added bankAccounts, importBatches and the transactions' import fields (#76); 3 added
     // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91); 5 added
-    // the clients' details (#90); 6 added invoices (#92). An older file is upgraded to this shape one version
-    // at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 6;
+    // the clients' details (#90); 6 added invoices (#92); 7 added declarationDetails and declarationFilings
+    // (#110). An older file is upgraded to this shape one version at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 7;
 
     private const int MaxExternalIdLength = 200;
 
@@ -49,7 +52,9 @@ internal sealed record BackupDocument(
         IEnumerable<BudgetPaymentCandidate> candidates,
         InvoicingDetails? invoicingDetails,
         IEnumerable<InvoicingPaymentDetails> invoicingPayments,
-        IEnumerable<Invoice> invoices) => new(
+        IEnumerable<Invoice> invoices,
+        DeclarationDetails? declarationDetails,
+        IEnumerable<DeclarationFiling> declarationFilings) => new(
         CurrentSchemaVersion,
         settings is null ? null : SettingsBackup.From(settings),
         [.. clients.Select(ClientBackup.From)],
@@ -59,7 +64,9 @@ internal sealed record BackupDocument(
         [.. importBatches.Select(ImportBatchBackup.Of)],
         [.. candidates.Select(PaymentCandidateBackup.From)],
         invoicingDetails is null ? null : InvoicingDetailsBackup.From(invoicingDetails, invoicingPayments),
-        [.. invoices.Select(InvoiceBackup.From)]);
+        [.. invoices.Select(InvoiceBackup.From)],
+        declarationDetails is null ? null : DeclarationDetailsBackup.From(declarationDetails),
+        [.. declarationFilings.Select(DeclarationFilingBackup.From)]);
 
     // Bank accounts are left out: a restore matches them to the owner's rows by bank and external id.
     public IEnumerable<Guid> Ids() =>
@@ -95,6 +102,11 @@ internal sealed record BackupDocument(
         if (version <= 5)
         {
             UpgradeFromVersion5(root);
+        }
+
+        if (version <= 6)
+        {
+            UpgradeFromVersion6(root);
         }
     }
 
@@ -173,8 +185,16 @@ internal sealed record BackupDocument(
     // A version 5 file predates invoices.
     private static void UpgradeFromVersion5(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 6;
         root["invoices"] = new JsonArray();
+    }
+
+    // A version 6 file predates the declaration: no details and nothing marked filed.
+    private static void UpgradeFromVersion6(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        root["declarationDetails"] = null;
+        root["declarationFilings"] = new JsonArray();
     }
 
     /// <summary>
@@ -191,11 +211,12 @@ internal sealed record BackupDocument(
             || Array.Exists(BankAccounts, row => row is null)
             || Array.Exists(ImportBatches, row => row is null)
             || Array.Exists(BudgetPaymentCandidates, row => row is null)
-            || Array.Exists(Invoices, row => row is null))
+            || Array.Exists(Invoices, row => row is null)
+            || Array.Exists(DeclarationFilings, row => row is null))
         {
             return new()
             {
-                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches, budgetPaymentCandidates and invoices must not contain null."],
+                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches, budgetPaymentCandidates, invoices and declarationFilings must not contain null."],
             };
         }
 
@@ -217,6 +238,22 @@ internal sealed record BackupDocument(
         if (InvoicingDetails is { } invoicing)
         {
             Merge("invoicingDetails", invoicing.Validate());
+        }
+
+        if (DeclarationDetails is { } declaration)
+        {
+            Merge("declarationDetails", DeclarationDetailsEndpoints.Validate(declaration.ToRequest()));
+        }
+
+        var filedQuarters = new HashSet<(int, int)>();
+        for (var i = 0; i < DeclarationFilings.Length; i++)
+        {
+            var filing = DeclarationFilings[i];
+            Merge($"declarationFilings[{i}]", DeclarationsEndpoints.ValidateFiling(filing.Year, filing.Quarter, filing.FiledOn, today));
+            if (!filedQuarters.Add((filing.Year, filing.Quarter)))
+            {
+                errors[$"declarationFilings[{i}].quarter"] = ["A quarter is marked filed at most once."];
+            }
         }
 
         var clientNames = new Dictionary<Guid, string>();
@@ -1095,4 +1132,57 @@ internal sealed record InvoiceBackup(
         snapshot.Clauses.AcceptanceUk, snapshot.Clauses.FeesEn, snapshot.Clauses.FeesUk,
         snapshot.Clauses.TaxStatusEn, snapshot.Clauses.TaxStatusUk,
     ];
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record DeclarationDetailsBackup(
+    int? TaxOfficeRegion,
+    int? TaxOfficeDistrict,
+    string[] KvedCodes,
+    string Address)
+{
+    public static DeclarationDetailsBackup From(DeclarationDetails details) => new(
+        details.TaxOfficeRegion, details.TaxOfficeDistrict, details.KvedCodes, details.Address);
+
+    public DeclarationDetailsRequest ToRequest() => DeclarationDetailsEndpoints.Normalize(
+        new DeclarationDetailsRequest(TaxOfficeRegion, TaxOfficeDistrict, KvedCodes, Address));
+
+    public DeclarationDetails ToEntity(string userId)
+    {
+        var details = new DeclarationDetails { UserId = userId };
+        DeclarationDetailsEndpoints.Apply(details, ToRequest());
+        return details;
+    }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record DeclarationFilingBackup(
+    int Year,
+    int Quarter,
+    DateOnly FiledOn,
+    DeclarationType Type,
+    long FiledIncomeKop,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt)
+{
+    public static DeclarationFilingBackup From(DeclarationFiling filing) => new(
+        filing.Year,
+        filing.Quarter,
+        filing.FiledOn,
+        filing.Type,
+        filing.FiledIncomeKop,
+        filing.CreatedAt,
+        filing.UpdatedAt);
+
+    public DeclarationFiling ToEntity(string userId) => new()
+    {
+        UserId = userId,
+        Year = Year,
+        Quarter = Quarter,
+        FiledOn = FiledOn,
+        Type = Type,
+        FiledIncomeKop = FiledIncomeKop,
+        CreatedAt = CreatedAt,
+        UpdatedAt = UpdatedAt,
+    };
 }

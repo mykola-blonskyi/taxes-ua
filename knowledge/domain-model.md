@@ -78,6 +78,46 @@ Relationships: belong to `User`.
 
 ---
 
+### DeclarationDetails
+
+Responsibilities: what the declaration's header needs beyond the invoicing requisites (Rule 15). One
+row per owner, key `UserId`; an owner who never saved one reads an empty set and stores nothing.
+
+Fields: `TaxOfficeRegion: int?` (C_REG, 1 to 99) and `TaxOfficeDistrict: int?` (C_RAJ, 0 to 99), both
+set or both empty; `KvedCodes: string[]` (each `NN.NN`, distinct, at most 20, in the owner's order, the
+first the main activity); `Address` (as in the register, at most 500 characters). The name and RNOKPP
+are not stored here: they are `InvoicingDetails.SellerNameUk` and `Rnokpp`, and `GET
+/api/settings/declaration` echoes them read-only. An incomplete set saves; completeness is a readiness
+item (`MissingDetails: Name | Rnokpp | TaxOffice | Kved | Address`).
+
+Audited as `DeclarationDetails`. Relationships: belongs to `User`.
+
+---
+
+### DeclarationFiling
+
+Responsibilities: the owner's mark that a quarter's declaration was filed in the Cabinet (Rule 15).
+Key (`UserId`, `Year`, `Quarter`).
+
+Fields: `FiledOn: DateOnly` (after the quarter's end, not after today in Kyiv), `Type: Reporting |
+NewReporting | Clarifying` (C_DOC_STAN 1, 2, 3), `FiledIncomeKop` (line 08 when marked; a different
+line 08 now means changed since filing), `CreatedAt`, `UpdatedAt`. Marking again replaces the row,
+undoing deletes it. Audited as `DeclarationFiling`. Relationships: belongs to `User`.
+
+---
+
+### DeclarationFigures (computed)
+
+Responsibilities: the group 3 lines of one quarter's declaration (Rule 15). Not stored; read off the
+year's accruals.
+
+Fields: `Year`, `Quarter`, `IncomeKop` (06, 08), `SingleTaxKop` (11, 12), `PreviousSingleTaxKop` (13),
+`SingleTaxPayableKop` (14.1, 14), `MilitaryLevyKop` (23), `PreviousMilitaryLevyKop` (24),
+`MilitaryLevyPayableKop` (25), `EsvKop?` (21, Q4 only). The payable lines are negative after a refund
+that shrank the cumulative income.
+
+---
+
 ### TaxYearConfig
 
 Responsibilities: all parameters of a tax year. The single source of truth for the engine. No
@@ -325,24 +365,27 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (6), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (7), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
 payment details and the signature as base64 with its content type), `Invoices` (with their lines, their
-number as year and sequence, the frozen snapshot and the frozen signature as base64), each row with its
-id and every stored column except `UserId`, an invoice's `TotalMinor` (recomputed from its lines) and a
+number as year and sequence, the frozen snapshot and the frozen signature as base64), `DeclarationDetails?`,
+`DeclarationFilings`, each row with its id and every stored column except `UserId`, an invoice's
+`TotalMinor` (recomputed from its lines) and a
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
 which a restore clears.
 `TaxYearConfig` and `FxRate` are left out because they are shared. The monobank connection is never
 in it, so the file carries no bank access. Version 2 added the bank accounts, the import batches and
 the transactions' import fields (#76); version 3 added the budget payment candidates, all statuses,
 and the payments' bank operation (#80); version 4 added the invoicing details (#91); version 5 added the
-clients' details (#90); version 6 added the invoices (#92). A version 1 file still restores, read as having none of them and every transaction
+clients' details (#90); version 6 added the invoices (#92); version 7 added the declaration details and
+the filed marks (#110). A version 1 file still restores, read as having none of them and every transaction
 `Confirmed`, a version 2 file as having no candidates and every payment typed by the owner, a version 1 to 3
-file as having no invoicing details, so the owner's are cleared like the rest, and a version 1 to 4 file as
-having no details on any client, and a version 1 to 5 file as having no invoices; a file of a version this build does not know is refused by its version
-number rather than by whichever field it added.
+file as having no invoicing details, so the owner's are cleared like the rest, a version 1 to 4 file as
+having no details on any client, a version 1 to 5 file as having no invoices, and a version 1 to 6 file as
+having no declaration details and nothing marked filed; a file of a version this build does not know is
+refused by its version number rather than by whichever field it added.
 
-A restore replaces the owner's settings, invoicing details, clients, invoices, transactions, payments, candidates and import batches in one
+A restore replaces the owner's settings, invoicing details, declaration details, filed marks, clients, invoices, transactions, payments, candidates and import batches in one
 database transaction and passes every row through the endpoints' own validation, refund links
 included; any violation changes nothing. Bank accounts are matched rather than replaced (see
 `BankAccount`). Ids are kept, so a restore after a wipe reproduces the same file. When another owner
@@ -399,8 +442,10 @@ owner confirms are the counts the import writes.
 Responsibilities: change log for transactions, clients, invoices, budget payments, settings and year parameters. One
 row (`AuditEntry`, table `AuditLog`) per created, changed or deleted record. Append-only.
 
-Fields: `Entity: Transaction | BudgetPayment | Settings | InvoicingDetails | TaxYearConfig | Backup | Client | Invoice`, `EntityId` (the
-record's key: a GUID, the year, or the owner's id for Settings; empty for Backup),
+Fields: `Entity: Transaction | BudgetPayment | Settings | InvoicingDetails | TaxYearConfig | Backup | Client |
+Invoice | DeclarationDetails | DeclarationFiling`, `EntityId` (the record's key: a GUID, the year, the owner's
+id for Settings, InvoicingDetails and DeclarationDetails, `ownerId/year/quarter` for DeclarationFiling; empty
+for Backup),
 `Action: Create | Update | Delete | Restore`,
 `Before: jsonb` (null on Create), `After: jsonb` (null on Delete), `At` (UTC instant, shown in
 Kyiv time), `UserId`.

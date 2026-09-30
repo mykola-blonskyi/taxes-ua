@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { formatMoney } from "@/shared/lib/money";
 import type { PeriodsResponse } from "@/data/periods/usePeriods";
-import { formatDate } from "./DeadlineDate";
+import { formatNumericDate } from "@/shared/lib/dates";
 import { PeriodTable, type PeriodColumn } from "./PeriodTable";
 
 type Month = NonNullable<PeriodsResponse["months"]>[number];
@@ -59,7 +59,7 @@ export function MonthsTable({ months }: { months: Month[] }) {
               <span className="font-semibold">{formatMoney(Number(month.recommendedKop), locale)}</span>
               <span className="text-xs text-muted-foreground">
                 {t("advanceBy", {
-                  date: formatDate(month.recommendedDate, locale),
+                  date: formatNumericDate(month.recommendedDate, locale),
                 })}
               </span>
             </span>

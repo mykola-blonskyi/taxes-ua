@@ -5,17 +5,22 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Tabs } from "radix-ui";
 import { ClientsSection } from "./ClientsSection";
+import { DeclarationDetailsForm } from "./DeclarationDetailsForm";
 import { FopSettingsForm } from "./FopSettingsForm";
 import { InvoicingForm } from "./InvoicingForm";
 import { MonobankConnectionSection } from "./MonobankConnectionSection";
 import { TaxYearTable } from "./TaxYearTable";
 
-const tabs = ["fop", "taxYears", "monobank", "clients", "invoicing"] as const;
+const tabs = ["fop", "taxYears", "monobank", "clients", "invoicing", "declaration"] as const;
 type Tab = (typeof tabs)[number];
 
-export function SettingsTabs() {
+function isTab(value: string | undefined): value is Tab {
+  return (tabs as readonly (string | undefined)[]).includes(value);
+}
+
+export function SettingsTabs({ initialTab }: { initialTab?: string }) {
   const t = useTranslations("settings");
-  const [tab, setTab] = useState<Tab>("fop");
+  const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "fop");
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,6 +59,9 @@ export function SettingsTabs() {
       </Tabs.Content>
       <Tabs.Content value="invoicing" className="min-w-0">
         <InvoicingForm />
+      </Tabs.Content>
+      <Tabs.Content value="declaration" className="min-w-0">
+        <DeclarationDetailsForm />
       </Tabs.Content>
     </Tabs.Root>
   );

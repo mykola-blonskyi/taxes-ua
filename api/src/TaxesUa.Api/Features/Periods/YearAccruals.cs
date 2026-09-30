@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Engine;
 using PaymentMode = TaxesUa.Api.Features.Settings.PaymentMode;
@@ -98,6 +99,27 @@ internal sealed record YearAccruals(TaxYearConfig Config, SettingsEntity Setting
 internal sealed record LoadedYears(YearAccruals Viewed, IReadOnlyList<YearAccruals> Ledger, int? MissingTaxYear)
 {
     public bool ViewedIsInLedger => Ledger.Contains(Viewed);
+
+    public LedgerYear[] LedgerYears =>
+        [.. Ledger.Select(each => new LedgerYear(each.Accrual, each.Config.ToEngineInput()))];
+
+    /// <summary>
+    /// Rule 7's allocation of the owner's payments over <see cref="Ledger"/>, or null when the ledger is
+    /// empty: without a registration date nothing can be allocated honestly, so no obligation and no
+    /// balance is better than a wrong one.
+    /// </summary>
+    public async Task<PaymentLedger?> PaymentLedgerAsync(
+        AppDbContext database, string userId, DateOnly today, CancellationToken cancellationToken)
+    {
+        if (Ledger is not [var first, ..])
+        {
+            return null;
+        }
+
+        var payments = await PaymentsEndpoints.LoadEngineInputAsync(
+            database, userId, first.Accrual.Year, Ledger[^1].Accrual.Year, cancellationToken);
+        return Balances.ForYears(LedgerYears, Viewed.Settings.ToEngineInput(), payments, today);
+    }
 
     /// <summary>
     /// Rule 6's advances over every ledger year, or null in <c>Quarterly</c> mode. They are read off

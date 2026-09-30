@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
+using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
@@ -40,6 +41,8 @@ internal sealed class AuditSaveChangesInterceptor(
         [typeof(InvoicingDetails)] = AuditedEntity.InvoicingDetails,
         [typeof(InvoicingPaymentDetails)] = AuditedEntity.InvoicingDetails,
         [typeof(TaxYearConfig)] = AuditedEntity.TaxYearConfig,
+        [typeof(DeclarationDetails)] = AuditedEntity.DeclarationDetails,
+        [typeof(DeclarationFiling)] = AuditedEntity.DeclarationFiling,
     };
 
     internal static IReadOnlyCollection<Type> AuditedTypes => Audited.Keys;

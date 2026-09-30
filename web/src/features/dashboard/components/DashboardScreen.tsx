@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useDashboard, type DashboardResponse, type KindDebt } from "@/data/dashboard/useDashboard";
+import { declarationHref } from "@/shared/constants/navigation";
 import { formatMoney, formatRate } from "@/shared/lib/money";
 import { formatLongDate } from "./debt";
 import { DaysLeft, DebtPeriod } from "./DebtParts";
@@ -29,6 +30,7 @@ export function DashboardScreen() {
   return (
     <div className="flex flex-col gap-6">
       {needsReview > 0 ? <ReviewWarning count={needsReview} /> : null}
+      {data.declaration ? <DeclarationDue due={data.declaration} today={today} /> : null}
       {nextStep.state === "Pay" ? (
         <>
           <HeroCard now={nextStep.now} today={today} busy={isFetching} />
@@ -115,6 +117,31 @@ function ReviewWarning({ count }: { count: number }) {
       <h3 className="text-sm font-semibold text-destructive">{t("title", { count })}</h3>
       <p className="text-sm text-muted-foreground">{t("text", { count })}</p>
       <Link href="/review" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+        {t("cta")}
+      </Link>
+    </section>
+  );
+}
+
+function DeclarationDue({ due, today }: { due: NonNullable<DashboardResponse["declaration"]>; today: string }) {
+  const t = useTranslations("dashboard.declaration");
+  const tDeclaration = useTranslations("declaration");
+  const locale = useLocale();
+  const year = Number(due.year);
+  const quarter = Number(due.quarter);
+
+  return (
+    <section className="flex flex-col gap-2 rounded-lg border bg-muted p-4">
+      <h3 className="text-sm font-semibold">{tDeclaration("title", { quarter, year })}</h3>
+      <p className="text-sm text-muted-foreground">
+        {t("fileBy", { date: formatLongDate(due.dueDate, today, locale) })}
+        {" · "}
+        <DaysLeft days={Number(due.daysLeft)} />
+      </p>
+      <Link
+        href={declarationHref(year, quarter)}
+        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+      >
         {t("cta")}
       </Link>
     </section>

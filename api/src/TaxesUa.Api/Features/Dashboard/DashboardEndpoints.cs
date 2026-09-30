@@ -2,8 +2,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
+using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Engine;
 
@@ -31,6 +33,7 @@ public static class DashboardEndpoints
                         row => row.UserId == user.Id && row.ReviewStatus == ReviewStatus.NeedsReview, cancellationToken)
                     + await PaymentCandidatesEndpoints.CountPendingAsync(database, user.Id, cancellationToken);
                 var loaded = await YearAccruals.LoadAsync(database, user.Id, today.Year, cancellationToken);
+                var declaration = await DeclarationDueAsync(database, user.Id, today, cancellationToken);
 
                 // A gap in the configured years stops the ledger (see LoadedYears), so any debt shown
                 // would leave out that year's and could be wrong.
@@ -46,23 +49,12 @@ public static class DashboardEndpoints
                         null,
                         null,
                         null,
-                        needsReview));
+                        needsReview,
+                        declaration));
                 }
 
                 var settings = loaded.Viewed.Settings.ToEngineInput();
-                PaymentLedger? ledger = null;
-                LedgerYear[] ledgerYears = [];
-                if (loaded.Ledger is [var first, ..])
-                {
-                    var payments = await PaymentsEndpoints.LoadEngineInputAsync(
-                        database, user.Id, first.Accrual.Year, loaded.Ledger[^1].Accrual.Year, cancellationToken);
-                    ledgerYears = [.. loaded.Ledger.Select(each => new LedgerYear(each.Accrual, each.Config.ToEngineInput()))];
-                    ledger = Balances.ForYears(
-                        ledgerYears,
-                        settings,
-                        payments,
-                        today);
-                }
+                var ledger = await loaded.PaymentLedgerAsync(database, user.Id, today, cancellationToken);
 
                 var step = NextStep.Find(
                     ledger, settings.FopRegistrationDate, today, ledger is null ? null : loaded.AdvancesOf(ledger));
@@ -71,7 +63,7 @@ public static class DashboardEndpoints
                     : null;
 
                 var reserve = ledger is not null && step is NextStep.Pay or NextStep.AllDone
-                    ? TaxReserve.Needed(ledger, ledgerYears, today)
+                    ? TaxReserve.Needed(ledger, loaded.LedgerYears, today)
                     : null;
 
                 // Unconditional, unlike burden: the limit bar should show even before there is any
@@ -87,7 +79,8 @@ public static class DashboardEndpoints
                     burden is null ? null : new TaxBurdenResponse(burden.IncomeKop, burden.TaxKop, burden.RateBp),
                     ToLimit(limit),
                     reserve is null ? null : ToReserve(reserve, today),
-                    needsReview));
+                    needsReview,
+                    declaration));
             })
             .WithTags("Dashboard")
             .RequireAuthorization()
@@ -95,6 +88,37 @@ public static class DashboardEndpoints
             .Produces(StatusCodes.Status401Unauthorized);
 
         return routes;
+    }
+
+    // The most recently ended quarter, so in January to March the year before's Q4. Shown from the day
+    // after the quarter ends through the declaration's due date, until the owner marks it filed.
+    private static async Task<DeclarationDueResponse?> DeclarationDueAsync(
+        AppDbContext database, string userId, DateOnly today, CancellationToken cancellationToken)
+    {
+        var (year, quarter) = today.Month <= 3 ? (today.Year - 1, 4) : (today.Year, (today.Month - 1) / 3);
+        var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, userId, cancellationToken);
+        if (settings.FopRegistrationDate is not { } registered || DeclarationsEndpoints.QuarterEnd(year, quarter) < registered)
+        {
+            return null;
+        }
+
+        var config = await database.TaxYearConfigs.AsNoTracking()
+            .FirstOrDefaultAsync(row => row.Year == year, cancellationToken);
+        if (config is null)
+        {
+            return null;
+        }
+
+        var due = DeadlineCalendar.ForQuarter(year, quarter, config.ToEngineInput(), settings.ToEngineInput())
+            .Declaration.Due;
+        if (today > due
+            || await database.DeclarationFilings.AnyAsync(
+                row => row.UserId == userId && row.Year == year && row.Quarter == quarter, cancellationToken))
+        {
+            return null;
+        }
+
+        return new DeclarationDueResponse(year, quarter, due, due.DayNumber - today.DayNumber);
     }
 
     private static KindCreditResponse[] Credits(PaymentLedger ledger) =>
@@ -160,7 +184,8 @@ public static class DashboardEndpoints
 /// before there is any next-step debt. <c>Reserve</c> is sent when the registration date is set and
 /// reached, with the same rule as <c>Burden</c>. <c>NeedsReviewCount</c> is the number of imported transactions
 /// the owner has not reviewed, which the figures already count under their suggested kinds, and of
-/// budget payment candidates, which count nowhere until confirmed.
+/// budget payment candidates, which count nowhere until confirmed. <c>Declaration</c> is the last ended
+/// quarter's declaration while it is due and not marked filed (Rule 15).
 /// </summary>
 internal sealed record DashboardResponse(
     DateOnly Today,
@@ -169,7 +194,11 @@ internal sealed record DashboardResponse(
     TaxBurdenResponse? Burden,
     LimitStatusResponse? Limit,
     ReserveResponse? Reserve,
-    int NeedsReviewCount);
+    int NeedsReviewCount,
+    DeclarationDueResponse? Declaration);
+
+/// <summary><c>DaysLeft</c> counts Kyiv days to <c>DueDate</c>, zero on the day itself.</summary>
+internal sealed record DeclarationDueResponse(int Year, int Quarter, DateOnly DueDate, int DaysLeft);
 
 internal enum NextStepState
 {
