@@ -72,19 +72,21 @@ public static class DashboardEndpoints
                     ? TaxReserve.Needed(ledger, loaded.LedgerYears, today)
                     : null;
 
-                // Unconditional, unlike burden: the limit bar should show even before there is any
-                // next-step debt. Income after the crossing quarter is not group 3 income, so the bar
-                // stops where the accruals do and its excess tax is the one owed.
-                var limit = LimitMonitor.Evaluate(
-                    accrual.Quarters[^1].Income.CumulativeIncomeKop, loaded.Viewed.Config.ToEngineInput());
+                // Not tied to the next step, unlike burden: the limit bar should show even before there
+                // is any next-step debt. Income outside group 3 is not group 3 income, so the bar stops
+                // where the accruals do and its excess tax is the one owed; a year with no quarter in
+                // group 3 has no bar.
+                var limit = accrual.Quarters is [.., var last]
+                    ? LimitMonitor.Evaluate(last.Income.CumulativeIncomeKop, loaded.Viewed.Config.ToEngineInput())
+                    : null;
 
                 return Results.Ok(new DashboardResponse(
                     today,
                     ToStep(step, today),
                     ledger is null ? [] : Credits(ledger),
                     burden is null ? null : new TaxBurdenResponse(burden.IncomeKop, burden.TaxKop, burden.RateBp),
-                    ToLimit(limit),
-                    LimitCrossingResponse.Of(accrual.LimitCrossing),
+                    limit is null ? null : ToLimit(limit),
+                    LimitCrossingResponse.Of(loaded.Viewed),
                     reserve is null ? null : ToReserve(reserve, today),
                     needsReview,
                     declaration,
@@ -104,20 +106,17 @@ public static class DashboardEndpoints
         AppDbContext database, string userId, DateOnly today, CancellationToken cancellationToken)
     {
         var (year, quarter) = today.Month <= 3 ? (today.Year - 1, 4) : (today.Year, (today.Month - 1) / 3);
-        var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, userId, cancellationToken);
-        if (settings.FopRegistrationDate is not { } registered || DeclarationsEndpoints.QuarterEnd(year, quarter) < registered)
+        // A quarter outside group 3 (Rule 4) has no group 3 declaration to file.
+        var loaded = await YearAccruals.LoadAsync(database, userId, year, cancellationToken);
+        if (loaded is not { Viewed: var viewed }
+            || viewed.Settings.FopRegistrationDate is not { } registered
+            || DeclarationsEndpoints.QuarterEnd(year, quarter) < registered
+            || !viewed.Accrual.InGroup3(quarter))
         {
             return null;
         }
 
-        var config = await database.TaxYearConfigs.AsNoTracking()
-            .FirstOrDefaultAsync(row => row.Year == year, cancellationToken);
-        if (config is null)
-        {
-            return null;
-        }
-
-        var due = DeadlineCalendar.ForQuarter(year, quarter, config.ToEngineInput(), settings.ToEngineInput())
+        var due = DeadlineCalendar.ForQuarter(year, quarter, viewed.Config.ToEngineInput(), viewed.Settings.ToEngineInput())
             .Declaration.Due;
         if (today > due
             || await database.DeclarationFilings.AnyAsync(

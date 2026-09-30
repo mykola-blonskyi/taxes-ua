@@ -94,7 +94,7 @@ public static class PeriodsEndpoints
         return new PeriodsResponse(
             year,
             ToWarnings(loadedYears),
-            LimitCrossingResponse.Of(loaded.Accrual.LimitCrossing),
+            LimitCrossingResponse.Of(loaded),
             quarters,
             months,
             ledger is null
@@ -254,15 +254,22 @@ internal sealed record PeriodWarnings(
     int? MissingTaxYear);
 
 /// <summary>
-/// Rule 4: the year's income went over its limit in <c>Quarter</c>, so group 3 ends with it and nothing
-/// is computed from <c>SwitchFromQuarter</c> of <c>SwitchFromYear</c> on, where the FOP must be on the
-/// general system or another group.
+/// Rule 4: the income went over the limit in <c>Quarter</c> of <c>Year</c>, so group 3 ends with it and
+/// nothing is computed from <c>SwitchFromQuarter</c> of <c>SwitchFromYear</c> on, where the FOP must be on
+/// the general system or another group, until <c>BackOnGroup3From</c> when the owner set one after the
+/// crossing. Sent for the crossing's year and for every later year it keeps a quarter of out of group 3.
 /// </summary>
-internal sealed record LimitCrossingResponse(int Quarter, int SwitchFromYear, int SwitchFromQuarter)
+internal sealed record LimitCrossingResponse(
+    int Year, int Quarter, int SwitchFromYear, int SwitchFromQuarter, YearQuarter? BackOnGroup3From)
 {
-    public static LimitCrossingResponse? Of(LimitCrossing? crossing) => crossing is null
+    public static LimitCrossingResponse? Of(YearAccruals year) => year.Accrual.LimitCrossing is not { } crossing
         ? null
-        : new LimitCrossingResponse(crossing.Quarter, crossing.SwitchFromYear, crossing.SwitchFromQuarter);
+        : new LimitCrossingResponse(
+            crossing.Year,
+            crossing.Quarter,
+            crossing.SwitchFromYear,
+            crossing.SwitchFromQuarter,
+            year.Settings.BackOnGroup3From is { } back && back > crossing.At ? back : null);
 }
 
 /// <summary>

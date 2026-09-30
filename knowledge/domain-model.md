@@ -32,6 +32,10 @@ Fields:
 - `ShiftTaxPaymentFromWeekend: bool`, defaults to `true`.
 - `WeekendDays: DayOfWeek[]`, defaults to Saturday and Sunday.
 - `Locale`, `Theme`, `DefaultCurrency`.
+- `BackOnGroup3From: YearQuarter?` (stored as `BackOnGroup3FromYear` and `BackOnGroup3FromQuarter`,
+  both set or both null) the quarter the FOP is back on group 3 from after a limit crossing (Rule 4).
+  Null by default, and then nothing after a crossing is computed. Audited with the rest of the row and
+  carried in the backup from schema version 10.
 
 Relationships: belongs to `User`.
 
@@ -116,18 +120,24 @@ Fields: `Year`, `Quarter`, `IncomeKop` (06, up to the limit), `ExcessIncomeKop` 
 `PreviousSingleTaxKop` (13), `SingleTaxPayableKop` (14.1, 14), `MilitaryLevyKop` (23),
 `PreviousMilitaryLevyKop` (24), `MilitaryLevyPayableKop` (25), `EsvKop?` (21, Q4 only). The payable
 lines are negative after a refund that shrank the cumulative income. Lines 07 and 09 are nonzero only
-in the quarter the limit is crossed in; a later quarter of that year has no group 3 declaration.
+in the quarter the limit is crossed in; a quarter outside group 3 after a crossing, in that year or a
+later one, has no group 3 declaration. After a return to group 3 the period, and so lines 13 and 24,
+start from the quarter of the return.
 
 ---
 
 ### LimitCrossing (computed)
 
-Responsibilities: says that the year's income went over its limit (Rule 4) and where group 3 ends.
-Not stored; read off the year's accruals.
+Responsibilities: says that the income went over the year's limit (Rule 4) and where group 3 ends.
+Not stored; computed by `Accruals.ForYears`, which runs the years in order and hands each one the
+crossing the year before left group 3 stopped by.
 
 Fields: `Year`, `Quarter` (the quarter the limit was crossed in, the last one accrued),
-`SwitchFromYear`, `SwitchFromQuarter` (the next quarter, the next year's Q1 after a Q4 crossing). The
-year's accruals, obligations, advances, reserve and declarations stop at `Quarter`.
+`SwitchFromYear`, `SwitchFromQuarter` (the next quarter, the next year's Q1 after a Q4 crossing). A
+year's accrual names the crossing of its own year, or else the earlier one that keeps a quarter of it
+out of group 3; its accruals, obligations, advances, reserve and declarations hold only the quarters
+in group 3, and `StoppedAtYearEnd` is the crossing the next year inherits. The API adds
+`BackOnGroup3From` when the owner set one after the crossing.
 
 ---
 
@@ -406,7 +416,7 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (9), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (10), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
 payment details and the signature as base64 with its content type), `Invoices` (with their lines, their
 number as year and sequence, the frozen snapshot and the frozen signature as base64), `DeclarationDetails?`,
@@ -420,13 +430,13 @@ the transactions' import fields (#76); version 3 added the budget payment candid
 and the payments' bank operation (#80); version 4 added the invoicing details (#91); version 5 added the
 clients' details (#90); version 6 added the invoices (#92); version 7 added the declaration details and
 the filed marks (#110); version 8 added the receipts' `InvoiceId` (#93); version 9 added the Treasury
-accounts and the candidates' `CounterEdrpou` (#98). A version 1 file still restores, read as having none of
+accounts and the candidates' `CounterEdrpou` (#98); version 10 added the settings' `BackOnGroup3From` (#118). A version 1 file still restores, read as having none of
 them and every transaction `Confirmed`, a version 2 file as having no candidates and every payment typed by
 the owner, a version 1 to 3 file as having no invoicing details, so the owner's are cleared like the rest, a
 version 1 to 4 file as having no details on any client, a version 1 to 5 file as having no invoices, a
 version 1 to 6 file as having no declaration details and nothing marked filed, a version 1 to 7 file as
 having no receipt linked to an invoice, and a version 1 to 8 file as having no Treasury accounts and
-candidates without a counterparty code; a file of a version this build does not know is refused by its
+candidates without a counterparty code, and a version 1 to 9 file as having no return to group 3; a file of a version this build does not know is refused by its
 version number rather than by whichever field it added.
 
 A restore replaces the owner's settings, invoicing details, declaration details, filed marks, clients, invoices, transactions, payments, candidates, Treasury accounts and import batches in one

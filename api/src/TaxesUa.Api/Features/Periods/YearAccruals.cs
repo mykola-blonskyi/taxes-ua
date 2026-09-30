@@ -26,10 +26,8 @@ internal sealed record YearAccruals(TaxYearConfig Config, SettingsEntity Setting
         var settings = await database.Settings.FindAsync([userId], cancellationToken)
             ?? new SettingsEntity { UserId = userId };
         var registeredYear = settings.FopRegistrationDate?.Year;
-        var fromYear = Math.Min(registeredYear ?? year, year);
 
         var configs = await database.TaxYearConfigs
-            .Where(config => config.Year >= fromYear)
             .OrderBy(config => config.Year)
             .ToListAsync(cancellationToken);
         var viewedConfig = configs.SingleOrDefault(config => config.Year == year);
@@ -38,10 +36,18 @@ internal sealed record YearAccruals(TaxYearConfig Config, SettingsEntity Setting
             return null;
         }
 
+        // Every year from the first one income can count in up to the viewed one is computed, so a limit
+        // crossing in any of them stops group 3 in the years after it (Rule 4).
         var ledgerConfigs = registeredYear is { } start ? Contiguous(configs, start) : [];
-        var computed = ledgerConfigs.Append(viewedConfig).DistinctBy(config => config.Year).ToArray();
-        var firstDay = new DateOnly(computed.Min(config => config.Year), 1, 1);
-        var endDay = new DateOnly(computed.Max(config => config.Year) + 1, 1, 1);
+        var fromYear = Math.Min(registeredYear ?? configs[0].Year, year);
+        var computed = configs
+            .Where(config => config.Year >= fromYear && config.Year <= year)
+            .Concat(ledgerConfigs)
+            .DistinctBy(config => config.Year)
+            .OrderBy(config => config.Year)
+            .ToArray();
+        var firstDay = new DateOnly(computed[0].Year, 1, 1);
+        var endDay = new DateOnly(computed[^1].Year + 1, 1, 1);
 
         var transactions = await database.Transactions
             .Include(row => row.RefundsTransaction)
@@ -49,13 +55,11 @@ internal sealed record YearAccruals(TaxYearConfig Config, SettingsEntity Setting
             .ToListAsync(cancellationToken);
         var byYear = transactions.ToLookup(row => row.ValueDate.Year, row => row.ToEngineInput());
 
-        var settingsInput = settings.ToEngineInput();
-        var accruals = computed.ToDictionary(
-            config => config.Year,
-            config => new YearAccruals(
-                config,
-                settings,
-                Accruals.ForYear(config.Year, [.. byYear[config.Year]], config.ToEngineInput(), settingsInput)));
+        var accruals = Accruals.ForYears(
+                [.. computed.Select(config => new AccrualYearInput(config.Year, [.. byYear[config.Year]], config.ToEngineInput()))],
+                settings.ToEngineInput())
+            .Zip(computed, (accrual, config) => new YearAccruals(config, settings, accrual))
+            .ToDictionary(each => each.Config.Year);
 
         int? missingTaxYear = registeredYear is { } registered && year >= registered + ledgerConfigs.Count
             ? registered + ledgerConfigs.Count

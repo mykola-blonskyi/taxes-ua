@@ -39,9 +39,9 @@ internal sealed record BackupDocument(
     // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91); 5 added
     // the clients' details (#90); 6 added invoices (#92); 7 added declarationDetails and declarationFilings
     // (#110); 8 added the receipts' invoice links (#93); 9 added treasuryAccounts and the candidates'
-    // counterEdrpou (#98). An older file is upgraded to this shape one version at a time before it is read,
-    // see Upgrade.
-    public const int CurrentSchemaVersion = 9;
+    // counterEdrpou (#98); 10 added the settings' backOnGroup3From (#118). An older file is upgraded to this
+    // shape one version at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 10;
 
     private const int MaxExternalIdLength = 200;
 
@@ -122,6 +122,11 @@ internal sealed record BackupDocument(
         if (version <= 8)
         {
             UpgradeFromVersion8(root);
+        }
+
+        if (version <= 9)
+        {
+            UpgradeFromVersion9(root);
         }
     }
 
@@ -230,7 +235,7 @@ internal sealed record BackupDocument(
     // A version 8 file predates Treasury accounts, and its candidates never kept the counterparty's code.
     private static void UpgradeFromVersion8(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 9;
         root["treasuryAccounts"] = new JsonArray();
         if (root["budgetPaymentCandidates"] is not JsonArray candidates)
         {
@@ -240,6 +245,16 @@ internal sealed record BackupDocument(
         foreach (var candidate in candidates.OfType<JsonObject>())
         {
             candidate["counterEdrpou"] = null;
+        }
+    }
+
+    // A version 9 file predates the return to group 3 after a limit crossing: none is set.
+    private static void UpgradeFromVersion9(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        if (root["settings"] is JsonObject settings)
+        {
+            settings["backOnGroup3From"] = null;
         }
     }
 
@@ -633,7 +648,8 @@ internal sealed record SettingsBackup(
     DayOfWeek[] WeekendDays,
     string Locale,
     string Theme,
-    string DefaultCurrency)
+    string DefaultCurrency,
+    YearQuarter? BackOnGroup3From)
 {
     public static SettingsBackup From(SettingsEntity settings) => new(
         settings.FopRegistrationDate,
@@ -645,7 +661,8 @@ internal sealed record SettingsBackup(
         settings.WeekendDays,
         settings.Locale,
         settings.Theme,
-        settings.DefaultCurrency);
+        settings.DefaultCurrency,
+        settings.BackOnGroup3From);
 
     public SettingsRequest ToRequest() => new(
         FopRegistrationDate,
@@ -657,7 +674,8 @@ internal sealed record SettingsBackup(
         WeekendDays,
         Locale,
         Theme,
-        DefaultCurrency);
+        DefaultCurrency,
+        BackOnGroup3From);
 
     public SettingsEntity ToEntity(string userId)
     {

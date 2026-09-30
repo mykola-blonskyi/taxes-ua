@@ -30,6 +30,15 @@ internal sealed class Settings
 
     public string DefaultCurrency { get; set; } = "UAH";
 
+    // Rule 4: the quarter the FOP is back on group 3 from after a limit crossing. Both set or both null,
+    // which SettingsEndpoints.Apply keeps by writing them from one YearQuarter.
+    public int? BackOnGroup3FromYear { get; set; }
+
+    public int? BackOnGroup3FromQuarter { get; set; }
+
+    public YearQuarter? BackOnGroup3From =>
+        BackOnGroup3FromYear is { } year && BackOnGroup3FromQuarter is { } quarter ? new YearQuarter(year, quarter) : null;
+
     public FopSettingsInput ToEngineInput() => new(
         WeekendDays,
         TaxPaymentCountsFromStatutoryDeclarationDate,
@@ -42,7 +51,8 @@ internal sealed class Settings
             _ => throw new ArgumentOutOfRangeException(
                 nameof(EsvRegistrationMonthPolicy), EsvRegistrationMonthPolicy, message: null),
         },
-        EsvExempt);
+        EsvExempt,
+        BackOnGroup3From);
 }
 
 internal enum PaymentMode

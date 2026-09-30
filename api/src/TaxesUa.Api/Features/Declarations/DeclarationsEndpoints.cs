@@ -73,7 +73,7 @@ public static class DeclarationsEndpoints
                     deadlines.Declaration,
                     deadlines.TaxPayment,
                     inGroup3 ? ToFigures(Declaration.ForQuarter(viewed.Accrual, quarter)) : null,
-                    LimitCrossingResponse.Of(viewed.Accrual.LimitCrossing),
+                    LimitCrossingResponse.Of(viewed),
                     config.SingleTaxRateBp,
                     config.ExcessRateBp,
                     config.MilitaryLevyRateBp,
@@ -200,9 +200,15 @@ public static class DeclarationsEndpoints
     internal static DateOnly QuarterEnd(int year, int quarter) =>
         new DateOnly(year, 3 * quarter, 1).AddMonths(1).AddDays(-1);
 
-    // Line 08: what the filed mark snapshots and the post-filing warning compares against.
-    private static long IncomeThrough(LoadedYears loaded, int quarter) =>
-        loaded.Viewed.Accrual.Income.Quarters[quarter - 1].CumulativeIncomeKop;
+    // Line 08: what the filed mark snapshots and the post-filing warning compares against. A quarter
+    // outside group 3 has no line 08, so its mark keeps the income from 1 January.
+    private static long IncomeThrough(LoadedYears loaded, int quarter)
+    {
+        var accrual = loaded.Viewed.Accrual;
+        return accrual.InGroup3(quarter)
+            ? accrual.QuarterOf(quarter).Income.CumulativeIncomeKop
+            : accrual.Income.Quarters[quarter - 1].CumulativeIncomeKop;
+    }
 
     private static IResult? Unavailable(LoadedYears? loaded, int year, int quarter)
     {

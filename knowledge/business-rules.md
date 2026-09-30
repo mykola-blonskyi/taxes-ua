@@ -85,9 +85,20 @@ add up to the quarter.
 From the next quarter on, group 3 no longer applies and the FOP must move to the general system or
 another group. The engine accrues nothing for those quarters, no ESV either, rather than group 3
 figures that would be wrong: their obligations, advances, reserve and declaration are absent, and
-every screen that would show them says the FOP must switch from that quarter instead. A Q4 crossing
-switches from the next year's Q1; the next year is still computed as group 3 if it is configured,
-since the app does not know the system the owner moved to (to confirm).
+every screen that would show them says the FOP must switch from that quarter instead, naming the
+crossing quarter and the quarter the switch starts from. The warning also says plainly that ESV and
+the general system's taxes are still owed for that period; the app only does not compute them. The
+stop runs across years: after a Q4 crossing the switch starts with the next year's Q1, after a Q1 to
+Q3 crossing with the next quarter, and in both cases every later configured year is outside group 3
+too, whatever its own income. A year missing from the configured run passes the stop on.
+
+Only the owner lifts the stop, with the setting "back on group 3 from" a year and quarter. From that
+quarter on the app computes group 3 again, as a new period: its income, the limit test, the
+cumulative figures and the declaration's lines 13 and 24 start from zero in that quarter, since a
+declaration period for a return to group 3 runs from the quarter of the return, and ESV accrues
+from that quarter too. A setting at or before the crossing quarter lifts nothing; after a later
+crossing the stop is back and the same single setting no longer lifts it. Without the setting
+nothing after the crossing is computed.
 
 A refund does not undo a crossing. Within the crossing quarter it counts as usual, so a refund that
 brings the quarter's cumulative income back to the limit or under means the quarter never crossed.
@@ -458,8 +469,10 @@ Rule 7 allocation put against it, floored at zero, added over the ledger:
   months to come).
 - A later quarter counts nothing, so money paid ahead of it does not lower what is needed now.
 
-The crossing quarter's single tax includes its excess tax, and the quarters after it have no
-obligations (Rule 4), so they add nothing; the home screen says the FOP must switch instead.
+The crossing quarter's single tax includes its excess tax, and the quarters after it, in that year
+and in every later year until the owner is back on group 3, have no obligations (Rule 4), so they add
+nothing; the home screen says the FOP must switch instead, and that ESV and the general system's taxes
+are still owed though the app does not compute them.
 
 The figure is grouped by the obligation's due date (Rule 5), oldest first, with each kind kept
 apart inside a group. It is the same in `Quarterly` and `MonthlyAdvance` mode, because the mode
@@ -530,7 +543,8 @@ and the periods screen cannot disagree. Nothing is filed from the app: the owner
 Electronic Cabinet.
 
 The reporting period is cumulative from 1 January: Q1 is the quarter, Q2 the half-year, Q3 nine
-months, Q4 the year. The lines, without VAT:
+months, Q4 the year. After a return to group 3 (Rule 4) it runs from the quarter of the return, so
+that quarter's lines 13 and 24 are zero. The lines, without VAT:
 
 - 06: income through the quarter's end (Rules 1, 2 and 8) up to the year's limit, taxed at 5%.
 - 07: income through the quarter's end over the limit, taxed at 15% (Rule 4); zero except in the
@@ -551,8 +565,14 @@ Every other line stays empty: they belong to other groups, the 3% rate, or corre
 shrink the cumulative income, 14.1 and 25 come out negative and are shown as the arithmetic gives
 them; the form has no separate line for that, and Rule 7 settles the negative part as credit. The
 rates are the declared year's `TaxYearConfig` rates, never code. A quarter after the crossing quarter
-(Rule 4) has no group 3 declaration: no figures are shown, the screen says the FOP must file under the
-system it moved to, and the declaration is not ready.
+(Rule 4), in the crossing year or a later one, has no group 3 declaration until the owner is back on
+group 3: no figures are shown, the screen says the FOP must file under the system it moved to, the
+declaration is not ready, and the home screen does not name it as due.
+
+Open question (#112): for a crossing in Q1 to Q3, whether the year's ESV for the group 3 months (line
+21, annex 1) belongs on the crossing quarter's declaration, which is the last group 3 declaration of
+the year. The app fills line 21 only on the Q4 declaration, so after such a crossing it fills it
+nowhere.
 
 Worked example, the crossing quarter: a limit of 10,091,049.00 UAH and receipts of 4,000,000.00 in
 February, 4,000,000.00 in May, 1,500,000.00 in August and 1,000,000.00 in September cross it in Q3:
@@ -596,8 +616,8 @@ The declaration is ready when nothing below blocks it. These block:
 - a missing detail: the name and RNOKPP (read from the invoicing details, never stored twice), the
   tax office (its region and district codes), at least one KVED code (the first is the main
   activity), and the address as in the register;
-- a quarter after the crossing quarter, as above. The crossing quarter itself does not block, since
-  its lines 07 and 09 are filled.
+- a quarter outside group 3 after a crossing, as above. The crossing quarter itself does not block,
+  since its lines 07 and 09 are filled.
 
 What the Rule 7 ledger still owes per kind, across years, from every obligation that has fallen due
 by the quarter's filing deadline (Rule 5), is shown as a warning and never blocks: paying is not

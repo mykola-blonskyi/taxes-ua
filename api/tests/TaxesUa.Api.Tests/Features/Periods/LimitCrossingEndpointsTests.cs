@@ -38,7 +38,7 @@ public sealed class LimitCrossingEndpointsTests(ApiFixture fixture) : IClassFixt
 
         var periods = (await owner.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json))!;
 
-        Assert.Equal(new LimitCrossingResponse(2, year, 3), periods.LimitCrossing);
+        Assert.Equal(new LimitCrossingResponse(year, 2, year, 3, null), periods.LimitCrossing);
         Assert.Equal([1, 2], periods.Quarters.Select(quarter => quarter.Quarter));
         var q2 = periods.Quarters[1];
         Assert.Equal(
@@ -59,7 +59,7 @@ public sealed class LimitCrossingEndpointsTests(ApiFixture fixture) : IClassFixt
 
         var dashboard = (await owner.GetFromJsonAsync<DashboardResponse>("/api/dashboard", Json))!;
 
-        Assert.Equal(new LimitCrossingResponse(2, year, 3), dashboard.LimitCrossing);
+        Assert.Equal(new LimitCrossingResponse(year, 2, year, 3, null), dashboard.LimitCrossing);
         Assert.Equal(NextStepState.Pay, dashboard.NextStep.State);
         Assert.Equal(
             [(PaymentKind.SingleTax, 63_530L, 2), (PaymentKind.MilitaryLevy, 10_000L, 2), (PaymentKind.Esv, 2 * EsvQuarterKop, 2)],
@@ -84,7 +84,7 @@ public sealed class LimitCrossingEndpointsTests(ApiFixture fixture) : IClassFixt
         Assert.Equal((false, 135_300L, 63_530L), (crossing.Readiness.OutsideGroup3, crossing.Figures!.ExcessIncomeKop, crossing.Figures.TotalSingleTaxKop));
         Assert.Equal((true, false), (after.Readiness.OutsideGroup3, after.Readiness.Ready));
         Assert.Null(after.Figures);
-        Assert.Equal(new LimitCrossingResponse(2, year, 3), after.LimitCrossing);
+        Assert.Equal(new LimitCrossingResponse(year, 2, year, 3, null), after.LimitCrossing);
     }
 
     private WebApplicationFactory<Program> At(DateOnly today) =>

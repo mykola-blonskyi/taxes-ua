@@ -3,7 +3,8 @@ namespace TaxesUa.Engine;
 /// <summary>
 /// The group 3 lines of the single tax declaration (form F0103309) for one reporting period, per
 /// Rule 15 of <c>knowledge/business-rules.md</c>. The period is cumulative from 1 January: Q1 is the
-/// quarter, Q2 the half-year, Q3 nine months, Q4 the year. The lines of other groups, of the 3% rate
+/// quarter, Q2 the half-year, Q3 nine months, Q4 the year; after a return to group 3 mid-year (Rule 4)
+/// it runs from the quarter of the return instead. The lines of other groups, of the 3% rate
 /// and of corrections are not here.
 /// </summary>
 /// <param name="IncomeKop">Line 06, income taxed at 5%: the income through the period up to the year's
@@ -13,12 +14,12 @@ namespace TaxesUa.Engine;
 /// <param name="SingleTaxKop">Line 11, line 06 at the single tax rate.</param>
 /// <param name="ExcessTaxKop">Line 09, line 07 at the excess rate.</param>
 /// <param name="PreviousSingleTaxKop">Line 13, line 12 of the previous quarter's declaration of the
-/// same year; zero for Q1.</param>
+/// same period; zero for its first quarter.</param>
 /// <param name="SingleTaxPayableKop">Line 14.1, and with 14.2 empty line 14: line 12 minus line 13.
 /// Negative when refunds shrank the cumulative income; the form has no separate line for that.</param>
 /// <param name="MilitaryLevyKop">Line 23, the military levy on lines 05 to 07.</param>
 /// <param name="PreviousMilitaryLevyKop">Line 24, line 23 of the previous quarter's declaration;
-/// zero for Q1.</param>
+/// zero for the period's first quarter.</param>
 /// <param name="MilitaryLevyPayableKop">Line 25, line 23 minus line 24, negative like line
 /// 14.1.</param>
 /// <param name="EsvKop">Line 21, the year's ESV from annex 1, which only the annual declaration
@@ -51,8 +52,8 @@ public sealed record DeclarationFigures(
 public static class Declaration
 {
     /// <summary>
-    /// A quarter after the one the limit was crossed in is outside group 3 (Rule 4) and has no group 3
-    /// declaration, so asking for one is a caller error.
+    /// A quarter after a limit crossing is outside group 3 (Rule 4) until the owner is back on it, and
+    /// has no group 3 declaration, so asking for one is a caller error.
     /// </summary>
     public static DeclarationFigures ForQuarter(YearAccrual year, int quarter)
     {
@@ -61,11 +62,10 @@ public static class Declaration
         if (!year.InGroup3(quarter))
         {
             throw new ArgumentOutOfRangeException(
-                nameof(quarter), quarter, $"Group 3 ended with quarter {year.Quarters.Count} of {year.Year}.");
+                nameof(quarter), quarter, $"Quarter {quarter} of {year.Year} is not in group 3.");
         }
 
-        var current = year.Quarters[quarter - 1];
-        var previous = quarter == 1 ? null : year.Quarters[quarter - 2];
+        var current = year.QuarterOf(quarter);
         return new DeclarationFigures(
             year.Year,
             quarter,
@@ -73,10 +73,10 @@ public static class Declaration
             current.CumulativeExcessIncomeKop,
             current.CumulativeSingleTaxKop - current.CumulativeExcessTaxKop,
             current.CumulativeExcessTaxKop,
-            previous?.CumulativeSingleTaxKop ?? 0,
+            current.CumulativeSingleTaxKop - current.SingleTaxKop,
             current.SingleTaxKop,
             current.CumulativeMilitaryLevyKop,
-            previous?.CumulativeMilitaryLevyKop ?? 0,
+            current.CumulativeMilitaryLevyKop - current.MilitaryLevyKop,
             current.MilitaryLevyKop,
             quarter == 4 ? year.Quarters.Sum(accrual => accrual.EsvKop) : null);
     }

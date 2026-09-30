@@ -252,9 +252,9 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
             new DeclarationFiguresResponse(864_700, 135_300, 1_000_000, 20_295, 43_235, 63_530, 25_000, 38_530, 10_000, 5_000, 5_000, null),
             crossed.Figures);
         Assert.Equal((false, true, 1_500), (crossed.Readiness.OutsideGroup3, crossed.Readiness.Ready, crossed.ExcessRateBp));
-        Assert.Equal(new LimitCrossingResponse(2, year, 3), crossed.LimitCrossing);
+        Assert.Equal(new LimitCrossingResponse(year, 2, year, 3, null), crossed.LimitCrossing);
         Assert.Equal((true, false, true), (after.Readiness.OutsideGroup3, after.Readiness.Ready, after.Figures is null));
-        Assert.Equal(new LimitCrossingResponse(2, year, 3), after.LimitCrossing);
+        Assert.Equal(new LimitCrossingResponse(year, 2, year, 3, null), after.LimitCrossing);
     }
 
     [Fact]
