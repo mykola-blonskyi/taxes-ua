@@ -235,7 +235,6 @@
     "esvDue": "Сплата ЄСВ",
     "declaration": "Подання декларації",
     "taxPayment": "Сплата ЄП і ВЗ",
-    "shiftedFrom": "перенесено з {date}",
     "declarationTitle": "Цифри для декларації",
     "filingDeadline": "Строк подання",
     "period": "Період",
@@ -266,6 +265,9 @@
     "advance": "Рекомендований аванс",
     "advanceBy": "до {date}",
     "advancePaid": "сплачено"
+  },
+  "deadline": {
+    "shiftedFrom": "перенесено з {date}"
   },
   "payments": {
     "title": "Платежі",

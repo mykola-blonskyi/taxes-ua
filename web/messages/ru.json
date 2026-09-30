@@ -235,7 +235,6 @@
     "esvDue": "Уплата ЕСВ",
     "declaration": "Подача декларации",
     "taxPayment": "Уплата ЕН и ВС",
-    "shiftedFrom": "перенесено с {date}",
     "declarationTitle": "Цифры для декларации",
     "filingDeadline": "Срок подачи",
     "period": "Период",
@@ -266,6 +265,9 @@
     "advance": "Рекомендуемый аванс",
     "advanceBy": "до {date}",
     "advancePaid": "оплачено"
+  },
+  "deadline": {
+    "shiftedFrom": "перенесено с {date}"
   },
   "payments": {
     "title": "Платежи",

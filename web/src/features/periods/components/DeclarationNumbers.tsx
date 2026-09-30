@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { formatMoney } from "@/shared/lib/money";
 import type { PeriodsResponse } from "@/data/periods/usePeriods";
-import { DeadlineDate } from "./DeadlineDate";
+import { DeadlineDate } from "@/shared/ui/DeadlineDate";
 import { PeriodTable, type PeriodColumn } from "./PeriodTable";
 
 type Quarter = PeriodsResponse["quarters"][number];
