@@ -14,6 +14,7 @@ import { formatDateOnly, formatNumericDate } from "@/shared/lib/dates";
 import { formatAmount, formatMinor, formatMoney, formatRateE4 } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
 import { isNonIncomeKind } from "../kinds";
+import { InvoiceLinkAction } from "./InvoiceLinkAction";
 
 export function TransactionTable({
   items,
@@ -95,7 +96,15 @@ function TransactionRow({
         ) : null}
         {transaction.clientName ? <span className="min-w-0 break-words">{transaction.clientName}</span> : null}
         {transaction.invoiceNumber ? (
-          <span className="min-w-0 break-words">{transaction.invoiceNumber}</span>
+          <span
+            className={
+              transaction.invoiceId
+                ? "min-w-0 break-words rounded bg-emerald-500/15 px-1.5 py-0.5 font-medium text-emerald-700 dark:text-emerald-400"
+                : "min-w-0 break-words"
+            }
+          >
+            {transaction.invoiceNumber}
+          </span>
         ) : null}
       </div>
 
@@ -186,6 +195,9 @@ function TransactionRow({
             >
               {t("row.delete")}
             </Button>
+            {transaction.kind === "Income" ? (
+              <InvoiceLinkAction transaction={transaction} rowName={rowName} />
+            ) : null}
             <Button asChild variant="outline" size="sm">
               <Link
                 href={`/history?entity=Transaction&id=${transaction.id}`}

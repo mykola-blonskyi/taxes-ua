@@ -15,6 +15,7 @@ import { formatDateOnly, formatInstantInKyiv } from "@/shared/lib/dates";
 import { formatAmount } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
 import { TextAreaField } from "@/shared/ui/fields";
+import { InvoicePayments } from "./InvoicePayments";
 import { InvoiceStatusBadge } from "./InvoiceStatusBadge";
 
 export function InvoiceDetail({
@@ -54,7 +55,10 @@ export function InvoiceDetail({
           setConfirmingCancel(false);
           setReason("");
         },
-        onError: report,
+        onError: (error) =>
+          invoice.receipts.length > 0 && error instanceof ApiError && error.status === 409
+            ? setFailure(tErrors("cancelLinked"))
+            : report(error),
       },
     );
   }
@@ -83,7 +87,7 @@ export function InvoiceDetail({
         <Button type="button" variant="outline" size="sm" onClick={onBack}>
           {t("back")}
         </Button>
-        <InvoiceStatusBadge status={invoice.status} />
+        <InvoiceStatusBadge standing={invoice.standing} />
       </div>
 
       <h3 className="break-words text-lg font-semibold">{invoice.number ?? t("noNumber")}</h3>
@@ -145,6 +149,8 @@ export function InvoiceDetail({
           {formatAmount(Number(invoice.totalMinor), invoice.currency, locale)}
         </span>
       </p>
+
+      {invoice.status === "Issued" ? <InvoicePayments invoice={invoice} /> : null}
 
       {failure ? <p className="text-sm text-destructive">{failure}</p> : null}
 

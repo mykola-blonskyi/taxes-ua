@@ -116,6 +116,7 @@ export function TransactionForm({
   const parsedAmount = parseHryvnia(form.amountText);
   const amountIsInvalid = form.amountText.trim() !== "" && parsedAmount === null;
   const nonIncome = isNonIncomeKind(form.kind);
+  const linked = editing?.invoiceId != null;
   const foreign = form.currency !== "UAH";
 
   // The server keeps a stored NBU rate on PUT while currency and valueDate stay the same, so the
@@ -362,6 +363,8 @@ export function TransactionForm({
           label={t("invoiceNumber")}
           value={form.invoiceNumber}
           onChange={(value) => setForm((current) => ({ ...current, invoiceNumber: value }))}
+          readOnly={linked}
+          hint={linked ? t("invoiceNumberLinked") : undefined}
           errors={fieldErrors?.invoiceNumber}
         />
 

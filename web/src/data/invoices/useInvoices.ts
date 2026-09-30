@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/data/api/client";
 import type { components, paths } from "@/data/api/schema";
+import { dashboardQueryKey } from "@/data/dashboard/useDashboard";
+import { transactionsQueryKey } from "@/data/transactions/useTransactions";
+import { invoicesQueryKey } from "./queryKey";
+
+export { invoicesQueryKey };
 
 export type InvoiceRequest = components["schemas"]["InvoiceRequest"];
 export type InvoiceLineRequest = components["schemas"]["InvoiceLineRequest"];
@@ -8,11 +13,12 @@ export type InvoiceResponse = components["schemas"]["InvoiceResponse"];
 export type InvoiceLineResponse = components["schemas"]["InvoiceLineResponse"];
 export type InvoiceSummary = components["schemas"]["InvoiceSummary"];
 export type InvoiceStatus = components["schemas"]["InvoiceStatus"];
+export type InvoiceStanding = components["schemas"]["InvoiceStanding"];
+export type LinkedReceipt = components["schemas"]["LinkedReceipt"];
+export type ReceiptOption = components["schemas"]["ReceiptOption"];
 export type InvoiceUnit = components["schemas"]["InvoiceUnit"];
 
 export type InvoiceFilter = { status?: InvoiceStatus; year?: number };
-
-export const invoicesQueryKey = ["invoices"] as const;
 
 export const invoiceUnits: readonly InvoiceUnit[] = ["Service", "Hour", "Day", "Month"];
 
@@ -131,6 +137,80 @@ export function useCancelInvoice() {
       const { data } = await api.POST("/api/invoices/{id}/cancel", {
         params: { path: { id } },
         body: { reason },
+      });
+
+      return data;
+    },
+    onSuccess: invalidate,
+    onError: invalidate,
+  });
+}
+
+export function useReceiptOptions(invoiceId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...invoicesQueryKey, "receipt-options", invoiceId],
+    enabled,
+    queryFn: async () => {
+      const { data } = await api.GET("/api/invoices/{id}/receipt-options", {
+        params: { path: { id: invoiceId } },
+      });
+
+      return data;
+    },
+  });
+}
+
+export function usePayableInvoices(receiptId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: [...invoicesQueryKey, "payable-by", receiptId],
+    enabled,
+    queryFn: async () => {
+      const { data } = await api.GET("/api/invoices/payable-by/{receiptId}", {
+        params: { path: { receiptId } },
+      });
+
+      return data;
+    },
+  });
+}
+
+// A link moves the invoice's standing, the receipt's invoice number and the dashboard's overdue count.
+function useInvalidateLinks() {
+  const queryClient = useQueryClient();
+
+  return () => {
+    queryClient.invalidateQueries({ queryKey: invoicesQueryKey });
+    queryClient.invalidateQueries({ queryKey: transactionsQueryKey });
+    queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
+  };
+}
+
+type LinkVariables = { invoiceId: string; receiptId: string };
+
+export function useLinkReceipt() {
+  const invalidate = useInvalidateLinks();
+
+  return useMutation({
+    mutationFn: async ({ invoiceId, receiptId }: LinkVariables) => {
+      const { data } = await api.POST("/api/invoices/{id}/receipts/{receiptId}", {
+        params: { path: { id: invoiceId, receiptId } },
+      });
+
+      return data;
+    },
+    onSuccess: invalidate,
+    // A 409 means the invoice or receipt changed elsewhere, so the cached options are stale.
+    onError: invalidate,
+  });
+}
+
+export function useUnlinkReceipt() {
+  const invalidate = useInvalidateLinks();
+
+  return useMutation({
+    mutationFn: async ({ invoiceId, receiptId }: LinkVariables) => {
+      const { data } = await api.DELETE("/api/invoices/{id}/receipts/{receiptId}", {
+        params: { path: { id: invoiceId, receiptId } },
       });
 
       return data;
