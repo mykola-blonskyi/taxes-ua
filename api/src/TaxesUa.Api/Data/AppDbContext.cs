@@ -26,6 +26,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<BudgetPayment> BudgetPayments => Set<BudgetPayment>();
 
+    public DbSet<BudgetPaymentCandidate> BudgetPaymentCandidates => Set<BudgetPaymentCandidate>();
+
     public DbSet<AuditEntry> AuditLog => Set<AuditEntry>();
 
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();

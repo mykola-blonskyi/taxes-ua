@@ -28,7 +28,8 @@ public static class DashboardEndpoints
 
                 var today = time.TodayInKyiv();
                 var needsReview = await database.Transactions.CountAsync(
-                    row => row.UserId == user.Id && row.ReviewStatus == ReviewStatus.NeedsReview, cancellationToken);
+                        row => row.UserId == user.Id && row.ReviewStatus == ReviewStatus.NeedsReview, cancellationToken)
+                    + await PaymentCandidatesEndpoints.CountPendingAsync(database, user.Id, cancellationToken);
                 var loaded = await YearAccruals.LoadAsync(database, user.Id, today.Year, cancellationToken);
 
                 // A gap in the configured years stops the ledger (see LoadedYears), so any debt shown
@@ -136,7 +137,8 @@ public static class DashboardEndpoints
 /// kind is owed. <c>Burden</c> is sent only for a year the ledger covers. <c>Limit</c> is sent
 /// whenever a tax year is configured, unlike <c>Burden</c>, since the limit bar should show even
 /// before there is any next-step debt. <c>NeedsReviewCount</c> is the number of imported transactions
-/// the owner has not reviewed; the figures already count them under their suggested kinds.
+/// the owner has not reviewed, which the figures already count under their suggested kinds, and of
+/// budget payment candidates, which count nowhere until confirmed.
 /// </summary>
 internal sealed record DashboardResponse(
     DateOnly Today,

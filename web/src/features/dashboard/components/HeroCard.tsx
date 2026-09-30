@@ -2,13 +2,13 @@
 
 import { useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import type { KindDebt } from "@/data/dashboard/useDashboard";
+import { recordedPeriodOf, type KindDebt } from "@/data/dashboard/useDashboard";
 import { useRecordPayments } from "@/data/payments/usePayments";
 import { todayInKyiv } from "@/shared/lib/dates";
 import { formatMoney } from "@/shared/lib/money";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
-import { formatLongDate, periodOf, quarterEndOf } from "./debt";
+import { formatLongDate, quarterEndOf } from "./debt";
 import { DebtPeriod, DaysLeft } from "./DebtParts";
 
 const electronicCabinetUrl = "https://cabinet.tax.gov.ua/";
@@ -95,21 +95,13 @@ function MarkPaid({ now, busy }: { now: KindDebt[]; busy: boolean }) {
     recording.current = true;
     const paidOn = todayInKyiv();
     recordPayments.mutate(
-      now.map((debt) => {
-        // Allocation settles the oldest debt first whatever period a payment names, so naming the
-        // oldest open quarter, or the advance's month, only keeps the record readable.
-        const { fromYear, fromQuarter } = periodOf(debt);
-        const advance = debt.advanceMonth !== null;
-        return {
-          paidOn,
-          kind: debt.kind,
-          amountKop: debt.amountKop,
-          periodYear: fromYear,
-          periodQuarter: advance ? null : fromQuarter,
-          periodMonth: advance ? debt.advanceMonth : null,
-          note: null,
-        };
-      }),
+      now.map((debt) => ({
+        paidOn,
+        kind: debt.kind,
+        amountKop: debt.amountKop,
+        ...recordedPeriodOf(debt),
+        note: null,
+      })),
       {
         onSettled: () => {
           recording.current = false;

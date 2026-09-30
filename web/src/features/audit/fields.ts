@@ -26,7 +26,7 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
     "importBatchId",
     "reviewStatus",
   ],
-  BudgetPayment: ["paidOn", "kind", "amountKop", "periodYear", "periodQuarter", "periodMonth", "note"],
+  BudgetPayment: ["paidOn", "kind", "amountKop", "periodYear", "periodQuarter", "periodMonth", "note", "externalId", "bankAccountId"],
   Settings: [
     "fopRegistrationDate",
     "paymentMode",

@@ -145,10 +145,12 @@ export function SelectField({
   value,
   onChange,
   options,
+  placeholder,
 }: BaseFieldProps & {
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
+  placeholder?: string;
 }) {
   return (
     <FieldWrapper label={label} htmlFor={id} hint={hint} errors={errors} labelClassName={labelClassName}>
@@ -158,6 +160,11 @@ export function SelectField({
         onChange={(event) => onChange(event.target.value)}
         className={inputClasses}
       >
+        {placeholder ? (
+          <option value="" disabled>
+            {placeholder}
+          </option>
+        ) : null}
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

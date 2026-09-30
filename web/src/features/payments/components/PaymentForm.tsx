@@ -14,8 +14,9 @@ import {
 import { todayInKyiv } from "@/shared/lib/dates";
 import { formatMoney, parseHryvnia } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
-import { FieldWrapper, SelectField, TextField } from "@/shared/ui/fields";
-import { fromPeriodValue, monthName, toPeriodValue, type PeriodValue } from "../period";
+import { SelectField, TextField } from "@/shared/ui/fields";
+import { fromPeriodValue, toPeriodValue, type PeriodValue } from "../period";
+import { PeriodSelect } from "./PeriodSelect";
 
 type FormState = {
   paidOn: string;
@@ -46,9 +47,6 @@ function toFormState(payment: PaymentResponse): FormState {
     note: payment.note ?? "",
   };
 }
-
-const quarters = [1, 2, 3, 4];
-const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 export function PaymentForm({
   year,
@@ -162,34 +160,13 @@ export function PaymentForm({
           errors={fieldErrors?.periodYear}
         />
 
-        <FieldWrapper
-          label={tForm("period")}
-          htmlFor="payment-period"
+        <PeriodSelect
+          id="payment-period"
+          value={form.period}
+          onChange={(period) => setForm((current) => ({ ...current, period }))}
           hint={tForm("periodHint")}
           errors={fieldErrors?.periodQuarter ?? fieldErrors?.periodMonth}
-        >
-          <select
-            id="payment-period"
-            value={form.period}
-            onChange={(event) => setForm((current) => ({ ...current, period: event.target.value as PeriodValue }))}
-            className="w-full min-w-24 rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <optgroup label={tForm("quarters")}>
-              {quarters.map((quarter) => (
-                <option key={quarter} value={`q${quarter}`}>
-                  {t("quarter", { quarter })}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label={tForm("months")}>
-              {months.map((month) => (
-                <option key={month} value={`m${month}`}>
-                  {monthName(month, locale)}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </FieldWrapper>
+        />
 
         <TextField
           id="payment-note"

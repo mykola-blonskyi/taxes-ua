@@ -34,7 +34,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":2,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[]}""";
+        """{"schemaVersion":3,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[]}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -130,10 +130,33 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version1.ToJsonString()));
 
         var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
-        Assert.Equal(2, backup["schemaVersion"]!.GetValue<int>());
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
         Assert.Equal(
             current["transactions"]!.AsArray().Count,
             backup["transactions"]!.AsArray().Count(row => row!["reviewStatus"]!.GetValue<string>() == "Confirmed"));
+    }
+
+    [Fact]
+    public async Task A_version_2_file_restores_with_every_payment_typed_by_the_owner()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var current = Baseline();
+        var version2 = current.DeepClone().AsObject();
+        version2["schemaVersion"] = 2;
+        version2.Remove("budgetPaymentCandidates");
+        foreach (var row in version2["budgetPayments"]!.AsArray().OfType<JsonObject>())
+        {
+            row.Remove("bankAccountId");
+            row.Remove("externalId");
+        }
+
+        await Restore(owner, current.ToJsonString());
+        var restored = await Backup(owner);
+
+        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version2.ToJsonString()));
+
+        Assert.Equal(restored, await Backup(owner));
     }
 
     [Fact]
@@ -195,7 +218,12 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "unknown field", null },
         { "missing field", null },
         { "numeric enum", null },
-        { "schema version 3", null },
+        { "payment naming half a bank operation", "budgetPayments[0].externalId" },
+        { "payment of an unknown bank account", "budgetPayments[0].bankAccountId" },
+        { "candidate of an unknown bank account", "budgetPaymentCandidates[0].bankAccountId" },
+        { "candidate to a non-Treasury account", "budgetPaymentCandidates[0].counterIban" },
+        { "confirmed candidate without a kind", "budgetPaymentCandidates[0].confirmedKind" },
+        { "schema version 4", null },
         { "no schema version", null },
         { "not JSON", null },
     };
@@ -293,6 +321,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [typeof(BudgetPayment)] = typeof(BudgetPaymentBackup),
             [typeof(BankAccount)] = typeof(BankAccountBackup),
             [typeof(ImportBatch)] = typeof(ImportBatchBackup),
+            [typeof(BudgetPaymentCandidate)] = typeof(PaymentCandidateBackup),
         };
         Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(FxRate)];
         // The change log is history, not state: a restore does not replay it and does not carry it.
@@ -430,10 +459,11 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             ],
             [
                 new BudgetPaymentBackup(QuarterPaymentId, new DateOnly(2031, 4, 15), PaymentKind.Esv, 190_234, 2031, 1,
-                    null, null, created, created),
+                    null, null, null, null, created, created),
                 new BudgetPaymentBackup(MonthPaymentId, new DateOnly(2031, 3, 15), PaymentKind.SingleTax, 61_700, 2031,
-                    null, 3, "March", created, created),
+                    null, 3, "March", null, null, created, created),
             ],
+            [],
             [],
             []);
 
@@ -542,8 +572,24 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             case "numeric enum":
                 transactions[0]!["kind"] = 0;
                 break;
-            case "schema version 3":
-                file["schemaVersion"] = 3;
+            case "payment naming half a bank operation":
+                payments[0]!["externalId"] = "op-half";
+                break;
+            case "payment of an unknown bank account":
+                payments[0]!["bankAccountId"] = Guid.NewGuid();
+                payments[0]!["externalId"] = "op-unknown";
+                break;
+            case "candidate of an unknown bank account":
+                AddCandidate(file, Guid.NewGuid(), TreasuryIban, "Pending", null);
+                break;
+            case "candidate to a non-Treasury account":
+                AddCandidate(file, AddAccount(file), "UA753220010000026001234567891", "Pending", null);
+                break;
+            case "confirmed candidate without a kind":
+                AddCandidate(file, AddAccount(file), TreasuryIban, "Confirmed", null);
+                break;
+            case "schema version 4":
+                file["schemaVersion"] = 4;
                 break;
             case "no schema version":
                 file.Remove("schemaVersion");
@@ -556,6 +602,34 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
         return file.ToJsonString();
     }
+
+    private const string TreasuryIban = "UA358999980333159998000026011";
+
+    private static Guid AddAccount(JsonObject file)
+    {
+        var account = Guid.NewGuid();
+        file["bankAccounts"]!.AsArray().Add(JsonSerializer.SerializeToNode(
+            new BankAccountBackup(account, Bank.Monobank, "uah", "UAH", 980, "", "fop", true, true, DateTimeOffset.UnixEpoch),
+            Json));
+        return account;
+    }
+
+    private static void AddCandidate(JsonObject file, Guid account, string iban, string status, string? confirmedKind) =>
+        file["budgetPaymentCandidates"]!.AsArray().Add(new JsonObject
+        {
+            ["id"] = Guid.NewGuid(),
+            ["bankAccountId"] = account,
+            ["externalId"] = "op-candidate",
+            ["bankTime"] = "2031-04-15T09:00:00+00:00",
+            ["amountKop"] = 190_234,
+            ["counterIban"] = iban,
+            ["counterName"] = "ГУК у м.Києві",
+            ["purpose"] = "ЄСВ",
+            ["status"] = status,
+            ["confirmedKind"] = confirmedKind,
+            ["createdAt"] = "2031-04-15T09:00:00+00:00",
+            ["resolvedAt"] = null,
+        });
 
     private static void Dismiss(JsonObject file, JsonNode transaction)
     {

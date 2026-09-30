@@ -190,15 +190,34 @@ Relationships: belongs to `User`, optionally `BankAccount`, `Client`, `Invoice`,
 Responsibilities: an actual payment into the budget.
 
 Fields: `PaidOn: DateOnly`, `Kind: SingleTax | MilitaryLevy | Esv`, `AmountKop` (positive),
-`PeriodYear`, `PeriodQuarter?` (1–4), `PeriodMonth?` (1–12, for advances), `Note?`, `CreatedAt`,
-`UpdatedAt`.
+`PeriodYear`, `PeriodQuarter?` (1–4), `PeriodMonth?` (1–12, for advances), `Note?`, `BankAccountId?`
+and `ExternalId?` (the bank operation it was confirmed or linked from, set together or not at all
+and unique together, #80), `CreatedAt`, `UpdatedAt`.
 
 Rule: exactly one of `PeriodQuarter` and `PeriodMonth` is set, held by validation and by a database
 check constraint. The period is the one the owner names and is kept and shown, never taken from
 `PaidOn`: a Q4 payment made the next February still names Q4. Which obligation a payment settles is
 Rule 7's allocation, oldest debt of its kind first, whatever quarter or month it names.
 
-Relationships: belongs to `User`.
+Relationships: belongs to `User`; optionally to the `BankAccount` of its operation.
+
+---
+
+### BudgetPaymentCandidate
+
+Responsibilities: a settled debit from a followed UAH FOP account to a Treasury account, waiting for
+the owner to confirm what it paid (#80, Rule 12). Written by the monobank sync, resolved by the owner
+on the review screen. Not audited: the payment a confirmation creates or links is.
+
+Fields: `BankAccountId`, `ExternalId` (the bank's operation id, unique together with
+`BankAccountId` whatever the status; a sync only inserts), `BankTime`, `AmountKop` (what left the
+account, positive), `CounterIban` (capitals, no spaces), `CounterName?`, `Purpose?` (the bank's
+description and the payer's comment), `Status: Pending | Confirmed | Dismissed`, `ConfirmedKind?`
+(set exactly when `Confirmed`; the kind the next candidate to the same IBAN is suggested),
+`CreatedAt`, `ResolvedAt?`. The suggested kind and period are not stored: they are read off the
+learned kinds, the purpose and the current ledger each time the list is shown.
+
+Relationships: belongs to `User` and `BankAccount`.
 
 ---
 
@@ -239,17 +258,19 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (2), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
-`BankAccounts`, `ImportBatches`, each row with its id and every stored column except `UserId` and a
+Fields: `SchemaVersion` (3), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+`BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, each row with its id and every stored column except `UserId` and a
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
 which a restore clears.
 `TaxYearConfig` and `FxRate` are left out because they are shared. The monobank connection is never
 in it, so the file carries no bank access. Version 2 added the bank accounts, the import batches and
-the transactions' import fields (#76). A version 1 file still restores, read as having none of them
-and every transaction `Confirmed`; a file of a version this build does not know is refused by its
+the transactions' import fields (#76); version 3 added the budget payment candidates, all statuses,
+and the payments' bank operation (#80). A version 1 file still restores, read as having none of them
+and every transaction `Confirmed`, and a version 2 file as having no candidates and every payment
+typed by the owner; a file of a version this build does not know is refused by its
 version number rather than by whichever field it added.
 
-A restore replaces the owner's settings, clients, transactions, payments and import batches in one
+A restore replaces the owner's settings, clients, transactions, payments, candidates and import batches in one
 database transaction and passes every row through the endpoints' own validation, refund links
 included; any violation changes nothing. Bank accounts are matched rather than replaced (see
 `BankAccount`). Ids are kept, so a restore after a wipe reproduces the same file. When another owner

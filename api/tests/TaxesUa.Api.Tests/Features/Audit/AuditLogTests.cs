@@ -239,6 +239,9 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
             // The bank's record of a sold currency, kept only to pair a sale; it is never a transaction
             // and the owner never sees or edits it.
             typeof(ForeignDebit),
+            // A bank operation waiting for the owner's decision. Confirming writes the payment's own
+            // Create or Update entry, which carries the operation id.
+            typeof(BudgetPaymentCandidate),
         ];
 
         await using var scope = fixture.CreateScope();
