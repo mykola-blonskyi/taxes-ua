@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Tabs } from "radix-ui";
 import { FopSettingsForm } from "./FopSettingsForm";
+import { InvoicingForm } from "./InvoicingForm";
 import { MonobankConnectionSection } from "./MonobankConnectionSection";
 import { TaxYearTable } from "./TaxYearTable";
 
@@ -32,6 +33,12 @@ export function SettingsTabs() {
           >
             {t("tabs.monobank")}
           </Tabs.Trigger>
+          <Tabs.Trigger
+            value="invoicing"
+            className="px-3 py-2 text-sm text-muted-foreground data-[state=active]:border-b-2 data-[state=active]:border-foreground data-[state=active]:text-foreground"
+          >
+            {t("tabs.invoicing")}
+          </Tabs.Trigger>
         </Tabs.List>
         <Link href="/history" className="shrink-0 text-sm text-primary underline-offset-4 hover:underline">
           {t("changeLog")}
@@ -45,6 +52,9 @@ export function SettingsTabs() {
       </Tabs.Content>
       <Tabs.Content value="monobank" className="min-w-0">
         <MonobankConnectionSection />
+      </Tabs.Content>
+      <Tabs.Content value="invoicing" className="min-w-0">
+        <InvoicingForm />
       </Tabs.Content>
     </Tabs.Root>
   );

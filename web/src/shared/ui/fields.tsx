@@ -76,6 +76,32 @@ export function TextField({
   );
 }
 
+export function TextAreaField({
+  id,
+  label,
+  hint,
+  errors,
+  labelClassName,
+  value,
+  onChange,
+  ...textareaProps
+}: BaseFieldProps & {
+  value: string;
+  onChange: (value: string) => void;
+} & Omit<ComponentProps<"textarea">, "id" | "value" | "onChange">) {
+  return (
+    <FieldWrapper label={label} htmlFor={id} hint={hint} errors={errors} labelClassName={labelClassName}>
+      <textarea
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={inputClasses}
+        {...textareaProps}
+      />
+    </FieldWrapper>
+  );
+}
+
 export function NumberField({
   id,
   label,

@@ -16,6 +16,10 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 {
     public DbSet<Settings> Settings => Set<Settings>();
 
+    public DbSet<InvoicingDetails> InvoicingDetails => Set<InvoicingDetails>();
+
+    public DbSet<InvoicingPaymentDetails> InvoicingPaymentDetails => Set<InvoicingPaymentDetails>();
+
     public DbSet<TaxYearConfig> TaxYearConfigs => Set<TaxYearConfig>();
 
     public DbSet<Transaction> Transactions => Set<Transaction>();

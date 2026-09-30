@@ -154,9 +154,16 @@ public static class BackupEndpoints
             .ThenBy(row => row.Id)
             .ToListAsync(cancellationToken);
 
+        var invoicingDetails = await database.InvoicingDetails.AsNoTracking()
+            .FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        var invoicingPayments = await database.InvoicingPaymentDetails.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .ToListAsync(cancellationToken);
+
         // The monobank connection, and the token it holds, is never part of a backup (ADR-011).
         return BackupDocument.From(
-            settings, clients, transactions, payments, bankAccounts, importBatches, candidates);
+            settings, clients, transactions, payments, bankAccounts, importBatches, candidates,
+            invoicingDetails, invoicingPayments);
     }
 
     // Returns the refund-link errors, having rolled everything back, or null once the owner's data is
@@ -186,12 +193,21 @@ public static class BackupEndpoints
         await database.BudgetPayments.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.BudgetPaymentCandidates.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.Settings.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.InvoicingPaymentDetails.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.InvoicingDetails.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
 
         var id = await IdMappingAsync(database, document, cancellationToken);
         var accountId = await MatchBankAccountsAsync(database, userId, document.BankAccounts, cancellationToken);
         if (document.Settings is { } settings)
         {
             database.Settings.Add(settings.ToEntity(userId));
+        }
+
+        if (document.InvoicingDetails is { } invoicing)
+        {
+            var (details, payments) = invoicing.ToEntities(userId);
+            database.InvoicingDetails.Add(details);
+            database.InvoicingPaymentDetails.AddRange(payments);
         }
 
         database.Clients.AddRange(document.Clients.Select(client => client.ToEntity(userId, id)));

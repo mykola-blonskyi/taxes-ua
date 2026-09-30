@@ -16,6 +16,7 @@ using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Api.Tests.Features.Fx;
+using TaxesUa.Api.Tests.Features.Settings;
 using TaxesUa.Engine;
 using EsvRegistrationMonthPolicy = TaxesUa.Api.Features.Settings.EsvRegistrationMonthPolicy;
 using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
@@ -34,7 +35,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":3,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[]}""";
+        """{"schemaVersion":4,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -119,6 +120,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         version1["schemaVersion"] = 1;
         version1.Remove("bankAccounts");
         version1.Remove("importBatches");
+        version1.Remove("invoicingDetails");
         foreach (var row in version1["transactions"]!.AsArray().OfType<JsonObject>())
         {
             foreach (var field in new[] { "bankAccountId", "externalId", "bankTime", "counterparty", "importBatchId", "reviewStatus" })
@@ -142,6 +144,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         var current = Baseline();
+        current["invoicingDetails"] = null;
         var version2 = current.DeepClone().AsObject();
         version2["schemaVersion"] = 2;
         version2.Remove("budgetPaymentCandidates");
@@ -157,6 +160,49 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version2.ToJsonString()));
 
         Assert.Equal(restored, await Backup(owner));
+    }
+
+    [Fact]
+    public async Task A_version_3_file_restores_and_leaves_the_owner_without_invoicing_details()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Restore(owner, Baseline().ToJsonString());
+        Assert.True((await owner.GetFromJsonAsync<InvoicingDetailsResponse>("/api/settings/invoicing", Json))!.HasSignature);
+        var version3 = Baseline();
+        version3["schemaVersion"] = 3;
+        version3.Remove("invoicingDetails");
+
+        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version3.ToJsonString()));
+
+        var details = await owner.GetFromJsonAsync<InvoicingDetailsResponse>("/api/settings/invoicing", Json);
+        Assert.False(details!.HasSignature);
+        Assert.Empty(details.PaymentDetails);
+        Assert.Equal(InvoicingDefaults.AcceptanceEn, details.AcceptanceClauseEn);
+        Assert.Equal(HttpStatusCode.NotFound, (await owner.GetAsync("/api/settings/invoicing/signature")).StatusCode);
+        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
+        Assert.Null(backup["invoicingDetails"]);
+    }
+
+    [Fact]
+    public async Task A_restore_brings_back_the_invoicing_details_and_the_signature_image()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Restore(owner, Empty);
+
+        await Restore(owner, Baseline().ToJsonString());
+
+        var details = await owner.GetFromJsonAsync<InvoicingDetailsResponse>("/api/settings/invoicing", Json);
+        Assert.Equal("1234567890", details!.Rnokpp);
+        Assert.Equal("Комісії сплачує платник.", details.FeesClauseUk);
+        Assert.Equal([Currency.USD, Currency.EUR], details.PaymentDetails.Select(row => row.Currency));
+        Assert.True(details.HasSignature);
+        var image = await owner.GetAsync("/api/settings/invoicing/signature");
+        Assert.Equal("image/png", image.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(InvoicingTestData.Png, await image.Content.ReadAsByteArrayAsync());
+        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
+        Assert.Equal(Convert.ToBase64String(InvoicingTestData.Png), backup["invoicingDetails"]!["signatureImage"]!.GetValue<string>());
     }
 
     [Fact]
@@ -199,6 +245,11 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "UAH with a rate source", "transactions[0].rateE4" },
         { "manual rate with a date", "transactions[1].rateDate" },
         { "invalid settings", "settings.locale" },
+        { "invoicing details with a bad IBAN", "invoicingDetails.paymentDetails[0].iban" },
+        { "signature that is not base64", "invoicingDetails.signatureImage" },
+        { "signature that is not the declared type", "invoicingDetails.signatureImage" },
+        { "signature without a type", "invoicingDetails.signatureImage" },
+        { "signature over the size cap", "invoicingDetails.signatureImage" },
         // StrictEnumJsonConverter rejects any comma-joined string outright, so these now fail while the
         // file is parsed, before Validate ever sees a currency or weekendDays value to report a key
         // for, the same way "numeric enum" below does.
@@ -223,7 +274,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "candidate of an unknown bank account", "budgetPaymentCandidates[0].bankAccountId" },
         { "candidate to a non-Treasury account", "budgetPaymentCandidates[0].counterIban" },
         { "confirmed candidate without a kind", "budgetPaymentCandidates[0].confirmedKind" },
-        { "schema version 4", null },
+        { "a newer schema version", null },
         { "no schema version", null },
         { "not JSON", null },
     };
@@ -322,6 +373,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [typeof(BankAccount)] = typeof(BankAccountBackup),
             [typeof(ImportBatch)] = typeof(ImportBatchBackup),
             [typeof(BudgetPaymentCandidate)] = typeof(PaymentCandidateBackup),
+            [typeof(InvoicingDetails)] = typeof(InvoicingDetailsBackup),
+            [typeof(InvoicingPaymentDetails)] = typeof(PaymentDetailsInput),
         };
         Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(FxRate)];
         // The change log is history, not state: a restore does not replay it and does not carry it.
@@ -362,6 +415,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         {
             var columns = model.FindEntityType(entity)!.GetProperties().Select(property => property.Name)
                 .Where(name => name != "UserId")
+                // A restore draws fresh ids for the payment details, which nothing else refers to.
+                .Where(name => entity != typeof(InvoicingPaymentDetails) || name != nameof(InvoicingPaymentDetails.Id))
                 .Where(name => entity != typeof(BankAccount) || !syncStateNotBackedUp.Contains(name));
             var carried = record.GetProperties().Select(property => property.Name).ToHashSet();
             Assert.All(columns, column => Assert.Contains(column, carried));
@@ -465,7 +520,27 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             ],
             [],
             [],
-            []);
+            [],
+            new InvoicingDetailsBackup(
+                "ФОП Тест Тестович",
+                "FOP Test Testovych",
+                "1234567890",
+                "Київ, вул. Тестова 1",
+                "1 Testova St, Kyiv",
+                InvoicingDefaults.AcceptanceEn,
+                InvoicingDefaults.AcceptanceUk,
+                InvoicingDefaults.FeesEn,
+                "Комісії сплачує платник.",
+                InvoicingDefaults.TaxStatusEn,
+                InvoicingDefaults.TaxStatusUk,
+                [
+                    new PaymentDetailsInput(
+                        Currency.USD, InvoicingTestData.ValidIban, "JSC Universal Bank, Kyiv", "UNJSUAUKXXX", "Intermediary Bank", "IRVTUS3N", "0011223344"),
+                    new PaymentDetailsInput(Currency.EUR, InvoicingTestData.ValidIban, "JSC Universal Bank, Kyiv", "UNJSUAUKXXX", "", "", ""),
+                ],
+                Convert.ToBase64String(InvoicingTestData.Png),
+                "image/png",
+                created));
 
         return JsonSerializer.SerializeToNode(document, Json)!.AsObject();
     }
@@ -502,6 +577,22 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "month out of range":
                 payments[1]!["periodMonth"] = 13;
+                break;
+            case "invoicing details with a bad IBAN":
+                file["invoicingDetails"]!["paymentDetails"]![0]!["iban"] = "UA00";
+                break;
+            case "signature that is not base64":
+                file["invoicingDetails"]!["signatureImage"] = "***";
+                break;
+            case "signature that is not the declared type":
+                file["invoicingDetails"]!["signatureContentType"] = "image/jpeg";
+                break;
+            case "signature without a type":
+                file["invoicingDetails"]!["signatureContentType"] = null;
+                break;
+            case "signature over the size cap":
+                file["invoicingDetails"]!["signatureImage"] =
+                    Convert.ToBase64String(new byte[(512 * 1024) + 1].Select((_, i) => i < 8 ? InvoicingTestData.Png[i] : (byte)0).ToArray());
                 break;
             case "duplicate transaction id":
                 transactions[1]!["id"] = UahReceiptId;
@@ -588,8 +679,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             case "confirmed candidate without a kind":
                 AddCandidate(file, AddAccount(file), TreasuryIban, "Confirmed", null);
                 break;
-            case "schema version 4":
-                file["schemaVersion"] = 4;
+            case "a newer schema version":
+                file["schemaVersion"] = BackupDocument.CurrentSchemaVersion + 1;
                 break;
             case "no schema version":
                 file.Remove("schemaVersion");
