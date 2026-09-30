@@ -10,10 +10,11 @@ import { DeclarationDetailsForm } from "./DeclarationDetailsForm";
 import { FopSettingsForm } from "./FopSettingsForm";
 import { InvoicingForm } from "./InvoicingForm";
 import { MonobankConnectionSection } from "./MonobankConnectionSection";
+import { NotificationsSection } from "./NotificationsSection";
 import { TaxYearTable } from "./TaxYearTable";
 import { TreasuryAccountsSection } from "./TreasuryAccountsSection";
 
-const tabs = ["fop", "taxYears", "monobank", "clients", "invoicing", "declaration", "treasury"] as const;
+const tabs = ["fop", "taxYears", "monobank", "clients", "invoicing", "declaration", "treasury", "notifications"] as const;
 type Tab = (typeof tabs)[number];
 
 function isTab(value: string | undefined): value is Tab {
@@ -71,6 +72,9 @@ export function SettingsTabs({ initialTab }: { initialTab?: string }) {
       </Tabs.Content>
       <Tabs.Content value="treasury" className="min-w-0">
         <TreasuryAccountsSection />
+      </Tabs.Content>
+      <Tabs.Content value="notifications" className="min-w-0">
+        <NotificationsSection />
       </Tabs.Content>
     </Tabs.Root>
   );

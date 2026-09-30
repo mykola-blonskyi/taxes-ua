@@ -3970,6 +3970,256 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/notifications/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotificationChannelResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/channels/telegram/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TelegramConnectResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Gateway */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/channels/telegram": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TelegramToggleRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotificationChannelResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/channels/telegram/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["NotificationChannelResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Bad Gateway */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Service Unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -3977,7 +4227,7 @@ export interface components {
         /** @enum {string} */
         AuditAction: "Create" | "Update" | "Delete" | "Restore";
         /** @enum {string} */
-        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "InvoicingDetails" | "TaxYearConfig" | "Backup" | "Client" | "Invoice" | "DeclarationDetails" | "DeclarationFiling" | "TreasuryAccount";
+        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "InvoicingDetails" | "TaxYearConfig" | "Backup" | "Client" | "Invoice" | "DeclarationDetails" | "DeclarationFiling" | "TreasuryAccount" | "NotificationChannel";
         AuditEntryResponse: {
             /** Format: int64 */
             id: number | string;
@@ -4009,6 +4259,7 @@ export interface components {
             declarationDetails: null | components["schemas"]["DeclarationDetailsBackup"];
             declarationFilings: components["schemas"]["DeclarationFilingBackup"][];
             treasuryAccounts: components["schemas"]["TreasuryAccountBackup"][];
+            notificationChannels: components["schemas"]["NotificationChannelBackup"][];
         };
         /** @enum {string} */
         Bank: "Monobank" | "PrivatBank" | "Other";
@@ -4254,6 +4505,8 @@ export interface components {
         };
         /** @enum {string} */
         DeclarationType: "Reporting" | "NewReporting" | "Clarifying";
+        /** @enum {null|string} */
+        DeliveryFailure: "Blocked" | "Rejected" | "RateLimited" | "Unreachable" | "Timeout" | "ServerError" | "Unreadable" | null;
         /** @enum {string} */
         EsvRegistrationMonthPolicy: "FullMonth" | "Prorated";
         FollowedAccountsRequest: {
@@ -4688,6 +4941,28 @@ export interface components {
         };
         /** @enum {string} */
         NextStepState: "MissingTaxYear" | "RegistrationDateNotSet" | "BeforeRegistration" | "AllDone" | "Pay";
+        NotificationChannelBackup: {
+            kind: components["schemas"]["NotificationChannelKind"];
+            address: string;
+            enabled: boolean;
+            /** Format: date-time */
+            linkedAt: string;
+        };
+        /** @enum {string} */
+        NotificationChannelKind: "Telegram";
+        NotificationChannelResponse: {
+            kind: components["schemas"]["NotificationChannelKind"];
+            available: boolean;
+            linked: boolean;
+            enabled: boolean;
+            /** Format: date-time */
+            linkedAt: null | string;
+            /** Format: date-time */
+            lastDeliveryAt: null | string;
+            lastFailure: null | components["schemas"]["DeliveryFailure"];
+            /** Format: date-time */
+            lastFailureAt: null | string;
+        };
         ObligationResponse: {
             /** Format: int64 */
             accruedKop: number | string;
@@ -5053,6 +5328,14 @@ export interface components {
             source: string;
             /** Format: date-time */
             verifiedAt: null | string;
+        };
+        TelegramConnectResponse: {
+            url: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        TelegramToggleRequest: {
+            enabled: boolean;
         };
         TransactionBackup: {
             /** Format: uuid */

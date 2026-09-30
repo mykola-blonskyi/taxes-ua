@@ -14,6 +14,7 @@ using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
+using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
@@ -38,7 +39,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":10,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"treasuryAccounts":[]}""";
+        """{"schemaVersion":11,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"treasuryAccounts":[],"notificationChannels":[]}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -161,10 +162,12 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         NullClientDetails(current);
         current["invoices"] = new JsonArray();
         current["treasuryAccounts"] = new JsonArray();
+        current["notificationChannels"] = new JsonArray();
         current["settings"]!["backOnGroup3From"] = null;
         var version2 = current.DeepClone().AsObject();
         version2["schemaVersion"] = 2;
         version2.Remove("treasuryAccounts");
+        version2.Remove("notificationChannels");
         version2.Remove("invoicingDetails");
         version2.Remove("declarationDetails");
         version2.Remove("declarationFilings");
@@ -272,6 +275,28 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
         Assert.Equal(new YearQuarter(2032, 2), restored!.BackOnGroup3From);
         Assert.Null(upgraded!.BackOnGroup3From);
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public async Task A_restore_brings_back_the_telegram_channel_and_a_version_10_file_has_none()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+
+        await Restore(owner, Baseline().ToJsonString());
+        var restored = (await owner.GetFromJsonAsync<JsonArray>("/api/notifications/channels"))!.Single()!;
+        var version10 = Baseline();
+        version10["schemaVersion"] = 10;
+        version10.Remove("notificationChannels");
+        await Restore(owner, version10.ToJsonString());
+        var upgraded = (await owner.GetFromJsonAsync<JsonArray>("/api/notifications/channels"))!.Single()!;
+
+        Assert.True(restored["linked"]!.GetValue<bool>());
+        Assert.True(restored["enabled"]!.GetValue<bool>());
+        Assert.Null(restored["lastDeliveryAt"]);
+        Assert.False(upgraded["linked"]!.GetValue<bool>());
         Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
     }
 
@@ -595,6 +620,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "two treasury accounts of one kind", "treasuryAccounts[1].kind" },
         { "notice without a manual account", "treasuryAccounts[1].noticeAt" },
         { "learned treasury account without its operation", "treasuryAccounts[1].learnedIban" },
+        { "a channel address that is not a chat id", "notificationChannels[0].address" },
         { "a newer schema version", null },
         { "country that is not ISO 3166-1", "clients[0].country" },
         { "malformed client email", "clients[0].email" },
@@ -709,6 +735,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [typeof(DeclarationDetails)] = typeof(DeclarationDetailsBackup),
             [typeof(DeclarationFiling)] = typeof(DeclarationFilingBackup),
             [typeof(TreasuryAccount)] = typeof(TreasuryAccountBackup),
+            [typeof(NotificationChannel)] = typeof(NotificationChannelBackup),
         };
         Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(FxRate)];
         // The change log is history, not state: a restore does not replay it and does not carry it.
@@ -720,6 +747,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         // The foreign legs of currency sales are the bank's record, read again by the walk a restore
         // starts; like the cursors below, they describe the bank, not the owner's ledger (Rule 12).
         Type[] bankRecordNotBackedUp = [typeof(ForeignDebit)];
+        // A link code is a secret of the running server and the poll offset belongs to the bot, not to
+        // the owner; neither is written to a file.
+        Type[] telegramRuntimeNotBackedUp = [typeof(NotificationLinkCode), typeof(TelegramPollState)];
 
         var featureTables = model.GetEntityTypes()
             .Select(type => type.ClrType)
@@ -732,6 +762,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 .Concat(historyNotState)
                 .Concat(bankConnectionNotBackedUp)
                 .Concat(bankRecordNotBackedUp)
+                .Concat(telegramRuntimeNotBackedUp)
                 .ToHashSet(),
             featureTables);
 
@@ -745,6 +776,14 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             nameof(BankAccount.LastFailure),
         ];
 
+        string[] channelBookkeeping =
+        [
+            nameof(NotificationChannel.Id),
+            nameof(NotificationChannel.LastDeliveryAt),
+            nameof(NotificationChannel.LastFailure),
+            nameof(NotificationChannel.LastFailureAt),
+        ];
+
         foreach (var (entity, record) in backedUp)
         {
             var columns = model.FindEntityType(entity)!.GetProperties().Select(property => property.Name)
@@ -753,6 +792,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 .Where(name => entity != typeof(InvoicingPaymentDetails) || name != nameof(InvoicingPaymentDetails.Id))
                 // An account is identified by its owner and kind; the row's own id is drawn again on restore.
                 .Where(name => entity != typeof(TreasuryAccount) || name != nameof(TreasuryAccount.Id))
+                // A channel is identified by its owner and kind; its delivery record starts clean on restore.
+                .Where(name => entity != typeof(NotificationChannel) || !channelBookkeeping.Contains(name))
                 // The total is the sum of the lines, recomputed on restore rather than trusted from the file.
                 .Where(name => entity != typeof(Invoice) || name != nameof(Invoice.TotalMinor))
                 .Where(name => entity != typeof(BankAccount) || !syncStateNotBackedUp.Contains(name))
@@ -936,7 +977,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 new TreasuryAccountBackup(
                     PaymentKind.Esv, null, null, null, null,
                     LearnedTreasuryIban, null, null, "op-learned-esv", new DateOnly(2031, 4, 16), created, null),
-            ]);
+            ],
+            [new NotificationChannelBackup(NotificationChannelKind.Telegram, "424242", true, created)]);
 
         return JsonSerializer.SerializeToNode(document, Json)!.AsObject();
     }
@@ -1109,6 +1151,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "learned treasury account without its operation":
                 file["treasuryAccounts"]![1]!["learnedExternalId"] = null;
+                break;
+            case "a channel address that is not a chat id":
+                file["notificationChannels"]![0]!["address"] = "someone@example.com";
                 break;
             case "a newer schema version":
                 file["schemaVersion"] = BackupDocument.CurrentSchemaVersion + 1;

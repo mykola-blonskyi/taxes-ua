@@ -600,3 +600,50 @@ purpose or code sends the money to the wrong ledger.
 The app holds no key that can move money, so it can never pay by itself. A wrong amount the owner confirms in the bank is still a real transfer, so the panel shows exactly what is owed and lets the owner check it first.
 The owner takes one step in the bank for every payment. An incomplete recipient is not shown at all, only
 what is missing, so a partial recipient is never copied.
+
+---
+
+## ADR-015. Read Telegram by long polling, not a webhook
+
+Date: 2026-09-30
+
+Status: Accepted
+
+### Context
+
+#106 connects a Telegram chat so reminders can reach the owner. The bot has to notice the owner pressing
+Start on the deep link `https://t.me/<bot>?start=<code>`, so it must receive updates. The Bot API offers
+two ways: `setWebhook`, where Telegram POSTs each update to a public HTTPS URL, and `getUpdates`, where
+the app asks for them and Telegram holds the request open until an update arrives or a timeout passes
+(long polling). The two are exclusive: `getUpdates` fails while a webhook is set.
+
+### Decision
+
+Long polling. A hosted service calls `getUpdates` with a 30 second timeout for as long as a token is
+configured, allowing only `message` updates, and does nothing without one. The offset is stored in
+`TelegramPollState`, keyed by the bot's id, and moves in the same save as the effect of the update it
+passes: a restart resumes exactly after the last handled update. A failed round waits 5 seconds,
+doubling to a minute. Only `/start <code>` from a private chat acts; any other private message gets one
+short reply in the sender's language.
+
+The link code is 24 random bytes, stored as a SHA-256 hash, valid for 15 minutes, redeemable once, and
+replaced by asking for a new one.
+
+### Alternatives Considered
+
+A webhook. It needs a public route, a secret to authenticate Telegram's calls (a `secret_token` header),
+and a `setWebhook` call at every deployment, and the route must be reachable through Traefik and the
+web proxy. That is a new anonymous endpoint on an app whose only public surface is otherwise the login
+page, to save a request that costs nothing when idle. It also makes a local run unable to receive
+anything without a tunnel. Polling needs only an outbound HTTPS call, which the VPS and a laptop both
+have.
+
+### Consequences
+
+Nothing new is exposed to the internet. One process may poll a given bot: a second instance, such as a
+local stack started with the production token, makes Telegram answer 409 to one of them, so the local
+stack must use its own bot or none. The api already runs as a single instance for the same reason as the
+monobank queue. Links complete within about a second while the service is up and wait, without loss,
+while it is down, because Telegram keeps updates for 24 hours. Idle cost is one open request. The token
+sits in the request path of every call, which is why the client is registered without the framework's
+request logging and never logs a URL or an exception message.

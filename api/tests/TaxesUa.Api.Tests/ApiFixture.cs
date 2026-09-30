@@ -9,11 +9,16 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Monobank;
+using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Tests.Features.Fx;
 using TaxesUa.Api.Tests.Features.Monobank;
+using TaxesUa.Api.Tests.Features.Notifications;
 using Testcontainers.PostgreSql;
 
 namespace TaxesUa.Api.Tests;
@@ -27,6 +32,12 @@ public sealed class ApiFixture : IAsyncLifetime
     // 32 bytes, base64 — a fixed test key so every test runs with monobank "configured" unless it
     // deliberately asks for the unconfigured application below.
     public const string MonobankTestKeyBase64 = "dGVzdC1tb25vYmFuay1rZXktMzItYnl0ZXMtbG9uZyE=";
+
+    // The shape of a real bot token: the bot's id, a colon, a secret. Tests that must prove it never leaks
+    // look for TelegramTestSecret.
+    public const string TelegramTestSecret = "AAH-t3st_s3cret-of-the-bot";
+
+    public const string TelegramTestToken = "123456:" + TelegramTestSecret;
 
     private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:16-alpine").Build();
 
@@ -61,6 +72,11 @@ public sealed class ApiFixture : IAsyncLifetime
                 services.AddHttpClient<MonobankClient>()
                     .ConfigurePrimaryHttpMessageHandler(() => new StubMonobankHandler(_ =>
                         throw new InvalidOperationException("real monobank called from a test")));
+                services.AddHttpClient<TelegramClient>()
+                    .ConfigurePrimaryHttpMessageHandler(() => new StubTelegramHandler
+                    {
+                        Override = _ => throw new InvalidOperationException("real Telegram called from a test"),
+                    });
             });
 
             configure(builder);
@@ -94,6 +110,34 @@ public sealed class ApiFixture : IAsyncLifetime
     public WebApplicationFactory<Program> CreateApplication(StubMonobankHandler monobank) =>
         CreateApplication(builder => builder.ConfigureTestServices(services =>
             services.AddHttpClient<MonobankClient>().ConfigurePrimaryHttpMessageHandler(() => monobank)));
+
+    // An application whose bot token is set and whose Telegram answers come from telegram. The poller
+    // stays off unless asked for, so a test drives each round itself; time is fake so a retry's backoff
+    // is stepped through rather than waited for.
+    public WebApplicationFactory<Program> CreateApplication(
+        StubTelegramHandler telegram,
+        FakeTimeProvider? time = null,
+        bool runPoller = false,
+        Action<IWebHostBuilder>? configure = null) =>
+        CreateApplication(builder =>
+        {
+            telegram.Clock = time;
+            builder.UseSetting("Telegram:BotToken", TelegramTestToken);
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddHttpClient<TelegramClient>().ConfigurePrimaryHttpMessageHandler(() => telegram);
+                if (time is not null)
+                {
+                    services.AddSingleton<TimeProvider>(time);
+                }
+
+                if (!runPoller)
+                {
+                    services.RemoveAll<IHostedService>();
+                }
+            });
+            configure?.Invoke(builder);
+        });
 
     // An application with no monobank key configured at all (ADR-011): every monobank endpoint must
     // answer "not configured" instead of ever reaching the encryptor or the bank.

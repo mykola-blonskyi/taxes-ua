@@ -10,6 +10,7 @@ using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Monobank;
+using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
@@ -241,6 +242,10 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
             // A bank operation waiting for the owner's decision. Confirming writes the payment's own
             // Create or Update entry, which carries the operation id.
             typeof(BudgetPaymentCandidate),
+            // A one-time link code and the bot's poll offset are the server's own runtime state; the
+            // channel they set up is audited, and a code is a secret that must not reach any log.
+            typeof(NotificationLinkCode),
+            typeof(TelegramPollState),
         ];
 
         await using var scope = fixture.CreateScope();

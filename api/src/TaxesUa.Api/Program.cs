@@ -16,6 +16,7 @@ using TaxesUa.Api.Features.Export;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
+using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
@@ -150,6 +151,23 @@ builder.Services.AddSingleton<MonobankWebhooks>();
 builder.Services.AddHostedService(services => services.GetRequiredService<MonobankWebhooks>());
 builder.Services.AddHostedService<MonobankNightlySync>();
 
+// The token is optional: without it the Telegram channel reports itself unavailable and nothing polls.
+// RemoveAllLoggers because the framework's request logging prints the URL, and the Bot API puts the
+// token in the path.
+builder.Services.AddSingleton<TelegramBot>();
+builder.Services.AddHttpClient<TelegramClient>(client =>
+    {
+        var baseUrl = builder.Configuration["Telegram:BaseUrl"];
+        client.BaseAddress = new Uri((string.IsNullOrWhiteSpace(baseUrl) ? "https://api.telegram.org" : baseUrl).TrimEnd('/') + "/");
+        client.Timeout = TimeSpan.FromSeconds(60);
+    })
+    .RemoveAllLoggers()
+    .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(2) });
+builder.Services.AddScoped<TelegramLinking>();
+builder.Services.AddScoped<TelegramDelivery>();
+builder.Services.AddSingleton<TelegramPoller>();
+builder.Services.AddHostedService<TelegramPollWorker>();
+
 var authentication = builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = IdentityConstants.ApplicationScheme;
@@ -217,6 +235,7 @@ var app = builder.Build();
 // instead of the first monobank request.
 app.Services.GetRequiredService<TokenEncryptor>();
 app.Services.GetRequiredService<MonobankWebhooks>();
+app.Services.GetRequiredService<TelegramBot>();
 
 app.UseForwardedHeaders();
 
@@ -289,6 +308,7 @@ api.MapImportApi();
 api.MapAuditApi();
 api.MapDashboardApi();
 api.MapMonobankApi();
+api.MapNotificationsApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

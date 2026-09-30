@@ -96,7 +96,13 @@ External systems:
 - monobank personal API (Stage 2). PrivatBank is deferred: the owner has no FOP account there.
   Tokens are encrypted with AES-256-GCM
   using a key from the environment.
-- Telegram Bot API and SMTP for reminders (Stage 2).
+- Telegram Bot API (Stage 2, #106): the token is configuration (`TELEGRAM_BOT_TOKEN`), optional. `TelegramClient` is
+  a typed HttpClient registered without the framework's request logging, because the Bot API puts the token in
+  the URL path. `TelegramPollWorker` long-polls `getUpdates` when a token is set (ADR-015); `TelegramDelivery` is
+  the one way a message is sent (test button now, reminders later): three retries after the first attempt with
+  1, 2 and 4 second backoff, honouring a 429's `retry_after` up to 30 seconds, a 403 switching the channel off.
+  `Telegram:BaseUrl` (default `https://api.telegram.org/`) exists so a local run can point at a stub.
+- SMTP for reminders (Stage 2).
 - DPS XML declaration schema F0103309 (Stage 3).
 
 ---

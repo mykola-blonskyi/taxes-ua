@@ -112,6 +112,7 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
     "learnedAt",
     "noticeAt",
   ],
+  NotificationChannel: ["kind", "enabled", "linkedAt"],
   Backup: ["clients", "transactions", "budgetPayments"],
   DeclarationDetails: ["taxOfficeRegion", "taxOfficeDistrict", "kvedCodes", "address"],
   DeclarationFiling: ["year", "quarter", "filedOn", "type", "filedIncomeKop"],
@@ -203,6 +204,7 @@ const exactFormatters: Record<string, FieldFormatter> = {
   signatureUpdatedAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
   manualUpdatedAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
   learnedAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
+  linkedAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
   noticeAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
   holidays: ({ value, locale }) =>
     Array.isArray(value) ? value.map((entry) => formatDateOnly(String(entry), locale)).join(", ") : String(value),

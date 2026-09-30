@@ -430,11 +430,11 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (10), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (11), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
 payment details and the signature as base64 with its content type), `Invoices` (with their lines, their
 number as year and sequence, the frozen snapshot and the frozen signature as base64), `DeclarationDetails?`,
-`DeclarationFilings`, `TreasuryAccounts` (by kind, without an id), each row with its id and every stored column except `UserId`, an invoice's
+`DeclarationFilings`, `TreasuryAccounts` (by kind, without an id), `NotificationChannels` (kind, address, enabled, linked at: no delivery record, no link code), each row with its id and every stored column except `UserId`, an invoice's
 `TotalMinor` (recomputed from its lines) and a
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
 which a restore clears.
@@ -511,7 +511,7 @@ Responsibilities: change log for transactions, clients, invoices, budget payment
 row (`AuditEntry`, table `AuditLog`) per created, changed or deleted record. Append-only.
 
 Fields: `Entity: Transaction | BudgetPayment | Settings | InvoicingDetails | TaxYearConfig | Backup | Client |
-Invoice | DeclarationDetails | DeclarationFiling | TreasuryAccount`, `EntityId` (the record's key: a GUID, the year, the owner's
+Invoice | DeclarationDetails | DeclarationFiling | TreasuryAccount | NotificationChannel`, `EntityId` (the record's key: a GUID, the year, the owner's
 id for Settings, InvoicingDetails and DeclarationDetails, `ownerId/year/quarter` for DeclarationFiling; empty
 for Backup),
 `Action: Create | Update | Delete | Restore`,
@@ -534,11 +534,33 @@ rather than replacing it, so each imported record keeps its own history from its
 
 ---
 
-### NotificationChannel, Reminder (Stage 2)
+### NotificationChannel (Stage 2)
 
-`NotificationChannel`: `Kind: Telegram | Email`, `Address` (chat id or email), `Enabled`.
-`Reminder`: `ObligationKey`, `OffsetDays` (7, 1, 0), `ScheduledAt`, `SentAt?`, `ChannelId`,
-`Status`.
+Responsibilities: where one owner's reminders go (#106). One row per owner and kind; only `Telegram`
+exists so far, `Email` joins with #107. Reminders are not pre-scheduled rows: the planner computes what
+is due and a sent log keyed by a stable reminder key (#108) makes delivery idempotent, because a
+payment changes what is owed between scheduling and sending.
+
+Fields: `Kind: Telegram | Email`, `Address` (the Telegram chat id as text, or an email; never sent to
+the browser), `Enabled`, `LinkedAt`, `LastDeliveryAt?`, and `LastFailure?` with `LastFailureAt?` (both
+set or both null; a later delivery clears them). `LastFailure: Blocked | Rejected | RateLimited |
+Unreachable | Timeout | ServerError | Unreadable`. Unique on (`UserId`, `Kind`).
+
+A Telegram 403 (the owner blocked the bot) sets `Blocked` and `Enabled = false`; switching the channel
+on again clears the failure. Audited like `Settings`, except `LastDeliveryAt`, `LastFailure` and
+`LastFailureAt`, which change with every message and are left out of the snapshot. Carried in the backup
+(kind, address, enabled, linked at) from schema version 11; a restore starts with a clean delivery record.
+
+### NotificationLinkCode, TelegramPollState (Stage 2)
+
+`NotificationLinkCode`: the one-time code behind "Connect Telegram". `CodeHash` (SHA-256 of 32
+random base64url characters, unique), `UserId`, `Kind`, `ExpiresAt` (15 minutes). Asking for a new code
+deletes the owner's earlier ones; redeeming deletes the code whatever the outcome, so it works once;
+disconnecting and restoring delete the owner's codes. Never audited, never in the backup, never logged.
+
+`TelegramPollState`: `BotId` (the number before the colon in the token) and `NextOffset`, the
+`getUpdates` offset. Keyed by bot because update ids belong to one bot. It moves in the same save as the
+effect of the update it passes, so a restart neither replays nor skips one. Not audited, not in the backup.
 
 ### ImportBatch
 
