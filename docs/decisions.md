@@ -597,6 +597,6 @@ purpose or code sends the money to the wrong ledger.
 
 ### Consequences
 
-The app holds no key that can move money, and a wrong figure costs a correction, never a lost payment.
+The app holds no key that can move money, so it can never pay by itself. A wrong amount the owner confirms in the bank is still a real transfer, so the panel shows exactly what is owed and lets the owner check it first.
 The owner takes one step in the bank for every payment. An incomplete recipient is not shown at all, only
 what is missing, so a partial recipient is never copied.
