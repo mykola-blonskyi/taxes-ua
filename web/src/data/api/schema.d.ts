@@ -1429,6 +1429,213 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invoices/{id}/receipts/{receiptId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    receiptId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    receiptId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{id}/receipt-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReceiptOption"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/payable-by/{receiptId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    receiptId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceSummary"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/declaration": {
         parameters: {
             query?: never;
@@ -3642,6 +3849,8 @@ export interface components {
             /** Format: int32 */
             needsReviewCount: number | string;
             declaration: null | components["schemas"]["DeclarationDueResponse"];
+            /** Format: int32 */
+            overdueInvoiceCount: number | string;
         };
         Deadline: {
             /** Format: date */
@@ -3914,6 +4123,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             status: components["schemas"]["InvoiceStatus"];
+            standing: components["schemas"]["InvoiceStanding"];
             number: null | string;
             /** Format: uuid */
             clientId: string;
@@ -3926,6 +4136,11 @@ export interface components {
             lines: components["schemas"]["InvoiceLineResponse"][];
             /** Format: int64 */
             totalMinor: number | string;
+            /** Format: int64 */
+            paidMinor: number | string;
+            /** Format: int64 */
+            dueMinor: null | number | string;
+            receipts: components["schemas"]["LinkedReceipt"][];
             cancelReason: null | string;
             /** Format: date-time */
             issuedAt: null | string;
@@ -3947,11 +4162,14 @@ export interface components {
             clauses: components["schemas"]["InvoiceClauses"];
         };
         /** @enum {string} */
+        InvoiceStanding: "Draft" | "Issued" | "Overdue" | "Paid" | "Cancelled";
+        /** @enum {string} */
         InvoiceStatus: "Draft" | "Issued" | "Cancelled";
         InvoiceSummary: {
             /** Format: uuid */
             id: string;
             status: components["schemas"]["InvoiceStatus"];
+            standing: components["schemas"]["InvoiceStanding"];
             number: null | string;
             /** Format: uuid */
             clientId: string;
@@ -3963,6 +4181,10 @@ export interface components {
             currency: components["schemas"]["Currency"];
             /** Format: int64 */
             totalMinor: number | string;
+            /** Format: int64 */
+            paidMinor: number | string;
+            /** Format: int64 */
+            dueMinor: null | number | string;
         };
         /** @enum {string} */
         InvoiceUnit: "Service" | "Hour" | "Day" | "Month";
@@ -4090,6 +4312,19 @@ export interface components {
             excessKop: number | string;
             /** Format: int64 */
             excessTaxKop: number | string;
+        };
+        LinkedReceipt: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            valueDate: string;
+            /** Format: int64 */
+            amountMinor: number | string;
+            /** Format: int64 */
+            refundedMinor: number | string;
+            clientName: null | string;
+            /** Format: int64 */
+            paidMinor?: number | string;
         };
         MeResponse: {
             id: string;
@@ -4513,6 +4748,8 @@ export interface components {
             clientId: null | string;
             /** Format: uuid */
             refundsTransactionId: null | string;
+            /** Format: uuid */
+            invoiceId: null | string;
             invoiceNumber: null | string;
             description: null | string;
             /** Format: uuid */
@@ -4574,6 +4811,8 @@ export interface components {
             kind: components["schemas"]["TransactionKind"];
             nonIncomeReason: null | string;
             clientName: null | string;
+            /** Format: uuid */
+            invoiceId: null | string;
             invoiceNumber: null | string;
             description: null | string;
             beforeRegistration: boolean;
