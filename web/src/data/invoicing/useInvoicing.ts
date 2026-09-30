@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/data/api/client";
 import type { components } from "@/data/api/schema";
+import { declarationDetailsQueryKey } from "@/data/declarations/useDeclarations";
+import { periodsQueryKey } from "@/data/periods/usePeriods";
 
 export type InvoicingDetailsRequest = components["schemas"]["InvoicingDetailsRequest"];
 export type InvoicingDetailsResponse = components["schemas"]["InvoicingDetailsResponse"];
@@ -37,8 +39,11 @@ export function useSaveInvoicingDetails() {
 
       return data;
     },
+    // The declaration takes its name and RNOKPP from the invoicing details.
     onSuccess: (data) => {
       queryClient.setQueryData(invoicingQueryKey, data);
+      queryClient.invalidateQueries({ queryKey: declarationDetailsQueryKey });
+      queryClient.invalidateQueries({ queryKey: periodsQueryKey });
     },
   });
 }
