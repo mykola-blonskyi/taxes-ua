@@ -382,18 +382,24 @@ the owner's latest word on that IBAN. A dismissed candidate is never revived.
 Treasury accounts (#98). The app remembers where each kind (single tax, military levy, ESV) is paid,
 one account per owner and kind: IBAN, recipient name and recipient code (8 digits, the EDRPOU). Confirming a
 candidate as a kind records the operation's counterparty IBAN, name and code as that kind's Learned account,
-with the operation and its date; the latest confirmation wins. A name or code the operation lacks (the bank
-sends a code for company accounts only, and a private 10-digit code is not a recipient code) is stored as
-missing, or kept from the earlier confirmation of the same IBAN, and settings shows what is missing. The owner
-can instead enter an account by hand: a Treasury IBAN (bank id `899998` at positions 5 to 10 and a valid
+with the operation and its date. The latest operation wins, whatever order the owner confirms in: an operation
+paid before the one the account learned from does not replace it, and of two paid the same day the later
+confirmation wins. A name or code the operation lacks (the bank sends a code for company accounts only, and a
+private 10-digit code is not a recipient code) is stored as missing, or kept from another confirmed operation
+to the same IBAN, older ones included, and settings shows what is missing. A sync that sees an operation again
+with a code its candidate lacked stores the code, and the account learned from that operation gains it. The
+owner can instead enter an account by hand: a Treasury IBAN (bank id `899998` at positions 5 to 10 and a valid
 ISO 13616 mod-97 check), a name of at most 140 characters and an 8-digit code, all three required. A Manual
-account wins over Learned. Confirmations still record the Learned details beside it, and one that went to
-another IBAN than the Manual account raises a notice, kept until the owner dismisses it or enters or reverts
-the account; the Manual account is never overwritten. A confirmation to the Manual account's own IBAN clears
-the notice. Reverting drops the Manual account so the last Learned one is in use again, and is refused when
-nothing was ever learned. Only confirming a candidate teaches an account: changing the kind of an
-already confirmed payment does not move the account. A restore brings the accounts back as they were,
-including the source and any notice.
+account wins over Learned. Confirmations still record the Learned details beside it, and one that becomes the
+Learned account with another IBAN than the Manual account raises a notice, shown where the owner confirmed it
+and in settings, kept until the owner dismisses it or enters or reverts the account; the Manual account is
+never overwritten. A confirmation to the Manual account's own IBAN clears the notice. Reverting drops the
+Manual account so the Learned one is in use again, and is refused when nothing was ever learned. A retracted
+confirmation stops teaching: when the payment of the operation an account learned from is deleted, or its
+kind is changed, the account learns again from the latest confirmed operation of its kind still standing, or
+forgets the Learned account (and its notice) when none is left; a notice stays only while the Learned IBAN
+still differs from the Manual one. A changed kind also teaches the new kind by the same rule. A restore brings
+the accounts back as they were, including the source and any notice.
 
 ---
 

@@ -12,7 +12,7 @@ using TaxesUa.Api.Data;
 namespace TaxesUa.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260930115309_AddTreasuryAccounts")]
+    [Migration("20260930120123_AddTreasuryAccounts")]
     partial class AddTreasuryAccounts
     {
         /// <inheritdoc />
@@ -774,7 +774,7 @@ namespace TaxesUa.Api.Data.Migrations
 
                     b.ToTable("TreasuryAccounts", t =>
                         {
-                            t.HasCheckConstraint("CK_TreasuryAccounts_Learned", "(\"LearnedIban\" IS NULL) = (\"LearnedExternalId\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedPaidOn\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedAt\" IS NULL)");
+                            t.HasCheckConstraint("CK_TreasuryAccounts_Learned", "(\"LearnedIban\" IS NULL) = (\"LearnedExternalId\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedPaidOn\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedAt\" IS NULL) AND (\"LearnedIban\" IS NOT NULL OR (\"LearnedRecipientName\" IS NULL AND \"LearnedRecipientCode\" IS NULL))");
 
                             t.HasCheckConstraint("CK_TreasuryAccounts_Manual", "(\"ManualIban\" IS NULL) = (\"ManualRecipientName\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualRecipientCode\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualUpdatedAt\" IS NULL)");
 

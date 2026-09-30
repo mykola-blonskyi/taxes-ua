@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
 import { recordedPeriodOf, useDashboard, type DashboardResponse } from "@/data/dashboard/useDashboard";
@@ -12,6 +13,7 @@ import {
   type PaymentCandidate,
   type PaymentKind,
 } from "@/data/payments/usePayments";
+import { useDismissTreasuryNotice } from "@/data/treasury/useTreasuryAccounts";
 import { formatDateOnly } from "@/shared/lib/dates";
 import { formatMoney } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
@@ -20,6 +22,8 @@ import { fromPeriodValue, monthName, toPeriodValue, type PeriodValue } from "../
 import { PeriodSelect } from "./PeriodSelect";
 
 type CandidateState = { kind: PaymentKind | null; periodYear: number; period: PeriodValue };
+
+type ConfirmedNotice = { candidate: PaymentCandidate; kind: PaymentKind; manualIban: string };
 
 // What the home screen would record for this kind's debt, else the quarter the payment was made in.
 function defaultPeriod(
@@ -45,6 +49,8 @@ export function PaymentCandidates() {
   const t = useTranslations("payments.candidates");
   const candidates = usePaymentCandidates();
   const dashboard = useDashboard();
+  // Kept here: a confirmed card leaves the list as soon as it reloads.
+  const [notices, setNotices] = useState<ConfirmedNotice[]>([]);
 
   if (candidates.isLoading || dashboard.isLoading) {
     return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
@@ -54,29 +60,87 @@ export function PaymentCandidates() {
     return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
   }
 
-  if (candidates.data.length === 0) {
-    return <p className="text-sm text-muted-foreground">{t("empty")}</p>;
-  }
+  const closeNotice = (notice: ConfirmedNotice) => setNotices((current) => current.filter((shown) => shown !== notice));
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">{t("intro")}</p>
-      <ul className="grid gap-4 sm:grid-cols-2">
-        {candidates.data.map((candidate) => (
-          // A kind the owner confirms for an account becomes the suggestion for its other candidates, and
-          // a card whose suggestion moved starts again from it.
-          <CandidateCard
-            key={`${candidate.id}-${candidate.suggestedKind}`}
-            candidate={candidate}
-            dashboard={dashboard.data}
-          />
-        ))}
-      </ul>
+      {candidates.data.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t("empty")}</p>
+      ) : (
+        <p className="text-sm text-muted-foreground">{t("intro")}</p>
+      )}
+      {notices.length + candidates.data.length > 0 ? (
+        <ul className="grid gap-4 sm:grid-cols-2">
+          {notices.map((notice) => (
+            <NoticeCard key={notice.candidate.id} notice={notice} onClose={() => closeNotice(notice)} />
+          ))}
+          {candidates.data.map((candidate) => (
+            // A kind the owner confirms for an account becomes the suggestion for its other candidates, and
+            // a card whose suggestion moved starts again from it.
+            <CandidateCard
+              key={`${candidate.id}-${candidate.suggestedKind}`}
+              candidate={candidate}
+              dashboard={dashboard.data}
+              onNotice={(notice) => setNotices((current) => [notice, ...current])}
+            />
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
 
-function CandidateCard({ candidate, dashboard }: { candidate: PaymentCandidate; dashboard: DashboardResponse | undefined }) {
+function NoticeCard({ notice, onClose }: { notice: ConfirmedNotice; onClose: () => void }) {
+  const t = useTranslations("payments.candidates.otherAccount");
+  const tPayments = useTranslations("payments");
+  const locale = useLocale();
+  const dismiss = useDismissTreasuryNotice();
+
+  return (
+    <li
+      role="status"
+      className="flex min-w-0 flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm"
+    >
+      <p className="min-w-0 break-words">
+        {t("text", {
+          date: formatDateOnly(notice.candidate.paidOn, locale),
+          amount: formatMoney(Number(notice.candidate.amountKop), locale),
+          kind: tPayments(`kinds.${notice.kind}`),
+        })}
+      </p>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5 text-xs">
+        <dt className="text-muted-foreground">{t("paidTo")}</dt>
+        <dd className="break-all font-mono">{notice.candidate.counterIban}</dd>
+        <dt className="text-muted-foreground">{t("yours")}</dt>
+        <dd className="break-all font-mono">{notice.manualIban}</dd>
+      </dl>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={dismiss.isPending}
+          onClick={() => dismiss.mutate(notice.kind, { onSuccess: onClose })}
+        >
+          {t("dismiss")}
+        </Button>
+        <Link href="/settings?tab=treasury" className="text-sm text-primary underline-offset-4 hover:underline">
+          {t("settings")}
+        </Link>
+      </div>
+    </li>
+  );
+}
+
+function CandidateCard({
+  candidate,
+  dashboard,
+  onNotice,
+}: {
+  candidate: PaymentCandidate;
+  dashboard: DashboardResponse | undefined;
+  onNotice: (notice: ConfirmedNotice) => void;
+}) {
   const t = useTranslations("payments.candidates");
   const tPayments = useTranslations("payments");
   const locale = useLocale();
@@ -105,20 +169,31 @@ function CandidateCard({ candidate, dashboard }: { candidate: PaymentCandidate; 
   }
 
   function confirm(recordSeparately = false) {
-    if (!state.kind) {
+    const kind = state.kind;
+
+    if (!kind) {
       return;
     }
 
-    confirmCandidate.mutate({
-      id: candidate.id,
-      body: {
-        kind: state.kind,
-        periodYear: state.periodYear,
-        ...fromPeriodValue(state.period),
-        linkPaymentId: recordSeparately ? null : (match?.id ?? null),
-        recordSeparately,
-      },
-    });
+    // The promise, not mutate's callbacks: those are dropped once the reloaded list unmounts this card. A
+    // failure is shown from the mutation's own error.
+    confirmCandidate
+      .mutateAsync({
+        id: candidate.id,
+        body: {
+          kind,
+          periodYear: state.periodYear,
+          ...fromPeriodValue(state.period),
+          linkPaymentId: recordSeparately ? null : (match?.id ?? null),
+          recordSeparately,
+        },
+      })
+      .then((confirmed) => {
+        if (confirmed?.notice) {
+          onNotice({ candidate, kind, manualIban: confirmed.notice.manualIban });
+        }
+      })
+      .catch(() => {});
   }
 
   return (

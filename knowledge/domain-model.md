@@ -332,12 +332,15 @@ entry. Audited.
 Fields: the Manual details, all four set or none: `ManualIban`, `ManualRecipientName`, `ManualRecipientCode`
 (8 digits), `ManualUpdatedAt`; the Learned details, `LearnedIban`, `LearnedRecipientName?`,
 `LearnedRecipientCode?`, and the operation they came from, `LearnedExternalId`, `LearnedPaidOn`, `LearnedAt`,
-set together or not at all; `NoticeAt?`, set while a confirmation went to another IBAN than the Manual
-account and the owner has not dismissed it (needs both a Manual and a Learned account). The account in use is
+set together or not at all (a name or code needs the IBAN); they are the latest confirmed operation of the
+kind by payment date, rebuilt from the remaining confirmations when that operation's payment is deleted or
+changes kind; `NoticeAt?`, set while the Learned IBAN differs from the Manual account since a confirmation
+made it so and the owner has not dismissed it (needs both a Manual and a Learned account). The account in use is
 the Manual one when present, else the Learned one; the API reports it with its source
 (`None | Learned | Manual`) and the recipient details it lacks.
 
-Relationships: belongs to `User`. Written by confirming a `BudgetPaymentCandidate` and by the settings screen.
+Relationships: belongs to `User`. Written by confirming a `BudgetPaymentCandidate`, by deleting or retyping its
+payment, by a sync that fills its candidate's code, and by the settings screen.
 
 ---
 

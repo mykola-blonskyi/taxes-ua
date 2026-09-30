@@ -171,11 +171,12 @@ public static class TreasuryAccountsEndpoints
     }
 
     /// <summary>
-    /// Records the recipient of a confirmed candidate as the Learned account of <paramref name="kind"/>, in
-    /// the caller's transaction and under the owner lock. A Manual account stays in use; a confirmation to
-    /// another IBAN than it raises the notice instead.
+    /// Teaches the Learned account of <paramref name="kind"/> the recipient of a confirmed candidate, in the
+    /// caller's transaction and under the owner lock. The latest operation wins (Rule 12): an older one only
+    /// fills a name or code the same IBAN lacks. A Manual account stays in use; an operation that becomes the
+    /// Learned account with another IBAN than it raises the notice instead.
     /// </summary>
-    internal static async Task LearnAsync(
+    internal static async Task<TreasuryAccount> LearnAsync(
         AppDbContext database,
         BudgetPaymentCandidate candidate,
         PaymentKind kind,
@@ -183,13 +184,79 @@ public static class TreasuryAccountsEndpoints
         CancellationToken cancellationToken)
     {
         var row = await FindOrAddAsync(database, candidate.UserId, kind, cancellationToken);
+        if (Teach(row, candidate, now))
+        {
+            row.NoticeAt = row.ManualIban is null || row.ManualIban == candidate.CounterIban ? null : row.NoticeAt ?? now;
+        }
+
+        return row;
+    }
+
+    /// <summary>
+    /// Learns the account of <paramref name="kind"/> again when it was learned from <paramref name="source"/>,
+    /// which has since changed: its payment was deleted, it now pays another kind, or it gained a code. The
+    /// owner's confirmations of the kind, as this unit of work leaves them, are taught again in order; none
+    /// left clears the Learned account. A notice stays only while the Learned IBAN differs from the Manual one.
+    /// </summary>
+    internal static async Task RelearnAsync(
+        AppDbContext database,
+        BudgetPaymentCandidate source,
+        PaymentKind kind,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var row = await database.TreasuryAccounts
+            .FirstOrDefaultAsync(account => account.UserId == source.UserId && account.Kind == kind, cancellationToken);
+        if (row is null || row.LearnedExternalId != source.ExternalId)
+        {
+            return;
+        }
+
+        // Filtered again in memory: the query reads stored rows, and the source's own change is not saved yet.
+        var confirmations = (await database.BudgetPaymentCandidates
+                .Where(candidate => candidate.UserId == source.UserId && candidate.ConfirmedKind == kind)
+                .ToListAsync(cancellationToken))
+            .Where(candidate => candidate.Status == CandidateStatus.Confirmed && candidate.ConfirmedKind == kind)
+            .OrderBy(candidate => candidate.PaidOn)
+            .ThenBy(candidate => candidate.ResolvedAt);
+        row.LearnedIban = null;
+        row.LearnedRecipientName = null;
+        row.LearnedRecipientCode = null;
+        row.LearnedExternalId = null;
+        row.LearnedPaidOn = null;
+        row.LearnedAt = null;
+        foreach (var candidate in confirmations)
+        {
+            Teach(row, candidate, now);
+        }
+
+        if (row.LearnedIban is null || row.ManualIban is null || row.ManualIban == row.LearnedIban)
+        {
+            row.NoticeAt = null;
+        }
+    }
+
+    // True when the candidate became the Learned account: it is no older than the operation learned before,
+    // and a later confirmation of the same day wins.
+    private static bool Teach(TreasuryAccount row, BudgetPaymentCandidate candidate, DateTimeOffset now)
+    {
         var name = string.IsNullOrWhiteSpace(candidate.CounterName) ? null : candidate.CounterName.Trim();
         var code = candidate.CounterEdrpou is { Length: RecipientCodeLength } edrpou && edrpou.All(char.IsAsciiDigit)
             ? edrpou
             : null;
+        var sameIban = row.LearnedIban == candidate.CounterIban;
+        if (row.LearnedPaidOn is { } learnedOn && candidate.PaidOn < learnedOn)
+        {
+            if (sameIban)
+            {
+                row.LearnedRecipientName ??= name;
+                row.LearnedRecipientCode ??= code;
+            }
 
-        // The same account confirmed again without a name or code keeps the ones it was learned with.
-        if (row.LearnedIban == candidate.CounterIban)
+            return false;
+        }
+
+        if (sameIban)
         {
             name ??= row.LearnedRecipientName;
             code ??= row.LearnedRecipientCode;
@@ -201,14 +268,7 @@ public static class TreasuryAccountsEndpoints
         row.LearnedExternalId = candidate.ExternalId;
         row.LearnedPaidOn = candidate.PaidOn;
         row.LearnedAt = now;
-        if (row.ManualIban is null || row.ManualIban == candidate.CounterIban)
-        {
-            row.NoticeAt = null;
-        }
-        else
-        {
-            row.NoticeAt ??= now;
-        }
+        return true;
     }
 
     internal static bool IsValidTreasuryIban(string iban) =>

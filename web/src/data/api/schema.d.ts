@@ -3227,7 +3227,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["PaymentResponse"];
+                        "application/json": components["schemas"]["ConfirmCandidateResponse"];
                     };
                 };
                 /** @description Bad Request */
@@ -4035,6 +4035,10 @@ export interface components {
             /** @default false */
             recordSeparately: boolean;
         };
+        ConfirmCandidateResponse: {
+            payment: components["schemas"]["PaymentResponse"];
+            notice: null | components["schemas"]["ManualAccountNotice"];
+        };
         ConfirmRequest: {
             kind: components["schemas"]["TransactionKind"];
         };
@@ -4527,6 +4531,9 @@ export interface components {
             clientName: null | string;
             /** Format: int64 */
             paidMinor?: number | string;
+        };
+        ManualAccountNotice: {
+            manualIban: string;
         };
         MeResponse: {
             id: string;

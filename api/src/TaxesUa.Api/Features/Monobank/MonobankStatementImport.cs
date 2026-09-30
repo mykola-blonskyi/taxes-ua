@@ -387,7 +387,8 @@ internal sealed class MonobankStatementImport(
     }
 
     // A payment into the budget is always in hryvnia, so only a UAH account's debits are read. A candidate
-    // of any status still holds its operation id, so a confirmed or dismissed one never comes back.
+    // of any status still holds its operation id, so a confirmed or dismissed one never comes back; one
+    // stored without the counterparty's code gains it when the bank sends it.
     private async Task<int> StoreCandidatesAsync(
         string ownerId, BankAccount account, Statement statement, CancellationToken cancellationToken)
     {
@@ -403,10 +404,19 @@ internal sealed class MonobankStatementImport(
         var ids = payments.Select(item => item.Id).ToList();
         var stored = await database.BudgetPaymentCandidates
             .Where(row => row.BankAccountId == account.Id && ids.Contains(row.ExternalId))
-            .Select(row => row.ExternalId)
             .ToListAsync(cancellationToken);
-        var fresh = payments.ExceptBy(stored, item => item.Id).ToList();
         var now = time.GetUtcNow();
+        foreach (var candidate in stored.Where(row => row.CounterEdrpou is null))
+        {
+            var item = payments.First(payment => payment.Id == candidate.ExternalId);
+            candidate.CounterEdrpou = Fit(item.CounterEdrpou?.Trim(), TreasuryAccountsEndpoints.MaxEdrpouLength);
+            if (candidate is { CounterEdrpou: not null, ConfirmedKind: { } kind })
+            {
+                await TreasuryAccountsEndpoints.RelearnAsync(database, candidate, kind, now, cancellationToken);
+            }
+        }
+
+        var fresh = payments.ExceptBy(stored.Select(row => row.ExternalId), item => item.Id).ToList();
         database.BudgetPaymentCandidates.AddRange(fresh.Select(item => new BudgetPaymentCandidate
         {
             Id = Guid.NewGuid(),

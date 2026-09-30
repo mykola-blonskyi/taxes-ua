@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/data/api/client";
 import type { components } from "@/data/api/schema";
 import { periodsQueryKey } from "@/data/periods/usePeriods";
+import { treasuryAccountsQueryKey } from "@/data/treasury/useTreasuryAccounts";
 
 export type PaymentKind = components["schemas"]["PaymentKind"];
 export type PaymentRequest = components["schemas"]["PaymentRequest"];
@@ -36,6 +37,8 @@ function useInvalidatePayments() {
   return () => {
     queryClient.invalidateQueries({ queryKey: paymentsQueryKey });
     queryClient.invalidateQueries({ queryKey: periodsQueryKey });
+    // A payment from a bank operation teaches its kind's Treasury account.
+    queryClient.invalidateQueries({ queryKey: treasuryAccountsQueryKey });
   };
 }
 

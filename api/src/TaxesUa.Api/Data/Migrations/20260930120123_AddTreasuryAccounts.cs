@@ -40,7 +40,7 @@ namespace TaxesUa.Api.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_TreasuryAccounts", x => x.Id);
-                    table.CheckConstraint("CK_TreasuryAccounts_Learned", "(\"LearnedIban\" IS NULL) = (\"LearnedExternalId\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedPaidOn\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedAt\" IS NULL)");
+                    table.CheckConstraint("CK_TreasuryAccounts_Learned", "(\"LearnedIban\" IS NULL) = (\"LearnedExternalId\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedPaidOn\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedAt\" IS NULL) AND (\"LearnedIban\" IS NOT NULL OR (\"LearnedRecipientName\" IS NULL AND \"LearnedRecipientCode\" IS NULL))");
                     table.CheckConstraint("CK_TreasuryAccounts_Manual", "(\"ManualIban\" IS NULL) = (\"ManualRecipientName\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualRecipientCode\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualUpdatedAt\" IS NULL)");
                     table.CheckConstraint("CK_TreasuryAccounts_Notice", "\"NoticeAt\" IS NULL OR (\"ManualIban\" IS NOT NULL AND \"LearnedIban\" IS NOT NULL)");
                     table.ForeignKey(

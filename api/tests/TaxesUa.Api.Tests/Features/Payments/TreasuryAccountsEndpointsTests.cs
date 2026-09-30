@@ -3,6 +3,9 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Engine;
 
@@ -129,6 +132,29 @@ public sealed class TreasuryAccountsEndpointsTests(ApiFixture fixture) : IClassF
         Assert.Equal(HttpStatusCode.Conflict, (await stranger.PostAsync("/api/settings/treasury-accounts/MilitaryLevy/revert", null)).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await stranger.PostAsync("/api/settings/treasury-accounts/MilitaryLevy/notice/dismiss", null)).StatusCode);
         Assert.Equal(Iban, (await Accounts(owner)).Single(row => row.Kind == PaymentKind.MilitaryLevy).Iban);
+    }
+
+    [Theory]
+    [InlineData("ГУК у м.Києві", null)]
+    [InlineData(null, "37993783")]
+    public async Task The_database_refuses_learned_recipient_details_without_a_learned_account(string? name, string? code)
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await using var scope = fixture.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userId = await database.Users.Where(user => user.Email == ApiFixture.AllowedEmail).Select(user => user.Id).SingleAsync();
+
+        database.TreasuryAccounts.Add(new TreasuryAccount
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Kind = PaymentKind.Esv,
+            LearnedRecipientName = name,
+            LearnedRecipientCode = code,
+        });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => database.SaveChangesAsync());
     }
 
     private async Task<HttpClient> SignInEmpty(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, string email)

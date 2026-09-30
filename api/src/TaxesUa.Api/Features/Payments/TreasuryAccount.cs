@@ -8,7 +8,7 @@ namespace TaxesUa.Api.Features.Payments;
 
 /// <summary>
 /// Where the owner pays one kind of tax (Rule 12): one row per owner and kind. The Manual details are the
-/// owner's own entry and the Learned details are the recipient of the last operation the owner confirmed
+/// owner's own entry and the Learned details are the recipient of the latest operation the owner confirmed
 /// for the kind; Manual, when present, is the account in use. Both are kept so that reverting to Learned
 /// needs no second confirmation. <see cref="NoticeAt"/> is set while a confirmation went to another IBAN
 /// than the Manual account and the owner has not dismissed the notice.
@@ -79,7 +79,8 @@ internal sealed class TreasuryAccountConfiguration : IEntityTypeConfiguration<Tr
                 "CK_TreasuryAccounts_Learned",
                 "(\"LearnedIban\" IS NULL) = (\"LearnedExternalId\" IS NULL) "
                 + "AND (\"LearnedIban\" IS NULL) = (\"LearnedPaidOn\" IS NULL) "
-                + "AND (\"LearnedIban\" IS NULL) = (\"LearnedAt\" IS NULL)");
+                + "AND (\"LearnedIban\" IS NULL) = (\"LearnedAt\" IS NULL) "
+                + "AND (\"LearnedIban\" IS NOT NULL OR (\"LearnedRecipientName\" IS NULL AND \"LearnedRecipientCode\" IS NULL))");
             table.HasCheckConstraint(
                 "CK_TreasuryAccounts_Notice",
                 "\"NoticeAt\" IS NULL OR (\"ManualIban\" IS NOT NULL AND \"LearnedIban\" IS NOT NULL)");

@@ -147,15 +147,18 @@ public static class PaymentCandidatesEndpoints
                 candidate.Status = CandidateStatus.Confirmed;
                 candidate.ConfirmedKind = request.Kind;
                 candidate.ResolvedAt = now;
-                await TreasuryAccountsEndpoints.LearnAsync(database, candidate, request.Kind, now, cancellationToken);
+                var account = await TreasuryAccountsEndpoints.LearnAsync(database, candidate, request.Kind, now, cancellationToken);
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
                 var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
+                var notice = account.NoticeAt is not null && account.LearnedExternalId == candidate.ExternalId
+                    ? new ManualAccountNotice(account.ManualIban!)
+                    : null;
 
-                return Results.Ok(PaymentsEndpoints.ToResponse(payment, settings));
+                return Results.Ok(new ConfirmCandidateResponse(PaymentsEndpoints.ToResponse(payment, settings), notice));
             })
-            .Produces<PaymentResponse>()
+            .Produces<ConfirmCandidateResponse>()
             .ProducesValidationProblem()
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound)
@@ -235,7 +238,8 @@ public static class PaymentCandidatesEndpoints
     /// <summary>
     /// Follows a change to a payment that came from a bank operation onto its candidate, in the caller's
     /// transaction: a deleted payment (<paramref name="kind"/> null) makes the operation pending again, and
-    /// an edited one makes its new kind the owner's latest word on the account.
+    /// an edited one makes its new kind the owner's latest word on the account. Either way the confirmation
+    /// stops teaching the kind it was, and a new kind learns from it (Rule 12).
     /// </summary>
     internal static async Task FollowPaymentAsync(
         AppDbContext database,
@@ -260,16 +264,25 @@ public static class PaymentCandidatesEndpoints
             return;
         }
 
+        var previous = candidate.ConfirmedKind!.Value;
         if (kind is { } newKind)
         {
             candidate.ConfirmedKind = newKind;
             candidate.ResolvedAt = now;
+            if (newKind == previous)
+            {
+                return;
+            }
+
+            await TreasuryAccountsEndpoints.RelearnAsync(database, candidate, previous, now, cancellationToken);
+            await TreasuryAccountsEndpoints.LearnAsync(database, candidate, newKind, now, cancellationToken);
         }
         else
         {
             candidate.Status = CandidateStatus.Pending;
             candidate.ConfirmedKind = null;
             candidate.ResolvedAt = null;
+            await TreasuryAccountsEndpoints.RelearnAsync(database, candidate, previous, now, cancellationToken);
         }
     }
 
@@ -297,6 +310,15 @@ internal sealed record ConfirmCandidateRequest(
     int? PeriodMonth,
     Guid? LinkPaymentId,
     bool RecordSeparately = false);
+
+/// <summary>
+/// The payment a confirmation recorded or linked. <c>Notice</c> is set when the operation went to another IBAN
+/// than the Manual account of its kind and became that kind's learned account: the owner's saved account stays
+/// in use, and the notice waits on the Treasury accounts settings until dismissed.
+/// </summary>
+internal sealed record ConfirmCandidateResponse(PaymentResponse Payment, ManualAccountNotice? Notice);
+
+internal sealed record ManualAccountNotice(string ManualIban);
 
 /// <summary>
 /// A pending candidate. <c>SuggestedKind</c> is null when nothing points to one kind. <c>Matches</c> are
