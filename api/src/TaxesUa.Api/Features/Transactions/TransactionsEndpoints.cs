@@ -219,6 +219,8 @@ public static class TransactionsEndpoints
                     return Results.Unauthorized();
                 }
 
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await LockOwnerAsync(database, user.Id, cancellationToken);
                 var row = await database.Transactions
                     .FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.Id, cancellationToken);
                 if (row is null)
@@ -235,8 +237,9 @@ public static class TransactionsEndpoints
                 }
 
                 // An imported row stays as a tombstone holding its operation id, so the next sync does
-                // not record the operation again. It counts nowhere, so it drops any refund link: a hidden
-                // link would slip past every refund check.
+                // not record the operation again. It counts nowhere, so it drops its refund and invoice
+                // links: a hidden link would slip past every refund check and keep an invoice paid.
+                // Either way an invoice the receipt paid reopens.
                 if (row.ExternalId is null)
                 {
                     database.Transactions.Remove(row);
@@ -245,10 +248,17 @@ public static class TransactionsEndpoints
                 {
                     row.ReviewStatus = ReviewStatus.Dismissed;
                     row.RefundsTransactionId = null;
+                    if (row.InvoiceId is not null)
+                    {
+                        row.InvoiceId = null;
+                        row.InvoiceNumber = null;
+                    }
+
                     row.UpdatedAt = DateTimeOffset.UtcNow;
                 }
 
                 await database.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
 
                 return Results.NoContent();
             })
@@ -469,6 +479,26 @@ public static class TransactionsEndpoints
             }
         }
 
+        // A receipt paying an invoice holds that invoice's number and currency (Rule 14); the link, not
+        // an edit, changes them.
+        if (row is { InvoiceId: not null })
+        {
+            var unlinkFirst = $"while the receipt pays invoice {row.InvoiceNumber}; unlink it first.";
+            if (request.Kind != TransactionKind.Income)
+            {
+                errors[Field(nameof(request.Kind))] = [$"kind must stay Income {unlinkFirst}"];
+            }
+            else if (request.Currency != row.Currency)
+            {
+                errors[Field(nameof(request.Currency))] = [$"currency must stay {row.Currency} {unlinkFirst}"];
+            }
+
+            if (Normalize(request).InvoiceNumber != row.InvoiceNumber)
+            {
+                errors[Field(nameof(request.InvoiceNumber))] = [$"invoiceNumber must stay {row.InvoiceNumber} {unlinkFirst}"];
+            }
+        }
+
         return errors.Count == 0 ? null : errors;
     }
 
@@ -619,6 +649,7 @@ public static class TransactionsEndpoints
             row.Kind,
             row.NonIncomeReason,
             clientName,
+            row.InvoiceId,
             row.InvoiceNumber,
             row.Description,
             beforeRegistration,
@@ -773,6 +804,7 @@ internal sealed record TransactionResponse(
     TransactionKind Kind,
     string? NonIncomeReason,
     string? ClientName,
+    Guid? InvoiceId,
     string? InvoiceNumber,
     string? Description,
     bool BeforeRegistration,

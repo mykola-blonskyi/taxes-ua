@@ -437,6 +437,23 @@ an issued invoice cannot be edited. A draft's preview reads the live data and is
 Amounts. Integer minor units of the invoice currency. A line is quantity (in thousandths, at most 100 000 units) times
 rate, rounded once half away from zero; the total is the sum of the rounded lines.
 
+Payment. Receipts pay invoices. The owner links a receipt (`Income`) to an issued invoice of their own
+in the same currency, from the invoice or from the receipt. Several receipts can pay one invoice; a
+receipt pays at most one. A draft, a cancelled invoice, an invoice already paid, a receipt in another
+currency and a receipt already paying another invoice are refused. Linking writes the invoice's number
+into the receipt's invoice number, so the receipts list and every export carry it, and marks an
+imported receipt reviewed; unlinking clears the number. A receipt never linked keeps whatever number
+the owner typed. While linked, a receipt keeps its kind, currency and number; the owner unlinks it to
+change them, and an invoice with receipts linked cannot be cancelled until they are unlinked.
+
+Paid and overdue are derived on every read, never stored. An invoice is paid when its linked receipts,
+each less the refunds linked to it, cover the total in the invoice currency; a partial payment leaves
+the difference due. It is overdue when issued, not paid, and today in Kyiv is after the due date, so
+it turns overdue on the day after the due date. Unlinking, a refund that uncovers the total, and
+deleting a linked receipt reopen the invoice. Deleting a linked receipt removes the link with it in
+the same save; dismissing an imported one (Rule 12) unlinks it and clears its number, since a
+tombstone counts nowhere and must not keep an invoice paid. The home screen counts overdue invoices.
+
 Retention. An issued or cancelled invoice is kept for at least 1095 days from the day the declaration
 covering its income was filed, or from that declaration's deadline if it was not (Tax Code art. 44.3).
 The period is extended by the time limitation periods were suspended under martial law. The app never

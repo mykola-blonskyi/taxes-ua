@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Declarations;
+using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
@@ -32,6 +33,7 @@ public static class DashboardEndpoints
                 var needsReview = await database.Transactions.CountAsync(
                         row => row.UserId == user.Id && row.ReviewStatus == ReviewStatus.NeedsReview, cancellationToken)
                     + await PaymentCandidatesEndpoints.CountPendingAsync(database, user.Id, cancellationToken);
+                var overdueInvoices = await InvoicePayments.CountOverdueAsync(database, user.Id, today, cancellationToken);
                 var loaded = await YearAccruals.LoadAsync(database, user.Id, today.Year, cancellationToken);
                 var declaration = await DeclarationDueAsync(database, user.Id, today, cancellationToken);
 
@@ -50,7 +52,8 @@ public static class DashboardEndpoints
                         null,
                         null,
                         needsReview,
-                        declaration));
+                        declaration,
+                        overdueInvoices));
                 }
 
                 var settings = loaded.Viewed.Settings.ToEngineInput();
@@ -80,7 +83,8 @@ public static class DashboardEndpoints
                     ToLimit(limit),
                     reserve is null ? null : ToReserve(reserve, today),
                     needsReview,
-                    declaration));
+                    declaration,
+                    overdueInvoices));
             })
             .WithTags("Dashboard")
             .RequireAuthorization()
@@ -185,7 +189,8 @@ public static class DashboardEndpoints
 /// reached, with the same rule as <c>Burden</c>. <c>NeedsReviewCount</c> is the number of imported transactions
 /// the owner has not reviewed, which the figures already count under their suggested kinds, and of
 /// budget payment candidates, which count nowhere until confirmed. <c>Declaration</c> is the last ended
-/// quarter's declaration while it is due and not marked filed (Rule 15).
+/// quarter's declaration while it is due and not marked filed (Rule 15). <c>OverdueInvoiceCount</c> is the
+/// number of issued invoices past their due date in Kyiv that their linked receipts do not cover (Rule 14).
 /// </summary>
 internal sealed record DashboardResponse(
     DateOnly Today,
@@ -195,7 +200,8 @@ internal sealed record DashboardResponse(
     LimitStatusResponse? Limit,
     ReserveResponse? Reserve,
     int NeedsReviewCount,
-    DeclarationDueResponse? Declaration);
+    DeclarationDueResponse? Declaration,
+    int OverdueInvoiceCount);
 
 /// <summary><c>DaysLeft</c> counts Kyiv days to <c>DueDate</c>, zero on the day itself.</summary>
 internal sealed record DeclarationDueResponse(int Year, int Quarter, DateOnly DueDate, int DaysLeft);

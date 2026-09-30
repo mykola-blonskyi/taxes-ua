@@ -38,7 +38,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":7,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[]}""";
+        """{"schemaVersion":8,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[]}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -758,15 +758,15 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             ],
             [
                 new TransactionBackup(UahReceiptId, new DateOnly(2031, 2, 1), 100_000, Currency.UAH, Money.RateScale,
-                    null, null, 100_000, TransactionKind.Income, null, ClientId, null, null, null, null, null, null, null, null, ReviewStatus.Confirmed, created, created),
+                    null, null, 100_000, TransactionKind.Income, null, ClientId, null, null, null, null, null, null, null, null, null, ReviewStatus.Confirmed, created, created),
                 new TransactionBackup(UsdReceiptId, new DateOnly(2031, 2, 2), 100_000, Currency.USD, 400_000,
-                    null, RateSource.Manual, 4_000_000, TransactionKind.Income, null, null, null, "INV-2", null, null, null, null, null, null,
+                    null, RateSource.Manual, 4_000_000, TransactionKind.Income, null, null, null, null, "INV-2", null, null, null, null, null, null,
                     ReviewStatus.Confirmed, created, created),
                 new TransactionBackup(UsdRefundId, new DateOnly(2031, 2, 3), 30_000, Currency.USD, 400_000,
-                    null, RateSource.Manual, 1_200_000, TransactionKind.RefundToClient, null, null, UsdReceiptId, null,
+                    null, RateSource.Manual, 1_200_000, TransactionKind.RefundToClient, null, null, UsdReceiptId, null, null,
                     null, null, null, null, null, null, ReviewStatus.Confirmed, created, created),
                 new TransactionBackup(TransferId, new DateOnly(2031, 2, 4), 5_000, Currency.UAH, Money.RateScale,
-                    null, null, 5_000, TransactionKind.OwnTransfer, "Own card", null, null, null, null, null, null, null, null, null,
+                    null, null, 5_000, TransactionKind.OwnTransfer, "Own card", null, null, null, null, null, null, null, null, null, null,
                     ReviewStatus.Confirmed, created, created),
             ],
             [
