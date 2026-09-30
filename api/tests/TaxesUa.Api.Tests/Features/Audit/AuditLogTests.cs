@@ -8,6 +8,7 @@ using Npgsql;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Calendar;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Monobank;
@@ -252,6 +253,9 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
             typeof(DeclarationFile),
             // What the reminder runs sent, written on every send; no owner decision is in it.
             typeof(SentReminder),
+            // The calendar feed's secret is a bearer credential like a link code; rotating it is a
+            // click, and the value must not reach the log (ADR-017).
+            typeof(CalendarFeed),
         ];
 
         await using var scope = fixture.CreateScope();

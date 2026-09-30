@@ -10,6 +10,7 @@ using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Backup;
+using TaxesUa.Api.Features.Calendar;
 using TaxesUa.Api.Features.Dashboard;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Export;
@@ -24,6 +25,11 @@ using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// The request line prints the path, and two anonymous routes carry a secret in theirs: the monobank
+// webhook and the calendar feed (ADR-012, ADR-017). Development raises the framework's level to
+// Information, so the line is held back here for every environment.
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 
 var allowedHosts = (builder.Configuration["AllowedHosts"] ?? string.Empty)
     .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -314,6 +320,7 @@ api.MapAuditApi();
 api.MapDashboardApi();
 api.MapMonobankApi();
 api.MapNotificationsApi();
+api.MapCalendarApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

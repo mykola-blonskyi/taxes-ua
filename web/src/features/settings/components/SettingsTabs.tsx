@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Tabs } from "radix-ui";
 import { useTreasuryAccounts } from "@/data/treasury/useTreasuryAccounts";
+import { CalendarFeedSection } from "./CalendarFeedSection";
 import { ClientsSection } from "./ClientsSection";
 import { DeclarationDetailsForm } from "./DeclarationDetailsForm";
 import { FopSettingsForm } from "./FopSettingsForm";
@@ -74,7 +75,10 @@ export function SettingsTabs({ initialTab }: { initialTab?: string }) {
         <TreasuryAccountsSection />
       </Tabs.Content>
       <Tabs.Content value="notifications" className="min-w-0">
-        <NotificationsSection />
+        <div className="flex flex-col gap-8">
+          <NotificationsSection />
+          <CalendarFeedSection />
+        </div>
       </Tabs.Content>
     </Tabs.Root>
   );

@@ -158,6 +158,16 @@ that quarter carries obligations.
 
 The annual declaration (for Q4) includes the ESV attachment.
 
+**Calendar feed.** The owner's deadlines are also served as an iCalendar document (ADR-017), for the
+current and the next year: for each quarter still in group 3 (Rule 4, so none after a limit crossing
+until the owner is back) and not ended before the registration date, the ESV date, the single tax and
+military levy date (one event, as they share it) and the declaration date, all as shifted above; in
+`MonthlyAdvance` mode also each month's recommended advance date (Rule 6), unshifted. A year without a
+`TaxYearConfig` has no events. Events are all-day, carry alarms 7 and 1 days before, and name the kind
+and the period in the owner's locale, never an amount. The UID is the kind with the year and quarter or
+month, so a moved date updates the event. The document is behind a per-owner secret path the owner
+can rotate; it is not in the backup, so a restore creates none.
+
 ---
 
 ## Rule 6. Payment modes

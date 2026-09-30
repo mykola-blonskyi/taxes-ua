@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxesUa.Api.Data;
@@ -11,9 +12,11 @@ using TaxesUa.Api.Data;
 namespace TaxesUa.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260930214722_AddCalendarFeed")]
+    partial class AddCalendarFeed
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -705,44 +708,6 @@ namespace TaxesUa.Api.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("NotificationLinkCodes");
-                });
-
-            modelBuilder.Entity("TaxesUa.Api.Features.Notifications.SentReminder", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Channel")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTimeOffset>("ClaimedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<DateTimeOffset?>("DeliveredAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Kinds")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Offset")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId", "Date", "Kinds", "Offset", "Channel")
-                        .IsUnique();
-
-                    b.ToTable("SentReminders");
                 });
 
             modelBuilder.Entity("TaxesUa.Api.Features.Notifications.TelegramPollState", b =>
@@ -1606,15 +1571,6 @@ namespace TaxesUa.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("TaxesUa.Api.Features.Notifications.NotificationLinkCode", b =>
-                {
-                    b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("TaxesUa.Api.Features.Notifications.SentReminder", b =>
                 {
                     b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
                         .WithMany()
