@@ -9,7 +9,7 @@ import { formatPlainAmount, parseHryvnia } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
 import { CopyField } from "@/shared/ui/copy-field";
 import { TextField } from "@/shared/ui/fields";
-import { NbuQrCode } from "@/shared/ui/nbu-qr";
+import { NbuQrCode, encodeNbuQr } from "@/shared/ui/nbu-qr";
 import { Sheet } from "@/shared/ui/sheet";
 
 // Every recipient here is a Treasury account. False hides the QR behind a note, for when a real scan
@@ -186,7 +186,7 @@ function QrBlock({ details, amountKop }: { details: PayDetails; amountKop: numbe
   if (!qrForTreasuryAccounts) {
     return <p className="text-sm text-muted-foreground">{t("qrTreasuryOff")}</p>;
   }
-  if (details.qrContent === null) {
+  if (details.qrContent === null || encodeNbuQr(details.qrContent) === null) {
     return <p className="text-sm text-muted-foreground">{t("qrUnavailable")}</p>;
   }
   // keepPreviousData keeps the old amount's details on screen while the new ones load.

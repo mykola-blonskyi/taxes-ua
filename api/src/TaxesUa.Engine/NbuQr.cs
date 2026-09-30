@@ -23,6 +23,9 @@ public static class NbuQr
 
     public const int MaxBytes = 507;
 
+    /// <summary>Appendix 4, table 1: the Base64URL element on its own is capped at 475 bytes.</summary>
+    public const int MaxEncodedBytes = 475;
+
     public const long MaxAmountKop = 99_999_999_999;
 
     private const int MaxRecipientNameChars = 140;
@@ -33,8 +36,8 @@ public static class NbuQr
 
     /// <summary>
     /// The QR content for a credit transfer, or null when the details cannot be carried by format 003:
-    /// a field over its length, a control character, an amount outside 0.01..999 999 999.99, or more
-    /// than 507 bytes in all.
+    /// a field over its length, a control character, an amount outside 0.01..999 999 999.99, or an
+    /// encoded block over 475 bytes (which also keeps the whole link under 507).
     /// </summary>
     public static string? Content(string recipientName, string iban, string recipientCode, long amountKop, string purpose)
     {
@@ -68,8 +71,8 @@ public static class NbuQr
             "",
             "",
         ];
-        var content = StartCode + Base64Url.EncodeToString(Encoding.UTF8.GetBytes(string.Join('\n', fields)));
-        return content.Length <= MaxBytes ? content : null;
+        var encoded = Base64Url.EncodeToString(Encoding.UTF8.GetBytes(string.Join('\n', fields)));
+        return encoded.Length <= MaxEncodedBytes ? StartCode + encoded : null;
     }
 
     /// <summary>

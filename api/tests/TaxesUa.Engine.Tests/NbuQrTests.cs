@@ -61,14 +61,16 @@ public class NbuQrTests
         Assert.Null(NbuQr.Content(Name, Iban, Code, amountKop, SingleTaxQ3));
 
     [Fact]
-    public void Cyrillic_counts_in_bytes_against_the_507_byte_limit()
+    public void Cyrillic_counts_in_bytes_against_the_475_byte_encoded_limit()
     {
-        var fits = NbuQr.Content(new string('Ж', 104), Iban, Code, 123_450, SingleTaxQ3);
-        var over = NbuQr.Content(new string('Ж', 105), Iban, Code, 123_450, SingleTaxQ3);
+        var longest = Enumerable.Range(1, 140)
+            .Last(n => NbuQr.Content(new string('Ж', n), Iban, Code, 123_450, SingleTaxQ3) is not null);
+        var fits = NbuQr.Content(new string('Ж', longest), Iban, Code, 123_450, SingleTaxQ3)!;
 
-        Assert.Equal(507, fits!.Length);
-        Assert.Equal(new string('Ж', 104), Fields(fits)[5]);
-        Assert.Null(over);
+        Assert.True(longest < 140);
+        Assert.InRange(fits.Length - NbuQr.StartCode.Length, 472, NbuQr.MaxEncodedBytes);
+        Assert.True(fits.Length <= NbuQr.MaxBytes);
+        Assert.Null(NbuQr.Content(new string('Ж', longest + 1), Iban, Code, 123_450, SingleTaxQ3));
     }
 
     [Fact]
