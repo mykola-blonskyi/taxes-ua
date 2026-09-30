@@ -54,6 +54,20 @@ Spec: issue #71. Mirror: `.scratch/stage-2/`. monobank only; PrivatBank is defer
 
 Frontier at the start: #74 and #75.
 
+## Stage 2: paying and the tax reserve
+
+Spec: issue #97. Mirror: `.scratch/stage-2-pay/`. The app prepares payments (details, purpose, NBU QR) and never initiates them.
+
+| # | Ticket | Blocked by |
+| --- | --- | --- |
+| #98 | 01. Remember the Treasury account for each tax kind | #80 |
+| #99 | 02. Pay each obligation from a panel with ready payment details | #98 |
+| #100 | 03. Add an NBU QR code to the payment panel | #99 |
+| #101 | 04. Show how much to set aside for taxes | none |
+| #102 | 05. Track a monobank jar as the tax reserve | #101 |
+
+Frontier at the start: #101 (#98 waits for #80).
+
 ## Stage 3: invoices
 
 Spec: issue #89. Mirror: `.scratch/stage-3-invoices/`. Bilingual EN/UK PDF, frozen at issue, paid by linked receipts.
