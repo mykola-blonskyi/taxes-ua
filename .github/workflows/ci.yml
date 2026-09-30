@@ -80,5 +80,15 @@ jobs:
               exit 1
               ;;
           esac
-          curl --fail --silent --show-error --max-time 60 --request GET "$COOLIFY_WEBHOOK_URL" \
-            --header "Authorization: Bearer $COOLIFY_WEBHOOK_TOKEN" > /dev/null
+          case "$COOLIFY_WEBHOOK_URL$COOLIFY_WEBHOOK_TOKEN" in
+            *[[:space:]]*|*\"*|*\'*)
+              echo "::error::COOLIFY_WEBHOOK_URL or COOLIFY_WEBHOOK_TOKEN contains whitespace or quotes; paste the bare value"
+              exit 1
+              ;;
+          esac
+          echo "url length ${#COOLIFY_WEBHOOK_URL}, token length ${#COOLIFY_WEBHOOK_TOKEN}"
+          status=$(curl --silent --show-error --max-time 60 --output response.txt --write-out '%{http_code}' \
+            --request GET "$COOLIFY_WEBHOOK_URL" --header "Authorization: Bearer $COOLIFY_WEBHOOK_TOKEN")
+          echo "Coolify answered $status"
+          head -c 500 response.txt; echo
+          test "$status" = 200
