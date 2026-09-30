@@ -16,6 +16,11 @@ services:
       # A fixed, obviously-fake dev key (ADR-011), so a local stack can exercise the connected
       # monobank state without generating one. Never reused outside this local override.
       Monobank__TokenEncryptionKeyBase64: dGF4ZXMtdWEtbG9jYWwtZGV2LWtleS0zMi1ieXRlcyE=
+      # Points the Telegram client at a stub Bot API on the host for the browser proof; empty uses the
+      # real one.
+      Telegram__BaseUrl: ${TELEGRAM_BASE_URL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy

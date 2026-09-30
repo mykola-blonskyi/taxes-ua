@@ -9,6 +9,7 @@ using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
+using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Features.Transactions;
 using HttpJsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
 
@@ -178,10 +179,16 @@ public static class BackupEndpoints
             .OrderBy(row => row.Kind)
             .ToListAsync(cancellationToken);
 
-        // The monobank connection, and the token it holds, is never part of a backup (ADR-011).
+        var notificationChannels = await database.NotificationChannels.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .OrderBy(row => row.Kind)
+            .ToListAsync(cancellationToken);
+
+        // The monobank connection, and the token it holds, is never part of a backup (ADR-011). Nor is
+        // a Telegram link code, which stays a secret of the running server.
         return BackupDocument.From(
             settings, clients, transactions, payments, bankAccounts, importBatches, candidates,
-            invoicingDetails, invoicingPayments, invoices, declarationDetails, declarationFilings, treasuryAccounts);
+            invoicingDetails, invoicingPayments, invoices, declarationDetails, declarationFilings, treasuryAccounts, notificationChannels);
     }
 
     // Returns the errors, having rolled everything back, or null once the owner's data is
@@ -219,6 +226,8 @@ public static class BackupEndpoints
         await database.BudgetPayments.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.BudgetPaymentCandidates.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.TreasuryAccounts.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.NotificationChannels.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.NotificationLinkCodes.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.Settings.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.InvoicingPaymentDetails.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.InvoicingDetails.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
@@ -247,6 +256,7 @@ public static class BackupEndpoints
         database.DeclarationFilings.AddRange(document.DeclarationFilings.Select(filing => filing.ToEntity(userId)));
 
         database.TreasuryAccounts.AddRange(document.TreasuryAccounts.Select(account => account.ToEntity(userId)));
+        database.NotificationChannels.AddRange(document.NotificationChannels.Select(channel => channel.ToEntity(userId)));
         database.Clients.AddRange(document.Clients.Select(client => client.ToEntity(userId, id)));
         database.Invoices.AddRange(document.Invoices.Select(invoice => invoice.ToEntity(userId, id)));
         database.ImportBatches.AddRange(document.ImportBatches.Select(batch => batch.ToEntity(userId, id, accountId)));

@@ -4,6 +4,7 @@ using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
+using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.Transactions;
@@ -33,15 +34,16 @@ internal sealed record BackupDocument(
     InvoiceBackup[] Invoices,
     DeclarationDetailsBackup? DeclarationDetails,
     DeclarationFilingBackup[] DeclarationFilings,
-    TreasuryAccountBackup[] TreasuryAccounts)
+    TreasuryAccountBackup[] TreasuryAccounts,
+    NotificationChannelBackup[] NotificationChannels)
 {
     // 2 added bankAccounts, importBatches and the transactions' import fields (#76); 3 added
     // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91); 5 added
     // the clients' details (#90); 6 added invoices (#92); 7 added declarationDetails and declarationFilings
     // (#110); 8 added the receipts' invoice links (#93); 9 added treasuryAccounts and the candidates'
-    // counterEdrpou (#98); 10 added the settings' backOnGroup3From (#118). An older file is upgraded to this
+    // counterEdrpou (#98); 10 added the settings' backOnGroup3From (#118); 11 added notificationChannels (#106). An older file is upgraded to this
     // shape one version at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 10;
+    public const int CurrentSchemaVersion = 11;
 
     private const int MaxExternalIdLength = 200;
 
@@ -58,7 +60,8 @@ internal sealed record BackupDocument(
         IEnumerable<Invoice> invoices,
         DeclarationDetails? declarationDetails,
         IEnumerable<DeclarationFiling> declarationFilings,
-        IEnumerable<TreasuryAccount> treasuryAccounts) => new(
+        IEnumerable<TreasuryAccount> treasuryAccounts,
+        IEnumerable<NotificationChannel> notificationChannels) => new(
         CurrentSchemaVersion,
         settings is null ? null : SettingsBackup.From(settings),
         [.. clients.Select(ClientBackup.From)],
@@ -71,7 +74,8 @@ internal sealed record BackupDocument(
         [.. invoices.Select(InvoiceBackup.From)],
         declarationDetails is null ? null : DeclarationDetailsBackup.From(declarationDetails),
         [.. declarationFilings.Select(DeclarationFilingBackup.From)],
-        [.. treasuryAccounts.Select(TreasuryAccountBackup.From)]);
+        [.. treasuryAccounts.Select(TreasuryAccountBackup.From)],
+        [.. notificationChannels.Select(NotificationChannelBackup.From)]);
 
     // Bank accounts are left out: a restore matches them to the owner's rows by bank and external id.
     public IEnumerable<Guid> Ids() =>
@@ -127,6 +131,11 @@ internal sealed record BackupDocument(
         if (version <= 9)
         {
             UpgradeFromVersion9(root);
+        }
+
+        if (version <= 10)
+        {
+            UpgradeFromVersion10(root);
         }
     }
 
@@ -251,11 +260,18 @@ internal sealed record BackupDocument(
     // A version 9 file predates the return to group 3 after a limit crossing: none is set.
     private static void UpgradeFromVersion9(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 10;
         if (root["settings"] is JsonObject settings)
         {
             settings["backOnGroup3From"] = null;
         }
+    }
+
+    // A version 10 file predates the notification channels: none is connected.
+    private static void UpgradeFromVersion10(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        root["notificationChannels"] = new JsonArray();
     }
 
     /// <summary>
@@ -274,11 +290,12 @@ internal sealed record BackupDocument(
             || Array.Exists(BudgetPaymentCandidates, row => row is null)
             || Array.Exists(Invoices, row => row is null)
             || Array.Exists(DeclarationFilings, row => row is null)
-            || Array.Exists(TreasuryAccounts, row => row is null))
+            || Array.Exists(TreasuryAccounts, row => row is null)
+            || Array.Exists(NotificationChannels, row => row is null))
         {
             return new()
             {
-                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches, budgetPaymentCandidates, invoices, declarationFilings and treasuryAccounts must not contain null."],
+                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches, budgetPaymentCandidates, invoices, declarationFilings, treasuryAccounts and notificationChannels must not contain null."],
             };
         }
 
@@ -517,6 +534,21 @@ internal sealed record BackupDocument(
             if (account.Error() is var (accountKey, accountMessage))
             {
                 errors[$"treasuryAccounts[{i}].{accountKey}"] = [accountMessage];
+            }
+        }
+
+        var channelKinds = new HashSet<NotificationChannelKind>();
+        for (var i = 0; i < NotificationChannels.Length; i++)
+        {
+            var channel = NotificationChannels[i];
+            if (!channelKinds.Add(channel.Kind))
+            {
+                errors[$"notificationChannels[{i}].kind"] = ["kind must differ from every other channel's."];
+            }
+
+            if (channel.Error() is var (channelKey, channelMessage))
+            {
+                errors[$"notificationChannels[{i}].{channelKey}"] = [channelMessage];
             }
         }
 

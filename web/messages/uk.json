@@ -403,7 +403,8 @@
       "clients": "Клієнти",
       "invoicing": "Інвойси",
       "declaration": "Декларація",
-      "treasury": "Рахунки казначейства"
+      "treasury": "Рахунки казначейства",
+      "notifications": "Сповіщення"
     },
     "clients": {
       "loading": "Завантаження…",
@@ -697,6 +698,46 @@
         "controlChar": "Недопустимий символ."
       },
       "noticeDot": "Є сповіщення про інший рахунок"
+    },
+    "notifications": {
+      "loading": "Завантаження…",
+      "loadFailed": "Не вдалося завантажити канали сповіщень.",
+      "telegram": {
+        "title": "Telegram",
+        "unavailable": "Telegram недоступний: на цьому сервері не задано токен бота.",
+        "intro": "Підключіть Telegram, і нагадування про терміни надходитимуть у чат із ботом. Кодів і номерів чату вводити не треба.",
+        "connect": "Підключити Telegram",
+        "newLink": "Отримати нове посилання",
+        "connecting": "Готуємо посилання…",
+        "connectFailed": "Не вдалося отримати посилання. Спробуйте ще раз.",
+        "linkSteps": "Відкрийте посилання в Telegram і натисніть Start.",
+        "openTelegram": "Відкрити бота в Telegram",
+        "linkExpires": "Посилання діє до {at} і спрацьовує один раз.",
+        "waiting": "Чекаємо, поки ви натиснете Start…",
+        "statusOn": "Увімкнено",
+        "statusOff": "Вимкнено",
+        "linkedAt": "Підключено {at}",
+        "enabled": "Надсилати нагадування в Telegram",
+        "lastDelivery": "Остання доставка: {at}",
+        "lastFailure": "Доставка не вдалася {at}: {reason}.",
+        "blockedHint": "Розблокуйте бота в Telegram, натисніть Start і знову ввімкніть канал.",
+        "failure": {
+          "Blocked": "бота заблоковано",
+          "Rejected": "Telegram відхилив повідомлення",
+          "RateLimited": "Telegram просить зачекати",
+          "Unreachable": "Telegram недосяжний",
+          "Timeout": "Telegram не відповів вчасно",
+          "ServerError": "помилка на боці Telegram",
+          "Unreadable": "не вдалося прочитати відповідь Telegram"
+        },
+        "test": "Надіслати тестове повідомлення",
+        "testing": "Надсилання…",
+        "testSent": "Тестове повідомлення надіслано.",
+        "testFailed": "Тестове повідомлення не надіслано. Причина показана вище.",
+        "disconnect": "Відключити",
+        "disconnecting": "Відключення…",
+        "saveFailed": "Не вдалося зберегти зміну."
+      }
     }
   },
   "backup": {
@@ -764,7 +805,8 @@
       "Invoice": "Інвойс",
       "DeclarationDetails": "Дані для декларації",
       "DeclarationFiling": "Позначка про подання декларації",
-      "TreasuryAccount": "Рахунок казначейства"
+      "TreasuryAccount": "Рахунок казначейства",
+      "NotificationChannel": "Канал сповіщень"
     },
     "filingPeriod": "{quarter} квартал {year}",
     "values": {
@@ -894,7 +936,9 @@
       "learnedRecipientCode": "Запам’ятований код отримувача",
       "learnedExternalId": "Операція, з якої запам’ятовано",
       "learnedPaidOn": "Дата платежу, з якого запам’ятовано",
-      "noticeAt": "Сповіщення про інший рахунок"
+      "noticeAt": "Сповіщення про інший рахунок",
+      "enabled": "Увімкнено",
+      "linkedAt": "Підключено"
     }
   },
   "invoices": {

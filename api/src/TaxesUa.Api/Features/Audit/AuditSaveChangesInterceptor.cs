@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Invoices;
+using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
@@ -44,12 +45,23 @@ internal sealed class AuditSaveChangesInterceptor(
         [typeof(TaxYearConfig)] = AuditedEntity.TaxYearConfig,
         [typeof(DeclarationDetails)] = AuditedEntity.DeclarationDetails,
         [typeof(DeclarationFiling)] = AuditedEntity.DeclarationFiling,
+        [typeof(NotificationChannel)] = AuditedEntity.NotificationChannel,
     };
 
     internal static IReadOnlyCollection<Type> AuditedTypes => Audited.Keys;
 
     // The entry carries the owner and the time itself, and a bumped UpdatedAt alone is not a change.
     private static readonly HashSet<string> Omitted = ["UserId", "CreatedAt", "UpdatedAt"];
+
+    // Delivery bookkeeping changes with every message (blocking still shows as Enabled turning off), and
+    // a chat id means nothing to the owner reading the log: a new link shows as a new LinkedAt.
+    private static readonly HashSet<string> OmittedFromChannel =
+    [
+        nameof(NotificationChannel.Address),
+        nameof(NotificationChannel.LastDeliveryAt),
+        nameof(NotificationChannel.LastFailure),
+        nameof(NotificationChannel.LastFailureAt),
+    ];
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
@@ -169,7 +181,8 @@ internal sealed class AuditSaveChangesInterceptor(
 
         foreach (var property in values.Properties)
         {
-            if (key.Contains(property) || Omitted.Contains(property.Name))
+            if (key.Contains(property) || Omitted.Contains(property.Name)
+                || (entry.Entity is NotificationChannel && OmittedFromChannel.Contains(property.Name)))
             {
                 continue;
             }

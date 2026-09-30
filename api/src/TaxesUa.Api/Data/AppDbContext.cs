@@ -6,6 +6,7 @@ using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
+using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
@@ -51,6 +52,12 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
 
     public DbSet<ForeignDebit> ForeignDebits => Set<ForeignDebit>();
+
+    public DbSet<NotificationChannel> NotificationChannels => Set<NotificationChannel>();
+
+    public DbSet<NotificationLinkCode> NotificationLinkCodes => Set<NotificationLinkCode>();
+
+    public DbSet<TelegramPollState> TelegramPollStates => Set<TelegramPollState>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

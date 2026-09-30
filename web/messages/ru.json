@@ -403,7 +403,8 @@
       "clients": "Клиенты",
       "invoicing": "Инвойсы",
       "declaration": "Декларация",
-      "treasury": "Счета казначейства"
+      "treasury": "Счета казначейства",
+      "notifications": "Уведомления"
     },
     "clients": {
       "loading": "Загрузка…",
@@ -697,6 +698,46 @@
         "controlChar": "Недопустимый символ."
       },
       "noticeDot": "Есть уведомление о другом счёте"
+    },
+    "notifications": {
+      "loading": "Загрузка…",
+      "loadFailed": "Не удалось загрузить каналы уведомлений.",
+      "telegram": {
+        "title": "Telegram",
+        "unavailable": "Telegram недоступен: на этом сервере не задан токен бота.",
+        "intro": "Подключите Telegram, и напоминания о сроках будут приходить в чат с ботом. Вводить коды и номера чата не нужно.",
+        "connect": "Подключить Telegram",
+        "newLink": "Получить новую ссылку",
+        "connecting": "Готовим ссылку…",
+        "connectFailed": "Не удалось получить ссылку. Попробуйте ещё раз.",
+        "linkSteps": "Откройте ссылку в Telegram и нажмите Start.",
+        "openTelegram": "Открыть бота в Telegram",
+        "linkExpires": "Ссылка действует до {at} и срабатывает один раз.",
+        "waiting": "Ждём, пока вы нажмёте Start…",
+        "statusOn": "Включено",
+        "statusOff": "Выключено",
+        "linkedAt": "Подключено {at}",
+        "enabled": "Отправлять напоминания в Telegram",
+        "lastDelivery": "Последняя доставка: {at}",
+        "lastFailure": "Доставка не удалась {at}: {reason}.",
+        "blockedHint": "Разблокируйте бота в Telegram, нажмите Start и снова включите канал.",
+        "failure": {
+          "Blocked": "бот заблокирован",
+          "Rejected": "Telegram отклонил сообщение",
+          "RateLimited": "Telegram просит подождать",
+          "Unreachable": "Telegram недоступен",
+          "Timeout": "Telegram не ответил вовремя",
+          "ServerError": "ошибка на стороне Telegram",
+          "Unreadable": "не удалось прочитать ответ Telegram"
+        },
+        "test": "Отправить тестовое сообщение",
+        "testing": "Отправка…",
+        "testSent": "Тестовое сообщение отправлено.",
+        "testFailed": "Тестовое сообщение не отправлено. Причина показана выше.",
+        "disconnect": "Отключить",
+        "disconnecting": "Отключение…",
+        "saveFailed": "Не удалось сохранить изменение."
+      }
     }
   },
   "backup": {
@@ -764,7 +805,8 @@
       "Invoice": "Инвойс",
       "DeclarationDetails": "Данные для декларации",
       "DeclarationFiling": "Отметка о подаче декларации",
-      "TreasuryAccount": "Счёт казначейства"
+      "TreasuryAccount": "Счёт казначейства",
+      "NotificationChannel": "Канал уведомлений"
     },
     "filingPeriod": "{quarter} квартал {year}",
     "values": {
@@ -894,7 +936,9 @@
       "learnedRecipientCode": "Запомненный код получателя",
       "learnedExternalId": "Операция, из которой запомнено",
       "learnedPaidOn": "Дата платежа, из которого запомнено",
-      "noticeAt": "Уведомление о другом счёте"
+      "noticeAt": "Уведомление о другом счёте",
+      "enabled": "Включено",
+      "linkedAt": "Подключено"
     }
   },
   "invoices": {

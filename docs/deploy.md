@@ -34,6 +34,10 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
   `<origin>/api/monobank/webhook/<secret>` for the owner after each token save, and a new operation
   appears within a minute or two. The secret in that path is what keeps strangers from queuing syncs,
   so keep Traefik access logs off, or rotate the secret by saving the token again after sharing one.
+- `TELEGRAM_BOT_TOKEN` is optional as well (ADR-015). Empty, settings shows Telegram as unavailable and nothing
+  polls. Set, the api long-polls the bot for the owner pressing Start on the link settings shows. The token
+  travels in the URL path of every Bot API call, so the api logs no Telegram URL and never returns the token;
+  one process may poll a bot, so a local stack must not be given the production token.
 - The data-protection key ring lives in the `dataprotection-keys` volume, so a redeploy keeps the
   owner signed in (ADR-010).
 - `api` answers only for `ALLOWED_HOSTS`, as forwarded by `web`, plus its own internal names for
@@ -145,13 +149,32 @@ is disabled.
    | `PASSKEY_SERVER_DOMAIN` | `taxes.blonskyi.dev` |
    | `MONOBANK_TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32`, once, kept in the password manager (ADR-011) |
    | `MONOBANK_PUBLIC_BASE_URL` | `https://taxes.blonskyi.dev`, or empty to run without the webhook (ADR-012) |
+   | `TELEGRAM_BOT_TOKEN` | the token @BotFather gives, see "Telegram bot" below, or empty to run without Telegram (ADR-015) |
 
    Set these only in Coolify. Never put the domain in a local `.env`: `docker-compose.local.yml`
    overrides only the environment name and the connection string, so a local run would inherit it
    and refuse to start.
 
 **Check.** Persistent Storage lists the `dataprotection-keys` volume. The `api` service has no
-domain. The six required variables have values; the two `MONOBANK_*` ones may stay empty.
+domain. The six required variables have values; the two `MONOBANK_*` ones and `TELEGRAM_BOT_TOKEN` may stay empty.
+
+### Telegram bot
+
+Reminders reach the owner through a bot the owner creates; nothing is paid for and no public route is needed.
+
+1. In Telegram open @BotFather and send `/newbot`. Give it a name and a username ending in `bot`, for
+   example `taxes_ua_reminders_bot`. BotFather answers with a token like `123456789:AA...`.
+2. Set it as `TELEGRAM_BOT_TOKEN` in Coolify, next to the other variables, and redeploy. Do not put it in a
+   file, in chat or in a local `.env`.
+3. Optional: `/setprivacy` is irrelevant (the bot only talks in private chats), and `/setdescription` can say
+   what the bot is for.
+4. In the app open settings, the Notifications tab, and press "Connect Telegram". Open the link, press Start
+   in Telegram, and the tab shows the channel as connected within a few seconds. "Send a test message"
+   confirms delivery.
+
+If the token leaks, use `/revoke` in @BotFather, put the new token in Coolify and redeploy: the api reads
+updates for the new bot from its own beginning and the chat is linked again from settings. A bot must not
+be polled from two places at once, so a local stack keeps `TELEGRAM_BOT_TOKEN` empty or uses a second bot.
 
 ## 6. First deploy
 
