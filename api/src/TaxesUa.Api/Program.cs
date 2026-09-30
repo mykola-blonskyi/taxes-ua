@@ -268,6 +268,7 @@ api.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
 
 api.MapAuthApi();
 api.MapSettingsApi();
+api.MapInvoicingApi();
 api.MapTaxYearsApi();
 api.MapPeriodsApi();
 api.MapTransactionsApi();

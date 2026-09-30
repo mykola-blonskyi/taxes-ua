@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using TaxesUa.Api.Features.Payments;
+using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
 using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
@@ -33,6 +34,8 @@ internal sealed class AuditSaveChangesInterceptor(
         [typeof(Transaction)] = AuditedEntity.Transaction,
         [typeof(BudgetPayment)] = AuditedEntity.BudgetPayment,
         [typeof(SettingsEntity)] = AuditedEntity.Settings,
+        [typeof(InvoicingDetails)] = AuditedEntity.InvoicingDetails,
+        [typeof(InvoicingPaymentDetails)] = AuditedEntity.InvoicingDetails,
         [typeof(TaxYearConfig)] = AuditedEntity.TaxYearConfig,
     };
 
@@ -169,6 +172,14 @@ internal sealed class AuditSaveChangesInterceptor(
             {
                 snapshot["clientName"] = await ClientNameAsync(
                     context, (Guid?)values[property], trackedClients, cancellationToken);
+                continue;
+            }
+
+            // Image bytes never enter the log; their size shows that the image changed.
+            if (property.ClrType == typeof(byte[]))
+            {
+                snapshot[JsonNamingPolicy.CamelCase.ConvertName(property.Name) + "Bytes"] =
+                    (values[property] as byte[])?.Length;
                 continue;
             }
 

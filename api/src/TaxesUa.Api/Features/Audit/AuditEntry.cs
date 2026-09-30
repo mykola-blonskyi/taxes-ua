@@ -46,6 +46,7 @@ internal enum AuditedEntity
     Transaction,
     BudgetPayment,
     Settings,
+    InvoicingDetails,
     TaxYearConfig,
     Backup,
 }

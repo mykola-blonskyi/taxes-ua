@@ -1,0 +1,86 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, ApiError } from "@/data/api/client";
+import type { components } from "@/data/api/schema";
+
+export type InvoicingDetailsRequest = components["schemas"]["InvoicingDetailsRequest"];
+export type InvoicingDetailsResponse = components["schemas"]["InvoicingDetailsResponse"];
+export type PaymentDetailsInput = components["schemas"]["PaymentDetailsInput"];
+export type MonobankPrefillResponse = components["schemas"]["MonobankPrefillResponse"];
+
+export const invoicingQueryKey = ["settings", "invoicing"] as const;
+
+// The api's own cap (InvoicingEndpoints.MaxSignatureBytes), checked here so an oversized file is refused
+// before it is uploaded.
+export const maxSignatureBytes = 512 * 1024;
+
+export const signatureTypes = ["image/png", "image/jpeg"] as const;
+
+export const signatureUrl = "/api/settings/invoicing/signature" as const;
+
+export function useInvoicingDetails() {
+  return useQuery({
+    queryKey: invoicingQueryKey,
+    queryFn: async () => {
+      const { data } = await api.GET("/api/settings/invoicing");
+
+      return data;
+    },
+  });
+}
+
+export function useSaveInvoicingDetails() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (body: InvoicingDetailsRequest) => {
+      const { data } = await api.PUT("/api/settings/invoicing", { body });
+
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(invoicingQueryKey, data);
+    },
+  });
+}
+
+export function useUploadSignature() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const response = await fetch(signatureUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+
+      if (!response.ok) {
+        const problem = (await response.json().catch(() => null)) as { title?: string } | null;
+
+        throw new ApiError(response.status, problem?.title);
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: invoicingQueryKey }),
+  });
+}
+
+export function useDeleteSignature() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      await api.DELETE("/api/settings/invoicing/signature");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: invoicingQueryKey }),
+  });
+}
+
+export function usePrefillFromMonobank() {
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.POST("/api/settings/invoicing/prefill-from-monobank");
+
+      return data;
+    },
+  });
+}

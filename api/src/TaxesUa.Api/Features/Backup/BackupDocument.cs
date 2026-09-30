@@ -26,12 +26,13 @@ internal sealed record BackupDocument(
     BudgetPaymentBackup[] BudgetPayments,
     BankAccountBackup[] BankAccounts,
     ImportBatchBackup[] ImportBatches,
-    PaymentCandidateBackup[] BudgetPaymentCandidates)
+    PaymentCandidateBackup[] BudgetPaymentCandidates,
+    InvoicingDetailsBackup? InvoicingDetails)
 {
     // 2 added bankAccounts, importBatches and the transactions' import fields (#76); 3 added
-    // budgetPaymentCandidates and the payments' bank operation (#80). An older file is upgraded to this
-    // shape one version at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 3;
+    // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91). An
+    // older file is upgraded to this shape one version at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 4;
 
     private const int MaxExternalIdLength = 200;
 
@@ -42,7 +43,9 @@ internal sealed record BackupDocument(
         IEnumerable<BudgetPayment> payments,
         IEnumerable<BankAccount> bankAccounts,
         IEnumerable<ImportBatch> importBatches,
-        IEnumerable<BudgetPaymentCandidate> candidates) => new(
+        IEnumerable<BudgetPaymentCandidate> candidates,
+        InvoicingDetails? invoicingDetails,
+        IEnumerable<InvoicingPaymentDetails> invoicingPayments) => new(
         CurrentSchemaVersion,
         settings is null ? null : SettingsBackup.From(settings),
         [.. clients.Select(client => new ClientBackup(client.Id, client.Name))],
@@ -50,7 +53,8 @@ internal sealed record BackupDocument(
         [.. payments.Select(BudgetPaymentBackup.From)],
         [.. bankAccounts.Select(BankAccountBackup.From)],
         [.. importBatches.Select(ImportBatchBackup.Of)],
-        [.. candidates.Select(PaymentCandidateBackup.From)]);
+        [.. candidates.Select(PaymentCandidateBackup.From)],
+        invoicingDetails is null ? null : InvoicingDetailsBackup.From(invoicingDetails, invoicingPayments));
 
     // Bank accounts are left out: a restore matches them to the owner's rows by bank and external id.
     public IEnumerable<Guid> Ids() =>
@@ -71,6 +75,11 @@ internal sealed record BackupDocument(
         {
             UpgradeFromVersion2(root);
         }
+
+        if (version <= 3)
+        {
+            UpgradeFromVersion3(root);
+        }
     }
 
     public static string? ExternalIdError(string externalId) => externalId switch
@@ -79,6 +88,13 @@ internal sealed record BackupDocument(
         _ when TextRules.HasDisallowedControlChar(externalId) => "externalId must not contain a control character.",
         _ => null,
     };
+
+    // A version 3 file predates the invoicing details.
+    private static void UpgradeFromVersion3(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        root["invoicingDetails"] = null;
+    }
 
     // A version 1 file predates bank imports: no accounts, no batches, and every row the owner's own.
     private static void UpgradeFromVersion1(JsonObject root)
@@ -152,6 +168,11 @@ internal sealed record BackupDocument(
         if (Settings is { } settings)
         {
             Merge("settings", SettingsEndpoints.Validate(settings.ToRequest()));
+        }
+
+        if (InvoicingDetails is { } invoicing)
+        {
+            Merge("invoicingDetails", invoicing.Validate());
         }
 
         var clientNames = new Dictionary<Guid, string>();
@@ -726,4 +747,114 @@ internal sealed record ImportBatchBackup(
         SkippedCount = SkippedCount,
         CreatedAt = CreatedAt.ToUniversalTime(),
     };
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record InvoicingDetailsBackup(
+    string SellerNameUk,
+    string SellerNameEn,
+    string Rnokpp,
+    string AddressUk,
+    string AddressEn,
+    string AcceptanceClauseEn,
+    string AcceptanceClauseUk,
+    string FeesClauseEn,
+    string FeesClauseUk,
+    string TaxStatusClauseEn,
+    string TaxStatusClauseUk,
+    PaymentDetailsInput[] PaymentDetails,
+    // The image as base64, since the file is JSON.
+    string? SignatureImage,
+    string? SignatureContentType,
+    DateTimeOffset? SignatureUpdatedAt)
+{
+    public static InvoicingDetailsBackup From(InvoicingDetails details, IEnumerable<InvoicingPaymentDetails> payments) => new(
+        details.SellerNameUk,
+        details.SellerNameEn,
+        details.Rnokpp,
+        details.AddressUk,
+        details.AddressEn,
+        details.AcceptanceClauseEn,
+        details.AcceptanceClauseUk,
+        details.FeesClauseEn,
+        details.FeesClauseUk,
+        details.TaxStatusClauseEn,
+        details.TaxStatusClauseUk,
+        [.. payments.OrderBy(payment => payment.Currency).Select(payment => new PaymentDetailsInput(
+            payment.Currency,
+            payment.Iban,
+            payment.BeneficiaryBank,
+            payment.Swift,
+            payment.IntermediaryBank,
+            payment.IntermediarySwift,
+            payment.IntermediaryAccount))],
+        details.SignatureImage is null ? null : Convert.ToBase64String(details.SignatureImage),
+        details.SignatureContentType,
+        details.SignatureUpdatedAt);
+
+    public InvoicingDetailsRequest ToRequest() => InvoicingEndpoints.Normalize(new InvoicingDetailsRequest(
+        SellerNameUk,
+        SellerNameEn,
+        Rnokpp,
+        AddressUk,
+        AddressEn,
+        AcceptanceClauseEn,
+        AcceptanceClauseUk,
+        FeesClauseEn,
+        FeesClauseUk,
+        TaxStatusClauseEn,
+        TaxStatusClauseUk,
+        PaymentDetails));
+
+    // The endpoint's own rules, plus the image: it travels as text, so it is decoded and checked again.
+    public Dictionary<string, string[]>? Validate()
+    {
+        if (Array.Exists(PaymentDetails, row => row is null))
+        {
+            return new() { ["paymentDetails"] = ["paymentDetails must not contain null."] };
+        }
+
+        var errors = InvoicingEndpoints.Validate(ToRequest()) ?? [];
+        var image = DecodeSignature();
+        if ((SignatureImage is null) != (SignatureContentType is null))
+        {
+            errors["signatureImage"] = ["signatureImage and signatureContentType are set together or not at all."];
+        }
+        else if (SignatureImage is not null && image is null)
+        {
+            errors["signatureImage"] = ["signatureImage must be base64."];
+        }
+        else if (image is not null && InvoicingEndpoints.SignatureError(image, SignatureContentType!) is { } error)
+        {
+            errors["signatureImage"] = [error];
+        }
+
+        return errors.Count == 0 ? null : errors;
+    }
+
+    public (InvoicingDetails Details, InvoicingPaymentDetails[] Payments) ToEntities(string userId)
+    {
+        var request = ToRequest();
+        var details = new InvoicingDetails { UserId = userId };
+        InvoicingEndpoints.Apply(details, request);
+        details.SignatureImage = DecodeSignature();
+        details.SignatureContentType = details.SignatureImage is null ? null : SignatureContentType;
+        details.SignatureUpdatedAt = details.SignatureImage is null ? null : SignatureUpdatedAt?.ToUniversalTime();
+
+        return (
+            details,
+            [.. request.PaymentDetails.Select(payment => InvoicingEndpoints.ToEntity(userId, Guid.NewGuid(), payment))]);
+    }
+
+    private byte[]? DecodeSignature()
+    {
+        if (SignatureImage is null || SignatureImage.Length > InvoicingEndpoints.MaxSignatureBytes * 2)
+        {
+            return null;
+        }
+
+        var buffer = new byte[SignatureImage.Length];
+
+        return Convert.TryFromBase64String(SignatureImage, buffer, out var written) ? buffer[..written] : null;
+    }
 }

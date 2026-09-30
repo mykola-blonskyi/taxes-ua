@@ -677,6 +677,265 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/invoicing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoicingDetailsResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvoicingDetailsRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoicingDetailsResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/invoicing/signature": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "image/png": string;
+                    "image/jpeg": string;
+                };
+            };
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Payload Too Large */
+                413: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unsupported Media Type */
+                415: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/invoicing/prefill-from-monobank": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["MonobankPrefillResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Bad Gateway */
+                502: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tax-years": {
         parameters: {
             query?: never;
@@ -2373,7 +2632,7 @@ export interface components {
         /** @enum {string} */
         AuditAction: "Create" | "Update" | "Delete" | "Restore";
         /** @enum {string} */
-        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "TaxYearConfig" | "Backup";
+        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "InvoicingDetails" | "TaxYearConfig" | "Backup";
         AuditEntryResponse: {
             /** Format: int64 */
             id: number | string;
@@ -2400,6 +2659,7 @@ export interface components {
             bankAccounts: components["schemas"]["BankAccountBackup"][];
             importBatches: components["schemas"]["ImportBatchBackup"][];
             budgetPaymentCandidates: components["schemas"]["PaymentCandidateBackup"][];
+            invoicingDetails: null | components["schemas"]["InvoicingDetailsBackup"];
         };
         /** @enum {string} */
         Bank: "Monobank" | "PrivatBank" | "Other";
@@ -2459,7 +2719,7 @@ export interface components {
             /** Format: uuid */
             linkPaymentId: null | string;
             /** @default false */
-            recordSeparately?: boolean;
+            recordSeparately: boolean;
         };
         ConfirmRequest: {
             kind: components["schemas"]["TransactionKind"];
@@ -2539,6 +2799,64 @@ export interface components {
         };
         /** @enum {string} */
         ImportSource: "Monobank";
+        InvoicingClauseDefaults: {
+            acceptanceClauseEn: string;
+            acceptanceClauseUk: string;
+            feesClauseEn: string;
+            feesClauseUk: string;
+            taxStatusClauseEn: string;
+            taxStatusClauseUk: string;
+        };
+        InvoicingDetailsBackup: {
+            sellerNameUk: string;
+            sellerNameEn: string;
+            rnokpp: string;
+            addressUk: string;
+            addressEn: string;
+            acceptanceClauseEn: string;
+            acceptanceClauseUk: string;
+            feesClauseEn: string;
+            feesClauseUk: string;
+            taxStatusClauseEn: string;
+            taxStatusClauseUk: string;
+            paymentDetails: components["schemas"]["PaymentDetailsInput"][];
+            signatureImage: null | string;
+            signatureContentType: null | string;
+            /** Format: date-time */
+            signatureUpdatedAt: null | string;
+        };
+        InvoicingDetailsRequest: {
+            sellerNameUk: string;
+            sellerNameEn: string;
+            rnokpp: string;
+            addressUk: string;
+            addressEn: string;
+            acceptanceClauseEn: string;
+            acceptanceClauseUk: string;
+            feesClauseEn: string;
+            feesClauseUk: string;
+            taxStatusClauseEn: string;
+            taxStatusClauseUk: string;
+            paymentDetails: components["schemas"]["PaymentDetailsInput"][];
+        };
+        InvoicingDetailsResponse: {
+            sellerNameUk: string;
+            sellerNameEn: string;
+            rnokpp: string;
+            addressUk: string;
+            addressEn: string;
+            acceptanceClauseEn: string;
+            acceptanceClauseUk: string;
+            feesClauseEn: string;
+            feesClauseUk: string;
+            taxStatusClauseEn: string;
+            taxStatusClauseUk: string;
+            paymentDetails: components["schemas"]["PaymentDetailsInput"][];
+            hasSignature: boolean;
+            /** Format: date-time */
+            signatureUpdatedAt: null | string;
+            defaults: components["schemas"]["InvoicingClauseDefaults"];
+        };
         JsonElement: unknown;
         KindCreditResponse: {
             kind: components["schemas"]["PaymentKind"];
@@ -2636,6 +2954,10 @@ export interface components {
             backfillStart: components["schemas"]["BackfillStartResponse"];
             accounts: components["schemas"]["MonobankAccountResponse"][];
         };
+        MonobankPrefillResponse: {
+            sellerNameUk: string;
+            paymentDetails: components["schemas"]["PaymentDetailsInput"][];
+        };
         MonobankTokenRequest: {
             token: string;
         };
@@ -2714,6 +3036,15 @@ export interface components {
             purpose: null | string;
             suggestedKind: null | components["schemas"]["PaymentKind"];
             matches: components["schemas"]["PaymentMatchResponse"][];
+        };
+        PaymentDetailsInput: {
+            currency: components["schemas"]["Currency"];
+            iban: string;
+            beneficiaryBank: string;
+            swift: string;
+            intermediaryBank: string;
+            intermediarySwift: string;
+            intermediaryAccount: string;
         };
         /** @enum {string} */
         PaymentKind: "SingleTax" | "MilitaryLevy" | "Esv";

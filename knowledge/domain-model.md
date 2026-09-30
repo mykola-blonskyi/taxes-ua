@@ -37,6 +37,47 @@ Relationships: belongs to `User`.
 
 ---
 
+### InvoicingDetails, InvoicingPaymentDetails
+
+Responsibilities: the owner's own requisites for the invoices of #89. One `InvoicingDetails` row per
+owner (an owner who never saved one reads the defaults and stores nothing) and at most one
+`InvoicingPaymentDetails` row per owner and currency.
+
+`InvoicingDetails` fields:
+
+- `SellerNameUk`, `SellerNameEn`, `AddressUk`, `AddressEn`: free text, empty until entered.
+- `Rnokpp`: empty or exactly 10 digits.
+- `AcceptanceClauseEn/Uk`, `FeesClauseEn/Uk`, `TaxStatusClauseEn/Uk`: the bilingual clause texts.
+  They start as the defaults (payment of the invoice is acceptance of the services, deemed rendered in
+  full and without claims; bank fees are borne by the payer; the seller is a single tax payer not
+  registered for VAT) and can be edited but not emptied. The defaults are a starting point, not legal
+  advice.
+- `SignatureImage: bytes?`, `SignatureContentType: image/png | image/jpeg`, `SignatureUpdatedAt`: an
+  optional signature, at most 512 KB, stored in the database and checked against its type's magic bytes.
+  It is served only to its owner by `GET /api/settings/invoicing/signature` with
+  `Cache-Control: private`, and is replaced or removed without touching the other fields.
+
+`InvoicingPaymentDetails` fields: `Currency: UAH | USD | EUR`, `Iban` (a Ukrainian IBAN: `UA` and 27
+letters or digits, valid modulo 97; stored upper-case without spaces), `BeneficiaryBank`, `Swift` (8 or
+11 letters and digits, upper-case), and the optional free-text `IntermediaryBank`, `IntermediarySwift`
+and `IntermediaryAccount` the owner copies from the bank app. A currency with nothing entered has no
+row. Whether the details are complete enough to issue an invoice is for the invoice to check.
+
+Prefill from monobank is a read that stores nothing. For the FOP accounts in UAH,
+USD or EUR (a followed one first, one per currency) it suggests the stored `BankAccount` IBAN with the constants `JSC Universal Bank, Kyiv` and
+`UNJSUAUKXXX` (all monobank accounts are held at Universal Bank), and the Ukrainian name from a fresh
+`client-info` call through the rate gate. The RNOKPP, the addresses, the Latin name and the
+intermediary banks are not in the personal API and stay owner-entered. A suggestion is applied to the
+form only when the owner accepts it and reaches the database only when they save: a later change at
+the bank never alters saved details.
+
+Audited as `InvoicingDetails` (both tables). A snapshot carries the image's size in bytes
+(`signatureImageBytes`) instead of the image.
+
+Relationships: belong to `User`.
+
+---
+
 ### TaxYearConfig
 
 Responsibilities: all parameters of a tax year. The single source of truth for the engine. No
@@ -258,19 +299,21 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (3), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
-`BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, each row with its id and every stored column except `UserId` and a
+Fields: `SchemaVersion` (4), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+`BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
+payment details and the signature as base64 with its content type), each row with its id and every stored column except `UserId` and a
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
 which a restore clears.
 `TaxYearConfig` and `FxRate` are left out because they are shared. The monobank connection is never
 in it, so the file carries no bank access. Version 2 added the bank accounts, the import batches and
 the transactions' import fields (#76); version 3 added the budget payment candidates, all statuses,
-and the payments' bank operation (#80). A version 1 file still restores, read as having none of them
-and every transaction `Confirmed`, and a version 2 file as having no candidates and every payment
-typed by the owner; a file of a version this build does not know is refused by its
+and the payments' bank operation (#80); version 4 added the invoicing details (#91). A version 1 file still
+restores, read as having none of them and every transaction `Confirmed`, a version 2 file as having no
+candidates and every payment typed by the owner, and a version 1 to 3 file as having no invoicing details, so
+the owner's are cleared like the rest; a file of a version this build does not know is refused by its
 version number rather than by whichever field it added.
 
-A restore replaces the owner's settings, clients, transactions, payments, candidates and import batches in one
+A restore replaces the owner's settings, invoicing details, clients, transactions, payments, candidates and import batches in one
 database transaction and passes every row through the endpoints' own validation, refund links
 included; any violation changes nothing. Bank accounts are matched rather than replaced (see
 `BankAccount`). Ids are kept, so a restore after a wipe reproduces the same file. When another owner
@@ -327,7 +370,7 @@ owner confirms are the counts the import writes.
 Responsibilities: change log for transactions, budget payments, settings and year parameters. One
 row (`AuditEntry`, table `AuditLog`) per created, changed or deleted record. Append-only.
 
-Fields: `Entity: Transaction | BudgetPayment | Settings | TaxYearConfig | Backup`, `EntityId` (the
+Fields: `Entity: Transaction | BudgetPayment | Settings | InvoicingDetails | TaxYearConfig | Backup`, `EntityId` (the
 record's key: a GUID, the year, or the owner's id for Settings; empty for Backup),
 `Action: Create | Update | Delete | Restore`,
 `Before: jsonb` (null on Create), `After: jsonb` (null on Delete), `At` (UTC instant, shown in
@@ -335,7 +378,8 @@ Kyiv time), `UserId`.
 
 A snapshot holds the record's fields by their API names; money stays integer kopecks. It leaves out
 the key, `UserId`, `CreatedAt` and `UpdatedAt`, and a transaction's snapshot carries `clientName`
-instead of `clientId`. A save that changes nothing but `UpdatedAt` writes no entry.
+instead of `clientId`, and an invoicing snapshot carries `signatureImageBytes` instead of the image.
+A save that changes nothing but `UpdatedAt` writes no entry.
 
 `UserId` is the record's owner. `TaxYearConfig` is shared by every allowlisted user, so its entry
 belongs to the user who changed it. Nobody reads another user's entries.

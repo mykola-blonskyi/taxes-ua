@@ -536,7 +536,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         Assert.DoesNotContain("token-backup-secret", file, StringComparison.Ordinal);
         Assert.DoesNotContain("encryptedToken", file, StringComparison.OrdinalIgnoreCase);
         var document = Parse(file);
-        Assert.Equal(3, document.GetProperty("schemaVersion").GetInt32());
+        Assert.Equal(TaxesUa.Api.Features.Backup.BackupDocument.CurrentSchemaVersion, document.GetProperty("schemaVersion").GetInt32());
         var account = document.GetProperty("bankAccounts").EnumerateArray()
             .Single(row => row.GetProperty("externalId").GetString() == "backup-usd");
         Assert.True(account.GetProperty("isActive").GetBoolean());
