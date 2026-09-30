@@ -40,8 +40,6 @@ internal static class InvoicePdf
         [InvoiceUnit.Month] = "month / місяць",
     };
 
-    public static string UnitLabel(InvoiceUnit unit) => Units[unit];
-
     /// <summary>
     /// The PDF, with the signature image when it renders. A signature PDFsharp cannot read (truncated,
     /// an unusual encoding) falls back to the seller's name, which is the identifying data anyway.
@@ -64,7 +62,7 @@ internal static class InvoicePdf
         return Render(invoice, signature: null);
     }
 
-    public static string PaymentReference(string? number)
+    private static string PaymentReference(string? number)
     {
         var shown = number ?? "____";
 
