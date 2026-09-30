@@ -165,11 +165,18 @@ public static class BackupEndpoints
             .OrderBy(row => row.CreatedAt)
             .ThenBy(row => row.Id)
             .ToListAsync(cancellationToken);
+        var declarationDetails = await database.DeclarationDetails.AsNoTracking()
+            .FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        var declarationFilings = await database.DeclarationFilings.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .OrderBy(row => row.Year)
+            .ThenBy(row => row.Quarter)
+            .ToListAsync(cancellationToken);
 
         // The monobank connection, and the token it holds, is never part of a backup (ADR-011).
         return BackupDocument.From(
             settings, clients, transactions, payments, bankAccounts, importBatches, candidates,
-            invoicingDetails, invoicingPayments, invoices);
+            invoicingDetails, invoicingPayments, invoices, declarationDetails, declarationFilings);
     }
 
     // Returns the errors, having rolled everything back, or null once the owner's data is
@@ -209,6 +216,8 @@ public static class BackupEndpoints
         await database.Settings.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.InvoicingPaymentDetails.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.InvoicingDetails.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.DeclarationDetails.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.DeclarationFilings.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
 
         var id = await IdMappingAsync(database, document, cancellationToken);
         var accountId = await MatchBankAccountsAsync(database, userId, document.BankAccounts, cancellationToken);
@@ -223,6 +232,13 @@ public static class BackupEndpoints
             database.InvoicingDetails.Add(details);
             database.InvoicingPaymentDetails.AddRange(payments);
         }
+
+        if (document.DeclarationDetails is { } declaration)
+        {
+            database.DeclarationDetails.Add(declaration.ToEntity(userId));
+        }
+
+        database.DeclarationFilings.AddRange(document.DeclarationFilings.Select(filing => filing.ToEntity(userId)));
 
         database.Clients.AddRange(document.Clients.Select(client => client.ToEntity(userId, id)));
         database.Invoices.AddRange(document.Invoices.Select(invoice => invoice.ToEntity(userId, id)));
