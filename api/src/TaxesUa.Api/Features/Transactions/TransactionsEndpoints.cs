@@ -361,32 +361,6 @@ public static class TransactionsEndpoints
             .Produces<ReceiptOption[]>()
             .Produces(StatusCodes.Status401Unauthorized);
 
-        routes.MapGroup("/clients")
-            .WithTags("Transactions")
-            .RequireAuthorization()
-            .MapGet("", async (
-                UserManager<ApplicationUser> users,
-                AppDbContext database,
-                HttpContext http,
-                CancellationToken cancellationToken) =>
-            {
-                var user = await users.GetUserAsync(http.User);
-                if (user is null)
-                {
-                    return Results.Unauthorized();
-                }
-
-                var names = await database.Clients
-                    .Where(client => client.UserId == user.Id)
-                    .OrderBy(client => client.Name)
-                    .Select(client => client.Name)
-                    .ToArrayAsync(cancellationToken);
-
-                return Results.Ok(names);
-            })
-            .Produces<string[]>()
-            .Produces(StatusCodes.Status401Unauthorized);
-
         return routes;
     }
 

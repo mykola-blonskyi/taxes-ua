@@ -30,9 +30,10 @@ internal sealed record BackupDocument(
     InvoicingDetailsBackup? InvoicingDetails)
 {
     // 2 added bankAccounts, importBatches and the transactions' import fields (#76); 3 added
-    // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91). An
-    // older file is upgraded to this shape one version at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 4;
+    // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91); 5 added
+    // the clients' details (#90). An older file is upgraded to this shape one version at a time before it is
+    // read, see Upgrade.
+    public const int CurrentSchemaVersion = 5;
 
     private const int MaxExternalIdLength = 200;
 
@@ -48,7 +49,7 @@ internal sealed record BackupDocument(
         IEnumerable<InvoicingPaymentDetails> invoicingPayments) => new(
         CurrentSchemaVersion,
         settings is null ? null : SettingsBackup.From(settings),
-        [.. clients.Select(client => new ClientBackup(client.Id, client.Name))],
+        [.. clients.Select(ClientBackup.From)],
         [.. transactions.Select(TransactionBackup.From)],
         [.. payments.Select(BudgetPaymentBackup.From)],
         [.. bankAccounts.Select(BankAccountBackup.From)],
@@ -80,6 +81,11 @@ internal sealed record BackupDocument(
         {
             UpgradeFromVersion3(root);
         }
+
+        if (version <= 4)
+        {
+            UpgradeFromVersion4(root);
+        }
     }
 
     public static string? ExternalIdError(string externalId) => externalId switch
@@ -92,7 +98,7 @@ internal sealed record BackupDocument(
     // A version 3 file predates the invoicing details.
     private static void UpgradeFromVersion3(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 4;
         root["invoicingDetails"] = null;
     }
 
@@ -120,7 +126,7 @@ internal sealed record BackupDocument(
     // A version 2 file predates budget payment candidates: every payment was typed by the owner.
     private static void UpgradeFromVersion2(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 3;
         root["budgetPaymentCandidates"] = new JsonArray();
         if (root["budgetPayments"] is not JsonArray payments)
         {
@@ -131,6 +137,26 @@ internal sealed record BackupDocument(
         {
             payment["bankAccountId"] = null;
             payment["externalId"] = null;
+        }
+    }
+
+    // A version 4 file predates client details: every client has only its name.
+    private static void UpgradeFromVersion4(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        if (root["clients"] is not JsonArray clients)
+        {
+            return;
+        }
+
+        foreach (var client in clients.OfType<JsonObject>())
+        {
+            client["address"] = null;
+            client["country"] = null;
+            client["vatId"] = null;
+            client["email"] = null;
+            client["defaultCurrency"] = null;
+            client["notes"] = null;
         }
     }
 
@@ -180,23 +206,15 @@ internal sealed record BackupDocument(
         for (var i = 0; i < Clients.Length; i++)
         {
             var client = Clients[i];
-            var name = client.Name.Trim();
+            var normalized = client.ToRequest();
+            var name = normalized.Name;
             if (client.Id == Guid.Empty || !clientNames.TryAdd(client.Id, name))
             {
                 errors[$"clients[{i}].id"] = ["id must be a non-empty id no other client has."];
             }
 
-            if (name.Length is 0 or > TransactionsEndpoints.MaxClientNameLength)
-            {
-                errors[$"clients[{i}].name"] =
-                    [$"name must be 1 to {TransactionsEndpoints.MaxClientNameLength} characters."];
-            }
-            else if (TextRules.HasDisallowedControlChar(name))
-            {
-                errors[$"clients[{i}].name"] =
-                    ["name must not contain a NUL or other control character (tab, line feed and carriage return are allowed)."];
-            }
-            else if (!seenNames.Add(name))
+            Merge($"clients[{i}]", ClientRules.Validate(normalized));
+            if (name.Length > 0 && !seenNames.Add(name))
             {
                 errors[$"clients[{i}].name"] = ["name must differ from every other client's."];
             }
@@ -388,9 +406,36 @@ internal sealed record SettingsBackup(
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
-internal sealed record ClientBackup(Guid Id, string Name)
+internal sealed record ClientBackup(
+    Guid Id,
+    string Name,
+    string? Address,
+    string? Country,
+    string? VatId,
+    string? Email,
+    Currency? DefaultCurrency,
+    string? Notes)
 {
-    public Client ToEntity(string userId, Func<Guid, Guid> id) => new() { Id = id(Id), UserId = userId, Name = Name.Trim() };
+    public static ClientBackup From(Client client) => new(
+        client.Id,
+        client.Name,
+        client.Address,
+        client.Country,
+        client.VatId,
+        client.Email,
+        client.DefaultCurrency,
+        client.Notes);
+
+    public ClientRequest ToRequest() =>
+        new ClientRequest(Name, Address, Country, VatId, Email, DefaultCurrency, Notes).Normalized();
+
+    public Client ToEntity(string userId, Func<Guid, Guid> id)
+    {
+        var client = new Client { Id = id(Id), UserId = userId };
+        ToRequest().ApplyTo(client);
+
+        return client;
+    }
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]

@@ -272,6 +272,7 @@ api.MapInvoicingApi();
 api.MapTaxYearsApi();
 api.MapPeriodsApi();
 api.MapTransactionsApi();
+api.MapClientsApi();
 api.MapExportApi();
 api.MapFxApi();
 api.MapPaymentsApi();

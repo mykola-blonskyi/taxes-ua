@@ -80,6 +80,7 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
     "source",
     "verifiedAt",
   ],
+  Client: ["name", "address", "country", "vatId", "email", "defaultCurrency", "notes"],
   Backup: ["clients", "transactions", "budgetPayments"],
 };
 

@@ -357,10 +357,10 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
         await Create(client, valueDate: new DateOnly(year, 1, 5), clientName: clientName);
         await Create(client, valueDate: new DateOnly(year, 1, 6), clientName: clientName);
 
-        var clients = await client.GetFromJsonAsync<string[]>("/api/clients", Json);
+        var clients = await client.GetFromJsonAsync<ClientResponse[]>("/api/clients", Json);
 
         Assert.NotNull(clients);
-        Assert.Single(clients, name => name == clientName);
+        Assert.Single(clients, row => row.Name == clientName);
     }
 
     [Fact]
