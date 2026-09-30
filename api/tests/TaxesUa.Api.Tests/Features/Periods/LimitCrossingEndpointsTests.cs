@@ -67,7 +67,7 @@ public sealed class LimitCrossingEndpointsTests(ApiFixture fixture) : IClassFixt
         Assert.Empty(dashboard.NextStep.Later);
         Assert.Null(dashboard.Burden);
         Assert.Equal(63_530 + 10_000 + (2 * EsvQuarterKop), dashboard.Reserve!.TotalKop);
-        Assert.Equal((1_300_000L, 435_300L), (dashboard.Limit!.IncomeKop, dashboard.Limit.ExcessKop));
+        Assert.Equal((1_000_000L, 135_300L, 20_295L), (dashboard.Limit!.IncomeKop, dashboard.Limit.ExcessKop, dashboard.Limit.ExcessTaxKop));
     }
 
     [Fact]

@@ -93,8 +93,9 @@ A refund does not undo a crossing. Within the crossing quarter it counts as usua
 brings the quarter's cumulative income back to the limit or under means the quarter never crossed.
 Once a quarter has ended over the limit, the switch is due from the next quarter whatever later refunds
 do, so a refund dated after the crossing quarter changes neither the crossing nor its figures; like
-every operation of a quarter outside group 3, it falls in a period the app does not compute. Income
-through the whole year, those quarters included, still shows on the limit bar.
+every operation of a quarter outside group 3, it falls in a period the app does not compute. The limit
+bar stops at the crossing quarter too: income after it is not group 3 income, so the bar's excess and
+excess tax are the ones accrued and owed.
 
 ---
 

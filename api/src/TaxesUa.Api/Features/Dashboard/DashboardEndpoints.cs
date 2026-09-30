@@ -73,8 +73,10 @@ public static class DashboardEndpoints
                     : null;
 
                 // Unconditional, unlike burden: the limit bar should show even before there is any
-                // next-step debt.
-                var limit = LimitMonitor.Evaluate(accrual.Income.TotalIncomeKop, loaded.Viewed.Config.ToEngineInput());
+                // next-step debt. Income after the crossing quarter is not group 3 income, so the bar
+                // stops where the accruals do and its excess tax is the one owed.
+                var limit = LimitMonitor.Evaluate(
+                    accrual.Quarters[^1].Income.CumulativeIncomeKop, loaded.Viewed.Config.ToEngineInput());
 
                 return Results.Ok(new DashboardResponse(
                     today,
