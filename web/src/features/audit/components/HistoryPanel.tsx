@@ -55,7 +55,7 @@ function HistoryEntryCard({ entry }: { entry: AuditEntryResponse }) {
     const [translator, messageKey] =
       key === "kind"
         ? [entry.entity === "Transaction" ? dynamicTransactionKinds : dynamicPaymentKinds, value]
-        : key === "rateSource" || key === "reviewStatus"
+        : key === "rateSource" || key === "reviewStatus" || key === "status"
           ? [dynamicT, `values.${key}.${value}`]
           : [dynamicFop, `${key}${value}`];
 

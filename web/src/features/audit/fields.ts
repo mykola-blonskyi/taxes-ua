@@ -81,6 +81,23 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
     "verifiedAt",
   ],
   Client: ["name", "address", "country", "vatId", "email", "defaultCurrency", "notes"],
+  Invoice: [
+    "status",
+    "numberYear",
+    "numberSequence",
+    "clientId",
+    "issueDate",
+    "dueDate",
+    "currency",
+    "lines",
+    "totalMinor",
+    "snapshot",
+    "signatureImageBytes",
+    "signatureContentType",
+    "cancelReason",
+    "issuedAt",
+    "cancelledAt",
+  ],
   Backup: ["clients", "transactions", "budgetPayments"],
 };
 
@@ -137,6 +154,34 @@ const exactFormatters: Record<string, FieldFormatter> = {
 
     return formatMinor(Number(value), currency, locale);
   },
+  totalMinor: ({ value, snapshot, locale }) => {
+    const currency = typeof snapshot.currency === "string" ? snapshot.currency : "UAH";
+
+    return formatMinor(Number(value), currency, locale);
+  },
+  lines: ({ value, snapshot, locale }) => {
+    if (!Array.isArray(value)) {
+      return String(value);
+    }
+
+    const currency = typeof snapshot.currency === "string" ? snapshot.currency : "UAH";
+
+    return value
+      .map((line: Record<string, unknown>) => {
+        const quantity = new Intl.NumberFormat(locale, { maximumFractionDigits: 3 }).format(
+          Number(line.quantityThousandths) / 1000,
+        );
+
+        return `${String(line.descriptionEn)}: ${quantity} × ${formatMinor(Number(line.rateMinor), currency, locale)}`;
+      })
+      .join("; ");
+  },
+  // The frozen seller, buyer and payment details are an object; the log says only that they were captured.
+  snapshot: ({ yes }) => yes,
+  clientId: ({ value }) => String(value).slice(0, 8),
+  issuedAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
+  cancelledAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
+  status: enumValue,
   rateE4: ({ value, locale }) => formatRateE4(Number(value), locale),
   verifiedAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
   signatureUpdatedAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),

@@ -3,7 +3,7 @@ import { getTranslations } from "next-intl/server";
 import type { AuditedEntity } from "@/data/audit/useAuditLog";
 import { HistoryPanel } from "@/features/audit";
 
-const validEntities: readonly AuditedEntity[] = ["Transaction", "BudgetPayment", "Settings", "InvoicingDetails", "TaxYearConfig", "Client"];
+const validEntities: readonly AuditedEntity[] = ["Transaction", "BudgetPayment", "Settings", "InvoicingDetails", "TaxYearConfig", "Client", "Invoice"];
 
 function parseEntity(value: string | string[] | undefined): AuditedEntity | undefined {
   return typeof value === "string" && (validEntities as readonly string[]).includes(value)

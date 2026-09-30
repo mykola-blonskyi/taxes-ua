@@ -41,6 +41,7 @@ export function DashboardScreen() {
       {data.credits.length > 0 ? <Credits credits={data.credits} /> : null}
       {data.burden ? <Burden burden={data.burden} /> : null}
       {data.limit ? <LimitBar limit={data.limit} /> : null}
+      <InvoicesLink />
     </div>
   );
 }
@@ -127,6 +128,20 @@ function SettingsLink() {
     <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
       {t("settingsCta")}
     </Link>
+  );
+}
+
+function InvoicesLink() {
+  const t = useTranslations("dashboard.invoices");
+
+  return (
+    <section className="flex flex-col gap-2 rounded-xl border bg-card p-4">
+      <h3 className="text-base font-semibold">{t("title")}</h3>
+      <p className="text-sm text-muted-foreground">{t("text")}</p>
+      <Link href="/invoices" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+        {t("cta")}
+      </Link>
+    </section>
   );
 }
 
