@@ -379,6 +379,22 @@ time: the operation is offered again and the deleted confirmation no longer feed
 for its IBAN. Changing the payment's kind changes the candidate's confirmed kind to the new one, as
 the owner's latest word on that IBAN. A dismissed candidate is never revived.
 
+Treasury accounts (#98). The app remembers where each kind (single tax, military levy, ESV) is paid,
+one account per owner and kind: IBAN, recipient name and recipient code (8 digits, the EDRPOU). Confirming a
+candidate as a kind records the operation's counterparty IBAN, name and code as that kind's Learned account,
+with the operation and its date; the latest confirmation wins. A name or code the operation lacks (the bank
+sends a code for company accounts only, and a private 10-digit code is not a recipient code) is stored as
+missing, or kept from the earlier confirmation of the same IBAN, and settings shows what is missing. The owner
+can instead enter an account by hand: a Treasury IBAN (bank id `899998` at positions 5 to 10 and a valid
+ISO 13616 mod-97 check), a name of at most 140 characters and an 8-digit code, all three required. A Manual
+account wins over Learned. Confirmations still record the Learned details beside it, and one that went to
+another IBAN than the Manual account raises a notice, kept until the owner dismisses it or enters or reverts
+the account; the Manual account is never overwritten. A confirmation to the Manual account's own IBAN clears
+the notice. Reverting drops the Manual account so the last Learned one is in use again, and is refused when
+nothing was ever learned. Only confirming a candidate teaches an account: changing the kind of an
+already confirmed payment does not move the account. A restore brings the accounts back as they were,
+including the source and any notice.
+
 ---
 
 ## Rule 13. Tax reserve

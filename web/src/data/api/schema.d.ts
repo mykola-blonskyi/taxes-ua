@@ -3332,6 +3332,207 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/treasury-accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TreasuryAccountResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/treasury-accounts/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: components["schemas"]["PaymentKind"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TreasuryAccountRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TreasuryAccountResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/treasury-accounts/{kind}/revert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: components["schemas"]["PaymentKind"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TreasuryAccountResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/treasury-accounts/{kind}/notice/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: components["schemas"]["PaymentKind"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/backup": {
         parameters: {
             query?: never;
@@ -3710,7 +3911,7 @@ export interface components {
         /** @enum {string} */
         AuditAction: "Create" | "Update" | "Delete" | "Restore";
         /** @enum {string} */
-        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "InvoicingDetails" | "TaxYearConfig" | "Backup" | "Client" | "Invoice" | "DeclarationDetails" | "DeclarationFiling";
+        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "InvoicingDetails" | "TaxYearConfig" | "Backup" | "Client" | "Invoice" | "DeclarationDetails" | "DeclarationFiling" | "TreasuryAccount";
         AuditEntryResponse: {
             /** Format: int64 */
             id: number | string;
@@ -3741,6 +3942,7 @@ export interface components {
             invoices: components["schemas"]["InvoiceBackup"][];
             declarationDetails: null | components["schemas"]["DeclarationDetailsBackup"];
             declarationFilings: components["schemas"]["DeclarationFilingBackup"][];
+            treasuryAccounts: components["schemas"]["TreasuryAccountBackup"][];
         };
         /** @enum {string} */
         Bank: "Monobank" | "PrivatBank" | "Other";
@@ -4418,6 +4620,7 @@ export interface components {
             amountKop: number | string;
             counterIban: string;
             counterName: null | string;
+            counterEdrpou: null | string;
             purpose: null | string;
             status: components["schemas"]["CandidateStatus"];
             confirmedKind: null | components["schemas"]["PaymentKind"];
@@ -4825,6 +5028,54 @@ export interface components {
             bank: components["schemas"]["Bank"];
             accountCurrency: string;
         };
+        TreasuryAccountBackup: {
+            kind: components["schemas"]["PaymentKind"];
+            manualIban: null | string;
+            manualRecipientName: null | string;
+            manualRecipientCode: null | string;
+            /** Format: date-time */
+            manualUpdatedAt: null | string;
+            learnedIban: null | string;
+            learnedRecipientName: null | string;
+            learnedRecipientCode: null | string;
+            learnedExternalId: null | string;
+            /** Format: date */
+            learnedPaidOn: null | string;
+            /** Format: date-time */
+            learnedAt: null | string;
+            /** Format: date-time */
+            noticeAt: null | string;
+        };
+        TreasuryAccountLearned: {
+            iban: string;
+            recipientName: null | string;
+            recipientCode: null | string;
+            operationId: string;
+            /** Format: date */
+            paidOn: string;
+            /** Format: date-time */
+            learnedAt: string;
+        };
+        TreasuryAccountRequest: {
+            iban: string;
+            recipientName: string;
+            recipientCode: string;
+        };
+        TreasuryAccountResponse: {
+            kind: components["schemas"]["PaymentKind"];
+            source: components["schemas"]["TreasuryAccountSource"];
+            iban: null | string;
+            recipientName: null | string;
+            recipientCode: null | string;
+            /** Format: date-time */
+            updatedAt: null | string;
+            learned: null | components["schemas"]["TreasuryAccountLearned"];
+            hasLearned: boolean;
+            missing: string[];
+            notice: null | components["schemas"]["TreasuryAccountLearned"];
+        };
+        /** @enum {string} */
+        TreasuryAccountSource: "None" | "Learned" | "Manual";
         UnpaidResponse: {
             /** Format: int64 */
             singleTaxKop: number | string;

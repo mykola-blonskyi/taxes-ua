@@ -27,7 +27,8 @@ internal sealed record MonobankStatementItem(
     bool Hold,
     string? Comment,
     string? CounterName,
-    string? CounterIban);
+    string? CounterIban,
+    string? CounterEdrpou = null);
 
 // Mirrors NbuLookup in Features/Fx/NbuRateClient.cs: a closed set of outcomes instead of exceptions
 // for the ordinary "the token is bad" and "the bank did not answer" cases, so the endpoint can turn
@@ -275,7 +276,8 @@ internal sealed class MonobankClient(HttpClient http, TimeProvider time, ILogger
                 Required(item, "hold").GetBoolean(),
                 ReadString(item, "comment"),
                 ReadString(item, "counterName"),
-                ReadString(item, "counterIban")));
+                ReadString(item, "counterIban"),
+                ReadString(item, "counterEdrpou")));
         }
 
         return new StatementResult.Found(items);

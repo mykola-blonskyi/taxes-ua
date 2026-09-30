@@ -315,10 +315,29 @@ Fields: `BankAccountId`, `ExternalId` (the bank's operation id, unique together 
 account, positive), `CounterIban` (capitals, no spaces), `CounterName?`, `Purpose?` (the bank's
 description and the payer's comment), `Status: Pending | Confirmed | Dismissed`, `ConfirmedKind?`
 (set exactly when `Confirmed`; the kind the next candidate to the same IBAN is suggested),
-`CreatedAt`, `ResolvedAt?`. The suggested kind and period are not stored: they are read off the
+`CounterEdrpou?` (the counterparty's code as the bank sent it, up to 10 characters, kept so a confirmation can
+teach a `TreasuryAccount` its recipient code), `CreatedAt`, `ResolvedAt?`. The suggested kind and period are not stored: they are read off the
 learned kinds, the purpose and the current ledger each time the list is shown.
 
 Relationships: belongs to `User` and `BankAccount`.
+
+---
+
+### TreasuryAccount
+
+Responsibilities: where the owner pays one kind of tax (#98, Rule 12): the account a Pay panel will show.
+One row per `User` and `Kind` (`SingleTax | MilitaryLevy | Esv`), created on the first confirmation or manual
+entry. Audited.
+
+Fields: the Manual details, all four set or none: `ManualIban`, `ManualRecipientName`, `ManualRecipientCode`
+(8 digits), `ManualUpdatedAt`; the Learned details, `LearnedIban`, `LearnedRecipientName?`,
+`LearnedRecipientCode?`, and the operation they came from, `LearnedExternalId`, `LearnedPaidOn`, `LearnedAt`,
+set together or not at all; `NoticeAt?`, set while a confirmation went to another IBAN than the Manual
+account and the owner has not dismissed it (needs both a Manual and a Learned account). The account in use is
+the Manual one when present, else the Learned one; the API reports it with its source
+(`None | Learned | Manual`) and the recipient details it lacks.
+
+Relationships: belongs to `User`. Written by confirming a `BudgetPaymentCandidate` and by the settings screen.
 
 ---
 
@@ -371,11 +390,11 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (8), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (9), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
 payment details and the signature as base64 with its content type), `Invoices` (with their lines, their
 number as year and sequence, the frozen snapshot and the frozen signature as base64), `DeclarationDetails?`,
-`DeclarationFilings`, each row with its id and every stored column except `UserId`, an invoice's
+`DeclarationFilings`, `TreasuryAccounts` (by kind, without an id), each row with its id and every stored column except `UserId`, an invoice's
 `TotalMinor` (recomputed from its lines) and a
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
 which a restore clears.
@@ -384,15 +403,17 @@ in it, so the file carries no bank access. Version 2 added the bank accounts, th
 the transactions' import fields (#76); version 3 added the budget payment candidates, all statuses,
 and the payments' bank operation (#80); version 4 added the invoicing details (#91); version 5 added the
 clients' details (#90); version 6 added the invoices (#92); version 7 added the declaration details and
-the filed marks (#110); version 8 added the receipts' `InvoiceId` (#93). A version 1 file still restores,
-read as having none of them and every transaction `Confirmed`, a version 2 file as having no candidates and
-every payment typed by the owner, a version 1 to 3 file as having no invoicing details, so the owner's are
-cleared like the rest, a version 1 to 4 file as having no details on any client, a version 1 to 5 file as
-having no invoices, a version 1 to 6 file as having no declaration details and nothing marked filed, and a
-version 1 to 7 file as having no receipt linked to an invoice; a file of a version this build does not know
-is refused by its version number rather than by whichever field it added.
+the filed marks (#110); version 8 added the receipts' `InvoiceId` (#93); version 9 added the Treasury
+accounts and the candidates' `CounterEdrpou` (#98). A version 1 file still restores, read as having none of
+them and every transaction `Confirmed`, a version 2 file as having no candidates and every payment typed by
+the owner, a version 1 to 3 file as having no invoicing details, so the owner's are cleared like the rest, a
+version 1 to 4 file as having no details on any client, a version 1 to 5 file as having no invoices, a
+version 1 to 6 file as having no declaration details and nothing marked filed, a version 1 to 7 file as
+having no receipt linked to an invoice, and a version 1 to 8 file as having no Treasury accounts and
+candidates without a counterparty code; a file of a version this build does not know is refused by its
+version number rather than by whichever field it added.
 
-A restore replaces the owner's settings, invoicing details, declaration details, filed marks, clients, invoices, transactions, payments, candidates and import batches in one
+A restore replaces the owner's settings, invoicing details, declaration details, filed marks, clients, invoices, transactions, payments, candidates, Treasury accounts and import batches in one
 database transaction and passes every row through the endpoints' own validation, refund and invoice links
 included; any violation changes nothing. Bank accounts are matched rather than replaced (see
 `BankAccount`). Ids are kept, so a restore after a wipe reproduces the same file. When another owner
@@ -446,11 +467,11 @@ owner confirms are the counts the import writes.
 
 ### AuditLog
 
-Responsibilities: change log for transactions, clients, invoices, budget payments, settings and year parameters. One
+Responsibilities: change log for transactions, clients, invoices, budget payments, Treasury accounts, settings and year parameters. One
 row (`AuditEntry`, table `AuditLog`) per created, changed or deleted record. Append-only.
 
 Fields: `Entity: Transaction | BudgetPayment | Settings | InvoicingDetails | TaxYearConfig | Backup | Client |
-Invoice | DeclarationDetails | DeclarationFiling`, `EntityId` (the record's key: a GUID, the year, the owner's
+Invoice | DeclarationDetails | DeclarationFiling | TreasuryAccount`, `EntityId` (the record's key: a GUID, the year, the owner's
 id for Settings, InvoicingDetails and DeclarationDetails, `ownerId/year/quarter` for DeclarationFiling; empty
 for Backup),
 `Action: Create | Update | Delete | Restore`,

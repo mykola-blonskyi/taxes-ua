@@ -32,14 +32,16 @@ internal sealed record BackupDocument(
     InvoicingDetailsBackup? InvoicingDetails,
     InvoiceBackup[] Invoices,
     DeclarationDetailsBackup? DeclarationDetails,
-    DeclarationFilingBackup[] DeclarationFilings)
+    DeclarationFilingBackup[] DeclarationFilings,
+    TreasuryAccountBackup[] TreasuryAccounts)
 {
     // 2 added bankAccounts, importBatches and the transactions' import fields (#76); 3 added
     // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91); 5 added
     // the clients' details (#90); 6 added invoices (#92); 7 added declarationDetails and declarationFilings
-    // (#110); 8 added the receipts' invoice links (#93). An older file is upgraded to this shape one version
-    // at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 8;
+    // (#110); 8 added the receipts' invoice links (#93); 9 added treasuryAccounts and the candidates'
+    // counterEdrpou (#98). An older file is upgraded to this shape one version at a time before it is read,
+    // see Upgrade.
+    public const int CurrentSchemaVersion = 9;
 
     private const int MaxExternalIdLength = 200;
 
@@ -55,7 +57,8 @@ internal sealed record BackupDocument(
         IEnumerable<InvoicingPaymentDetails> invoicingPayments,
         IEnumerable<Invoice> invoices,
         DeclarationDetails? declarationDetails,
-        IEnumerable<DeclarationFiling> declarationFilings) => new(
+        IEnumerable<DeclarationFiling> declarationFilings,
+        IEnumerable<TreasuryAccount> treasuryAccounts) => new(
         CurrentSchemaVersion,
         settings is null ? null : SettingsBackup.From(settings),
         [.. clients.Select(ClientBackup.From)],
@@ -67,7 +70,8 @@ internal sealed record BackupDocument(
         invoicingDetails is null ? null : InvoicingDetailsBackup.From(invoicingDetails, invoicingPayments),
         [.. invoices.Select(InvoiceBackup.From)],
         declarationDetails is null ? null : DeclarationDetailsBackup.From(declarationDetails),
-        [.. declarationFilings.Select(DeclarationFilingBackup.From)]);
+        [.. declarationFilings.Select(DeclarationFilingBackup.From)],
+        [.. treasuryAccounts.Select(TreasuryAccountBackup.From)]);
 
     // Bank accounts are left out: a restore matches them to the owner's rows by bank and external id.
     public IEnumerable<Guid> Ids() =>
@@ -113,6 +117,11 @@ internal sealed record BackupDocument(
         if (version <= 7)
         {
             UpgradeFromVersion7(root);
+        }
+
+        if (version <= 8)
+        {
+            UpgradeFromVersion8(root);
         }
     }
 
@@ -206,7 +215,7 @@ internal sealed record BackupDocument(
     // A version 7 file predates paying an invoice with a receipt: no receipt is linked.
     private static void UpgradeFromVersion7(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 8;
         if (root["transactions"] is not JsonArray transactions)
         {
             return;
@@ -215,6 +224,22 @@ internal sealed record BackupDocument(
         foreach (var transaction in transactions.OfType<JsonObject>())
         {
             transaction["invoiceId"] = null;
+        }
+    }
+
+    // A version 8 file predates Treasury accounts, and its candidates never kept the counterparty's code.
+    private static void UpgradeFromVersion8(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        root["treasuryAccounts"] = new JsonArray();
+        if (root["budgetPaymentCandidates"] is not JsonArray candidates)
+        {
+            return;
+        }
+
+        foreach (var candidate in candidates.OfType<JsonObject>())
+        {
+            candidate["counterEdrpou"] = null;
         }
     }
 
@@ -233,11 +258,12 @@ internal sealed record BackupDocument(
             || Array.Exists(ImportBatches, row => row is null)
             || Array.Exists(BudgetPaymentCandidates, row => row is null)
             || Array.Exists(Invoices, row => row is null)
-            || Array.Exists(DeclarationFilings, row => row is null))
+            || Array.Exists(DeclarationFilings, row => row is null)
+            || Array.Exists(TreasuryAccounts, row => row is null))
         {
             return new()
             {
-                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches, budgetPaymentCandidates, invoices and declarationFilings must not contain null."],
+                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches, budgetPaymentCandidates, invoices, declarationFilings and treasuryAccounts must not contain null."],
             };
         }
 
@@ -464,8 +490,136 @@ internal sealed record BackupDocument(
             }
         }
 
+        var treasuryKinds = new HashSet<PaymentKind>();
+        for (var i = 0; i < TreasuryAccounts.Length; i++)
+        {
+            var account = TreasuryAccounts[i];
+            if (!treasuryKinds.Add(account.Kind))
+            {
+                errors[$"treasuryAccounts[{i}].kind"] = ["kind must differ from every other Treasury account's."];
+            }
+
+            if (account.Error() is var (accountKey, accountMessage))
+            {
+                errors[$"treasuryAccounts[{i}].{accountKey}"] = [accountMessage];
+            }
+        }
+
         return errors.Count == 0 ? null : errors;
     }
+}
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record TreasuryAccountBackup(
+    PaymentKind Kind,
+    string? ManualIban,
+    string? ManualRecipientName,
+    string? ManualRecipientCode,
+    DateTimeOffset? ManualUpdatedAt,
+    string? LearnedIban,
+    string? LearnedRecipientName,
+    string? LearnedRecipientCode,
+    string? LearnedExternalId,
+    DateOnly? LearnedPaidOn,
+    DateTimeOffset? LearnedAt,
+    DateTimeOffset? NoticeAt)
+{
+    public static TreasuryAccountBackup From(TreasuryAccount row) => new(
+        row.Kind,
+        row.ManualIban,
+        row.ManualRecipientName,
+        row.ManualRecipientCode,
+        row.ManualUpdatedAt,
+        row.LearnedIban,
+        row.LearnedRecipientName,
+        row.LearnedRecipientCode,
+        row.LearnedExternalId,
+        row.LearnedPaidOn,
+        row.LearnedAt,
+        row.NoticeAt);
+
+    // The column limits and check constraints of TreasuryAccountConfiguration, and the rules manual entry
+    // and learning apply, so a restored account is one the endpoints could have produced.
+    public (string Key, string Message)? Error()
+    {
+        if (!Enum.IsDefined(Kind))
+        {
+            return ("kind", "kind must be SingleTax, MilitaryLevy or Esv.");
+        }
+
+        var manual = new object?[] { ManualIban, ManualRecipientName, ManualRecipientCode, ManualUpdatedAt };
+        if (manual.Any(value => value is null) && manual.Any(value => value is not null))
+        {
+            return ("manualIban", "The manual account needs an IBAN, name, code and time together.");
+        }
+
+        if (ManualIban is not null)
+        {
+            var request = new TreasuryAccountRequest(ManualIban, ManualRecipientName!, ManualRecipientCode!);
+            if (TreasuryAccountsEndpoints.Normalize(request) != request
+                || TreasuryAccountsEndpoints.Validate(request) is not null)
+            {
+                return ("manualIban", "The manual account must be a valid Treasury account in capitals without spaces, with a trimmed name and an 8-digit code.");
+            }
+        }
+
+        var learned = new object?[] { LearnedIban, LearnedExternalId, LearnedPaidOn, LearnedAt };
+        if (learned.Any(value => value is null) && learned.Any(value => value is not null))
+        {
+            return ("learnedIban", "The learned account needs an IBAN, operation, date and time together.");
+        }
+
+        if (LearnedIban is not null)
+        {
+            if (!TreasuryPayment.IsTreasury(LearnedIban) || TreasuryPayment.Normalize(LearnedIban) != LearnedIban)
+            {
+                return ("learnedIban", "learnedIban must be a Treasury IBAN in capitals without spaces.");
+            }
+
+            if (BackupDocument.ExternalIdError(LearnedExternalId!) is { } externalError)
+            {
+                return ("learnedExternalId", externalError.Replace("externalId", "learnedExternalId", StringComparison.Ordinal));
+            }
+
+            if (LearnedRecipientName is { Length: > TransactionsEndpoints.MaxClientNameLength }
+                || (LearnedRecipientName is not null && TextRules.HasDisallowedControlChar(LearnedRecipientName)))
+            {
+                return ("learnedRecipientName", "learnedRecipientName must be short text without a control character.");
+            }
+
+            if (LearnedRecipientCode is not null
+                && (LearnedRecipientCode.Length != TreasuryAccountsEndpoints.RecipientCodeLength || !LearnedRecipientCode.All(char.IsAsciiDigit)))
+            {
+                return ("learnedRecipientCode", "learnedRecipientCode must be 8 digits.");
+            }
+        }
+        else if (LearnedRecipientName is not null || LearnedRecipientCode is not null)
+        {
+            return ("learnedIban", "Learned recipient details need a learned IBAN.");
+        }
+
+        return NoticeAt is not null && (ManualIban is null || LearnedIban is null)
+            ? ("noticeAt", "A notice needs both a manual and a learned account.")
+            : null;
+    }
+
+    public TreasuryAccount ToEntity(string userId) => new()
+    {
+        Id = Guid.NewGuid(),
+        UserId = userId,
+        Kind = Kind,
+        ManualIban = ManualIban,
+        ManualRecipientName = ManualRecipientName,
+        ManualRecipientCode = ManualRecipientCode,
+        ManualUpdatedAt = ManualUpdatedAt?.ToUniversalTime(),
+        LearnedIban = LearnedIban,
+        LearnedRecipientName = LearnedRecipientName,
+        LearnedRecipientCode = LearnedRecipientCode,
+        LearnedExternalId = LearnedExternalId,
+        LearnedPaidOn = LearnedPaidOn,
+        LearnedAt = LearnedAt?.ToUniversalTime(),
+        NoticeAt = NoticeAt?.ToUniversalTime(),
+    };
 }
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
@@ -786,6 +940,7 @@ internal sealed record PaymentCandidateBackup(
     long AmountKop,
     string CounterIban,
     string? CounterName,
+    string? CounterEdrpou,
     string? Purpose,
     CandidateStatus Status,
     PaymentKind? ConfirmedKind,
@@ -800,6 +955,7 @@ internal sealed record PaymentCandidateBackup(
         row.AmountKop,
         row.CounterIban,
         row.CounterName,
+        row.CounterEdrpou,
         row.Purpose,
         row.Status,
         row.ConfirmedKind,
@@ -818,6 +974,10 @@ internal sealed record PaymentCandidateBackup(
             ("counterIban", "counterIban must be a Treasury IBAN in capitals without spaces."),
         { CounterName.Length: > TransactionsEndpoints.MaxClientNameLength } =>
             ("counterName", $"counterName must not exceed {TransactionsEndpoints.MaxClientNameLength} characters."),
+        { CounterEdrpou.Length: > TreasuryAccountsEndpoints.MaxEdrpouLength } =>
+            ("counterEdrpou", $"counterEdrpou must not exceed {TreasuryAccountsEndpoints.MaxEdrpouLength} characters."),
+        _ when CounterEdrpou is not null && TextRules.HasDisallowedControlChar(CounterEdrpou) =>
+            ("counterEdrpou", "counterEdrpou must not contain a control character."),
         { Purpose.Length: > TransactionsEndpoints.MaxDescriptionLength } =>
             ("purpose", $"purpose must not exceed {TransactionsEndpoints.MaxDescriptionLength} characters."),
         _ when new[] { CounterName, Purpose }.Any(text => text is not null && TextRules.HasDisallowedControlChar(text)) =>
@@ -837,6 +997,7 @@ internal sealed record PaymentCandidateBackup(
         AmountKop = AmountKop,
         CounterIban = CounterIban,
         CounterName = CounterName,
+        CounterEdrpou = CounterEdrpou,
         Purpose = Purpose,
         Status = Status,
         ConfirmedKind = ConfirmedKind,

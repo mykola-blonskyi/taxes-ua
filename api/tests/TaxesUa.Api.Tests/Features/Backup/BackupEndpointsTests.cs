@@ -38,7 +38,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":8,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[]}""";
+        """{"schemaVersion":9,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"treasuryAccounts":[]}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -68,6 +68,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Contains(document.Transactions, row => row.RefundsTransactionId is not null);
         Assert.Equal(2, document.BudgetPayments.Length);
         Assert.Equal(["62.01"], document.DeclarationDetails!.KvedCodes);
+        Assert.Equal(PaymentKind.MilitaryLevy, Assert.Single(document.TreasuryAccounts).Kind);
 
         await Wipe(owner);
         Assert.Equal(Normalized(Empty), Normalized(await Backup(owner)));
@@ -125,6 +126,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var current = Baseline();
         var version1 = Baseline();
         version1["schemaVersion"] = 1;
+        version1.Remove("treasuryAccounts");
         version1.Remove("bankAccounts");
         version1.Remove("importBatches");
         version1.Remove("invoicingDetails");
@@ -158,8 +160,10 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         current["declarationFilings"] = new JsonArray();
         NullClientDetails(current);
         current["invoices"] = new JsonArray();
+        current["treasuryAccounts"] = new JsonArray();
         var version2 = current.DeepClone().AsObject();
         version2["schemaVersion"] = 2;
+        version2.Remove("treasuryAccounts");
         version2.Remove("invoicingDetails");
         version2.Remove("declarationDetails");
         version2.Remove("declarationFilings");
@@ -189,6 +193,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.True((await owner.GetFromJsonAsync<InvoicingDetailsResponse>("/api/settings/invoicing", Json))!.HasSignature);
         var version3 = Baseline();
         version3["schemaVersion"] = 3;
+        version3.Remove("treasuryAccounts");
         version3.Remove("invoicingDetails");
         RemoveClientDetails(version3);
 
@@ -233,6 +238,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         await Restore(owner, Baseline().ToJsonString());
         var version6 = Baseline();
         version6["schemaVersion"] = 6;
+        version6.Remove("treasuryAccounts");
         version6.Remove("declarationDetails");
         version6.Remove("declarationFilings");
 
@@ -275,6 +281,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         var version4 = Baseline();
         version4["schemaVersion"] = 4;
+        version4.Remove("treasuryAccounts");
         RemoveClientDetails(version4);
 
         await DropInvoices();
@@ -298,6 +305,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(2, JsonNode.Parse(await Backup(owner))!["invoices"]!.AsArray().Count);
         var version5 = Baseline();
         version5["schemaVersion"] = 5;
+        version5.Remove("treasuryAccounts");
         version5.Remove("invoices");
 
         await DropInvoices();
@@ -307,6 +315,59 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
         Assert.Empty(backup["invoices"]!.AsArray());
         Assert.Equal("Acme", backup["clients"]![0]!["name"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task A_version_8_file_restores_with_no_treasury_accounts_and_candidates_without_a_counterparty_code()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+        var version8 = Baseline();
+        version8["schemaVersion"] = 8;
+        version8.Remove("treasuryAccounts");
+        var account = AddAccount(version8);
+        AddCandidate(version8, account, TreasuryIban, "Pending", null);
+        version8["budgetPaymentCandidates"]![0]!.AsObject().Remove("counterEdrpou");
+
+        await Restore(owner, version8.ToJsonString());
+
+        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
+        Assert.Empty(backup["treasuryAccounts"]!.AsArray());
+        Assert.Null(backup["budgetPaymentCandidates"]![0]!["counterEdrpou"]);
+        Assert.Equal("ЄСВ", backup["budgetPaymentCandidates"]![0]!["purpose"]!.GetValue<string>());
+        await Wipe(owner);
+        await using var scope = fixture.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().BankAccounts.ExecuteDeleteAsync();
+    }
+
+    [Fact]
+    public async Task A_restore_brings_back_treasury_accounts_with_their_source_and_notice()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var other = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
+        await Restore(owner, Baseline().ToJsonString());
+
+        var accounts = (await owner.GetFromJsonAsync<JsonElement>("/api/settings/treasury-accounts", Json)).EnumerateArray().ToArray();
+
+        Assert.Equal(
+            [("SingleTax", "Manual", TreasuryIban, true), ("MilitaryLevy", "None", null, false), ("Esv", "Learned", LearnedTreasuryIban, false)],
+            accounts.Select(row => (
+                row.GetProperty("kind").GetString()!,
+                row.GetProperty("source").GetString()!,
+                row.GetProperty("iban").GetString(),
+                row.GetProperty("notice").ValueKind == JsonValueKind.Object)));
+        Assert.Equal(["recipientName", "recipientCode"], accounts[2].GetProperty("missing").EnumerateArray().Select(item => item.GetString()));
+        await Restore(owner, Baseline().ToJsonString());
+        Assert.Equal(2, JsonNode.Parse(await Backup(owner))!["treasuryAccounts"]!.AsArray().Count);
+
+        await Restore(other, Empty);
+        Assert.Equal(
+            ["None", "None", "None"],
+            (await other.GetFromJsonAsync<JsonElement>("/api/settings/treasury-accounts", Json)).EnumerateArray()
+                .Select(row => row.GetProperty("source").GetString()));
     }
 
     [Fact]
@@ -508,6 +569,11 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "candidate of an unknown bank account", "budgetPaymentCandidates[0].bankAccountId" },
         { "candidate to a non-Treasury account", "budgetPaymentCandidates[0].counterIban" },
         { "confirmed candidate without a kind", "budgetPaymentCandidates[0].confirmedKind" },
+        { "manual treasury account outside the Treasury", "treasuryAccounts[0].manualIban" },
+        { "manual treasury account with a 7 digit code", "treasuryAccounts[0].manualIban" },
+        { "two treasury accounts of one kind", "treasuryAccounts[1].kind" },
+        { "notice without a manual account", "treasuryAccounts[1].noticeAt" },
+        { "learned treasury account without its operation", "treasuryAccounts[1].learnedIban" },
         { "a newer schema version", null },
         { "country that is not ISO 3166-1", "clients[0].country" },
         { "malformed client email", "clients[0].email" },
@@ -621,6 +687,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [typeof(Invoice)] = typeof(InvoiceBackup),
             [typeof(DeclarationDetails)] = typeof(DeclarationDetailsBackup),
             [typeof(DeclarationFiling)] = typeof(DeclarationFilingBackup),
+            [typeof(TreasuryAccount)] = typeof(TreasuryAccountBackup),
         };
         Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(FxRate)];
         // The change log is history, not state: a restore does not replay it and does not carry it.
@@ -663,6 +730,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 .Where(name => name != "UserId")
                 // A restore draws fresh ids for the payment details, which nothing else refers to.
                 .Where(name => entity != typeof(InvoicingPaymentDetails) || name != nameof(InvoicingPaymentDetails.Id))
+                // An account is identified by its owner and kind; the row's own id is drawn again on restore.
+                .Where(name => entity != typeof(TreasuryAccount) || name != nameof(TreasuryAccount.Id))
                 // The total is the sum of the lines, recomputed on restore rather than trusted from the file.
                 .Where(name => entity != typeof(Invoice) || name != nameof(Invoice.TotalMinor))
                 .Where(name => entity != typeof(BankAccount) || !syncStateNotBackedUp.Contains(name));
@@ -719,6 +788,13 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         {
             Assert.Equal(HttpStatusCode.Created, (await owner.PostAsJsonAsync("/api/payments", payment, Json)).StatusCode);
         }
+
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await owner.PutAsJsonAsync(
+                "/api/settings/treasury-accounts/MilitaryLevy",
+                new TreasuryAccountRequest(TreasuryIban, "ГУК у м.Києві", "37993783"),
+                Json)).StatusCode);
     }
 
     private static TransactionRequest Transaction(
@@ -827,6 +903,14 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [
                 new DeclarationFilingBackup(2030, 4, new DateOnly(2031, 2, 3), DeclarationType.Reporting, 90_000_000, created, created),
                 new DeclarationFilingBackup(2031, 1, new DateOnly(2031, 5, 5), DeclarationType.Clarifying, 4_900_000, created, created),
+            ],
+            [
+                new TreasuryAccountBackup(
+                    PaymentKind.SingleTax, TreasuryIban, "ГУК у м.Києві", "37993783", created,
+                    LearnedTreasuryIban, "ГУК у м.Києві/Печерс.р-н", "37993784", "op-learned", new DateOnly(2031, 4, 15), created, created),
+                new TreasuryAccountBackup(
+                    PaymentKind.Esv, null, null, null, null,
+                    LearnedTreasuryIban, null, null, "op-learned-esv", new DateOnly(2031, 4, 16), created, null),
             ]);
 
         return JsonSerializer.SerializeToNode(document, Json)!.AsObject();
@@ -986,6 +1070,21 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             case "confirmed candidate without a kind":
                 AddCandidate(file, AddAccount(file), TreasuryIban, "Confirmed", null);
                 break;
+            case "manual treasury account outside the Treasury":
+                file["treasuryAccounts"]![0]!["manualIban"] = "UA753220010000026001234567891";
+                break;
+            case "manual treasury account with a 7 digit code":
+                file["treasuryAccounts"]![0]!["manualRecipientCode"] = "3799378";
+                break;
+            case "two treasury accounts of one kind":
+                file["treasuryAccounts"]![1]!["kind"] = "SingleTax";
+                break;
+            case "notice without a manual account":
+                file["treasuryAccounts"]![1]!["noticeAt"] = "2031-04-16T09:00:00+00:00";
+                break;
+            case "learned treasury account without its operation":
+                file["treasuryAccounts"]![1]!["learnedExternalId"] = null;
+                break;
             case "a newer schema version":
                 file["schemaVersion"] = BackupDocument.CurrentSchemaVersion + 1;
                 break;
@@ -1031,6 +1130,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
     private const string TreasuryIban = "UA358999980333159998000026011";
 
+    private const string LearnedTreasuryIban = "UA148999980313181000026007233";
+
     private static Guid AddAccount(JsonObject file)
     {
         var account = Guid.NewGuid();
@@ -1050,6 +1151,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             ["amountKop"] = 190_234,
             ["counterIban"] = iban,
             ["counterName"] = "ГУК у м.Києві",
+            ["counterEdrpou"] = "37993783",
             ["purpose"] = "ЄСВ",
             ["status"] = status,
             ["confirmedKind"] = confirmedKind,

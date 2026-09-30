@@ -147,6 +147,7 @@ public static class PaymentCandidatesEndpoints
                 candidate.Status = CandidateStatus.Confirmed;
                 candidate.ConfirmedKind = request.Kind;
                 candidate.ResolvedAt = now;
+                await TreasuryAccountsEndpoints.LearnAsync(database, candidate, request.Kind, now, cancellationToken);
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 

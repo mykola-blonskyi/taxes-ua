@@ -417,6 +417,7 @@ internal sealed class MonobankStatementImport(
             AmountKop = -item.Amount,
             CounterIban = TreasuryPayment.Normalize(item.CounterIban)!,
             CounterName = Fit(item.CounterName?.Trim(), TransactionsEndpoints.MaxClientNameLength),
+            CounterEdrpou = Fit(item.CounterEdrpou?.Trim(), TreasuryAccountsEndpoints.MaxEdrpouLength),
             Purpose = Fit(Describe(item), TransactionsEndpoints.MaxDescriptionLength),
             Status = CandidateStatus.Pending,
             CreatedAt = now,

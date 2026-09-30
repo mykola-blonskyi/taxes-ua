@@ -53,6 +53,7 @@ internal enum AuditedEntity
     Invoice,
     DeclarationDetails,
     DeclarationFiling,
+    TreasuryAccount,
 }
 
 internal enum AuditAction
