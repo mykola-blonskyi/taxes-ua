@@ -326,12 +326,13 @@ the key ring instead: delete the `key-*.xml` files in the `dataprotection-keys` 
 ## Automatic deploys
 
 The `Deploy to Coolify` job runs only on a push to `main`, and only after every other CI job has
-passed, so a red `main` never reaches the server. It sends a `GET` to the resource's **Deploy
-Webhook (auth required)** with the API token as a bearer header.
+passed, so a red `main` never reaches the server. It sends a `POST` to the resource's **Deploy
+Webhook (auth required)** with the API token as a bearer header. Coolify's documentation shows a
+`GET`, but the route answers an authenticated `GET` with 405.
 
 1. In Coolify, open the resource → Configuration → Webhooks and copy **Deploy Webhook (auth
    required)**. It looks like `https://<coolify>/api/v1/deploy?uuid=<uuid>&force=false`. The GitHub
-   webhook URL on the same page accepts only signed POSTs and answers a GET with 405.
+   webhook URL on the same page is a different endpoint.
 2. In Coolify, Keys & Tokens, create an API token with the deploy permission.
 3. In GitHub, repository Settings → Secrets and variables → Actions, add `COOLIFY_WEBHOOK_URL`
    (step 1) and `COOLIFY_WEBHOOK_TOKEN` (step 2).
