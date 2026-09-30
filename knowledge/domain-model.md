@@ -389,7 +389,8 @@ stored and not audited: computed on request from the owner's `TreasuryAccount` o
 Fields: `Kind`, `PeriodYear`, `PeriodQuarter?` or `PeriodMonth?` (exactly one), `AmountKop`, `Purpose`
 (Rule 16), `Recipient?` (IBAN, name, code and the account's source, `Learned | Manual`) and `Missing`
 (`iban`, `recipientName`, `recipientCode`, in that order). `Recipient` is set exactly when `Missing` is
-empty.
+empty. `QrContent?` is the NBU QR of the same details (#100, Rule 16), set only with a `Recipient` and
+only when the details fit format 003.
 
 Relationships: read from `TreasuryAccount` and the year's `TaxYearConfig`; belongs to `User`.
 

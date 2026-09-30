@@ -5190,6 +5190,7 @@ export interface components {
             purpose: string;
             recipient: null | components["schemas"]["PaymentRecipientResponse"];
             missing: string[];
+            qrContent: null | string;
         };
         /** @enum {string} */
         PaymentKind: "SingleTax" | "MilitaryLevy" | "Esv";

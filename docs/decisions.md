@@ -600,6 +600,11 @@ purpose or code sends the money to the wrong ledger.
 The app holds no key that can move money, so it can never pay by itself. A wrong amount the owner confirms in the bank is still a real transfer, so the panel shows exactly what is owed and lets the owner check it first.
 The owner takes one step in the bank for every payment. An incomplete recipient is not shown at all, only
 what is missing, so a partial recipient is never copied.
+The QR is offered alongside the copy buttons, never instead of them. Whether banking apps accept an NBU
+QR for a Treasury account, which ISO 20022 category/purpose code they expect, and whether they read the
+leading `101` as the payment type are unverified until the owner scans one (#100, Rule 16). The copy
+buttons are the path that works regardless, and one flag in the panel hides the QR for Treasury accounts
+if the scan shows banks refuse it.
 
 ---
 
