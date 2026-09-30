@@ -159,11 +159,16 @@ public static class BackupEndpoints
         var invoicingPayments = await database.InvoicingPaymentDetails.AsNoTracking()
             .Where(row => row.UserId == userId)
             .ToListAsync(cancellationToken);
+        var invoices = await database.Invoices.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .OrderBy(row => row.CreatedAt)
+            .ThenBy(row => row.Id)
+            .ToListAsync(cancellationToken);
 
         // The monobank connection, and the token it holds, is never part of a backup (ADR-011).
         return BackupDocument.From(
             settings, clients, transactions, payments, bankAccounts, importBatches, candidates,
-            invoicingDetails, invoicingPayments);
+            invoicingDetails, invoicingPayments, invoices);
     }
 
     // Returns the refund-link errors, having rolled everything back, or null once the owner's data is
@@ -189,6 +194,7 @@ public static class BackupEndpoints
             .Where(row => row.UserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
         await database.ImportBatches.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.Invoices.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.Clients.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.BudgetPayments.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.BudgetPaymentCandidates.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
@@ -211,6 +217,7 @@ public static class BackupEndpoints
         }
 
         database.Clients.AddRange(document.Clients.Select(client => client.ToEntity(userId, id)));
+        database.Invoices.AddRange(document.Invoices.Select(invoice => invoice.ToEntity(userId, id)));
         database.ImportBatches.AddRange(document.ImportBatches.Select(batch => batch.ToEntity(userId, id, accountId)));
         var transactions = document.Transactions.Select(row => row.ToEntity(userId, id, accountId)).ToArray();
         database.Transactions.AddRange(transactions);
@@ -265,7 +272,8 @@ public static class BackupEndpoints
             || await database.Transactions.IgnoreQueryFilters().AnyAsync(row => ids.Contains(row.Id), cancellationToken)
             || await database.BudgetPayments.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
             || await database.ImportBatches.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
-            || await database.BudgetPaymentCandidates.AnyAsync(row => ids.Contains(row.Id), cancellationToken);
+            || await database.BudgetPaymentCandidates.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
+            || await database.Invoices.AnyAsync(row => ids.Contains(row.Id), cancellationToken);
         if (!taken)
         {
             return fileId => fileId;

@@ -174,6 +174,14 @@ public static class ClientsEndpoints
                         title: $"This client has {receiptCount} receipt(s) and cannot be deleted. Unlink or delete them first.");
                 }
 
+                var invoiceCount = await database.Invoices.CountAsync(row => row.ClientId == id, cancellationToken);
+                if (invoiceCount > 0)
+                {
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status409Conflict,
+                        title: $"This client has {invoiceCount} invoice(s) and cannot be deleted.");
+                }
+
                 database.Clients.Remove(client);
                 await database.SaveChangesAsync(cancellationToken);
 
