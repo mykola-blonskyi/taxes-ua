@@ -631,3 +631,34 @@ mark keeps line 08 as it stood; when a later change to the year's receipts moves
 it, the mark is flagged as changed since filing, a hint that a clarifying declaration may be needed,
 until the owner marks the quarter again. The home screen names the last ended quarter's declaration
 from the day after the quarter ends through its due date (Rule 5), until it is marked filed.
+
+---
+
+## Rule 16. Paying an obligation
+
+The app prepares a transfer and never makes one: it holds no bank write access, and the owner confirms
+the payment in the bank. Ready details are a copyable set of fields, and a QR (#100) carries the same
+details.
+
+The Pay panel is offered on every debt the home screen shows, which is the oldest open quarter of a
+kind, or the advance's month, as a recorded payment names it (Rule 7), and per kind and quarter on the
+payments screen. Only periods the app computes are offered: a year with a `TaxYearConfig` and a quarter
+in group 3 (Rule 4); a month counts as its quarter. Any other period is refused.
+
+The recipient is the kind's Treasury account in use, Manual over Learned (Rule 12). When the IBAN, the
+recipient name or the recipient code is missing, the panel lists what is missing and gives no recipient
+details, never a partial set. The amount starts from what is owed for that kind and period; the owner may
+change it, and it must be a positive whole number of kopecks. One transfer covers one kind.
+
+The purpose follows MinFin Order 148: the payment type code `101`, the kind in words (`єдиний податок`,
+`військовий збір`, `єдиний внесок`), ` за `, the period and ` року`. A quarter is a Roman numeral, a month
+is its lowercase nominative name, and the year is the period's year:
+
+- `101 єдиний податок за III квартал 2026 року`
+- `101 єдиний внесок за вересень 2026 року`
+
+The RNOKPP is not in the purpose, it travels as the payer code of the transfer. The old `*;101;...`
+format is never produced. This phrasing (nominative month after `за`, year with `року`) is the decision;
+the order fixes the elements, not the grammatical case of the month.
+
+Once the bank operation is confirmed (#80), the debt moves as it does for any payment.

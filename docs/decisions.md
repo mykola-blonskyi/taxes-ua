@@ -567,3 +567,36 @@ never reused; drafts may be dropped. A layout change does
 reach old invoices when they are downloaded again, so the layout must only ever add or reposition, never
 drop a requisite. Paid and overdue (#93) read the invoice's own total and currency, never the snapshot.
 The country name is frozen in English as ICU spelled it at issue.
+
+## ADR-014. The app prepares payments and never initiates them
+
+Date: 2026-09-30
+
+Status: Accepted
+
+### Context
+
+#99 shows the owner where and how much to pay for each obligation. The app already knows the amount, the
+recipient (Treasury accounts, Rule 12) and the purpose, so it could in principle send the transfer too.
+
+### Decision
+
+The app prepares payment details and never initiates a payment. Each obligation gets a Pay panel with the
+recipient IBAN, name and code, the amount and the purpose, every field with a copy button. The owner
+makes the transfer in the bank and confirms it there; the confirmed operation reaches the app through the
+bank sync (#80). The QR (#100) prepares the same details and does not change this.
+
+### Alternatives Considered
+
+Initiating the transfer from the app. The monobank personal API is read-only, so it would need another
+bank API with write access and signing keys, which the app would have to hold. A bug or a leaked key would
+then move money, and the app would carry liability for it.
+
+Showing the amount only. The owner would retype the recipient and the purpose each quarter, and a wrong
+purpose or code sends the money to the wrong ledger.
+
+### Consequences
+
+The app holds no key that can move money, so it can never pay by itself. A wrong amount the owner confirms in the bank is still a real transfer, so the panel shows exactly what is owed and lets the owner check it first.
+The owner takes one step in the bank for every payment. An incomplete recipient is not shown at all, only
+what is missing, so a partial recipient is never copied.

@@ -323,6 +323,11 @@ public static class TreasuryAccountsEndpoints
         return row;
     }
 
+    internal static (TreasuryAccountSource Source, string? Iban, string? Name, string? Code) InUse(TreasuryAccount row) =>
+        row.IsManual ? (TreasuryAccountSource.Manual, row.ManualIban, row.ManualRecipientName, row.ManualRecipientCode)
+        : row.LearnedIban is not null ? (TreasuryAccountSource.Learned, row.LearnedIban, row.LearnedRecipientName, row.LearnedRecipientCode)
+        : (TreasuryAccountSource.None, null, null, null);
+
     private static TreasuryAccountResponse ToResponse(PaymentKind kind, TreasuryAccount? row)
     {
         if (row is null)
@@ -330,15 +335,7 @@ public static class TreasuryAccountsEndpoints
             return new TreasuryAccountResponse(kind, TreasuryAccountSource.None, null, null, null, null, null, false, [], null);
         }
 
-        var source = row.IsManual ? TreasuryAccountSource.Manual
-            : row.LearnedIban is not null ? TreasuryAccountSource.Learned
-            : TreasuryAccountSource.None;
-        var (iban, name, code) = source switch
-        {
-            TreasuryAccountSource.Manual => (row.ManualIban, row.ManualRecipientName, row.ManualRecipientCode),
-            TreasuryAccountSource.Learned => (row.LearnedIban, row.LearnedRecipientName, row.LearnedRecipientCode),
-            _ => ((string?)null, null, null),
-        };
+        var (source, iban, name, code) = InUse(row);
         string[] missing = source == TreasuryAccountSource.None
             ? []
             : [.. new[] { name is null ? "recipientName" : null, code is null ? "recipientCode" : null }.OfType<string>()];

@@ -10,6 +10,7 @@ import { formatLongDate } from "./debt";
 import { DaysLeft, DebtPeriod } from "./DebtParts";
 import { HeroCard } from "./HeroCard";
 import { LimitBar } from "./LimitBar";
+import { PayDebtButton } from "./PayDebtButton";
 import { ReserveCard } from "./ReserveCard";
 
 export function DashboardScreen() {
@@ -244,6 +245,7 @@ function LaterDebts({ debts, today }: { debts: KindDebt[]; today: string }) {
               </span>
             </div>
             <span className="font-semibold tabular-nums">{formatMoney(Number(debt.amountKop), locale)}</span>
+            <PayDebtButton debt={debt} className="col-span-full mt-2 w-fit" />
           </li>
         ))}
       </ul>

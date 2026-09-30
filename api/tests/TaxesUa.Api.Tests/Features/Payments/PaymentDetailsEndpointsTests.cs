@@ -1,0 +1,276 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Payments;
+using TaxesUa.Api.Features.Settings;
+using TaxesUa.Api.Features.TaxYears;
+using TaxesUa.Api.Features.Transactions;
+using TaxesUa.Engine;
+using EsvRegistrationMonthPolicy = TaxesUa.Api.Features.Settings.EsvRegistrationMonthPolicy;
+using PaymentMode = TaxesUa.Api.Features.Settings.PaymentMode;
+
+namespace TaxesUa.Api.Tests.Features.Payments;
+
+// The details a Pay panel shows (#99, Rule 16). A restore of an empty file gives each test a clean owner.
+public sealed class PaymentDetailsEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>
+{
+    private const string Empty =
+        """{"schemaVersion":9,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"treasuryAccounts":[]}""";
+
+    private const string Iban = "UA358999980333159998000026011";
+
+    private const string LearnedIban = "UA018999980333159998000026011";
+
+    private const string QuarterQuery = "kind=SingleTax&periodYear=2026&periodQuarter=3&amountKop=123456";
+
+    private static readonly JsonSerializerOptions Json =
+        new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
+
+    [Fact]
+    public async Task A_manual_account_gives_the_recipient_and_the_purpose_of_the_quarter()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await PutManual(owner, PaymentKind.SingleTax, "ГУ ДПС у м.Києві", "43141912");
+
+        var details = await Details(owner, QuarterQuery);
+
+        Assert.Equal(
+            (PaymentKind.SingleTax, 2026, 3, (int?)null, 123_456L, "101 єдиний податок за III квартал 2026 року"),
+            (details.Kind, details.PeriodYear, details.PeriodQuarter, details.PeriodMonth, details.AmountKop, details.Purpose));
+        Assert.Equal(
+            (Iban, "ГУ ДПС у м.Києві", "43141912", TreasuryAccountSource.Manual),
+            (details.Recipient!.Iban, details.Recipient.Name, details.Recipient.Code, details.Recipient.Source));
+        Assert.Empty(details.Missing);
+    }
+
+    [Fact]
+    public async Task A_month_gives_the_purpose_of_the_month()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await PutManual(owner, PaymentKind.Esv, "ГУ ДПС у м.Києві", "43141912");
+
+        var details = await Details(owner, "kind=Esv&periodYear=2026&periodMonth=9&amountKop=190234");
+
+        Assert.Equal("101 єдиний внесок за вересень 2026 року", details.Purpose);
+        Assert.Equal((null, 9, 190_234L), (details.PeriodQuarter, details.PeriodMonth, details.AmountKop));
+        Assert.Equal(Iban, details.Recipient!.Iban);
+    }
+
+    [Fact]
+    public async Task A_manual_account_wins_over_a_learned_one_and_a_learned_one_is_used_alone()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await SeedLearned(ApiFixture.AllowedEmail, PaymentKind.SingleTax, "ГУК Київ", "37993783");
+        await SeedLearned(ApiFixture.AllowedEmail, PaymentKind.Esv, "ГУК Київ", "37993783");
+        await PutManual(owner, PaymentKind.SingleTax, "ГУ ДПС у м.Києві", "43141912");
+
+        var manual = await Details(owner, QuarterQuery);
+        var learned = await Details(owner, "kind=Esv&periodYear=2026&periodQuarter=3&amountKop=570702");
+
+        Assert.Equal(
+            (TreasuryAccountSource.Manual, Iban, "ГУ ДПС у м.Києві", "43141912"),
+            (manual.Recipient!.Source, manual.Recipient.Iban, manual.Recipient.Name, manual.Recipient.Code));
+        Assert.Equal(
+            (TreasuryAccountSource.Learned, LearnedIban, "ГУК Київ", "37993783"),
+            (learned.Recipient!.Source, learned.Recipient.Iban, learned.Recipient.Name, learned.Recipient.Code));
+    }
+
+    [Fact]
+    public async Task Without_an_account_all_three_details_are_missing_and_no_recipient_is_given()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+
+        var details = await Details(owner, QuarterQuery);
+
+        Assert.Null(details.Recipient);
+        Assert.Equal(["iban", "recipientName", "recipientCode"], details.Missing);
+        Assert.Equal("101 єдиний податок за III квартал 2026 року", details.Purpose);
+        Assert.Equal(123_456, details.AmountKop);
+    }
+
+    [Fact]
+    public async Task A_learned_account_without_a_code_lists_it_as_missing_and_gives_no_recipient()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await SeedLearned(ApiFixture.AllowedEmail, PaymentKind.SingleTax, "ГУК Київ", null);
+
+        var details = await Details(owner, QuarterQuery);
+
+        Assert.Null(details.Recipient);
+        Assert.Equal(["recipientCode"], details.Missing);
+    }
+
+    [Theory]
+    [InlineData("kind=SingleTax&periodYear=2026&periodQuarter=3&amountKop=0", "amountKop")]
+    [InlineData("kind=SingleTax&periodYear=2026&periodQuarter=3&amountKop=-5", "amountKop")]
+    [InlineData("kind=SingleTax&periodYear=2026&periodQuarter=3&amountKop=100000000000001", "amountKop")]
+    [InlineData("kind=SingleTax&periodYear=2026&periodQuarter=3&periodMonth=9&amountKop=100", "periodQuarter")]
+    [InlineData("kind=SingleTax&periodYear=2026&amountKop=100", "periodQuarter")]
+    [InlineData("kind=SingleTax&periodYear=2026&periodQuarter=5&amountKop=100", "periodQuarter")]
+    [InlineData("kind=SingleTax&periodYear=2026&periodMonth=13&amountKop=100", "periodMonth")]
+    [InlineData("kind=SingleTax&periodYear=1999&periodQuarter=3&amountKop=100", "periodYear")]
+    [InlineData("kind=7&periodYear=2026&periodQuarter=3&amountKop=100", "kind")]
+    public async Task An_invalid_request_is_rejected_with_the_field(string query, string rejectedField)
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+
+        var response = await owner.GetAsync($"/api/payment-details?{query}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
+        Assert.Contains(rejectedField, problem.GetProperty("errors").EnumerateObject().Select(property => property.Name));
+    }
+
+    [Fact]
+    public async Task A_fractional_amount_is_rejected()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+
+        var response = await owner.GetAsync("/api/payment-details?kind=SingleTax&periodYear=2026&periodQuarter=3&amountKop=12.5");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_year_without_a_tax_configuration_is_refused()
+    {
+        const int year = 2003;
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await using (var scope = fixture.CreateScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.False(await database.TaxYearConfigs.AnyAsync(config => config.Year == year));
+        }
+
+        var response = await owner.GetAsync($"/api/payment-details?kind=SingleTax&periodYear={year}&periodQuarter=3&amountKop=100");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("periodQuarter=3", HttpStatusCode.Conflict)]
+    [InlineData("periodMonth=8", HttpStatusCode.Conflict)]
+    [InlineData("periodQuarter=2", HttpStatusCode.OK)]
+    [InlineData("periodMonth=6", HttpStatusCode.OK)]
+    public async Task A_period_after_the_limit_crossing_is_refused(string period, HttpStatusCode expected)
+    {
+        const int year = 2025;
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await SetUpCrossedInQ2(owner, year);
+
+        var response = await owner.GetAsync($"/api/payment-details?kind=SingleTax&periodYear={year}&{period}&amountKop=100");
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Without_a_session_the_details_are_refused()
+    {
+        var response = await fixture.CreateClient().GetAsync($"/api/payment-details?{QuarterQuery}");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task An_owner_sees_only_their_own_account()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        using var stranger = await SignInEmpty(app, ApiFixture.SecondAllowedEmail);
+        await PutManual(owner, PaymentKind.SingleTax, "ГУ ДПС у м.Києві", "43141912");
+
+        var strangerDetails = await Details(stranger, QuarterQuery);
+        Assert.Null(strangerDetails.Recipient);
+        Assert.Equal(["iban", "recipientName", "recipientCode"], strangerDetails.Missing);
+
+        await PutManual(stranger, PaymentKind.SingleTax, "ГУК Львів", "37993783");
+        Assert.Equal("ГУК Львів", (await Details(stranger, QuarterQuery)).Recipient!.Name);
+        Assert.Equal("ГУ ДПС у м.Києві", (await Details(owner, QuarterQuery)).Recipient!.Name);
+    }
+
+    private async Task<HttpClient> SignInEmpty(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, string email)
+    {
+        var client = await ApiFixture.SignIn(app, email);
+        var response = await client.PostAsync("/api/restore", new StringContent(Empty, Encoding.UTF8, "application/json"));
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return client;
+    }
+
+    // The limit is one minimum wage (8,647.00), so 5,000.00 in Q1 and 5,000.00 in Q2 cross it in Q2 and
+    // group 3 ends after Q2.
+    private static async Task SetUpCrossedInQ2(HttpClient owner, int year)
+    {
+        var taxYear = new TaxYearConfigRequest(
+            864_700, 500, 100, 2_200, 1_500, 1, [85, 100], 19, 40, 10, 15, [], "a test source");
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync($"/api/tax-years/{year}", taxYear, Json)).StatusCode);
+
+        var settings = new SettingsRequest(
+            new DateOnly(year, 1, 1),
+            PaymentMode.Quarterly,
+            EsvRegistrationMonthPolicy.FullMonth,
+            EsvExempt: false,
+            TaxPaymentCountsFromStatutoryDeclarationDate: true,
+            ShiftTaxPaymentFromWeekend: true,
+            [DayOfWeek.Saturday, DayOfWeek.Sunday],
+            "uk",
+            "system",
+            "UAH");
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", settings, Json)).StatusCode);
+
+        foreach (var valueDate in new[] { new DateOnly(year, 2, 10), new DateOnly(year, 5, 10) })
+        {
+            var income = new TransactionRequest(
+                valueDate, 500_000, Currency.UAH, null, TransactionKind.Income, null, null, null, null, null);
+            Assert.Equal(HttpStatusCode.Created, (await owner.PostAsJsonAsync("/api/transactions", income, Json)).StatusCode);
+        }
+    }
+
+    private static async Task PutManual(HttpClient client, PaymentKind kind, string name, string code)
+    {
+        var response = await client.PutAsJsonAsync(
+            $"/api/settings/treasury-accounts/{kind}", new TreasuryAccountRequest(Iban, name, code), Json);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    private async Task SeedLearned(string email, PaymentKind kind, string name, string? code)
+    {
+        await using var scope = fixture.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userId = await database.Users.Where(user => user.Email == email).Select(user => user.Id).SingleAsync();
+        database.TreasuryAccounts.Add(new TreasuryAccount
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Kind = kind,
+            LearnedIban = LearnedIban,
+            LearnedRecipientName = name,
+            LearnedRecipientCode = code,
+            LearnedExternalId = "op-1",
+            LearnedPaidOn = new DateOnly(2026, 7, 1),
+            LearnedAt = DateTimeOffset.UtcNow,
+        });
+        await database.SaveChangesAsync();
+    }
+
+    private static async Task<PaymentDetailsResponse> Details(HttpClient client, string query)
+    {
+        var response = await client.GetAsync($"/api/payment-details?{query}");
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<PaymentDetailsResponse>(Json))!;
+    }
+}

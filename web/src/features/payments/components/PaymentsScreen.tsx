@@ -8,6 +8,7 @@ import { usePeriods } from "@/data/periods/usePeriods";
 import { useTaxYears } from "@/data/tax-years/useTaxYears";
 import { currentYearInKyiv } from "@/shared/lib/dates";
 import { BalancesPanel } from "./BalancesPanel";
+import { ObligationsPanel } from "./ObligationsPanel";
 import { PaymentForm } from "./PaymentForm";
 import { PaymentList } from "./PaymentList";
 
@@ -88,6 +89,8 @@ export function PaymentsScreen() {
       {payments.isError || periods.isError ? <p className="text-sm text-destructive">{t("loadFailed")}</p> : null}
 
       {periods.data?.balances ? <BalancesPanel year={year} balances={periods.data.balances} /> : null}
+
+      {periods.data ? <ObligationsPanel year={year} quarters={periods.data.quarters} /> : null}
 
       {periods.data?.warnings.fopRegistrationDateNotSet ? (
         <LedgerNotice title={t("registrationWarning.title")} message={t("registrationWarning.message")} cta={t("registrationWarning.cta")} />

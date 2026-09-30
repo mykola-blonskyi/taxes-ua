@@ -10,6 +10,7 @@ import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 import { formatLongDate, quarterEndOf } from "./debt";
 import { DebtPeriod, DaysLeft } from "./DebtParts";
+import { PayDebtButton } from "./PayDebtButton";
 
 const electronicCabinetUrl = "https://cabinet.tax.gov.ua/";
 
@@ -56,6 +57,7 @@ export function HeroCard({ now, today, busy }: { now: KindDebt[]; today: string;
                 {mixedDates ? ` · ${formatLongDate(debt.dueDate, today, locale)}` : null}
               </span>
               <span className="text-xl font-semibold tabular-nums">{formatMoney(Number(debt.amountKop), locale)}</span>
+              <PayDebtButton debt={debt} className="col-span-full mt-1 w-fit" />
             </li>
           ))}
         </ul>

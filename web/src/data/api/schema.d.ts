@@ -37,6 +37,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/payment-details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    kind: components["schemas"]["PaymentKind"];
+                    periodYear: number | string;
+                    periodQuarter?: number | string;
+                    periodMonth?: number | string;
+                    amountKop: number | string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PaymentDetailsResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/import/prototype": {
         parameters: {
             query?: never;
@@ -4681,6 +4747,20 @@ export interface components {
             intermediarySwift: string;
             intermediaryAccount: string;
         };
+        PaymentDetailsResponse: {
+            kind: components["schemas"]["PaymentKind"];
+            /** Format: int32 */
+            periodYear: number | string;
+            /** Format: int32 */
+            periodQuarter: null | number | string;
+            /** Format: int32 */
+            periodMonth: null | number | string;
+            /** Format: int64 */
+            amountKop: number | string;
+            purpose: string;
+            recipient: null | components["schemas"]["PaymentRecipientResponse"];
+            missing: string[];
+        };
         /** @enum {string} */
         PaymentKind: "SingleTax" | "MilitaryLevy" | "Esv";
         PaymentListResponse: {
@@ -4702,6 +4782,12 @@ export interface components {
         };
         /** @enum {string} */
         PaymentMode: "Quarterly" | "MonthlyAdvance";
+        PaymentRecipientResponse: {
+            iban: string;
+            name: string;
+            code: string;
+            source: components["schemas"]["TreasuryAccountSource"];
+        };
         PaymentRequest: {
             /** Format: date */
             paidOn: string;
