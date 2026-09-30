@@ -13,6 +13,7 @@ using TaxesUa.Api.Features.Backup;
 using TaxesUa.Api.Features.Dashboard;
 using TaxesUa.Api.Features.Export;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
@@ -269,6 +270,7 @@ api.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
 api.MapAuthApi();
 api.MapSettingsApi();
 api.MapInvoicingApi();
+api.MapInvoicesApi();
 api.MapTaxYearsApi();
 api.MapPeriodsApi();
 api.MapTransactionsApi();

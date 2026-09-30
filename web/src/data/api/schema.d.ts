@@ -936,6 +936,499 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    status?: components["schemas"]["InvoiceStatus"];
+                    clientId?: string;
+                    year?: number | string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceSummary"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvoiceRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvoiceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{id}/duplicate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{id}/issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CancelInvoiceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvoiceResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invoices/{id}/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/pdf": string;
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tax-years": {
         parameters: {
             query?: never;
@@ -2781,7 +3274,7 @@ export interface components {
         /** @enum {string} */
         AuditAction: "Create" | "Update" | "Delete" | "Restore";
         /** @enum {string} */
-        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "InvoicingDetails" | "TaxYearConfig" | "Backup" | "Client";
+        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "InvoicingDetails" | "TaxYearConfig" | "Backup" | "Client" | "Invoice";
         AuditEntryResponse: {
             /** Format: int64 */
             id: number | string;
@@ -2809,6 +3302,7 @@ export interface components {
             importBatches: components["schemas"]["ImportBatchBackup"][];
             budgetPaymentCandidates: components["schemas"]["PaymentCandidateBackup"][];
             invoicingDetails: null | components["schemas"]["InvoicingDetailsBackup"];
+            invoices: components["schemas"]["InvoiceBackup"][];
         };
         /** @enum {string} */
         Bank: "Monobank" | "PrivatBank" | "Other";
@@ -2849,6 +3343,9 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        CancelInvoiceRequest: {
+            reason: string;
         };
         /** @enum {string} */
         CandidateStatus: "Pending" | "Confirmed" | "Dismissed";
@@ -2977,6 +3474,154 @@ export interface components {
         };
         /** @enum {string} */
         ImportSource: "Monobank";
+        InvoiceBackup: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            clientId: string;
+            status: components["schemas"]["InvoiceStatus"];
+            /** Format: int32 */
+            numberYear: null | number | string;
+            /** Format: int32 */
+            numberSequence: null | number | string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            dueDate: string;
+            currency: components["schemas"]["Currency"];
+            lines: components["schemas"]["InvoiceLine"][];
+            snapshot: null | components["schemas"]["InvoiceSnapshot"];
+            signatureImage: null | string;
+            signatureContentType: null | string;
+            cancelReason: null | string;
+            /** Format: date-time */
+            issuedAt: null | string;
+            /** Format: date-time */
+            cancelledAt: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        InvoiceBuyer: {
+            name: string;
+            address: string;
+            country: string;
+            countryName: string;
+            vatId: null | string;
+            email: null | string;
+        };
+        InvoiceClauses: {
+            acceptanceEn: string;
+            acceptanceUk: string;
+            feesEn: string;
+            feesUk: string;
+            taxStatusEn: string;
+            taxStatusUk: string;
+        };
+        InvoiceLine: {
+            descriptionEn: string;
+            descriptionUk: string;
+            unit: components["schemas"]["InvoiceUnit"];
+            /** Format: int64 */
+            quantityThousandths: number | string;
+            /** Format: int64 */
+            rateMinor: number | string;
+        };
+        InvoiceLineRequest: {
+            descriptionEn: string;
+            descriptionUk: string;
+            unit: components["schemas"]["InvoiceUnit"];
+            /** Format: int64 */
+            quantityThousandths: number | string;
+            /** Format: int64 */
+            rateMinor: number | string;
+        };
+        InvoiceLineResponse: {
+            descriptionEn: string;
+            descriptionUk: string;
+            unit: components["schemas"]["InvoiceUnit"];
+            /** Format: int64 */
+            quantityThousandths: number | string;
+            /** Format: int64 */
+            rateMinor: number | string;
+            /** Format: int64 */
+            amountMinor: number | string;
+        };
+        InvoicePayment: {
+            iban: string;
+            beneficiaryBank: string;
+            swift: string;
+            intermediaryBank: string;
+            intermediarySwift: string;
+            intermediaryAccount: string;
+        };
+        InvoiceRequest: {
+            /** Format: uuid */
+            clientId: string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            dueDate: string;
+            currency: components["schemas"]["Currency"];
+            lines: components["schemas"]["InvoiceLineRequest"][];
+        };
+        InvoiceResponse: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["InvoiceStatus"];
+            number: null | string;
+            /** Format: uuid */
+            clientId: string;
+            clientName: string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            dueDate: string;
+            currency: components["schemas"]["Currency"];
+            lines: components["schemas"]["InvoiceLineResponse"][];
+            /** Format: int64 */
+            totalMinor: number | string;
+            cancelReason: null | string;
+            /** Format: date-time */
+            issuedAt: null | string;
+            /** Format: date-time */
+            cancelledAt: null | string;
+            pdfFileName: string;
+        };
+        InvoiceSeller: {
+            nameUk: string;
+            nameEn: string;
+            rnokpp: string;
+            addressUk: string;
+            addressEn: string;
+        };
+        InvoiceSnapshot: {
+            seller: components["schemas"]["InvoiceSeller"];
+            buyer: components["schemas"]["InvoiceBuyer"];
+            payment: components["schemas"]["InvoicePayment"];
+            clauses: components["schemas"]["InvoiceClauses"];
+        };
+        /** @enum {string} */
+        InvoiceStatus: "Draft" | "Issued" | "Cancelled";
+        InvoiceSummary: {
+            /** Format: uuid */
+            id: string;
+            status: components["schemas"]["InvoiceStatus"];
+            number: null | string;
+            /** Format: uuid */
+            clientId: string;
+            clientName: string;
+            /** Format: date */
+            issueDate: string;
+            /** Format: date */
+            dueDate: string;
+            currency: components["schemas"]["Currency"];
+            /** Format: int64 */
+            totalMinor: number | string;
+        };
+        /** @enum {string} */
+        InvoiceUnit: "Service" | "Hour" | "Day" | "Month";
         InvoicingClauseDefaults: {
             acceptanceClauseEn: string;
             acceptanceClauseUk: string;

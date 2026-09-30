@@ -4,7 +4,6 @@ using MigraDoc.DocumentObjectModel;
 using MigraDoc.DocumentObjectModel.Tables;
 using MigraDoc.Rendering;
 using PdfSharp.Drawing;
-using PdfSharp.Fonts;
 using TaxesUa.Api.Features.Transactions;
 
 namespace TaxesUa.Api.Features.Export;
@@ -15,22 +14,16 @@ namespace TaxesUa.Api.Features.Export;
 /// </summary>
 internal static class TransactionPdf
 {
-    private const string FontFamily = "Noto Sans";
+    private const string FontFamily = PdfFonts.Family;
     private const string NoBreakSpace = " ";
     private const double PageMarginMm = 10;
     private const double PrintableWidthMm = 297 - 2 * PageMarginMm;
     private const double CellPaddingMm = 1;
     private const double CellFontSize = 7;
 
-    static TransactionPdf()
-    {
-        // Process-wide and set once: the container has no system fonts, and PDFsharp's Core build
-        // never reads them anyway.
-        GlobalFontSettings.FontResolver = new NotoSansFontResolver();
-    }
-
     public static byte[] ToPdf(ExportedYear year)
     {
+        PdfFonts.Register();
         var document = new Document();
         document.Info.Title = $"Надходження за {year.Year}";
         document.Styles[StyleNames.Normal]!.Font.Name = FontFamily;
@@ -186,23 +179,4 @@ internal static class TransactionPdf
     }
 
     private static string Money(long kop) => TransactionExport.FormatScaled(kop, 2, ',', NoBreakSpace);
-
-    // Every family resolves to Noto Sans, so a style that names another font still renders Cyrillic.
-    private sealed class NotoSansFontResolver : IFontResolver
-    {
-        private const string Regular = "NotoSans-Regular";
-        private const string Bold = "NotoSans-Bold";
-
-        public FontResolverInfo ResolveTypeface(string familyName, bool isBold, bool isItalic) =>
-            new(isBold ? Bold : Regular);
-
-        public byte[] GetFont(string faceName)
-        {
-            using var resource = typeof(TransactionPdf).Assembly
-                .GetManifestResourceStream($"TaxesUa.Api.Fonts.{faceName}.ttf")!;
-            using var buffer = new MemoryStream();
-            resource.CopyTo(buffer);
-            return buffer.ToArray();
-        }
-    }
 }

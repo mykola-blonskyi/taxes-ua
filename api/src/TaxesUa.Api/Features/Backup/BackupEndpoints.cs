@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Transactions;
 using HttpJsonOptions = Microsoft.AspNetCore.Http.Json.JsonOptions;
@@ -159,14 +160,19 @@ public static class BackupEndpoints
         var invoicingPayments = await database.InvoicingPaymentDetails.AsNoTracking()
             .Where(row => row.UserId == userId)
             .ToListAsync(cancellationToken);
+        var invoices = await database.Invoices.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .OrderBy(row => row.CreatedAt)
+            .ThenBy(row => row.Id)
+            .ToListAsync(cancellationToken);
 
         // The monobank connection, and the token it holds, is never part of a backup (ADR-011).
         return BackupDocument.From(
             settings, clients, transactions, payments, bankAccounts, importBatches, candidates,
-            invoicingDetails, invoicingPayments);
+            invoicingDetails, invoicingPayments, invoices);
     }
 
-    // Returns the refund-link errors, having rolled everything back, or null once the owner's data is
+    // Returns the errors, having rolled everything back, or null once the owner's data is
     // replaced. Every statement is scoped to userId, and inserts never overwrite: an id another owner
     // already holds sends the whole file through fresh ids instead.
     private static async Task<Dictionary<string, string[]>?> ReplaceAsync(
@@ -183,12 +189,20 @@ public static class BackupEndpoints
         await database.Database.ExecuteSqlAsync(
             $"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
 
+        // An issued or cancelled invoice's number is already out in the world; dropping it would let the
+        // next issue take it again (Rule 14).
+        if (await MissingInvoiceNumbersAsync(database, userId, document, cancellationToken) is { Length: > 0 } missing)
+        {
+            return new Dictionary<string, string[]> { ["missingInvoices"] = missing };
+        }
+
         // One statement takes receipts and their refunds together: PostgreSQL checks the RESTRICT link
         // at the end of the statement, when neither side is left.
         await database.Transactions.IgnoreQueryFilters()
             .Where(row => row.UserId == userId)
             .ExecuteDeleteAsync(cancellationToken);
         await database.ImportBatches.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.Invoices.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.Clients.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.BudgetPayments.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.BudgetPaymentCandidates.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
@@ -211,6 +225,7 @@ public static class BackupEndpoints
         }
 
         database.Clients.AddRange(document.Clients.Select(client => client.ToEntity(userId, id)));
+        database.Invoices.AddRange(document.Invoices.Select(invoice => invoice.ToEntity(userId, id)));
         database.ImportBatches.AddRange(document.ImportBatches.Select(batch => batch.ToEntity(userId, id, accountId)));
         var transactions = document.Transactions.Select(row => row.ToEntity(userId, id, accountId)).ToArray();
         database.Transactions.AddRange(transactions);
@@ -255,6 +270,25 @@ public static class BackupEndpoints
         return null;
     }
 
+    private static async Task<string[]> MissingInvoiceNumbersAsync(
+        AppDbContext database, string userId, BackupDocument document, CancellationToken cancellationToken)
+    {
+        var kept = document.Invoices
+            .Where(invoice => invoice.NumberYear is not null && invoice.NumberSequence is not null)
+            .Select(invoice => (invoice.NumberYear!.Value, invoice.NumberSequence!.Value))
+            .ToHashSet();
+        var owned = await database.Invoices
+            .Where(row => row.UserId == userId && row.Status != InvoiceStatus.Draft)
+            .Select(row => new { Year = row.NumberYear!.Value, Sequence = row.NumberSequence!.Value })
+            .ToListAsync(cancellationToken);
+
+        return [.. owned
+            .Where(row => !kept.Contains((row.Year, row.Sequence)))
+            .OrderBy(row => row.Year)
+            .ThenBy(row => row.Sequence)
+            .Select(row => InvoiceNumbers.Format(row.Year, row.Sequence))];
+    }
+
     // Runs after the owner's own rows are deleted under the owner's lock, so any id still present
     // belongs to another owner.
     private static async Task<Func<Guid, Guid>> IdMappingAsync(
@@ -265,7 +299,8 @@ public static class BackupEndpoints
             || await database.Transactions.IgnoreQueryFilters().AnyAsync(row => ids.Contains(row.Id), cancellationToken)
             || await database.BudgetPayments.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
             || await database.ImportBatches.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
-            || await database.BudgetPaymentCandidates.AnyAsync(row => ids.Contains(row.Id), cancellationToken);
+            || await database.BudgetPaymentCandidates.AnyAsync(row => ids.Contains(row.Id), cancellationToken)
+            || await database.Invoices.AnyAsync(row => ids.Contains(row.Id), cancellationToken);
         if (!taken)
         {
             return fileId => fileId;

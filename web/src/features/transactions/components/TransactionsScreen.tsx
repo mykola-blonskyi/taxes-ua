@@ -28,26 +28,31 @@ export function TransactionsScreen() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          aria-label={t("year.previous")}
-          onClick={() => setYear((current) => current - 1)}
-        >
-          <ChevronLeft aria-hidden="true" />
-        </Button>
-        <span className="min-w-10 text-center text-base font-semibold">{year}</span>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          aria-label={t("year.next")}
-          onClick={() => setYear((current) => current + 1)}
-        >
-          <ChevronRight aria-hidden="true" />
-        </Button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label={t("year.previous")}
+            onClick={() => setYear((current) => current - 1)}
+          >
+            <ChevronLeft aria-hidden="true" />
+          </Button>
+          <span className="min-w-10 text-center text-base font-semibold">{year}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label={t("year.next")}
+            onClick={() => setYear((current) => current + 1)}
+          >
+            <ChevronRight aria-hidden="true" />
+          </Button>
+        </div>
+        <Link href="/invoices" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          {t("invoicesLink")}
+        </Link>
       </div>
 
       {isLoading ? <p className="text-sm text-muted-foreground">{t("loading")}</p> : null}

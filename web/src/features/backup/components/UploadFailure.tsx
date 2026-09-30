@@ -21,6 +21,16 @@ export function UploadFailure({ error, notJson, tooLarge, failed }: Props) {
   }
 
   const apiFailure = error instanceof ApiError ? error : null;
+  const missingInvoices = apiFailure?.errors.missingInvoices;
+
+  if (missingInvoices) {
+    return (
+      <p role="alert" className="min-w-0 break-words text-xs font-medium text-destructive">
+        {t("missingInvoices", { numbers: missingInvoices.join(", ") })}
+      </p>
+    );
+  }
+
   const errorEntries = Object.entries(apiFailure?.errors ?? {}).flatMap(([key, messages]) =>
     messages.map((message) => `${key}: ${message}`),
   );

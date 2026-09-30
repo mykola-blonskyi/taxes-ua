@@ -19,6 +19,10 @@ public static class InvoicingTestData
     public static readonly byte[] Png =
         Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==");
 
+    // A 240 by 60 RGBA stroke PDFsharp embeds; the 1 by 1 Png above is one its importer refuses.
+    public static readonly byte[] SignaturePng = Convert.FromBase64String(
+        "iVBORw0KGgoAAAANSUhEUgAAAPAAAAA8CAYAAABYfzddAAACuUlEQVR4nO3YXU5rMQxFYQbBIBgiswfl4YijqrTOj+NtZ30Sj+2xF0nLvR8fAAAAAAAAAAAAAAAAgJfPr++fVz/R86mhlR1ny9m7wIT+Y21FL1q56wlM7LFe0TNH4Ww5Gw18amha2XG2nM0GPi00rew4WxuMBDs19MjetJo/WzvmTWkm1mmhZ/c9qRetNlgV6ITQqw7UKQeTs+VsdZjqoVfuR6vY90vPK0jV0B570Wr8fVe9Z1qeh6da6F2tKvbyet8qrYZ4h6gW2nsXWo29f4Ve3XYFqBJ61w7VWu06W17PkLVz+eyhd34IVfjA42w5i1g6c+jds9Nq7HkZew3hAttFzZ2xV9RlythqWOSy2UJHfrpna9VwtpwpLKkwg1X0rNHP7xE9a/Tzt1BYUmEGC5U5VeZ4R2HOJTOohlYIrDjLM0r/MaI0yzNq803PorLInXJkhXnuFGdTm+dObbbp35/SMo3igWwyzBU9yyVDqzJzqS2kNs+d2myqB7JRnE1tnsuyCxy9mNIsz6jNpzTLM0rzqf3uHpX4FlaZ4xWVg6Awg4XCnAozWCz5t3DUktHP7xE9a/Tzeyh84EU/v0fKb+FMgS/0sqNVn3SX+KjISZ87K2JuhW//Ean+lM4Y+BLZKluviNmztmpSfAtnPpCXqF7ez/JAK7upu7Fj+QqXt9m1R4VWDWfLbskF9gpQIfBlZ6vsvThbfSQvcaUD2dCqz65eK983yrI/pVcFqXggG1r18diraq/hvR5fOBulauCLZ6tqvVbvVrlVE36Jqwe+eLSq2mvVjie22nqJTzmQDa360Mtu+SV+9wYjr6lgdO8TWzWrWp3Qa2rf/6L1/DjtJYdWditandpr6sUEfo1WdlzePlN7E9iOVnZc3j5TuxPYjlZ96LURce04jHa0AgAAAAAAAAAAAACc6Bc9E/d6kt/EkgAAAABJRU5ErkJggg==");
+
     public static readonly byte[] Jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0xFF, 0xD9];
 }
 

@@ -154,7 +154,7 @@ src/TaxesUa.Api/
     AppDbContext.cs   only DbSet<T> per entity, no business logic
     Migrations/
   Features/       one directory per resource (auth, settings, tax-years, transactions, fx,
-    <Name>/       payments, periods, dashboard, export, backup, audit)
+    <Name>/       payments, periods, dashboard, export, backup, audit, invoices)
       <Entity>.cs        EF entity/entities, declared internal
       <Name>Endpoints.cs the feature's single public surface: Map<Name>Api(this
                          IEndpointRouteBuilder group), called once from Program.cs

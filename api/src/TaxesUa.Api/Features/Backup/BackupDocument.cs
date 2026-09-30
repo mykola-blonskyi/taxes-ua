@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
@@ -27,13 +28,14 @@ internal sealed record BackupDocument(
     BankAccountBackup[] BankAccounts,
     ImportBatchBackup[] ImportBatches,
     PaymentCandidateBackup[] BudgetPaymentCandidates,
-    InvoicingDetailsBackup? InvoicingDetails)
+    InvoicingDetailsBackup? InvoicingDetails,
+    InvoiceBackup[] Invoices)
 {
     // 2 added bankAccounts, importBatches and the transactions' import fields (#76); 3 added
     // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91); 5 added
-    // the clients' details (#90). An older file is upgraded to this shape one version at a time before it is
-    // read, see Upgrade.
-    public const int CurrentSchemaVersion = 5;
+    // the clients' details (#90); 6 added invoices (#92). An older file is upgraded to this shape one version
+    // at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 6;
 
     private const int MaxExternalIdLength = 200;
 
@@ -46,7 +48,8 @@ internal sealed record BackupDocument(
         IEnumerable<ImportBatch> importBatches,
         IEnumerable<BudgetPaymentCandidate> candidates,
         InvoicingDetails? invoicingDetails,
-        IEnumerable<InvoicingPaymentDetails> invoicingPayments) => new(
+        IEnumerable<InvoicingPaymentDetails> invoicingPayments,
+        IEnumerable<Invoice> invoices) => new(
         CurrentSchemaVersion,
         settings is null ? null : SettingsBackup.From(settings),
         [.. clients.Select(ClientBackup.From)],
@@ -55,7 +58,8 @@ internal sealed record BackupDocument(
         [.. bankAccounts.Select(BankAccountBackup.From)],
         [.. importBatches.Select(ImportBatchBackup.Of)],
         [.. candidates.Select(PaymentCandidateBackup.From)],
-        invoicingDetails is null ? null : InvoicingDetailsBackup.From(invoicingDetails, invoicingPayments));
+        invoicingDetails is null ? null : InvoicingDetailsBackup.From(invoicingDetails, invoicingPayments),
+        [.. invoices.Select(InvoiceBackup.From)]);
 
     // Bank accounts are left out: a restore matches them to the owner's rows by bank and external id.
     public IEnumerable<Guid> Ids() =>
@@ -63,7 +67,8 @@ internal sealed record BackupDocument(
             .Concat(Transactions.Select(transaction => transaction.Id))
             .Concat(BudgetPayments.Select(payment => payment.Id))
             .Concat(ImportBatches.Select(batch => batch.Id))
-            .Concat(BudgetPaymentCandidates.Select(candidate => candidate.Id));
+            .Concat(BudgetPaymentCandidates.Select(candidate => candidate.Id))
+            .Concat(Invoices.Select(invoice => invoice.Id));
 
     public static void Upgrade(JsonObject root, int version)
     {
@@ -85,6 +90,11 @@ internal sealed record BackupDocument(
         if (version <= 4)
         {
             UpgradeFromVersion4(root);
+        }
+
+        if (version <= 5)
+        {
+            UpgradeFromVersion5(root);
         }
     }
 
@@ -143,7 +153,7 @@ internal sealed record BackupDocument(
     // A version 4 file predates client details: every client has only its name.
     private static void UpgradeFromVersion4(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 5;
         if (root["clients"] is not JsonArray clients)
         {
             return;
@@ -160,6 +170,13 @@ internal sealed record BackupDocument(
         }
     }
 
+    // A version 5 file predates invoices.
+    private static void UpgradeFromVersion5(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        root["invoices"] = new JsonArray();
+    }
+
     /// <summary>
     /// Every rule a row must meet that the file alone can answer, through the same validators the
     /// endpoints run. The refund links need the receipts' stored state, so
@@ -173,11 +190,12 @@ internal sealed record BackupDocument(
             || Array.Exists(BudgetPayments, row => row is null)
             || Array.Exists(BankAccounts, row => row is null)
             || Array.Exists(ImportBatches, row => row is null)
-            || Array.Exists(BudgetPaymentCandidates, row => row is null))
+            || Array.Exists(BudgetPaymentCandidates, row => row is null)
+            || Array.Exists(Invoices, row => row is null))
         {
             return new()
             {
-                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches and budgetPaymentCandidates must not contain null."],
+                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches, budgetPaymentCandidates and invoices must not contain null."],
             };
         }
 
@@ -217,6 +235,28 @@ internal sealed record BackupDocument(
             if (name.Length > 0 && !seenNames.Add(name))
             {
                 errors[$"clients[{i}].name"] = ["name must differ from every other client's."];
+            }
+        }
+
+        var invoiceIds = new HashSet<Guid>();
+        var invoiceNumbers = new HashSet<(int, int)>();
+        for (var i = 0; i < Invoices.Length; i++)
+        {
+            var invoice = Invoices[i];
+            if (invoice.Id == Guid.Empty || !invoiceIds.Add(invoice.Id))
+            {
+                errors[$"invoices[{i}].id"] = ["id must be a non-empty id no other invoice has."];
+            }
+
+            if (!clientNames.ContainsKey(invoice.ClientId))
+            {
+                errors[$"invoices[{i}].clientId"] = ["clientId must be the id of one of the clients."];
+            }
+
+            Merge($"invoices[{i}]", invoice.Validate());
+            if (invoice is { NumberYear: { } year, NumberSequence: { } sequence } && !invoiceNumbers.Add((year, sequence)))
+            {
+                errors[$"invoices[{i}].numberSequence"] = ["The invoice number must differ from every other invoice's."];
             }
         }
 
@@ -860,16 +900,7 @@ internal sealed record InvoicingDetailsBackup(
         }
 
         var errors = InvoicingEndpoints.Validate(ToRequest()) ?? [];
-        var image = DecodeSignature();
-        if ((SignatureImage is null) != (SignatureContentType is null))
-        {
-            errors["signatureImage"] = ["signatureImage and signatureContentType are set together or not at all."];
-        }
-        else if (SignatureImage is not null && image is null)
-        {
-            errors["signatureImage"] = ["signatureImage must be base64."];
-        }
-        else if (image is not null && InvoicingEndpoints.SignatureError(image, SignatureContentType!) is { } error)
+        if (SignatureError(SignatureImage, SignatureContentType) is { } error)
         {
             errors["signatureImage"] = [error];
         }
@@ -891,15 +922,177 @@ internal sealed record InvoicingDetailsBackup(
             [.. request.PaymentDetails.Select(payment => InvoicingEndpoints.ToEntity(userId, Guid.NewGuid(), payment))]);
     }
 
-    private byte[]? DecodeSignature()
+    private byte[]? DecodeSignature() => DecodeSignature(SignatureImage);
+
+    internal static byte[]? DecodeSignature(string? base64)
     {
-        if (SignatureImage is null || SignatureImage.Length > InvoicingEndpoints.MaxSignatureBytes * 2)
+        if (base64 is null || base64.Length > InvoicingEndpoints.MaxSignatureBytes * 2)
         {
             return null;
         }
 
-        var buffer = new byte[SignatureImage.Length];
+        var buffer = new byte[base64.Length];
 
-        return Convert.TryFromBase64String(SignatureImage, buffer, out var written) ? buffer[..written] : null;
+        return Convert.TryFromBase64String(base64, buffer, out var written) ? buffer[..written] : null;
     }
+
+    /// <summary>The image rule the signature upload enforces, for an image that travelled as base64.</summary>
+    internal static string? SignatureError(string? base64, string? contentType)
+    {
+        if ((base64 is null) != (contentType is null))
+        {
+            return "signatureImage and signatureContentType are set together or not at all.";
+        }
+
+        if (base64 is null)
+        {
+            return null;
+        }
+
+        return DecodeSignature(base64) is { } image
+            ? InvoicingEndpoints.SignatureError(image, contentType!)
+            : "signatureImage must be base64.";
+    }
+}
+
+/// <summary>
+/// An invoice with its lines and, once issued, its frozen snapshot and signature. The number is the
+/// year and sequence, so a restore keeps every number the owner already sent.
+/// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record InvoiceBackup(
+    Guid Id,
+    Guid ClientId,
+    InvoiceStatus Status,
+    int? NumberYear,
+    int? NumberSequence,
+    DateOnly IssueDate,
+    DateOnly DueDate,
+    Currency Currency,
+    InvoiceLine[] Lines,
+    InvoiceSnapshot? Snapshot,
+    string? SignatureImage,
+    string? SignatureContentType,
+    string? CancelReason,
+    DateTimeOffset? IssuedAt,
+    DateTimeOffset? CancelledAt,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt)
+{
+    public static InvoiceBackup From(Invoice invoice) => new(
+        invoice.Id,
+        invoice.ClientId,
+        invoice.Status,
+        invoice.NumberYear,
+        invoice.NumberSequence,
+        invoice.IssueDate,
+        invoice.DueDate,
+        invoice.Currency,
+        invoice.Lines,
+        invoice.Snapshot,
+        invoice.SignatureImage is null ? null : Convert.ToBase64String(invoice.SignatureImage),
+        invoice.SignatureContentType,
+        invoice.CancelReason,
+        invoice.IssuedAt,
+        invoice.CancelledAt,
+        invoice.CreatedAt,
+        invoice.UpdatedAt);
+
+    /// <summary>The draft rules on the lines and dates, and the rules each status sets for the rest.</summary>
+    public Dictionary<string, string[]>? Validate()
+    {
+        if (Array.Exists(Lines, line => line is null))
+        {
+            return new() { ["lines"] = ["lines must not contain null."] };
+        }
+
+        var request = new InvoiceRequest(
+            ClientId,
+            IssueDate,
+            DueDate,
+            Currency,
+            [.. Lines.Select(line => new InvoiceLineRequest(
+                line.DescriptionEn, line.DescriptionUk, line.Unit, line.QuantityThousandths, line.RateMinor))]);
+        var errors = InvoiceRules.Validate(request.Normalized()) ?? [];
+
+        var numbered = NumberYear is not null || NumberSequence is not null;
+        switch (Status)
+        {
+            case InvoiceStatus.Draft when numbered || Snapshot is not null || SignatureImage is not null
+                || CancelReason is not null || IssuedAt is not null || CancelledAt is not null:
+                errors["status"] = ["A draft has no number, snapshot, signature, cancel reason or issue and cancel times."];
+                break;
+            case InvoiceStatus.Issued or InvoiceStatus.Cancelled when NumberYear != IssueDate.Year
+                || NumberSequence is not > 0 || Snapshot is null || IssuedAt is null:
+                errors["status"] = ["An issued invoice has a number of its issue date's year, a snapshot and an issue time."];
+                break;
+            case InvoiceStatus.Issued when CancelReason is not null || CancelledAt is not null:
+                errors["cancelReason"] = ["Only a cancelled invoice has a cancel reason."];
+                break;
+            case InvoiceStatus.Cancelled when CancelledAt is null || InvoiceRules.CancelReasonError(CancelReason?.Trim() ?? string.Empty) is not null:
+                errors["cancelReason"] = [InvoiceRules.CancelReasonError(CancelReason?.Trim() ?? string.Empty) ?? "A cancelled invoice has a cancel time."];
+                break;
+        }
+
+        if (!Enum.IsDefined(Status))
+        {
+            errors["status"] = ["status must be Draft, Issued or Cancelled."];
+        }
+
+        if (Snapshot is not null && SnapshotTexts(Snapshot).Any(text => text is not null && TextRules.HasDisallowedControlChar(text)))
+        {
+            errors["snapshot"] = ["The snapshot must not contain a control character."];
+        }
+
+        if (InvoicingDetailsBackup.SignatureError(SignatureImage, SignatureContentType) is { } signatureError)
+        {
+            errors["signatureImage"] = [signatureError];
+        }
+
+        return errors.Count == 0 ? null : errors;
+    }
+
+    public Invoice ToEntity(string userId, Func<Guid, Guid> id)
+    {
+        var lines = Lines.Select(line => line with
+        {
+            DescriptionEn = line.DescriptionEn.Trim(),
+            DescriptionUk = line.DescriptionUk.Trim(),
+        }).ToArray();
+        var signature = InvoicingDetailsBackup.DecodeSignature(SignatureImage);
+
+        return new Invoice
+        {
+            Id = id(Id),
+            UserId = userId,
+            ClientId = id(ClientId),
+            Status = Status,
+            NumberYear = NumberYear,
+            NumberSequence = NumberSequence,
+            IssueDate = IssueDate,
+            DueDate = DueDate,
+            Currency = Currency,
+            Lines = lines,
+            TotalMinor = InvoiceRules.TotalMinor(lines),
+            Snapshot = Snapshot,
+            SignatureImage = signature,
+            SignatureContentType = signature is null ? null : SignatureContentType,
+            CancelReason = CancelReason?.Trim(),
+            IssuedAt = IssuedAt?.ToUniversalTime(),
+            CancelledAt = CancelledAt?.ToUniversalTime(),
+            CreatedAt = CreatedAt.ToUniversalTime(),
+            UpdatedAt = UpdatedAt.ToUniversalTime(),
+        };
+    }
+
+    private static IEnumerable<string?> SnapshotTexts(InvoiceSnapshot snapshot) =>
+    [
+        snapshot.Seller.NameUk, snapshot.Seller.NameEn, snapshot.Seller.Rnokpp, snapshot.Seller.AddressUk,
+        snapshot.Seller.AddressEn, snapshot.Buyer.Name, snapshot.Buyer.Address, snapshot.Buyer.Country,
+        snapshot.Buyer.CountryName, snapshot.Buyer.VatId, snapshot.Buyer.Email, snapshot.Payment.Iban,
+        snapshot.Payment.BeneficiaryBank, snapshot.Payment.Swift, snapshot.Payment.IntermediaryBank,
+        snapshot.Payment.IntermediarySwift, snapshot.Payment.IntermediaryAccount, snapshot.Clauses.AcceptanceEn,
+        snapshot.Clauses.AcceptanceUk, snapshot.Clauses.FeesEn, snapshot.Clauses.FeesUk,
+        snapshot.Clauses.TaxStatusEn, snapshot.Clauses.TaxStatusUk,
+    ];
 }

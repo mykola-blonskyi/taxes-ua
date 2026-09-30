@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
@@ -25,6 +26,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Transaction> Transactions => Set<Transaction>();
 
     public DbSet<Client> Clients => Set<Client>();
+
+    public DbSet<Invoice> Invoices => Set<Invoice>();
 
     public DbSet<FxRate> FxRates => Set<FxRate>();
 

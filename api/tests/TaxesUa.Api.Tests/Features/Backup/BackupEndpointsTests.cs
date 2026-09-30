@@ -5,11 +5,13 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Backup;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
@@ -35,7 +37,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":5,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null}""";
+        """{"schemaVersion":6,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[]}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -44,13 +46,15 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly Guid TransferId = Guid.Parse("1f0a0000-0000-0000-0000-000000000004");
     private static readonly Guid QuarterPaymentId = Guid.Parse("2f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid MonthPaymentId = Guid.Parse("2f0a0000-0000-0000-0000-000000000002");
+    private static readonly Guid IssuedInvoiceId = Guid.Parse("3f0a0000-0000-0000-0000-000000000001");
+    private static readonly Guid DraftInvoiceId = Guid.Parse("3f0a0000-0000-0000-0000-000000000002");
 
     [Fact]
     public async Task Backup_then_wipe_then_restore_gives_back_the_same_file()
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Empty);
+        await Wipe(owner);
         await SeedThroughTheApi(owner);
 
         var backup = await Backup(owner);
@@ -63,7 +67,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Contains(document.Transactions, row => row.RefundsTransactionId is not null);
         Assert.Equal(2, document.BudgetPayments.Length);
 
-        await Restore(owner, Empty);
+        await Wipe(owner);
         Assert.Equal(Normalized(Empty), Normalized(await Backup(owner)));
 
         var restored = await Restore(owner, backup);
@@ -106,6 +110,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 }),
             ],
             BudgetPayments = [.. original.BudgetPayments.Select(row => row with { Id = ids[row.Id] })],
+            Invoices = [.. original.Invoices.Select(row => row with { Id = ids[row.Id], ClientId = ids[row.ClientId] })],
         };
         Assert.Equal(JsonSerializer.Serialize(expected, Json), JsonSerializer.Serialize(copy, Json));
     }
@@ -147,6 +152,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var current = Baseline();
         current["invoicingDetails"] = null;
         NullClientDetails(current);
+        current["invoices"] = new JsonArray();
         var version2 = current.DeepClone().AsObject();
         version2["schemaVersion"] = 2;
         version2.Remove("invoicingDetails");
@@ -158,6 +164,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             row.Remove("externalId");
         }
 
+        await DropInvoices();
         await Restore(owner, current.ToJsonString());
         var restored = await Backup(owner);
 
@@ -178,6 +185,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         version3.Remove("invoicingDetails");
         RemoveClientDetails(version3);
 
+        await DropInvoices();
         Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version3.ToJsonString()));
 
         var details = await owner.GetFromJsonAsync<InvoicingDetailsResponse>("/api/settings/invoicing", Json);
@@ -194,7 +202,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Empty);
+        await Wipe(owner);
 
         await Restore(owner, Baseline().ToJsonString());
 
@@ -231,6 +239,132 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task A_version_5_file_restores_with_no_invoices()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Restore(owner, Baseline().ToJsonString());
+        Assert.Equal(2, JsonNode.Parse(await Backup(owner))!["invoices"]!.AsArray().Count);
+        var version5 = Baseline();
+        version5["schemaVersion"] = 5;
+        version5.Remove("invoices");
+
+        await DropInvoices();
+        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version5.ToJsonString()));
+
+        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
+        Assert.Empty(backup["invoices"]!.AsArray());
+        Assert.Equal("Acme", backup["clients"]![0]!["name"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task A_restore_brings_back_issued_and_draft_invoices_with_their_numbers()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+
+        await Restore(owner, Baseline().ToJsonString());
+
+        var invoices = await owner.GetFromJsonAsync<InvoiceSummary[]>("/api/invoices", Json);
+        Assert.Equal(
+            [(DraftInvoiceId, InvoiceStatus.Draft, (string?)null, 500_00L), (IssuedInvoiceId, InvoiceStatus.Issued, "2031-001", 500_00L)],
+            invoices!.Select(row => (row.Id, row.Status, row.Number, row.TotalMinor)));
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (await owner.DeleteAsync($"/api/invoices/{IssuedInvoiceId}")).StatusCode);
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (await owner.DeleteAsync($"/api/clients/{ClientId}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_restore_that_would_drop_an_issued_invoice_is_refused_and_changes_nothing()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+        try
+        {
+            await Restore(owner, Baseline().ToJsonString());
+            var older = await Backup(owner);
+
+            var draft = await CreateDraftInvoice(owner);
+            var issued = await IssueInvoice(owner, draft);
+            Assert.Equal("2031-002", issued.Number);
+            var newer = await Backup(owner);
+
+            var response = await Post(owner, older);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(["2031-002"], problem.RootElement.GetProperty("errors").GetProperty("missingInvoices")
+                .EnumerateArray().Select(item => item.GetString()));
+            Assert.Equal(newer, await Backup(owner));
+
+            var next = await IssueInvoice(owner, await CreateDraftInvoice(owner));
+            Assert.Equal("2031-003", next.Number);
+
+            var withAll = await Backup(owner);
+            Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, withAll));
+        }
+        finally
+        {
+            await Wipe(owner);
+        }
+    }
+
+    [Fact]
+    public async Task A_restore_names_every_dropped_cancelled_or_issued_number_but_may_drop_drafts()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+        try
+        {
+            await Restore(owner, Baseline().ToJsonString());
+            var older = await Backup(owner);
+            var second = await IssueInvoice(owner, await CreateDraftInvoice(owner));
+            await IssueInvoice(owner, await CreateDraftInvoice(owner));
+            Assert.Equal(HttpStatusCode.OK, (await owner.PostAsJsonAsync(
+                $"/api/invoices/{second.Id}/cancel", new CancelInvoiceRequest("Duplicate"), Json)).StatusCode);
+
+            var response = await Post(owner, older);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+            using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(["2031-002", "2031-003"], problem.RootElement.GetProperty("errors").GetProperty("missingInvoices")
+                .EnumerateArray().Select(item => item.GetString()));
+
+            var withoutDrafts = JsonNode.Parse(await Backup(owner))!.AsObject();
+            withoutDrafts["invoices"] = new JsonArray(withoutDrafts["invoices"]!.AsArray()
+                .Where(row => row!["status"]!.GetValue<string>() != "Draft").Select(row => row!.DeepClone()).ToArray());
+            Assert.Equal(HttpStatusCode.OK, (await Post(owner, withoutDrafts.ToJsonString())).StatusCode);
+        }
+        finally
+        {
+            await Wipe(owner);
+        }
+    }
+
+    private async Task<InvoiceResponse> CreateDraftInvoice(HttpClient owner)
+    {
+        var response = await owner.PostAsJsonAsync("/api/invoices", new InvoiceRequest(
+            ClientId, Today, Today.AddDays(14), Currency.EUR,
+            [new InvoiceLineRequest("Consulting", "Консультації", InvoiceUnit.Hour, 1_000, 100_00)]), Json);
+        Assert.True(response.StatusCode == HttpStatusCode.Created, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<InvoiceResponse>(Json))!;
+    }
+
+    private static async Task<InvoiceResponse> IssueInvoice(HttpClient owner, InvoiceResponse draft)
+    {
+        var response = await owner.PostAsync($"/api/invoices/{draft.Id}/issue", null);
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        return (await response.Content.ReadFromJsonAsync<InvoiceResponse>(Json))!;
+    }
+
+    [Fact]
     public async Task Client_details_survive_a_backup_and_restore()
     {
         await using var application = CreateApplication();
@@ -254,7 +388,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Empty);
+        await Wipe(owner);
         await SeedThroughTheApi(owner);
         var backup = await Backup(owner);
         var before = await History(owner, entity: null, id: null);
@@ -294,6 +428,11 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "signature that is not the declared type", "invoicingDetails.signatureImage" },
         { "signature without a type", "invoicingDetails.signatureImage" },
         { "signature over the size cap", "invoicingDetails.signatureImage" },
+        { "invoice of an unknown client", "invoices[0].clientId" },
+        { "invoice numbered in another year", "invoices[0].status" },
+        { "draft with a number", "invoices[1].status" },
+        { "repeated invoice number", "invoices[1].numberSequence" },
+        { "invoice line with no quantity", "invoices[0].lines[0].quantityThousandths" },
         // StrictEnumJsonConverter rejects any comma-joined string outright, so these now fail while the
         // file is parsed, before Validate ever sees a currency or weekendDays value to report a key
         // for, the same way "numeric enum" below does.
@@ -352,7 +491,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Empty);
+        await Wipe(owner);
         var file = Baseline().ToJsonString();
 
         var responses = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Post(owner, file)));
@@ -421,6 +560,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [typeof(BudgetPaymentCandidate)] = typeof(PaymentCandidateBackup),
             [typeof(InvoicingDetails)] = typeof(InvoicingDetailsBackup),
             [typeof(InvoicingPaymentDetails)] = typeof(PaymentDetailsInput),
+            [typeof(Invoice)] = typeof(InvoiceBackup),
         };
         Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(FxRate)];
         // The change log is history, not state: a restore does not replay it and does not carry it.
@@ -463,6 +603,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 .Where(name => name != "UserId")
                 // A restore draws fresh ids for the payment details, which nothing else refers to.
                 .Where(name => entity != typeof(InvoicingPaymentDetails) || name != nameof(InvoicingPaymentDetails.Id))
+                // The total is the sum of the lines, recomputed on restore rather than trusted from the file.
+                .Where(name => entity != typeof(Invoice) || name != nameof(Invoice.TotalMinor))
                 .Where(name => entity != typeof(BankAccount) || !syncStateNotBackedUp.Contains(name));
             var carried = record.GetProperties().Select(property => property.Name).ToHashSet();
             Assert.All(columns, column => Assert.Contains(column, carried));
@@ -590,7 +732,32 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 ],
                 Convert.ToBase64String(InvoicingTestData.Png),
                 "image/png",
-                created));
+                created),
+            [
+                new InvoiceBackup(
+                    IssuedInvoiceId, ClientId, InvoiceStatus.Issued, 2031, 1, new DateOnly(2031, 5, 1), new DateOnly(2031, 5, 15),
+                    Currency.EUR,
+                    [new InvoiceLine("Software development", "Розробка програмного забезпечення", InvoiceUnit.Hour, 12_500, 40_00)],
+                    new InvoiceSnapshot(
+                        new InvoiceSeller("ФОП Тест Тестович", "FOP Test Testovych", "1234567890", "Київ, вул. Тестова 1", "1 Testova St, Kyiv"),
+                        new InvoiceBuyer("Acme", "1 Main St, Berlin", "DE", "Germany", "DE123456789", "ap@acme.example"),
+                        new InvoicePayment(InvoicingTestData.ValidIban, "JSC Universal Bank, Kyiv", "UNJSUAUKXXX", "", "", ""),
+                        new InvoiceClauses(
+                            InvoicingDefaults.AcceptanceEn, InvoicingDefaults.AcceptanceUk, InvoicingDefaults.FeesEn,
+                            InvoicingDefaults.FeesUk, InvoicingDefaults.TaxStatusEn, InvoicingDefaults.TaxStatusUk)),
+                    Convert.ToBase64String(InvoicingTestData.Png),
+                    "image/png",
+                    null,
+                    created,
+                    null,
+                    created,
+                    created),
+                new InvoiceBackup(
+                    DraftInvoiceId, ClientId, InvoiceStatus.Draft, null, null, new DateOnly(2031, 6, 1), new DateOnly(2031, 6, 15),
+                    Currency.EUR,
+                    [new InvoiceLine("Support", "Підтримка", InvoiceUnit.Month, 1_000, 500_00)],
+                    null, null, null, null, null, null, created.AddDays(1), created.AddDays(1)),
+            ]);
 
         return JsonSerializer.SerializeToNode(document, Json)!.AsObject();
     }
@@ -639,6 +806,26 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "signature without a type":
                 file["invoicingDetails"]!["signatureContentType"] = null;
+                break;
+            case "invoice of an unknown client":
+                file["invoices"]![0]!["clientId"] = Guid.NewGuid();
+                break;
+            case "invoice numbered in another year":
+                file["invoices"]![0]!["numberYear"] = 2030;
+                break;
+            case "draft with a number":
+                file["invoices"]![1]!["numberYear"] = 2031;
+                file["invoices"]![1]!["numberSequence"] = 2;
+                break;
+            case "repeated invoice number":
+                file["invoices"]![1]!["status"] = "Issued";
+                file["invoices"]![1]!["numberYear"] = 2031;
+                file["invoices"]![1]!["numberSequence"] = 1;
+                file["invoices"]![1]!["snapshot"] = file["invoices"]![0]!["snapshot"]!.DeepClone();
+                file["invoices"]![1]!["issuedAt"] = file["invoices"]![0]!["issuedAt"]!.DeepClone();
+                break;
+            case "invoice line with no quantity":
+                file["invoices"]![0]!["lines"]![0]!["quantityThousandths"] = 0;
                 break;
             case "signature over the size cap":
                 file["invoicingDetails"]!["signatureImage"] =
@@ -791,6 +978,19 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
     private static Task<HttpResponseMessage> Post(HttpClient client, string file) =>
         client.PostAsync("/api/restore", new StringContent(file, Encoding.UTF8, "application/json"));
+
+    // A restore never drops an issued invoice, so a test that needs one gone deletes it directly.
+    private async Task DropInvoices()
+    {
+        await using var scope = fixture.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Invoices.ExecuteDeleteAsync();
+    }
+
+    private async Task Wipe(HttpClient owner)
+    {
+        await DropInvoices();
+        await Restore(owner, Empty);
+    }
 
     private static async Task<RestoreResponse> Restore(HttpClient owner, string file)
     {
