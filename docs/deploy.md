@@ -1,7 +1,9 @@
 # Deploying to Coolify
 
-The owner runs every step here by hand. Nothing in the repository deploys itself. Each step ends
-with a check; do not start the next step until the check passes.
+The owner runs every setup step here by hand. Each step ends with a check; do not start the next
+step until the check passes. Once set up, every push to `main` deploys itself: the `Deploy to
+Coolify` job in `.github/workflows/ci.yml` calls the resource's deploy webhook after the API tests,
+the web lint and build, both image builds and the deploy checks pass (see "Automatic deploys").
 
 Facts this runbook relies on, established in #3 and #20:
 
@@ -297,3 +299,20 @@ ssh blonskyi 'docker exec 3p9qjnulllqn3bcjqokir0wq psql -U postgres -c "DROP DAT
 **Ending every session.** A stolen session cookie cannot be revoked one by one (ADR-009). Rotate
 the key ring instead: delete the `key-*.xml` files in the `dataprotection-keys` volume and restart
 `api`. Every cookie, including the owner's, stops working at once.
+
+## Automatic deploys
+
+The `Deploy to Coolify` job runs only on a push to `main`, and only after every other CI job has
+passed, so a red `main` never reaches the server. It sends a `GET` to the resource's **Deploy
+Webhook (auth required)** with the API token as a bearer header.
+
+1. In Coolify, open the resource → Configuration → Webhooks and copy **Deploy Webhook (auth
+   required)**.
+2. In Coolify, Keys & Tokens, create an API token with the deploy permission.
+3. In GitHub, repository Settings → Secrets and variables → Actions, add `COOLIFY_WEBHOOK_URL`
+   (step 1) and `COOLIFY_WEBHOOK_TOKEN` (step 2).
+
+**Check.** After the next merge to `main`, the CI run shows `Deploy to Coolify` green and Coolify's
+Deployments list a new deployment for that commit. The CI's `concurrency` group cancels an older
+run on `main` when a newer push arrives, so only the latest commit deploys.
+
