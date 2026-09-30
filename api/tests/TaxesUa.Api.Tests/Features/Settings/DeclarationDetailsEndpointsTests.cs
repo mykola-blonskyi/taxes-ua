@@ -25,9 +25,9 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>(Url, Json);
 
         Assert.Equal(
-            ("", "", (int?)null, (int?)null, 0, ""),
-            (details!.Name, details.Rnokpp, details.TaxOfficeRegion, details.TaxOfficeDistrict, details.KvedCodes.Length,
-                details.Address));
+            ("", "", (int?)null, (int?)null, "", 0, ""),
+            (details!.Name, details.Rnokpp, details.TaxOfficeRegion, details.TaxOfficeDistrict, details.TaxOfficeName,
+                details.KvedCodes.Length, details.Address));
         Assert.Equal(
             [
                 DeclarationDetailField.Name,
@@ -46,13 +46,15 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings/invoicing", Invoicing(), Json)).StatusCode);
 
         var put = await owner.PutAsJsonAsync(
-            Url, new DeclarationDetailsRequest(26, 5, [" 62.01 ", "63.11"], "  Київ, вул. Тестова 1 "), Json);
+            Url,
+            new DeclarationDetailsRequest(26, 5, " ГУ ДПС у м. Києві  ", [" 62.01 ", "63.11"], "  Київ, вул. Тестова 1 "),
+            Json);
 
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
         var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>(Url, Json);
         Assert.Equal(
-            ("ФОП Тест", "1234567890", (int?)26, (int?)5, "62.01 63.11", "Київ, вул. Тестова 1"),
-            (details!.Name, details.Rnokpp, details.TaxOfficeRegion, details.TaxOfficeDistrict,
+            ("ФОП Тест", "1234567890", (int?)26, (int?)5, "ГУ ДПС у м. Києві", "62.01 63.11", "Київ, вул. Тестова 1"),
+            (details!.Name, details.Rnokpp, details.TaxOfficeRegion, details.TaxOfficeDistrict, details.TaxOfficeName,
                 string.Join(' ', details.KvedCodes), details.Address));
         Assert.Empty(details.MissingDetails);
     }
@@ -63,11 +65,25 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         using var owner = await SignIn(ApiFixture.AllowedEmail);
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings/invoicing", Invoicing(), Json)).StatusCode);
 
-        var put = await owner.PutAsJsonAsync(Url, new DeclarationDetailsRequest(null, null, [], "Київ"), Json);
+        var put = await owner.PutAsJsonAsync(Url, new DeclarationDetailsRequest(null, null, "", [], "Київ"), Json);
 
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
         var details = (await put.Content.ReadFromJsonAsync<DeclarationDetailsResponse>(Json))!;
         Assert.Equal([DeclarationDetailField.TaxOffice, DeclarationDetailField.Kved], details.MissingDetails);
+    }
+
+    [Fact]
+    public async Task Codes_without_the_tax_offices_name_leave_the_tax_office_missing()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings/invoicing", Invoicing(), Json)).StatusCode);
+
+        var put = await owner.PutAsJsonAsync(Url, new DeclarationDetailsRequest(26, 5, "   ", ["62.01"], "Київ"), Json);
+
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        var details = (await put.Content.ReadFromJsonAsync<DeclarationDetailsResponse>(Json))!;
+        Assert.Equal("", details.TaxOfficeName);
+        Assert.Equal([DeclarationDetailField.TaxOffice], details.MissingDetails);
     }
 
     public static TheoryData<string, string> InvalidRequests() => new()
@@ -86,11 +102,13 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         { "21 KVED codes", "kvedCodes" },
         { "address over 500 characters", "address" },
         { "NUL in the address", "address" },
+        { "tax office name over 200 characters", "taxOfficeName" },
+        { "NUL in the tax office name", "taxOfficeName" },
     };
 
     private static DeclarationDetailsRequest Invalid(string name)
     {
-        var valid = new DeclarationDetailsRequest(26, 5, ["62.01"], "Київ");
+        var valid = new DeclarationDetailsRequest(26, 5, "ГУ ДПС у м. Києві", ["62.01"], "Київ");
         return name switch
         {
             "region 0" => valid with { TaxOfficeRegion = 0 },
@@ -107,6 +125,8 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
             "21 KVED codes" => valid with { KvedCodes = [.. Enumerable.Range(10, 21).Select(n => $"{n}.01")] },
             "address over 500 characters" => valid with { Address = new string('а', 501) },
             "NUL in the address" => valid with { Address = "Київ\u0000" },
+            "tax office name over 200 characters" => valid with { TaxOfficeName = new string('а', 201) },
+            "NUL in the tax office name" => valid with { TaxOfficeName = "ГУ ДПС\u0000" },
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
         };
     }
@@ -135,7 +155,7 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         var response = await owner.PutAsync(
             Url,
             new StringContent(
-                """{"taxOfficeRegion":26,"taxOfficeDistrict":5,"kvedCodes":[null],"address":"Київ"}""",
+                """{"taxOfficeRegion":26,"taxOfficeDistrict":5,"taxOfficeName":"ГУ ДПС","kvedCodes":[null],"address":"Київ"}""",
                 Encoding.UTF8,
                 "application/json"));
 
@@ -148,7 +168,7 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         using var owner = await SignIn(ApiFixture.AllowedEmail);
         using var other = await SignIn(ApiFixture.SecondAllowedEmail);
         using var visitor = fixture.CreateClient();
-        await owner.PutAsJsonAsync(Url, new DeclarationDetailsRequest(26, 5, ["62.01"], "Київ"), Json);
+        await owner.PutAsJsonAsync(Url, new DeclarationDetailsRequest(26, 5, "ГУ ДПС у м. Києві", ["62.01"], "Київ"), Json);
 
         var seen = await other.GetFromJsonAsync<DeclarationDetailsResponse>(Url, Json);
 
@@ -156,14 +176,14 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         Assert.Equal(HttpStatusCode.Unauthorized, (await visitor.GetAsync(Url)).StatusCode);
         Assert.Equal(
             HttpStatusCode.Unauthorized,
-            (await visitor.PutAsJsonAsync(Url, new DeclarationDetailsRequest(null, null, [], ""), Json)).StatusCode);
+            (await visitor.PutAsJsonAsync(Url, new DeclarationDetailsRequest(null, null, "", [], ""), Json)).StatusCode);
     }
 
     [Fact]
     public async Task A_change_is_logged_and_saving_the_same_details_again_is_not()
     {
         using var owner = await SignIn(ApiFixture.AllowedEmail);
-        var request = new DeclarationDetailsRequest(14, 3, ["62.02"], "Львів");
+        var request = new DeclarationDetailsRequest(14, 3, "ГУ ДПС у Львівській області", ["62.02"], "Львів");
         await owner.PutAsJsonAsync(Url, request, Json);
         var before = await Log(owner);
 

@@ -44,7 +44,12 @@ owner's codes is the main activity.
 
 ### Tax office code (Kod DPI)
 The tax office the declaration is filed with, as its region code (C_REG) and district code (C_RAJ)
-on the form.
+on the form, with its name (HSTI) as the Cabinet shows it.
+
+### Declaration file
+The quarterly declaration as an F0103309 XML file in windows-1251, named per DPS standard No. 729, which
+the owner imports in the Cabinet ("Імпортувати XML з пристрою"), checks, signs with a KEP and sends. In
+code: `DeclarationFile` (Rule 15).
 
 ### Integrated ledger card (taxpayer's ledger)
 The taxpayer's account with the State Tax Service (DPS): accrued, paid, owed or overpaid, per

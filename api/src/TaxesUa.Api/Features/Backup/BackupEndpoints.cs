@@ -173,6 +173,12 @@ public static class BackupEndpoints
             .OrderBy(row => row.Year)
             .ThenBy(row => row.Quarter)
             .ToListAsync(cancellationToken);
+        var declarationFiles = await database.DeclarationFiles.AsNoTracking()
+            .Where(row => row.UserId == userId)
+            .OrderBy(row => row.Year)
+            .ThenBy(row => row.Quarter)
+            .ThenBy(row => row.Type)
+            .ToListAsync(cancellationToken);
 
         var treasuryAccounts = await database.TreasuryAccounts.AsNoTracking()
             .Where(row => row.UserId == userId)
@@ -188,7 +194,8 @@ public static class BackupEndpoints
         // a Telegram link code, which stays a secret of the running server.
         return BackupDocument.From(
             settings, clients, transactions, payments, bankAccounts, importBatches, candidates,
-            invoicingDetails, invoicingPayments, invoices, declarationDetails, declarationFilings, treasuryAccounts, notificationChannels);
+            invoicingDetails, invoicingPayments, invoices, declarationDetails, declarationFilings,
+            declarationFiles, treasuryAccounts, notificationChannels);
     }
 
     // Returns the errors, having rolled everything back, or null once the owner's data is
@@ -233,6 +240,7 @@ public static class BackupEndpoints
         await database.InvoicingDetails.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.DeclarationDetails.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await database.DeclarationFilings.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await database.DeclarationFiles.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
 
         var id = await IdMappingAsync(database, document, cancellationToken);
         var accountId = await MatchBankAccountsAsync(database, userId, document.BankAccounts, cancellationToken);
@@ -254,6 +262,7 @@ public static class BackupEndpoints
         }
 
         database.DeclarationFilings.AddRange(document.DeclarationFilings.Select(filing => filing.ToEntity(userId)));
+        database.DeclarationFiles.AddRange(document.DeclarationFiles.Select(file => file.ToEntity(userId)));
 
         database.TreasuryAccounts.AddRange(document.TreasuryAccounts.Select(account => account.ToEntity(userId)));
         database.NotificationChannels.AddRange(document.NotificationChannels.Select(channel => channel.ToEntity(userId)));

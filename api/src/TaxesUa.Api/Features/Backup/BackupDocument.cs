@@ -34,6 +34,7 @@ internal sealed record BackupDocument(
     InvoiceBackup[] Invoices,
     DeclarationDetailsBackup? DeclarationDetails,
     DeclarationFilingBackup[] DeclarationFilings,
+    DeclarationFileBackup[] DeclarationFiles,
     TreasuryAccountBackup[] TreasuryAccounts,
     NotificationChannelBackup[] NotificationChannels)
 {
@@ -41,9 +42,10 @@ internal sealed record BackupDocument(
     // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91); 5 added
     // the clients' details (#90); 6 added invoices (#92); 7 added declarationDetails and declarationFilings
     // (#110); 8 added the receipts' invoice links (#93); 9 added treasuryAccounts and the candidates'
-    // counterEdrpou (#98); 10 added the settings' backOnGroup3From (#118); 11 added notificationChannels (#106). An older file is upgraded to this
-    // shape one version at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 11;
+    // counterEdrpou (#98); 10 added the settings' backOnGroup3From (#118); 11 added notificationChannels (#106);
+    // 12 added declarationFiles and the declaration details' taxOfficeName (#111). An older file is upgraded to
+    // this shape one version at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 12;
 
     private const int MaxExternalIdLength = 200;
 
@@ -60,6 +62,7 @@ internal sealed record BackupDocument(
         IEnumerable<Invoice> invoices,
         DeclarationDetails? declarationDetails,
         IEnumerable<DeclarationFiling> declarationFilings,
+        IEnumerable<DeclarationFile> declarationFiles,
         IEnumerable<TreasuryAccount> treasuryAccounts,
         IEnumerable<NotificationChannel> notificationChannels) => new(
         CurrentSchemaVersion,
@@ -74,6 +77,7 @@ internal sealed record BackupDocument(
         [.. invoices.Select(InvoiceBackup.From)],
         declarationDetails is null ? null : DeclarationDetailsBackup.From(declarationDetails),
         [.. declarationFilings.Select(DeclarationFilingBackup.From)],
+        [.. declarationFiles.Select(DeclarationFileBackup.From)],
         [.. treasuryAccounts.Select(TreasuryAccountBackup.From)],
         [.. notificationChannels.Select(NotificationChannelBackup.From)]);
 
@@ -136,6 +140,11 @@ internal sealed record BackupDocument(
         if (version <= 10)
         {
             UpgradeFromVersion10(root);
+        }
+
+        if (version <= 11)
+        {
+            UpgradeFromVersion11(root);
         }
     }
 
@@ -270,8 +279,19 @@ internal sealed record BackupDocument(
     // A version 10 file predates the notification channels: none is connected.
     private static void UpgradeFromVersion10(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 11;
         root["notificationChannels"] = new JsonArray();
+    }
+
+    // A version 11 file predates the declaration file and the tax office's name.
+    private static void UpgradeFromVersion11(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        root["declarationFiles"] = new JsonArray();
+        if (root["declarationDetails"] is JsonObject details)
+        {
+            details["taxOfficeName"] = string.Empty;
+        }
     }
 
     /// <summary>
@@ -290,12 +310,13 @@ internal sealed record BackupDocument(
             || Array.Exists(BudgetPaymentCandidates, row => row is null)
             || Array.Exists(Invoices, row => row is null)
             || Array.Exists(DeclarationFilings, row => row is null)
+            || Array.Exists(DeclarationFiles, row => row is null)
             || Array.Exists(TreasuryAccounts, row => row is null)
             || Array.Exists(NotificationChannels, row => row is null))
         {
             return new()
             {
-                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches, budgetPaymentCandidates, invoices, declarationFilings, treasuryAccounts and notificationChannels must not contain null."],
+                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches, budgetPaymentCandidates, invoices, declarationFilings, declarationFiles, treasuryAccounts and notificationChannels must not contain null."],
             };
         }
 
@@ -332,6 +353,20 @@ internal sealed record BackupDocument(
             if (!filedQuarters.Add((filing.Year, filing.Quarter)))
             {
                 errors[$"declarationFilings[{i}].quarter"] = ["A quarter is marked filed at most once."];
+            }
+        }
+
+        var preparedFiles = new HashSet<(int, int, DeclarationType)>();
+        for (var i = 0; i < DeclarationFiles.Length; i++)
+        {
+            var file = DeclarationFiles[i];
+            if (file.Error() is var (fileKey, fileMessage))
+            {
+                errors[$"declarationFiles[{i}].{fileKey}"] = [fileMessage];
+            }
+            else if (!preparedFiles.Add((file.Year, file.Quarter, file.Type)))
+            {
+                errors[$"declarationFiles[{i}].type"] = ["A quarter keeps at most one file per declaration type."];
             }
         }
 
@@ -1412,14 +1447,15 @@ internal sealed record InvoiceBackup(
 internal sealed record DeclarationDetailsBackup(
     int? TaxOfficeRegion,
     int? TaxOfficeDistrict,
+    string TaxOfficeName,
     string[] KvedCodes,
     string Address)
 {
     public static DeclarationDetailsBackup From(DeclarationDetails details) => new(
-        details.TaxOfficeRegion, details.TaxOfficeDistrict, details.KvedCodes, details.Address);
+        details.TaxOfficeRegion, details.TaxOfficeDistrict, details.TaxOfficeName, details.KvedCodes, details.Address);
 
     public DeclarationDetailsRequest ToRequest() => DeclarationDetailsEndpoints.Normalize(
-        new DeclarationDetailsRequest(TaxOfficeRegion, TaxOfficeDistrict, KvedCodes, Address));
+        new DeclarationDetailsRequest(TaxOfficeRegion, TaxOfficeDistrict, TaxOfficeName, KvedCodes, Address));
 
     public DeclarationDetails ToEntity(string userId)
     {
@@ -1458,5 +1494,48 @@ internal sealed record DeclarationFilingBackup(
         FiledIncomeKop = FiledIncomeKop,
         CreatedAt = CreatedAt,
         UpdatedAt = UpdatedAt,
+    };
+}
+
+/// <summary>
+/// A prepared declaration file, carried byte for byte: it records what the owner imported, so a restore
+/// does not regenerate it from figures that may since have changed.
+/// </summary>
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record DeclarationFileBackup(
+    int Year,
+    int Quarter,
+    DeclarationType Type,
+    string FileName,
+    byte[] Content,
+    DateTimeOffset GeneratedAt)
+{
+    private const int MaxFileNameLength = 100;
+
+    private const int MaxContentBytes = 1024 * 1024;
+
+    public static DeclarationFileBackup From(DeclarationFile file) => new(
+        file.Year, file.Quarter, file.Type, file.FileName, file.Content, file.GeneratedAt);
+
+    public (string Key, string Message)? Error() => this switch
+    {
+        { Year: < 1 or > 9998 } => ("year", "year must be 1 to 9998."),
+        { Quarter: < 1 or > 4 } => ("quarter", "quarter must be 1 to 4."),
+        { FileName.Length: 0 or > MaxFileNameLength } => ("fileName", $"fileName must be 1 to {MaxFileNameLength} characters."),
+        _ when TextRules.HasDisallowedControlChar(FileName) => ("fileName", "fileName must not contain a control character."),
+        _ when !FileName.EndsWith(".xml", StringComparison.Ordinal) => ("fileName", "fileName must end with .xml."),
+        { Content.Length: 0 or > MaxContentBytes } => ("content", $"content must be 1 to {MaxContentBytes} bytes."),
+        _ => null,
+    };
+
+    public DeclarationFile ToEntity(string userId) => new()
+    {
+        UserId = userId,
+        Year = Year,
+        Quarter = Quarter,
+        Type = Type,
+        FileName = FileName,
+        Content = Content,
+        GeneratedAt = GeneratedAt,
     };
 }

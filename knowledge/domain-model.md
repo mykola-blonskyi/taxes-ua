@@ -88,11 +88,13 @@ Responsibilities: what the declaration's header needs beyond the invoicing requi
 row per owner, key `UserId`; an owner who never saved one reads an empty set and stores nothing.
 
 Fields: `TaxOfficeRegion: int?` (C_REG, 1 to 99) and `TaxOfficeDistrict: int?` (C_RAJ, 0 to 99), both
-set or both empty; `KvedCodes: string[]` (each `NN.NN`, distinct, at most 20, in the owner's order, the
+set or both empty; `TaxOfficeName` (the office's name for the form's HSTI, as the Cabinet shows it next
+to the code, at most 200 characters, empty when not set); `KvedCodes: string[]` (each `NN.NN`, distinct, at most 20, in the owner's order, the
 first the main activity); `Address` (as in the register, at most 500 characters). The name and RNOKPP
 are not stored here: they are `InvoicingDetails.SellerNameUk` and `Rnokpp`, and `GET
 /api/settings/declaration` echoes them read-only. An incomplete set saves; completeness is a readiness
-item (`MissingDetails: Name | Rnokpp | TaxOffice | Kved | Address`).
+item (`MissingDetails: Name | Rnokpp | TaxOffice | Kved | Address`; `TaxOffice` covers the codes and
+the name).
 
 Audited as `DeclarationDetails`. Relationships: belongs to `User`.
 
@@ -107,6 +109,18 @@ Fields: `FiledOn: DateOnly` (after the quarter's end, not after today in Kyiv), 
 NewReporting | Clarifying` (C_DOC_STAN 1, 2, 3), `FiledIncomeKop` (line 08 when marked; a different
 line 08 now means changed since filing), `CreatedAt`, `UpdatedAt`. Marking again replaces the row,
 undoing deletes it. Audited as `DeclarationFiling`. Relationships: belongs to `User`.
+
+---
+
+### DeclarationFile
+
+Responsibilities: the F0103309 XML the owner last prepared for a quarter and a declaration type, kept
+as a record of what was prepared for filing (Rule 15). Key (`UserId`, `Year`, `Quarter`, `Type`).
+
+Fields: `Type: Reporting | NewReporting | Clarifying`, `FileName` (the DPS name, standard No. 729),
+`Content` (the windows-1251 bytes as generated and validated), `GeneratedAt`. Preparing the same quarter
+and type again replaces the row. Not audited: it is derived from audited records. Relationships: belongs
+to `User`.
 
 ---
 
@@ -430,11 +444,11 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (11), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (12), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
 payment details and the signature as base64 with its content type), `Invoices` (with their lines, their
 number as year and sequence, the frozen snapshot and the frozen signature as base64), `DeclarationDetails?`,
-`DeclarationFilings`, `TreasuryAccounts` (by kind, without an id), `NotificationChannels` (kind, address, enabled, linked at: no delivery record, no link code), each row with its id and every stored column except `UserId`, an invoice's
+`DeclarationFilings`, `DeclarationFiles` (the XML as base64), `TreasuryAccounts` (by kind, without an id), `NotificationChannels` (kind, address, enabled, linked at: no delivery record, no link code), each row with its id and every stored column except `UserId`, an invoice's
 `TotalMinor` (recomputed from its lines) and a
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
 which a restore clears.
@@ -444,16 +458,18 @@ the transactions' import fields (#76); version 3 added the budget payment candid
 and the payments' bank operation (#80); version 4 added the invoicing details (#91); version 5 added the
 clients' details (#90); version 6 added the invoices (#92); version 7 added the declaration details and
 the filed marks (#110); version 8 added the receipts' `InvoiceId` (#93); version 9 added the Treasury
-accounts and the candidates' `CounterEdrpou` (#98); version 10 added the settings' `BackOnGroup3From` (#118). A version 1 file still restores, read as having none of
+accounts and the candidates' `CounterEdrpou` (#98); version 10 added the settings' `BackOnGroup3From` (#118); version 11 added the notification channels (#106); version 12 added the declaration files and the
+declaration details' `TaxOfficeName` (#111). A version 1 file still restores, read as having none of
 them and every transaction `Confirmed`, a version 2 file as having no candidates and every payment typed by
 the owner, a version 1 to 3 file as having no invoicing details, so the owner's are cleared like the rest, a
 version 1 to 4 file as having no details on any client, a version 1 to 5 file as having no invoices, a
 version 1 to 6 file as having no declaration details and nothing marked filed, a version 1 to 7 file as
 having no receipt linked to an invoice, and a version 1 to 8 file as having no Treasury accounts and
-candidates without a counterparty code, and a version 1 to 9 file as having no return to group 3; a file of a version this build does not know is refused by its
+candidates without a counterparty code, a version 1 to 9 file as having no return to group 3, and a version 1 to 10 file as having no notification channels, and a version 1 to 11 file as having no declaration
+files and no tax office name; a file of a version this build does not know is refused by its
 version number rather than by whichever field it added.
 
-A restore replaces the owner's settings, invoicing details, declaration details, filed marks, clients, invoices, transactions, payments, candidates, Treasury accounts and import batches in one
+A restore replaces the owner's settings, invoicing details, declaration details, filed marks, declaration files, clients, invoices, transactions, payments, candidates, Treasury accounts and import batches in one
 database transaction and passes every row through the endpoints' own validation, refund and invoice links
 included; any violation changes nothing. Bank accounts are matched rather than replaced (see
 `BankAccount`). Ids are kept, so a restore after a wipe reproduces the same file. When another owner

@@ -563,7 +563,8 @@ that quarter's lines 13 and 24 are zero. The lines, without VAT:
 
 Every other line stays empty: they belong to other groups, the 3% rate, or corrections. When refunds
 shrink the cumulative income, 14.1 and 25 come out negative and are shown as the arithmetic gives
-them; the form has no separate line for that, and Rule 7 settles the negative part as credit. The
+them; the form has no separate line for that, and Rule 7 settles the negative part as credit. The XML
+carries them the same way, with a minus sign: the schema's amount type (`DGdecimal2`) allows one. The
 rates are the declared year's `TaxYearConfig` rates, never code. A quarter after the crossing quarter
 (Rule 4), in the crossing year or a later one, has no group 3 declaration until the owner is back on
 group 3: no figures are shown, the screen says the FOP must file under the system it moved to, the
@@ -614,7 +615,7 @@ The declaration is ready when nothing below blocks it. These block:
 - the year's `TaxYearConfig` not verified (Rule 9);
 - no registration date (Rule 8);
 - a missing detail: the name and RNOKPP (read from the invoicing details, never stored twice), the
-  tax office (its region and district codes), at least one KVED code (the first is the main
+  tax office (its region and district codes and its name), at least one KVED code (the first is the main
   activity), and the address as in the register;
 - a quarter outside group 3 after a crossing, as above. The crossing quarter itself does not block,
   since its lines 07 and 09 are filled.
@@ -631,6 +632,37 @@ mark keeps line 08 as it stood; when a later change to the year's receipts moves
 it, the mark is flagged as changed since filing, a hint that a clarifying declaration may be needed,
 until the owner marks the quarter again. The home screen names the last ended quarter's declaration
 from the day after the quarter ends through its due date (Rule 5), until it is marked filed.
+
+The declaration file (#111). For a ready quarter with figures the owner downloads the declaration as an
+F0103309 XML file of the chosen type (reporting by default), imports it in the Cabinet ("Імпортувати XML
+з пристрою"), checks it, signs it with a KEP and sends it there; the app never signs or sends (ADR-016).
+A quarter that is not ready, or is outside group 3, gets no file. The file follows the DPS format:
+
+- windows-1251, the lowercase declaration `<?xml version="1.0" encoding="windows-1251"?>`, no whitespace
+  between elements, elements in the schema's order;
+- the header: TIN and HTIN the RNOKPP, C_DOC F01, C_DOC_SUB 033, C_DOC_VER 9, C_DOC_TYPE 0, C_DOC_CNT 1,
+  C_REG and C_RAJ the tax office codes, C_STI_ORIG = C_REG × 100 + C_RAJ, PERIOD_TYPE 2, 3, 4 or 5 with
+  PERIOD_MONTH 3, 6, 9 or 12 for Q1 to Q4, C_DOC_STAN 1, 2 or 3 for reporting, new reporting or
+  clarifying, D_FILL and HFILL the day it is prepared in Kyiv as `ddmmyyyy`;
+- the body: the type flag (HZ, HZN or HZU), the period flag (H1KV, HHY, H3KV or HY) and year, for a
+  clarifying declaration the same quarter as the period clarified, HSTI the tax office's name, HNAME and
+  HBOS the invoicing details' Ukrainian name without a leading "ФОП", HLOC the address, HNACTL 0, the
+  KVED codes in table 1 with empty names, and the lines above with two decimals. Lines 07 and 09 are
+  written only when nonzero; line 21 stays empty until the ESV annex exists (#112); every other line is
+  left out;
+- the name, per standard No. 729: C_REG and C_RAJ (two digits each), the TIN padded to 10, F01, 033,
+  C_DOC_VER as two digits, C_DOC_STAN, C_DOC_TYPE as two digits, C_DOC_CNT as seven, PERIOD_TYPE,
+  PERIOD_MONTH as two digits, PERIOD_YEAR, C_STI_ORIG as four, `.xml`. The Q1 2026 reporting
+  declaration of RNOKPP 1234567890 at office 26/50 is `26501234567890F0103309100000000120320262650.xml`.
+
+C_DOC_CNT stays 1: a second filing of the same type in a period may need a higher one, and the app does
+not handle that yet.
+
+Every file is validated against the vendored schemas before it is kept or downloaded. A text the
+encoding cannot carry, or a control character XML 1.0 forbids (the modifier apostrophe U+02BC becomes `'` first) or a value the schema refuses,
+such as a tax office code whose C_STI_ORIG is not a DPS office, stops the download with the list of
+errors and keeps nothing. The last file prepared per quarter and type is kept with the time it was
+prepared, as a record of what was filed, and is in the backup.
 
 ---
 

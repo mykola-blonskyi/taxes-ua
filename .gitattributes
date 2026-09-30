@@ -1,0 +1,2 @@
+*.xsd -text
+/api/tests/TaxesUa.Api.Tests/Features/Declarations/Golden/*.xml -text

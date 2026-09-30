@@ -14,7 +14,7 @@ import { TextAreaField, TextField } from "@/shared/ui/fields";
 
 const maxKvedCodes = 20;
 
-type FormState = { region: string; district: string; kvedCodes: string[]; address: string };
+type FormState = { region: string; district: string; officeName: string; kvedCodes: string[]; address: string };
 
 type ErrorKey =
   | "regionRange"
@@ -47,6 +47,7 @@ function toFormState(details: DeclarationDetailsResponse): FormState {
   return {
     region: twoDigits(details.taxOfficeRegion),
     district: twoDigits(details.taxOfficeDistrict),
+    officeName: details.taxOfficeName,
     kvedCodes: details.kvedCodes.length > 0 ? details.kvedCodes : [""],
     address: details.address,
   };
@@ -118,6 +119,7 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
         save.mutate({
           taxOfficeRegion: form.region === "" ? null : Number(form.region),
           taxOfficeDistrict: form.district === "" ? null : Number(form.district),
+          taxOfficeName: form.officeName,
           kvedCodes: sentKved.map((index) => form.kvedCodes[index].trim()),
           address: form.address,
         });
@@ -174,6 +176,14 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
           />
         </div>
         <p className="text-xs text-muted-foreground">{tDeclaration("taxOfficeHint")}</p>
+        <TextField
+          id="tax-office-name"
+          label={tDeclaration("officeName")}
+          hint={tDeclaration("officeNameHint")}
+          value={form.officeName}
+          onChange={(officeName) => setForm((current) => ({ ...current, officeName }))}
+          errors={fieldErrors("taxOfficeName")}
+        />
       </fieldset>
 
       <fieldset className="flex min-w-0 flex-col gap-3">

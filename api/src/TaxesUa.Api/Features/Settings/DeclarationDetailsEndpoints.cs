@@ -12,6 +12,8 @@ public static partial class DeclarationDetailsEndpoints
 
     private const int MaxAddressLength = 500;
 
+    private const int MaxTaxOfficeNameLength = 200;
+
     public static IEndpointRouteBuilder MapDeclarationDetailsApi(this IEndpointRouteBuilder routes)
     {
         var declaration = routes.MapGroup("/settings/declaration").WithTags("Settings").RequireAuthorization();
@@ -83,6 +85,7 @@ public static partial class DeclarationDetailsEndpoints
     // and refused below rather than failing here.
     internal static DeclarationDetailsRequest Normalize(DeclarationDetailsRequest request) => request with
     {
+        TaxOfficeName = request.TaxOfficeName.Trim(),
         KvedCodes = [.. request.KvedCodes.Select(code => code?.Trim() ?? string.Empty)],
         Address = request.Address.Trim(),
     };
@@ -108,6 +111,15 @@ public static partial class DeclarationDetailsEndpoints
         else if (request.TaxOfficeDistrict is null && request.TaxOfficeRegion is not null)
         {
             errors["taxOfficeDistrict"] = ["taxOfficeDistrict is required with taxOfficeRegion."];
+        }
+
+        if (request.TaxOfficeName.Length > MaxTaxOfficeNameLength)
+        {
+            errors["taxOfficeName"] = [$"taxOfficeName must not exceed {MaxTaxOfficeNameLength} characters."];
+        }
+        else if (TextRules.HasDisallowedControlChar(request.TaxOfficeName))
+        {
+            errors["taxOfficeName"] = ["taxOfficeName must not contain a control character."];
         }
 
         if (request.KvedCodes.Length > MaxKvedCodes)
@@ -144,6 +156,7 @@ public static partial class DeclarationDetailsEndpoints
     {
         details.TaxOfficeRegion = request.TaxOfficeRegion;
         details.TaxOfficeDistrict = request.TaxOfficeDistrict;
+        details.TaxOfficeName = request.TaxOfficeName;
         details.KvedCodes = request.KvedCodes;
         details.Address = request.Address;
     }
@@ -153,6 +166,7 @@ public static partial class DeclarationDetailsEndpoints
         invoicing?.Rnokpp ?? string.Empty,
         details.TaxOfficeRegion,
         details.TaxOfficeDistrict,
+        details.TaxOfficeName,
         details.KvedCodes,
         details.Address,
         DeclarationDetails.Missing(invoicing, details));
@@ -164,6 +178,7 @@ public static partial class DeclarationDetailsEndpoints
 internal sealed record DeclarationDetailsRequest(
     int? TaxOfficeRegion,
     int? TaxOfficeDistrict,
+    string TaxOfficeName,
     string[] KvedCodes,
     string Address);
 
@@ -176,6 +191,7 @@ internal sealed record DeclarationDetailsResponse(
     string Rnokpp,
     int? TaxOfficeRegion,
     int? TaxOfficeDistrict,
+    string TaxOfficeName,
     string[] KvedCodes,
     string Address,
     DeclarationDetailField[] MissingDetails);

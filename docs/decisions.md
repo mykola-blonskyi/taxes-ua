@@ -647,3 +647,50 @@ monobank queue. Links complete within about a second while the service is up and
 while it is down, because Telegram keeps updates for 24 hours. Idle cost is one open request. The token
 sits in the request path of every call, which is why the client is registered without the framework's
 request logging and never logs a URL or an exception message.
+
+---
+
+## ADR-016. The app prepares the declaration file; the owner signs and sends it in the Cabinet
+
+Date: 2026-09-30
+
+Status: Accepted
+
+### Context
+
+#111 turns the quarter's declaration figures into the F0103309 XML the Electronic Cabinet imports. Filing
+needs a qualified electronic signature (KEP) and a session in the Cabinet. The format is fixed by the
+DPS: the published XSDs, windows-1251, and the file name standard No. 729. The official register of
+forms (tax.gov.ua, reestr-form) refuses automated fetches, so the schemas cannot be pulled at build or
+run time.
+
+### Decision
+
+The app prepares the file and stops there. The owner imports it in the Cabinet ("Імпортувати XML з
+пристрою"), checks it against the Declaration screen, signs it with a KEP and sends it. The app holds no
+key, no Cabinet session and no DPS credential.
+
+F0103309.xsd and common_types.xsd are vendored next to the writer, byte for byte, with their source,
+commit, fetch date and hashes in a README, and embedded in the api. Every file is validated against them
+before it is stored or downloaded; a file that fails is never handed out, and the owner sees the
+validator's errors instead. The writer is a pure function of the declaration figures, the details and
+the fill date, so golden files pin its output byte for byte. The last file per quarter and type is
+stored with its generation time and travels in the backup as the record of what was prepared.
+
+### Alternatives Considered
+
+Signing and sending from the app through the DPS gateway. It needs the owner's key on the server and a
+certified integration, for a filing that happens four times a year and takes a minute in the Cabinet.
+
+Fetching the schemas at run time. The register refuses scripted fetches, and a schema that changes under
+a running app would break downloads without a code change to review.
+
+Not validating before download and relying on the Cabinet's import check. The owner would learn about a
+bad file only in the Cabinet, with the filing deadline close.
+
+### Consequences
+
+A new form version means replacing the vendored schemas and the writer together, with new golden files;
+the README says how. The vendored copies come from a mirror, so the owner confirms once by hand that they
+match the register before the file is relied on. Import into the Cabinet is proved by hand, not by
+tests. Stored files do not follow later edits: preparing the file again replaces it.

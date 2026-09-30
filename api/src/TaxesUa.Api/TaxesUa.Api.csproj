@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Features/Export/Fonts/*.ttf" LogicalName="TaxesUa.Api.Fonts.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Features/Declarations/Schemas/*.xsd" LogicalName="TaxesUa.Api.Schemas.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <ItemGroup>
