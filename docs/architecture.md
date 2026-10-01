@@ -101,8 +101,8 @@ External systems:
 - Telegram Bot API (Stage 2, #106): the token is configuration (`TELEGRAM_BOT_TOKEN`), optional. `TelegramClient` is
   a typed HttpClient registered without the framework's request logging, because the Bot API puts the token in
   the URL path. `TelegramPollWorker` long-polls `getUpdates` when a token is set (ADR-015); `TelegramDelivery` is
-  the one way a message is sent (the test button and the reminders): three retries after the first attempt with
-  1, 2 and 4 second backoff, honouring a 429's `retry_after` up to 30 seconds, a 403 switching the channel off.
+  the one way a message is sent (the test button and the reminders); a 403 switches the channel off. A 409 from
+  `getUpdates` (a webhook is set) makes the poller call `deleteWebhook`, again on a later 409 only if that failed.
   `Telegram:BaseUrl` (default `https://api.telegram.org/`) exists so a local run can point at a stub.
   Reminders (#108, ADR-019) reach it through `IReminderChannel`, the boundary email (#107) plugs into, and
   link to `App:PublicUrl` (`APP_PUBLIC_URL`), or `https://` and the first `ALLOWED_HOSTS` domain when unset.
@@ -110,7 +110,10 @@ External systems:
   unavailable when they are absent or invalid (or when there is no address for the confirmation link). `IEmailTransport`
   is the seam: `SmtpEmailTransport` sends with MailKit and classifies failures into `DeliveryFailure`, and tests
   replace it with an in-memory sender. `EmailDelivery` and `TelegramDelivery` both go through `ChannelDelivery`
-  (who may be sent to, the retries and backoff, the failure record), and `EmailReminderChannel` is the
+  (who may be sent to, the retries, the failure record): a reminder gets three retries after the first attempt with
+  1, 2 and 4 second backoff, honouring a 429's `retry_after` up to 30 seconds, while the test buttons and the email
+  confirmation try once, since the owner is waiting on the request. `SmtpEmailTransport` bounds an attempt with one
+  25 second deadline. `EmailReminderChannel` is the
   `IReminderChannel` that lets `ReminderSender` send reminders to email with the channel in the claim key.
   The confirmation link carries a data-protection token (`EmailConfirmation`): owner, address and expiry,
   nothing stored.

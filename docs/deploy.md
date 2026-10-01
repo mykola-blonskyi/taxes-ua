@@ -170,7 +170,11 @@ Reminders reach the owner through a bot the owner creates; nothing is paid for a
    file, in chat or in a local `.env`.
 3. Optional: `/setprivacy` is irrelevant (the bot only talks in private chats), and `/setdescription` can say
    what the bot is for.
-4. In the app open settings, the Notifications tab, and press "Connect Telegram". Open the link, press Start
+4. The bot must not have a webhook: a webhook makes Telegram refuse `getUpdates` (409) and linking would never
+   complete. The api removes one with `deleteWebhook` on the first 409 and logs a warning saying so; if
+   "Telegram updates could not be read" keeps repeating after that, another process is polling the same bot
+   (see below).
+5. In the app open settings, the Notifications tab, and press "Connect Telegram". Open the link, press Start
    in Telegram, and the tab shows the channel as connected within a few seconds. "Send a test message"
    confirms delivery.
 

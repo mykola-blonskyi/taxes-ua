@@ -14,17 +14,18 @@ internal sealed record TelegramUpdate(long UpdateId, TelegramMessage? Message);
 
 // A closed set of outcomes rather than exceptions, like MonobankClient: the ordinary "blocked" and
 // "slow down" answers are data the delivery code branches on.
-internal readonly record struct TelegramResult<T>(T? Value, DeliveryFailure? Failure, TimeSpan? RetryAfter)
+internal readonly record struct TelegramResult<T>(T? Value, DeliveryFailure? Failure, TimeSpan? RetryAfter, HttpStatusCode? Status = null)
 {
     public bool IsOk => Failure is null;
 
     public static TelegramResult<T> Ok(T value) => new(value, null, null);
 
-    public static TelegramResult<T> Fail(DeliveryFailure failure, TimeSpan? retryAfter = null) => new(default, failure, retryAfter);
+    public static TelegramResult<T> Fail(DeliveryFailure failure, TimeSpan? retryAfter = null, HttpStatusCode? status = null) =>
+        new(default, failure, retryAfter, status);
 }
 
 /// <summary>
-/// The Bot API's getMe, getUpdates and sendMessage, registered as a typed HttpClient like
+/// The Bot API's getMe, getUpdates, deleteWebhook and sendMessage, registered as a typed HttpClient like
 /// MonobankClient so tests replace its primary handler. The token is part of every request path, so
 /// this class never logs a URL or an exception message, and the client is registered without the
 /// framework's request logging, which prints the URL (Program.cs).
@@ -50,6 +51,12 @@ internal sealed class TelegramClient(HttpClient http, TelegramBot bot, ILogger<T
         var answer = await CallAsync("getUpdates", body, longPoll + CallTimeout, cancellationToken);
         return answer.Read<IReadOnlyList<TelegramUpdate>>(
             result => [.. result.EnumerateArray().Select(ParseUpdate)], logger, "getUpdates");
+    }
+
+    public async Task<TelegramResult<bool>> DeleteWebhookAsync(CancellationToken cancellationToken)
+    {
+        var answer = await CallAsync("deleteWebhook", new { }, CallTimeout, cancellationToken);
+        return answer.Read(_ => true, logger, "deleteWebhook");
     }
 
     public async Task<TelegramResult<bool>> SendMessageAsync(string chatId, string text, CancellationToken cancellationToken)
@@ -151,7 +158,7 @@ internal sealed class TelegramClient(HttpClient http, TelegramBot bot, ILogger<T
                 case >= HttpStatusCode.InternalServerError:
                     return TelegramResult<T>.Fail(DeliveryFailure.ServerError);
                 default:
-                    return TelegramResult<T>.Fail(DeliveryFailure.Rejected);
+                    return TelegramResult<T>.Fail(DeliveryFailure.Rejected, status: Status);
             }
         }
     }

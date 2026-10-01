@@ -293,6 +293,86 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task The_test_button_tries_once_while_a_reminder_keeps_retrying()
+    {
+        var telegram = new StubTelegramHandler();
+        var clock = new FakeTimeProvider(Start);
+        await using var application = fixture.CreateApplication(telegram, clock);
+        using var owner = await SignIn(application);
+        await Link(application, owner, telegram);
+        var linkedCalls = telegram.To("sendMessage").Count;
+        telegram.SendAnswer = _ => StubTelegramHandler.Error(HttpStatusCode.InternalServerError, "Internal Server Error");
+
+        var response = await owner.PostAsync(Channels + "/telegram/test", null);
+
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Single(telegram.To("sendMessage").Skip(linkedCalls));
+        Assert.Equal("ServerError", (await Channel(owner))["lastFailure"]!.GetValue<string>());
+
+        await Deliver(application, clock);
+        Assert.Equal(1 + 1 + ChannelDelivery.Backoff.Length, telegram.To("sendMessage").Skip(linkedCalls).Count());
+    }
+
+    [Fact]
+    public async Task A_webhook_on_the_bot_is_removed_once_so_linking_can_complete()
+    {
+        var telegram = new StubTelegramHandler();
+        await using var application = fixture.CreateApplication(telegram, new FakeTimeProvider(Start));
+        using var owner = await SignIn(application);
+        var webhookSet = true;
+        telegram.Override = call => call.Method switch
+        {
+            "getUpdates" when webhookSet => StubTelegramHandler.Error(
+                HttpStatusCode.Conflict, "Conflict: can't use getUpdates method while webhook is active"),
+            "deleteWebhook" => Cleared(),
+            _ => null,
+        };
+        HttpResponseMessage Cleared()
+        {
+            webhookSet = false;
+            return StubTelegramHandler.Ok(JsonValue.Create(true));
+        }
+
+        var poller = application.Services.GetRequiredService<TelegramPoller>();
+        Assert.False(await poller.PollOnceAsync(TimeSpan.Zero, CancellationToken.None));
+        Assert.Single(telegram.To("deleteWebhook"));
+
+        telegram.Updates.Add(StubTelegramHandler.Update(10, OwnerChat, $"/start {CodeOf(await Connect(owner))}"));
+        Assert.True(await poller.PollOnceAsync(TimeSpan.Zero, CancellationToken.None));
+        Assert.True((await Channel(owner))["linked"]!.GetValue<bool>());
+
+        // A 409 that is another process polling is not answered by deleting a webhook every round.
+        webhookSet = true;
+        Assert.False(await poller.PollOnceAsync(TimeSpan.Zero, CancellationToken.None));
+        Assert.Single(telegram.To("deleteWebhook"));
+    }
+
+    [Fact]
+    public async Task A_failed_webhook_removal_is_tried_again_on_the_next_409()
+    {
+        var telegram = new StubTelegramHandler();
+        await using var application = fixture.CreateApplication(telegram, new FakeTimeProvider(Start));
+        using var owner = await SignIn(application);
+        var deletes = 0;
+        telegram.Override = call => call.Method switch
+        {
+            "getUpdates" => StubTelegramHandler.Error(HttpStatusCode.Conflict, "Conflict: webhook is active"),
+            "deleteWebhook" => ++deletes == 1
+                ? StubTelegramHandler.Error(HttpStatusCode.InternalServerError, "Internal Server Error")
+                : StubTelegramHandler.Ok(JsonValue.Create(true)),
+            _ => null,
+        };
+        var poller = application.Services.GetRequiredService<TelegramPoller>();
+
+        Assert.False(await poller.PollOnceAsync(TimeSpan.Zero, CancellationToken.None));
+        Assert.False(await poller.PollOnceAsync(TimeSpan.Zero, CancellationToken.None));
+        Assert.Equal(2, telegram.To("deleteWebhook").Count);
+
+        Assert.False(await poller.PollOnceAsync(TimeSpan.Zero, CancellationToken.None));
+        Assert.Equal(2, telegram.To("deleteWebhook").Count);
+    }
+
+    [Fact]
     public async Task A_429_is_waited_out_for_as_long_as_telegram_asks()
     {
         var telegram = new StubTelegramHandler();
