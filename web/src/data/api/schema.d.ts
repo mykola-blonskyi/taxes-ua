@@ -2280,6 +2280,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/declarations/{year}/{quarter}/files/{type}/annex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                    quarter: number;
+                    type: components["schemas"]["DeclarationType"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/xml": string;
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/declarations/{year}/{quarter}/filing": {
         parameters: {
             query?: never;
@@ -4714,6 +4767,9 @@ export interface components {
             fileName: string;
             /** Format: byte */
             content: string;
+            annexFileName: null | string;
+            /** Format: byte */
+            annexContent: null | string;
             /** Format: date-time */
             generatedAt: string;
         };
@@ -4723,6 +4779,7 @@ export interface components {
         DeclarationFileResponse: {
             type: components["schemas"]["DeclarationType"];
             fileName: string;
+            annexFileName: null | string;
             /** Format: date-time */
             generatedAt: string;
         };

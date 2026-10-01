@@ -43,9 +43,10 @@ internal sealed record BackupDocument(
     // the clients' details (#90); 6 added invoices (#92); 7 added declarationDetails and declarationFilings
     // (#110); 8 added the receipts' invoice links (#93); 9 added treasuryAccounts and the candidates'
     // counterEdrpou (#98); 10 added the settings' backOnGroup3From (#118); 11 added notificationChannels (#106);
-    // 12 added declarationFiles and the declaration details' taxOfficeName (#111). An older file is upgraded to
-    // this shape one version at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 12;
+    // 12 added declarationFiles and the declaration details' taxOfficeName (#111); 13 added the declaration
+    // files' annexFileName and annexContent (#112). An older file is upgraded to this shape one version at a
+    // time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 13;
 
     private const int MaxExternalIdLength = 200;
 
@@ -145,6 +146,11 @@ internal sealed record BackupDocument(
         if (version <= 11)
         {
             UpgradeFromVersion11(root);
+        }
+
+        if (version <= 12)
+        {
+            UpgradeFromVersion12(root);
         }
     }
 
@@ -286,11 +292,25 @@ internal sealed record BackupDocument(
     // A version 11 file predates the declaration file and the tax office's name.
     private static void UpgradeFromVersion11(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 12;
         root["declarationFiles"] = new JsonArray();
         if (root["declarationDetails"] is JsonObject details)
         {
             details["taxOfficeName"] = string.Empty;
+        }
+    }
+
+    // A version 12 file predates the ESV annex: no declaration file had one.
+    private static void UpgradeFromVersion12(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        if (root["declarationFiles"] is JsonArray files)
+        {
+            foreach (var file in files.OfType<JsonObject>())
+            {
+                file["annexFileName"] = null;
+                file["annexContent"] = null;
+            }
         }
     }
 
@@ -1498,8 +1518,8 @@ internal sealed record DeclarationFilingBackup(
 }
 
 /// <summary>
-/// A prepared declaration file, carried byte for byte: it records what the owner imported, so a restore
-/// does not regenerate it from figures that may since have changed.
+/// A prepared declaration file and its annex 1 when it has one, carried byte for byte: they record what
+/// the owner imported, so a restore does not regenerate them from figures that may since have changed.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record DeclarationFileBackup(
@@ -1508,6 +1528,8 @@ internal sealed record DeclarationFileBackup(
     DeclarationType Type,
     string FileName,
     byte[] Content,
+    string? AnnexFileName,
+    byte[]? AnnexContent,
     DateTimeOffset GeneratedAt)
 {
     private const int MaxFileNameLength = 100;
@@ -1515,7 +1537,7 @@ internal sealed record DeclarationFileBackup(
     private const int MaxContentBytes = 1024 * 1024;
 
     public static DeclarationFileBackup From(DeclarationFile file) => new(
-        file.Year, file.Quarter, file.Type, file.FileName, file.Content, file.GeneratedAt);
+        file.Year, file.Quarter, file.Type, file.FileName, file.Content, file.AnnexFileName, file.AnnexContent, file.GeneratedAt);
 
     public (string Key, string Message)? Error() => this switch
     {
@@ -1525,6 +1547,17 @@ internal sealed record DeclarationFileBackup(
         _ when TextRules.HasDisallowedControlChar(FileName) => ("fileName", "fileName must not contain a control character."),
         _ when !FileName.EndsWith(".xml", StringComparison.Ordinal) => ("fileName", "fileName must end with .xml."),
         { Content.Length: 0 or > MaxContentBytes } => ("content", $"content must be 1 to {MaxContentBytes} bytes."),
+        _ => AnnexError(),
+    };
+
+    private (string Key, string Message)? AnnexError() => (AnnexFileName, AnnexContent) switch
+    {
+        (null, null) => null,
+        (null, _) or (_, null) => ("annexFileName", "annexFileName and annexContent must both be set or both be null."),
+        ({ Length: 0 or > MaxFileNameLength }, _) => ("annexFileName", $"annexFileName must be 1 to {MaxFileNameLength} characters."),
+        (var name, _) when TextRules.HasDisallowedControlChar(name) => ("annexFileName", "annexFileName must not contain a control character."),
+        (var name, _) when !name.EndsWith(".xml", StringComparison.Ordinal) => ("annexFileName", "annexFileName must end with .xml."),
+        (_, { Length: 0 or > MaxContentBytes }) => ("annexContent", $"annexContent must be 1 to {MaxContentBytes} bytes."),
         _ => null,
     };
 
@@ -1536,6 +1569,8 @@ internal sealed record DeclarationFileBackup(
         Type = Type,
         FileName = FileName,
         Content = Content,
+        AnnexFileName = AnnexFileName,
+        AnnexContent = AnnexContent,
         GeneratedAt = GeneratedAt,
     };
 }

@@ -35,12 +35,21 @@ export function useDeclaration(year: number, quarter: number) {
   });
 }
 
-type FilePath = Extract<keyof paths, "/api/declarations/{year}/{quarter}/files/{type}">;
+type FilePath = Extract<
+  keyof paths,
+  "/api/declarations/{year}/{quarter}/files/{type}" | "/api/declarations/{year}/{quarter}/files/{type}/annex"
+>;
 
 // Typed against the generated schema, so a renamed or removed download endpoint fails the build.
 export function declarationFileUrl(year: number, quarter: number, type: DeclarationType): string {
-  const path: FilePath = "/api/declarations/{year}/{quarter}/files/{type}";
+  return fileUrl("/api/declarations/{year}/{quarter}/files/{type}", year, quarter, type);
+}
 
+export function declarationAnnexUrl(year: number, quarter: number, type: DeclarationType): string {
+  return fileUrl("/api/declarations/{year}/{quarter}/files/{type}/annex", year, quarter, type);
+}
+
+function fileUrl(path: FilePath, year: number, quarter: number, type: DeclarationType): string {
   return path
     .replace("{year}", String(year))
     .replace("{quarter}", String(quarter))

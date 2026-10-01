@@ -106,7 +106,7 @@ External systems:
   Reminders (#108, ADR-019) reach it through `IReminderChannel`, the boundary email (#107) plugs into, and
   link to `App:PublicUrl` (`APP_PUBLIC_URL`), or `https://` and the first `ALLOWED_HOSTS` domain when unset.
 - SMTP for reminders (Stage 2).
-- DPS XML declaration schema F0103309 (Stage 3).
+- DPS XML schemas F0103309 (the declaration) and F0133109 (its ESV annex), vendored and embedded (ADR-016, ADR-018).
 
 ---
 

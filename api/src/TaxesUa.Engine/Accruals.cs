@@ -50,6 +50,36 @@ public sealed record MonthAccrual(
     public int Quarter => (Month + 2) / 3;
 }
 
+/// <summary>
+/// One month's ESV for oneself (Rule 3): <c>BaseKop</c> is the minimum wage, or in the month of
+/// registration under <see cref="EsvRegistrationMonthPolicy.Prorated"/> its share for the active days,
+/// and the ESV is the rate on it, so annex 1's column 4 is column 2 times column 3.
+/// </summary>
+public sealed record EsvMonth(int Month, long BaseKop, int RateBp)
+{
+    public long EsvKop => Money.ApplyBp(BaseKop, RateBp);
+}
+
+/// <summary>
+/// Annex 1 to the declaration (form F0133109), per Rule 15: the ESV of every group 3 month of the year
+/// that owes it, filed with the year's last group 3 declaration, the one for <c>Quarter</c>.
+/// <c>From</c> to <c>To</c> is the stretch on the simplified system it covers (the annex's item 8).
+/// <c>LeavesGroup3</c> marks a declaration for the quarter the limit was crossed in, after which the
+/// FOP moves to other taxes: the annex's "перехід на сплату інших податків і зборів".
+/// </summary>
+public sealed record EsvAnnex(
+    int Year,
+    int Quarter,
+    DateOnly From,
+    DateOnly To,
+    IReadOnlyList<EsvMonth> Months,
+    bool LeavesGroup3)
+{
+    public long BaseKop => Months.Sum(month => month.BaseKop);
+
+    public long EsvKop => Months.Sum(month => month.EsvKop);
+}
+
 /// <summary>A quarter of a year, ordered by year and then by quarter.</summary>
 public sealed record YearQuarter(int Year, int Quarter) : IComparable<YearQuarter>
 {
@@ -87,7 +117,8 @@ public sealed record LimitCrossing(int Year, int Quarter)
 /// <see cref="FopSettingsInput.BackOnGroup3From"/>. <c>LimitCrossing</c> is the crossing that ends group 3
 /// in this year, or else the earlier one that keeps a quarter of this year out of it.
 /// <c>StoppedAtYearEnd</c> is the crossing group 3 is still stopped by after Q4, which the next year
-/// inherits.
+/// inherits. <c>EsvAnnex</c> is the year's ESV for the group 3 months, as annex 1 of the year's last
+/// group 3 declaration reports it (Rule 15); null when no month of the year owes ESV.
 /// </summary>
 public sealed record YearAccrual(
     int Year,
@@ -96,6 +127,7 @@ public sealed record YearAccrual(
     IReadOnlyList<QuarterAccrual> Quarters,
     LimitCrossing? LimitCrossing,
     LimitCrossing? StoppedAtYearEnd,
+    EsvAnnex? EsvAnnex,
     IReadOnlyList<EngineWarning> Warnings)
 {
     public bool InGroup3(int quarter) => Quarters.Any(accrual => accrual.Income.Quarter == quarter);
@@ -164,7 +196,7 @@ public static class Accruals
         LimitCrossing? stoppedBy = null)
     {
         var income = IncomeLedger.ForYear(year, transactions, settings);
-        var esvByMonthKop = EsvByMonth(year, config, settings);
+        var esvByMonth = EsvByMonth(year, config, settings);
         var warnings = new List<EngineWarning>(income.Warnings);
 
         var quarters = new List<QuarterAccrual>(4);
@@ -203,7 +235,7 @@ public static class Accruals
                     month.IncomeKop,
                     singleTaxKop - accruedSingleTaxKop,
                     militaryLevyKop - accruedMilitaryLevyKop,
-                    esvByMonthKop[month.Month - 1]));
+                    esvByMonth[month.Month - 1].EsvKop));
                 accruedSingleTaxKop = singleTaxKop;
                 accruedMilitaryLevyKop = militaryLevyKop;
             }
@@ -222,7 +254,7 @@ public static class Accruals
                 Money.ApplyBp(excessIncomeKop, config.ExcessRateBp),
                 accruedMilitaryLevyKop - quarterStartMilitaryLevyKop,
                 accruedMilitaryLevyKop,
-                esvByMonthKop[(3 * quarter - 3)..(3 * quarter)].Sum()));
+                esvByMonth[(3 * quarter - 3)..(3 * quarter)].Sum(month => month.EsvKop)));
 
             if (excessIncomeKop > 0)
             {
@@ -238,7 +270,36 @@ public static class Accruals
             quarters,
             crossing ?? (quarters.Count < 4 ? stoppedBy : null),
             stop,
+            EsvAnnexOf(year, quarters, crossing, esvByMonth, settings),
             warnings);
+    }
+
+    private static EsvAnnex? EsvAnnexOf(
+        int year,
+        List<QuarterAccrual> quarters,
+        LimitCrossing? crossing,
+        EsvMonth[] esvByMonth,
+        FopSettingsInput settings)
+    {
+        var months = quarters
+            .SelectMany(quarter => esvByMonth[(3 * quarter.Income.Quarter - 3)..(3 * quarter.Income.Quarter)])
+            .Where(month => month.BaseKop > 0)
+            .ToArray();
+        if (months.Length == 0 || settings.FopRegistrationDate is not { } registrationDate)
+        {
+            return null;
+        }
+
+        var first = quarters[0].Income.Quarter;
+        var last = quarters[^1].Income.Quarter;
+        var firstDay = new DateOnly(year, 3 * first - 2, 1);
+        return new EsvAnnex(
+            year,
+            last,
+            registrationDate > firstDay ? registrationDate : firstDay,
+            new DateOnly(year, 3 * last, 1).AddMonths(1).AddDays(-1),
+            months,
+            crossing?.Quarter == last);
     }
 
     /// <summary>
@@ -250,45 +311,40 @@ public static class Accruals
         Money.ApplyBp(Math.Min(cumulativeIncomeKop, config.IncomeLimitKop), config.SingleTaxRateBp)
         + Money.ApplyBp(Math.Max(cumulativeIncomeKop - config.IncomeLimitKop, 0), config.ExcessRateBp);
 
-    private static long[] EsvByMonth(
+    private static EsvMonth[] EsvByMonth(
         int year,
         TaxYearConfigInput config,
         FopSettingsInput settings)
     {
-        var esvKop = new long[12];
-        if (settings.EsvExempt || settings.FopRegistrationDate is not { } registrationDate)
-        {
-            return esvKop;
-        }
-
-        var monthKop = Money.ApplyBp(config.MinWageKop, config.EsvRateBp);
+        var months = new EsvMonth[12];
         for (var month = 1; month <= 12; month++)
         {
             var monthStart = new DateOnly(year, month, 1);
             var monthEnd = monthStart.AddMonths(1).AddDays(-1);
-            if (monthEnd < registrationDate)
+            var baseKop = 0L;
+            if (!settings.EsvExempt && settings.FopRegistrationDate is { } registrationDate && monthEnd >= registrationDate)
             {
-                continue;
+                baseKop = monthStart >= registrationDate
+                    ? config.MinWageKop
+                    : RegistrationMonthBaseKop(config.MinWageKop, registrationDate, monthEnd, settings);
             }
 
-            esvKop[month - 1] = monthStart >= registrationDate
-                ? monthKop
-                : RegistrationMonthKop(monthKop, registrationDate, monthEnd, settings);
+            months[month - 1] = new EsvMonth(month, baseKop, config.EsvRateBp);
         }
 
-        return esvKop;
+        return months;
     }
 
-    private static long RegistrationMonthKop(
-        long monthKop,
+    private static long RegistrationMonthBaseKop(
+        long minWageKop,
         DateOnly registrationDate,
         DateOnly monthEnd,
         FopSettingsInput settings) =>
         settings.EsvRegistrationMonthPolicy switch
         {
-            EsvRegistrationMonthPolicy.FullMonth => monthKop,
+            EsvRegistrationMonthPolicy.FullMonth => minWageKop,
             EsvRegistrationMonthPolicy.Prorated => Money.Prorate(
-                monthKop, monthEnd.Day - registrationDate.Day + 1, monthEnd.Day),
+                minWageKop, monthEnd.Day - registrationDate.Day + 1, monthEnd.Day),
             var policy => throw new ArgumentOutOfRangeException(
                 nameof(settings), policy, "Unknown ESV registration-month policy."),
         };

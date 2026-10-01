@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Download } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
 import {
+  declarationAnnexUrl,
   declarationFileUrl,
   useGenerateDeclarationFile,
   type DeclarationFile,
@@ -44,6 +45,9 @@ export function XmlFile({ declaration, period }: { declaration: DeclarationRespo
       onSuccess: (file) => {
         if (file) {
           startDownload(declarationFileUrl(period.year, period.quarter, file.type), file.fileName);
+          if (file.annexFileName) {
+            startDownload(declarationAnnexUrl(period.year, period.quarter, file.type), file.annexFileName);
+          }
         }
       },
     });
@@ -56,6 +60,9 @@ export function XmlFile({ declaration, period }: { declaration: DeclarationRespo
           {t("title")}
         </h3>
         <p className="text-xs text-muted-foreground">{t("hint")}</p>
+        {declaration.figures?.esvKop != null ? (
+          <p className="text-xs text-muted-foreground">{t("annexHint")}</p>
+        ) : null}
       </div>
 
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
@@ -126,14 +133,30 @@ function FileRow({ file, period, locale }: { file: DeclarationFile; period: Peri
       <span className="font-medium">{tTypes(file.type)}</span>
       <span className="break-all text-xs">{file.fileName}</span>
       <span className="text-xs text-muted-foreground">{formatInstantInKyiv(file.generatedAt, locale)}</span>
-      <a
-        href={declarationFileUrl(period.year, period.quarter, file.type)}
-        download={file.fileName}
-        className="inline-flex w-fit items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
-      >
-        <Download className="size-4" aria-hidden="true" />
-        {t("downloadAgain")}
-      </a>
+      <DownloadLink href={declarationFileUrl(period.year, period.quarter, file.type)} fileName={file.fileName}>
+        {file.annexFileName ? t("downloadDeclaration") : t("downloadAgain")}
+      </DownloadLink>
+      {file.annexFileName ? (
+        <>
+          <span className="break-all text-xs">{file.annexFileName}</span>
+          <DownloadLink href={declarationAnnexUrl(period.year, period.quarter, file.type)} fileName={file.annexFileName}>
+            {t("downloadAnnex")}
+          </DownloadLink>
+        </>
+      ) : null}
     </li>
+  );
+}
+
+function DownloadLink({ href, fileName, children }: { href: string; fileName: string; children: ReactNode }) {
+  return (
+    <a
+      href={href}
+      download={fileName}
+      className="inline-flex w-fit items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+    >
+      <Download className="size-4" aria-hidden="true" />
+      {children}
+    </a>
   );
 }

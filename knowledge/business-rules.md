@@ -40,7 +40,9 @@ Formula: `AmountUahKop = roundHalfUp(AmountMinor × RateE4 / 10000)`.
 - ESV for oneself: `EsvRateBp` of the monthly minimum wage (2026: 22% × 8,647 = 1,902.34 UAH).
   Paid from the month of FOP registration, regardless of income.
 - Registration month: prorated by active days by default (`EsvRegistrationMonthPolicy.Prorated`),
-  confirmed by the owner. `EsvRegistrationMonthPolicy.FullMonth` stays available as a setting.
+  confirmed by the owner. `EsvRegistrationMonthPolicy.FullMonth` stays available as a setting. What is
+  prorated is the base, the minimum wage times active days over the month's days, rounded once; the ESV
+  is the rate on that base, rounded once, so annex 1's column 4 is column 2 times column 3 (Rule 15).
 - ESV exemption (`Settings.EsvExempt`) zeroes out the ESV accrual.
 
 The declaration is filed cumulatively. Quarter tax = tax on cumulative income minus tax already
@@ -570,8 +572,9 @@ that quarter's lines 13 and 24 are zero. The lines, without VAT:
 - 23: the military levy on lines 05 to 07, which here is line 08 at the year's levy rate.
 - 24: line 23 of the previous quarter's declaration; zero in Q1.
 - 25: line 23 minus line 24.
-- 21: ESV for the year from annex 1, on the annual (Q4) declaration only: the sum of the year's
-  monthly ESV (Rule 3). Q1 to Q3 leave it empty.
+- 21: ESV from annex 1, on the year's last group 3 declaration only: the annual (Q4) one, or the
+  crossing quarter's when the limit is crossed in Q1 to Q3. It is the sum of the monthly ESV of the
+  year's group 3 months (Rule 3). Every other quarter leaves it empty.
 
 Every other line stays empty: they belong to other groups, the 3% rate, or corrections. When refunds
 shrink the cumulative income, 14.1 and 25 come out negative and are shown as the arithmetic gives
@@ -582,10 +585,12 @@ rates are the declared year's `TaxYearConfig` rates, never code. A quarter after
 group 3: no figures are shown, the screen says the FOP must file under the system it moved to, the
 declaration is not ready, and the home screen does not name it as due.
 
-Open question (#112): for a crossing in Q1 to Q3, whether the year's ESV for the group 3 months (line
-21, annex 1) belongs on the crossing quarter's declaration, which is the last group 3 declaration of
-the year. The app fills line 21 only on the Q4 declaration, so after such a crossing it fills it
-nowhere.
+Crossing in Q1 to Q3 (settled in #112, ADR-018): the year's ESV for the group 3 months goes on the
+crossing quarter's declaration, the last group 3 declaration of the year, with annex 1 marked "перехід
+на сплату інших податків і зборів" (H03). The annex's own footnote 9 describes exactly this case, a FOP
+who moved to other taxes, with item 8 giving the stretch spent on the simplified system; without it the
+group 3 months' ESV would be declared nowhere. A Q4 crossing marks the annual annex the same way, since
+the switch follows it.
 
 Worked example, the crossing quarter: a limit of 10,091,049.00 UAH and receipts of 4,000,000.00 in
 February, 4,000,000.00 in May, 1,500,000.00 in August and 1,000,000.00 in September cross it in Q3:
@@ -660,8 +665,7 @@ A quarter that is not ready, or is outside group 3, gets no file. The file follo
   clarifying declaration the same quarter as the period clarified, HSTI the tax office's name, HNAME and
   HBOS the invoicing details' Ukrainian name without a leading "ФОП", HLOC the address, HNACTL 0, the
   KVED codes in table 1 with empty names, and the lines above with two decimals. Lines 07 and 09 are
-  written only when nonzero; line 21 stays empty until the ESV annex exists (#112); every other line is
-  left out;
+  written only when nonzero; line 21 only with annex 1, below; every other line is left out;
 - the name, per standard No. 729: C_REG and C_RAJ (two digits each), the TIN padded to 10, F01, 033,
   C_DOC_VER as two digits, C_DOC_STAN, C_DOC_TYPE as two digits, C_DOC_CNT as seven, PERIOD_TYPE,
   PERIOD_MONTH as two digits, PERIOD_YEAR, C_STI_ORIG as four, `.xml`. The Q1 2026 reporting
@@ -669,6 +673,32 @@ A quarter that is not ready, or is outside group 3, gets no file. The file follo
 
 C_DOC_CNT stays 1: a second filing of the same type in a period may need a higher one, and the app does
 not handle that yet.
+
+Annex 1, the ESV annex (#112). The year's last group 3 declaration (above) comes with a second file,
+form F0133109 (C_DOC F01, C_DOC_SUB 331, C_DOC_VER 9), "Відомості про суми нарахованого доходу
+застрахованих осіб та суми нарахованого єдиного внеску". An ESV exemption (Rule 3) or a year without a
+registration date has no annex and no line 21: the form's first footnote says exempt payers do not file
+it. The two files are prepared, validated, stored and downloaded together:
+
+- the annex's header repeats the declaration's (TIN, tax office, period, C_DOC_STAN, C_DOC_TYPE 0,
+  C_DOC_CNT 1, D_FILL) with its own C_DOC_SUB, and its name follows standard No. 729 the same way, with
+  F0133109 in place of F0103309;
+- each file links the other in LINKED_DOCS, one DOC with NUM 1: the declaration names the annex with
+  TYPE 1 (an annex), the annex names the declaration with TYPE 2 (the main form). The declaration sets
+  HD1, "annex 1 attached", and line 21 (R021G3) to the annex's total;
+- the annex's body: the type flag, HTIN, HNAME, the period flag and year (for a clarifying one the same
+  period clarified), H03 on a crossing quarter's, HKVED the first KVED code, R08G1D to R08G2D the stretch
+  on the simplified system within the year (from 1 January, the registration date or the first day of
+  the quarter of a return to group 3, whichever is latest, to the last day of the declaration's
+  quarter), R081G1 6 (a FOP on the simplified system, footnote 11), then per group 3 month that owes ESV
+  its base (R09nG2, the minimum wage or its prorated part in the registration month), the year's
+  `EsvRateBp` as a percentage (R09nG3) and the ESV (R09nG4), months without ESV left out, the totals
+  R09G2 and R09G4, and HBOS;
+- a clarifying annex leaves item 10 (the correction of an earlier annex's ESV) empty: the app keeps no
+  figure of the annex that was filed, so the owner fills it in the Cabinet.
+
+Annex 2 (F0133209, the minimum tax liability) is not produced: it is filed by owners and users of
+agricultural land, which this FOP is not, so its HD2 flag stays unset.
 
 Every file is validated against the vendored schemas before it is kept or downloaded. A text the
 encoding cannot carry, or a control character XML 1.0 forbids (the modifier apostrophe U+02BC becomes `'` first) or a value the schema refuses,
