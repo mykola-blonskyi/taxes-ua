@@ -11,7 +11,7 @@ Stage 2. Automation (roughly 6–8 days).
       Read only, no payment creation. #71.
 - [ ] Reminders: a Telegram bot and email, each toggleable independently. At 7 days, 1 day, and
       on the deadline itself. Spec #104, tickets #105-#108.
-- [ ] Export deadlines to .ics. Ticket #105.
+- [x] Export deadlines to .ics, and a private subscription feed. Ticket #105.
 
 ---
 

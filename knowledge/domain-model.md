@@ -602,6 +602,19 @@ disconnecting and restoring delete the owner's codes. Never audited, never in th
 `getUpdates` offset. Keyed by bot because update ids belong to one bot. It moves in the same save as the
 effect of the update it passes, so a restart neither replays nor skips one. Not audited, not in the backup.
 
+### CalendarFeed (Stage 2)
+
+Responsibilities: the secret behind one owner's calendar subscription URL (#105, ADR-017). Absent
+until the owner asks for a link; asking again replaces it.
+
+Fields: `UserId` (primary key), `Secret` (64 random hex characters, unique, the path segment of
+`/api/calendar/feed/{secret}.ics`), `CreatedAt`. Never audited, never logged, never in the backup: a
+restore creates none and leaves an existing one alone, so the owner rotates in settings to get one on a
+new server. The deadlines it serves are computed from the engine at request time (Rule 5), so the row
+stores nothing else.
+
+Relationships: belongs to `User`, 1-to-1.
+
 ### ImportBatch
 
 Responsibilities: one sync run for one account (#76). Written by the monobank sync worker, never by

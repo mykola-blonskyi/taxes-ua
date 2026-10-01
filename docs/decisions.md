@@ -702,6 +702,64 @@ tests. Stored files do not follow later edits: preparing the file again replaces
 
 ---
 
+## ADR-017. The calendar feed is a secret path that serves deadlines, never amounts
+
+Date: 2026-09-30
+
+Status: Accepted
+
+### Context
+
+#105 lets the owner subscribe a phone or desktop calendar to the deadlines. A calendar app fetches a
+URL on a timer and sends no cookie, no header and no token, so the subscription cannot sit behind the
+session. Whoever learns the URL can read what it serves.
+
+### Decision
+
+The feed is an anonymous `GET /api/calendar/feed/{secret}.ics`, found the way the monobank webhook is
+(ADR-012): a per-owner secret of 32 random bytes as 64 hex characters, in the path, unique. The row is
+`CalendarFeed`, one per owner, created the first time the owner asks for a link and replaced whenever
+they rotate it. An unknown, malformed or rotated secret answers 404. The endpoint is left out of the
+OpenAPI document. The secret is stored as drawn, not hashed, because settings shows the URL again;
+a 256-bit value makes the lookup by index safe against guessing, and a hash would only make the
+owner rotate every time they want to copy it.
+
+The document carries no amount, only the kind, the period and the date, so a leaked link reveals when
+the owner pays and files and nothing about what. A request line prints its path, and this one is a
+secret, so the framework's request logging (`Microsoft.AspNetCore.Hosting.Diagnostics`) is held at
+Warning in every environment; Development raised it to Information, which is also what the local stack
+runs. The secret is not audited and not in the backup: a restore on a new server creates no feed and
+leaves an existing one alone, and the owner creates or rotates one in settings. `Cache-Control:
+no-store` keeps an intermediary from holding a copy.
+
+The document is an RFC 5545 VCALENDAR of all-day VEVENTs with a stable UID per deadline
+and owner (`esv-2026-q1-3f9a1c2e@taxes-ua`, `advance-2026-m03-3f9a1c2e@taxes-ua`, the suffix being the
+first 8 hex characters of SHA-256 of the user id, not secret), so a client updates an event when a date
+moves instead of adding a second one, the UID survives rotation and re-subscription, and two owners or a
+feed beside an import never share one. The feed lists every deadline dated this calendar year or next,
+which includes last year's Q4 and December advance until January and February have passed them. Each
+event has two DISPLAY alarms, `-P6DT15H` and `-PT15H`: an all-day event starts at 00:00, so they fire at
+09:00 local, 7 and 1 days before, when the Telegram reminders go out. The owner's settings locale chooses Ukrainian or Russian for the
+summaries. The same document is served to the signed-in owner at `GET /api/calendar/deadlines.ics`
+as a download, with or without a subscription.
+
+### Alternatives Considered
+
+A token in a header or query of an authenticated route. Calendar apps send neither.
+
+Hashing the secret. It would make the URL unrecoverable, so settings could show it only once.
+
+A fixed URL per owner derived from their id. It could not be revoked.
+
+### Consequences
+
+Anyone with the link sees the owner's deadlines until the owner rotates. Rotating breaks existing
+subscriptions by design; the owner subscribes again. The path appears wherever a proxy in front of the
+app logs request paths, which this app does not control. Alarms are a calendar-side nudge at 09:00
+local; the reminders of #108 remain the message that names what is owed.
+
+---
+
 ## ADR-019. Compute reminders at each run and claim each one in a sent log before sending
 
 

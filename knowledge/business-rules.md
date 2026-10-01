@@ -158,6 +158,18 @@ that quarter carries obligations.
 
 The annual declaration (for Q4) includes the ESV attachment.
 
+**Calendar feed.** The owner's deadlines are also served as an iCalendar document (ADR-017), for
+every deadline dated in the current or the next calendar year (so last year's Q4 and December advance
+stay until their dates pass): for each quarter still in group 3 (Rule 4, so none after a limit crossing
+until the owner is back) and not ended before the registration date, the ESV date (not when `EsvExempt` is set), the single tax and
+military levy date (one event, as they share it) and the declaration date, all as shifted above; in
+`MonthlyAdvance` mode, and only for a year in the ledger as the periods screen shows it, also each
+month's recommended advance date (Rule 6), unshifted. A year without a
+`TaxYearConfig` has no events. Events are all-day, carry alarms at 09:00 local 7 and 1 days before, and name the kind
+and the period in the owner's locale, never an amount. The UID is the kind with the year, the quarter or
+month and a short non-secret owner key, so a moved date updates the event. The document is behind a per-owner secret path the owner
+can rotate; it is not in the backup, so a restore creates none.
+
 ---
 
 ## Rule 6. Payment modes

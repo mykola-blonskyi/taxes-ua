@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Backup;
+using TaxesUa.Api.Features.Calendar;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
@@ -815,6 +816,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         // The sent-reminder log is what already reached the owner's chat, not the owner's data; a restore
         // leaves it in place so restoring does not send the same reminder twice.
         Type[] telegramRuntimeNotBackedUp = [typeof(NotificationLinkCode), typeof(TelegramPollState), typeof(SentReminder)];
+        // The feed secret is a bearer credential for the owner's deadlines (ADR-017). A restore creates
+        // none and leaves the current one alone; the owner rotates to get one.
+        Type[] calendarSecretNotBackedUp = [typeof(CalendarFeed)];
 
         var featureTables = model.GetEntityTypes()
             .Select(type => type.ClrType)
@@ -828,6 +832,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 .Concat(bankConnectionNotBackedUp)
                 .Concat(bankRecordNotBackedUp)
                 .Concat(telegramRuntimeNotBackedUp)
+                .Concat(calendarSecretNotBackedUp)
                 .ToHashSet(),
             featureTables);
 
