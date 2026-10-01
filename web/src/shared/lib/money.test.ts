@@ -15,6 +15,15 @@ import {
 const nbsp = " ";
 const narrowNbsp = " ";
 
+// Intl output is the browser's: which space groups thousands, and whether a space precedes % or the currency
+// code, differ between ICU releases. The tests pin what the app controls (the digits and their order, the
+// decimal comma, the currency sign) and read every kind of space as one.
+const plain = (text: string) =>
+  text
+    .replace(/[\s  ]+/g, " ")
+    .replace(/ %$/, "%")
+    .trim();
+
 describe("parseHryvnia", () => {
   it.each([
     ["a whole amount", "100", 10_000],
@@ -94,13 +103,14 @@ describe("formatMoney", () => {
     ["ru", 123_456, `1${nbsp}234,56${nbsp}₴`],
     ["ru", 1_000_000_000, `10${nbsp}000${nbsp}000,00${nbsp}₴`],
   ])("shows %s kopecks %i", (locale, kopecks, shown) => {
-    expect(formatMoney(kopecks, locale).replaceAll(narrowNbsp, nbsp)).toBe(shown);
+    expect(plain(formatMoney(kopecks, locale))).toBe(plain(shown));
   });
 });
 
 describe("formatMinor and formatAmount", () => {
   it("puts a foreign currency code after a no-break space", () => {
-    expect(formatMinor(123_456, "USD", "uk").replaceAll(narrowNbsp, nbsp)).toBe(`1${nbsp}234,56${nbsp}USD`);
+    expect(plain(formatMinor(123_456, "USD", "uk"))).toBe("1 234,56 USD");
+    expect(formatMinor(123_456, "USD", "uk")).toContain(`${nbsp}USD`);
   });
 
   it("formats hryvnias with the sign and every other currency with its code", () => {
@@ -116,7 +126,7 @@ describe("rate formatting", () => {
     ["uk", 1_250, "12,50%"],
     ["uk", 0, "0,00%"],
   ])("shows %s basis points %i as a percentage", (locale, basisPoints, shown) => {
-    expect(formatRate(basisPoints, locale)).toBe(shown);
+    expect(plain(formatRate(basisPoints, locale))).toBe(plain(shown));
   });
 
   it.each([
@@ -124,7 +134,7 @@ describe("rate formatting", () => {
     ["uk", 1, "0,0001"],
     ["ru", 387_525, "38,7525"],
   ])("shows %s rateE4 %i with four decimals", (locale, rateE4, shown) => {
-    expect(formatRateE4(rateE4, locale)).toBe(shown);
+    expect(plain(formatRateE4(rateE4, locale))).toBe(plain(shown));
   });
 });
 

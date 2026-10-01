@@ -9,6 +9,15 @@ import {
   todayInKyiv,
 } from "./dates";
 
+// Intl output is the browser's: the "г." and "р." year suffixes and the kind of space come from the ICU
+// release. The tests pin what the app controls (the weekday word, the digits and their order) and ignore
+// those suffixes.
+const plain = (text: string) =>
+  text
+    .replace(/[\s\u00a0\u202f]+/g, " ")
+    .replace(/ (г|р)\.$/, "")
+    .trim();
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -33,9 +42,9 @@ describe("formatNumericDate", () => {
     ["uk", "2026-12-31", false, "31.12.2026"],
     ["uk", "2028-02-29", false, "29.02.2028"],
     ["uk", "2026-01-05", true, "понеділок, 05.01.2026"],
-    ["ru", "2026-01-05", true, "понедельник, 05.01.2026 г."],
+    ["ru", "2026-01-05", true, "понедельник, 05.01.2026"],
   ])("shows %s %s (weekday %s)", (locale, value, withWeekday, shown) => {
-    expect(formatNumericDate(value, locale, withWeekday)).toBe(shown);
+    expect(plain(formatNumericDate(value, locale, withWeekday))).toBe(shown);
   });
 });
 
