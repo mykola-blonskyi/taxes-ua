@@ -401,9 +401,9 @@ public static partial class InvoicingEndpoints
                 errors[$"{at}.currency"] = ["currency must not repeat: one set of payment details per currency."];
             }
 
-            if (!IsValidUkrainianIban(payment.Iban))
+            if (IbanProblem(payment.Iban) is { } ibanProblem)
             {
-                errors[$"{at}.iban"] = ["iban must be a valid Ukrainian IBAN: UA and 27 characters."];
+                errors[$"{at}.iban"] = [ibanProblem];
             }
 
             if (payment.BeneficiaryBank.Length == 0)
@@ -428,11 +428,34 @@ public static partial class InvoicingEndpoints
         return errors.Count == 0 ? null : errors;
     }
 
-    internal static bool IsValidUkrainianIban(string iban)
+    internal const int UkrainianIbanLength = 29;
+
+    /// <summary>
+    /// Why <paramref name="iban"/>, already stripped of spaces and upper-cased, is not a Ukrainian IBAN, or null
+    /// when it is. Checked in the order an owner fixes them, so a 19-character account copied from a table is
+    /// told its length, not that its checksum fails. With <paramref name="bankId"/>, the bank id at positions
+    /// 5 to 10 must be that one. The web maps these closed messages to translated ones, keeping the count.
+    /// </summary>
+    internal static string? IbanProblem(string iban, string? bankId = null)
     {
+        if (iban.Length != UkrainianIbanLength)
+        {
+            return $"iban has {iban.Length} characters, {UkrainianIbanLength} expected.";
+        }
+
+        if (!iban.StartsWith("UA", StringComparison.Ordinal))
+        {
+            return "iban must start with UA.";
+        }
+
         if (!IbanPattern().IsMatch(iban))
         {
-            return false;
+            return "iban may contain only digits and capital letters.";
+        }
+
+        if (bankId is not null && !iban.AsSpan(4, bankId.Length).SequenceEqual(bankId))
+        {
+            return $"iban bank id must be {bankId}.";
         }
 
         // ISO 13616: move the first four characters to the end and read letters as 10 to 35; the
@@ -444,7 +467,7 @@ public static partial class InvoicingEndpoints
             remainder = (remainder * (value < 10 ? 10 : 100) + value) % 97;
         }
 
-        return remainder == 1;
+        return remainder == 1 ? null : "iban checksum is wrong.";
     }
 
     internal static string? SignatureError(byte[] image, string contentType)
@@ -499,7 +522,7 @@ public static partial class InvoicingEndpoints
 
     private static PaymentDetailsInput Normalize(PaymentDetailsInput payment) => payment with
     {
-        Iban = string.Concat(payment.Iban.Where(c => !char.IsWhiteSpace(c))).ToUpperInvariant(),
+        Iban = TreasuryPayment.Compact(payment.Iban),
         BeneficiaryBank = payment.BeneficiaryBank.Trim(),
         Swift = string.Concat(payment.Swift.Where(c => !char.IsWhiteSpace(c))).ToUpperInvariant(),
         IntermediaryBank = payment.IntermediaryBank.Trim(),

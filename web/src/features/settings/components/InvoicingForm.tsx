@@ -11,6 +11,7 @@ import {
   type MonobankPrefillResponse,
 } from "@/data/invoicing/useInvoicing";
 import { useMonobankConnection } from "@/data/monobank/useMonobank";
+import { parseIbanProblem } from "@/shared/lib/ibanProblem";
 import { Button } from "@/shared/ui/button";
 import { TextAreaField, TextField } from "@/shared/ui/fields";
 import { InvoicingMonobankPrefill } from "./InvoicingMonobankPrefill";
@@ -92,6 +93,11 @@ function InvoicingFormBody({ details }: { details: InvoicingDetailsResponse }) {
   }
 
   function translateError(field: string, message: string): string {
+    const iban = field === "iban" ? parseIbanProblem(message) : null;
+    if (iban && iban.key !== "ibanBank") {
+      return iban.key === "ibanLength" ? tInvoicing("errors.ibanLength", { count: iban.count }) : tInvoicing(`errors.${iban.key}`);
+    }
+
     const key = errorKey(field, message);
 
     return key === null ? message : tInvoicing(`errors.${key}`);

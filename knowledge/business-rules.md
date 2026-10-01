@@ -407,7 +407,8 @@ figure (income, periods, the dashboard and its limit, exports) and appears in no
 holding its operation id, so no later sync records the operation again. The backup carries the
 tombstone, so a restore followed by a sync does not bring it back either; a file whose dismissed row
 names no bank operation or still links a receipt is refused. A row the owner typed is deleted
-outright, as before.
+outright, as before. Dismissing a receipt that pays an invoice (Rule 14) unlinks it from the invoice and clears
+its invoice number, so the invoice reopens.
 
 A settled debit on a followed UAH FOP account whose counterparty IBAN is a Treasury account becomes
 a budget payment candidate (#80), in the same database transaction as the window's transactions. A
@@ -463,16 +464,19 @@ paid before the one the account learned from does not replace it, and of two pai
 confirmation wins. A name or code the operation lacks (the bank sends a code for company accounts only, and a
 private 10-digit code is not a recipient code) is stored as missing, or kept from another confirmed operation
 to the same IBAN, older ones included, and settings shows what is missing. A sync that sees an operation again
-with a code its candidate lacked stores the code, and the account learned from that operation gains it. The
+with a code its candidate lacked stores the code, and the account gains it when the operation is of the Learned
+IBAN, whether or not the account learned from that very operation. The
 owner can instead enter an account by hand: a Treasury IBAN (bank id `899998` at positions 5 to 10 and a valid
-ISO 13616 mod-97 check), a name of at most 140 characters and an 8-digit code, all three required. A Manual
+ISO 13616 mod-97 check; a rejected IBAN is told why: its length when it is not 29 characters, a missing `UA`,
+a bank id other than `899998`, or a failed check), a name of at most 140 characters and an 8-digit code, all three required. A Manual
 account wins over Learned. Confirmations still record the Learned details beside it, and one that becomes the
 Learned account with another IBAN than the Manual account raises a notice, shown where the owner confirmed it
 and in settings, kept until the owner dismisses it or enters or reverts the account; the Manual account is
 never overwritten. A confirmation to the Manual account's own IBAN clears the notice. Reverting drops the
 Manual account so the Learned one is in use again, and is refused when nothing was ever learned. A retracted
-confirmation stops teaching: when the payment of the operation an account learned from is deleted, or its
-kind is changed, the account learns again from the latest confirmed operation of its kind still standing, or
+confirmation stops teaching: when the payment of an operation of the account's Learned IBAN is deleted, or
+its kind is changed (the one the account learned from, or an older one that filled in its name or code), the
+account learns again from the latest confirmed operation of its kind still standing, or
 forgets the Learned account (and its notice) when none is left; a notice stays only while the Learned IBAN
 still differs from the Manual one. A changed kind also teaches the new kind by the same rule. A restore brings
 the accounts back as they were, including the source and any notice.
@@ -571,11 +575,13 @@ Amounts. Integer minor units of the invoice currency. A line is quantity (in tho
 rate, rounded once half away from zero; the total is the sum of the rounded lines.
 
 Payment. Receipts pay invoices. The owner links a receipt (`Income`) to an issued invoice of their own
-in the same currency, from the invoice or from the receipt. Several receipts can pay one invoice; a
+in the same currency (a client may pay through an intermediary, so the receipt may be of another client: it keeps
+its own client, the screens warn that the payer differs from the invoice's client, and a receipt with no client
+takes the invoice's), from the invoice or from the receipt. Several receipts can pay one invoice; a
 receipt pays at most one. A draft, a cancelled invoice, an invoice already paid, a receipt in another
 currency and a receipt already paying another invoice are refused. Linking writes the invoice's number
 into the receipt's invoice number, so the receipts list and every export carry it, and marks an
-imported receipt reviewed; unlinking clears the number. A receipt never linked keeps whatever number
+imported receipt reviewed; unlinking clears the number but keeps the client the receipt adopted on linking. A receipt never linked keeps whatever number
 the owner typed. While linked, a receipt keeps its kind, currency and number; the owner unlinks it to
 change them, and an invoice with receipts linked cannot be cancelled until they are unlinked.
 
@@ -590,7 +596,7 @@ tombstone counts nowhere and must not keep an invoice paid. The home screen coun
 Suggested payment. An imported receipt waiting for review (Rule 12) is offered as the payment of an
 open invoice when it is an `Income` row in the invoice's currency, its amount equals what the invoice
 still has due, and the invoice number or the client's name appears in the bank's counterparty name,
-description or comment. The number must stand alone (`2026-003` is not found in `2026-0031`); the name
+description or comment, whoever the receipt's client is. The number must stand alone (`2026-003` is not found in `2026-0031`); the name
 is compared without case and extra spaces, apostrophes, dashes and composed letters being treated alike, as a
 whole word, and a name shorter than three characters is never matched. A number followed or preceded by
 `-` or `/` and a digit (`2026-003-1`) is another number. Overdue invoices are offered too; a paid, draft or cancelled one never is. A receipt

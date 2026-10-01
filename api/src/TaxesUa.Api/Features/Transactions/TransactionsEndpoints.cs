@@ -376,7 +376,8 @@ public static class TransactionsEndpoints
                         row.ValueDate,
                         row.AmountMinor,
                         row.Currency,
-                        row.Client == null ? null : row.Client.Name))
+                        row.Client == null ? null : row.Client.Name,
+                        row.ClientId))
                     .ToArrayAsync(cancellationToken);
 
                 return Results.Ok(receipts);
@@ -649,6 +650,7 @@ public static class TransactionsEndpoints
             row.Kind,
             row.NonIncomeReason,
             clientName,
+            row.ClientId,
             row.InvoiceId,
             row.InvoiceNumber,
             row.Description,
@@ -804,6 +806,7 @@ internal sealed record TransactionResponse(
     TransactionKind Kind,
     string? NonIncomeReason,
     string? ClientName,
+    Guid? ClientId,
     Guid? InvoiceId,
     string? InvoiceNumber,
     string? Description,
@@ -832,7 +835,8 @@ internal sealed record ReceiptOption(
     DateOnly ValueDate,
     long AmountMinor,
     Currency Currency,
-    string? ClientName);
+    string? ClientName,
+    Guid? ClientId);
 
 internal sealed record TransactionListResponse(
     int Year,

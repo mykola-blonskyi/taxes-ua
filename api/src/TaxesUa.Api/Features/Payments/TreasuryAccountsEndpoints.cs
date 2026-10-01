@@ -193,8 +193,10 @@ public static class TreasuryAccountsEndpoints
     }
 
     /// <summary>
-    /// Learns the account of <paramref name="kind"/> again when it was learned from <paramref name="source"/>,
-    /// which has since changed: its payment was deleted, it now pays another kind, or it gained a code. The
+    /// Learns the account of <paramref name="kind"/> again when <paramref name="source"/>, a confirmation of the
+    /// Learned IBAN, has since changed: its payment was deleted, it now pays another kind, or it gained a code.
+    /// Any such confirmation counts, not only the one learned from, because an older one of the same IBAN may
+    /// have filled in the name or code the account holds. The
     /// owner's confirmations of the kind, as this unit of work leaves them, are taught again in order; none
     /// left clears the Learned account. A notice stays only while the Learned IBAN differs from the Manual one.
     /// </summary>
@@ -207,7 +209,7 @@ public static class TreasuryAccountsEndpoints
     {
         var row = await database.TreasuryAccounts
             .FirstOrDefaultAsync(account => account.UserId == source.UserId && account.Kind == kind, cancellationToken);
-        if (row is null || row.LearnedExternalId != source.ExternalId)
+        if (row is null || row.LearnedIban != source.CounterIban)
         {
             return;
         }
@@ -225,9 +227,21 @@ public static class TreasuryAccountsEndpoints
         row.LearnedExternalId = null;
         row.LearnedPaidOn = null;
         row.LearnedAt = null;
-        foreach (var candidate in confirmations)
+        var standing = confirmations.ToList();
+        foreach (var candidate in standing)
         {
             Teach(row, candidate, now);
+        }
+
+        // Another IBAN confirmed in between breaks the carrying of a name or code from one confirmation to the
+        // next, so what the Learned IBAN still lacks is taken from its own confirmations, newest first (Rule 12).
+        foreach (var candidate in standing
+                     .Where(candidate => candidate.CounterIban == row.LearnedIban)
+                     .OrderByDescending(candidate => candidate.PaidOn)
+                     .ThenByDescending(candidate => candidate.ResolvedAt))
+        {
+            row.LearnedRecipientName ??= NameOf(candidate);
+            row.LearnedRecipientCode ??= CodeOf(candidate);
         }
 
         if (row.LearnedIban is null || row.ManualIban is null || row.ManualIban == row.LearnedIban)
@@ -236,14 +250,18 @@ public static class TreasuryAccountsEndpoints
         }
     }
 
+    private static string? NameOf(BudgetPaymentCandidate candidate) =>
+        string.IsNullOrWhiteSpace(candidate.CounterName) ? null : candidate.CounterName.Trim();
+
+    private static string? CodeOf(BudgetPaymentCandidate candidate) =>
+        candidate.CounterEdrpou is { Length: RecipientCodeLength } edrpou && edrpou.All(char.IsAsciiDigit) ? edrpou : null;
+
     // True when the candidate became the Learned account: it is no older than the operation learned before,
     // and a later confirmation of the same day wins.
     private static bool Teach(TreasuryAccount row, BudgetPaymentCandidate candidate, DateTimeOffset now)
     {
-        var name = string.IsNullOrWhiteSpace(candidate.CounterName) ? null : candidate.CounterName.Trim();
-        var code = candidate.CounterEdrpou is { Length: RecipientCodeLength } edrpou && edrpou.All(char.IsAsciiDigit)
-            ? edrpou
-            : null;
+        var name = NameOf(candidate);
+        var code = CodeOf(candidate);
         var sameIban = row.LearnedIban == candidate.CounterIban;
         if (row.LearnedPaidOn is { } learnedOn && candidate.PaidOn < learnedOn)
         {
@@ -271,9 +289,6 @@ public static class TreasuryAccountsEndpoints
         return true;
     }
 
-    internal static bool IsValidTreasuryIban(string iban) =>
-        TreasuryPayment.IsTreasury(iban) && InvoicingEndpoints.IsValidUkrainianIban(iban);
-
     internal static TreasuryAccountRequest Normalize(TreasuryAccountRequest request) => new(
         TreasuryPayment.Normalize(request.Iban) ?? string.Empty,
         request.RecipientName?.Trim() ?? string.Empty,
@@ -282,9 +297,9 @@ public static class TreasuryAccountsEndpoints
     internal static Dictionary<string, string[]>? Validate(TreasuryAccountRequest request)
     {
         var errors = new Dictionary<string, string[]>();
-        if (!IsValidTreasuryIban(request.Iban))
+        if (InvoicingEndpoints.IbanProblem(request.Iban, TreasuryPayment.TreasuryBankId) is { } ibanProblem)
         {
-            errors["iban"] = ["iban must be a Treasury account: a valid Ukrainian IBAN with bank id 899998."];
+            errors["iban"] = [ibanProblem];
         }
 
         if (request.RecipientName.Length == 0)

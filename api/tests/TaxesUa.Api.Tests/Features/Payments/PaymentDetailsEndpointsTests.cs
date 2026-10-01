@@ -52,6 +52,32 @@ public sealed class PaymentDetailsEndpointsTests(ApiFixture fixture) : IClassFix
     }
 
     [Fact]
+    public async Task Without_an_amount_the_recipient_and_purpose_come_without_an_amount_or_a_qr()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await PutManual(owner, PaymentKind.SingleTax, "ГУ ДПС у м.Києві", "43141912");
+
+        var details = await Details(owner, "kind=SingleTax&periodYear=2026&periodQuarter=3");
+
+        Assert.Equal((Iban, (long?)null, (string?)null), (details.Recipient!.Iban, details.AmountKop, details.QrContent));
+        Assert.Equal("101 єдиний податок за III квартал 2026 року", details.Purpose);
+        Assert.Empty(details.Missing);
+    }
+
+    [Fact]
+    public async Task Without_an_amount_a_kind_with_no_account_still_lists_what_is_missing()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+
+        var details = await Details(owner, "kind=Esv&periodYear=2026&periodQuarter=3");
+
+        Assert.Null(details.Recipient);
+        Assert.Equal(["iban", "recipientName", "recipientCode"], details.Missing);
+    }
+
+    [Fact]
     public async Task A_month_gives_the_purpose_of_the_month()
     {
         await using var app = fixture.CreateApplication(_ => { });

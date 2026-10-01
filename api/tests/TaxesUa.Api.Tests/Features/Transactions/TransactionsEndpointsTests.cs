@@ -564,7 +564,7 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
 
         Assert.NotNull(receipts);
         Assert.Contains(
-            new ReceiptOption(receipt.Id, receipt.ValueDate, receipt.AmountMinor, Currency.UAH, "Initech"),
+            new ReceiptOption(receipt.Id, receipt.ValueDate, receipt.AmountMinor, Currency.UAH, "Initech", receipt.ClientId),
             receipts);
         Assert.DoesNotContain(
             receipts,

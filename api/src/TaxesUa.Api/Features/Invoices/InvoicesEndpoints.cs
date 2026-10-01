@@ -492,6 +492,7 @@ public static class InvoicesEndpoints
                     // and a sync can no longer move its kind.
                     receipt.InvoiceId = invoice.Id;
                     receipt.InvoiceNumber = invoice.Number;
+                    receipt.ClientId ??= invoice.ClientId;
                     receipt.ReviewStatus = ReviewStatus.Confirmed;
                     receipt.UpdatedAt = time.GetUtcNow();
                     await database.SaveChangesAsync(cancellationToken);
@@ -552,8 +553,8 @@ public static class InvoicesEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        // Newest first: unlinked, in the invoice's currency, and the invoice's client's or no client's, so
-        // a receipt typed without a client is not stranded.
+        // Newest first: unlinked and in the invoice's currency, whatever its client, since a client may pay
+        // through an intermediary; the picker warns when the payer is not the invoice's client.
         invoices.MapGet("/{id:guid}/receipt-options", async (
                 Guid id,
                 UserManager<ApplicationUser> users,
@@ -582,8 +583,7 @@ public static class InvoicesEndpoints
                     .Where(row => row.UserId == user.Id
                         && row.Kind == TransactionKind.Income
                         && row.InvoiceId == null
-                        && row.Currency == invoice.Currency
-                        && (row.ClientId == invoice.ClientId || row.ClientId == null))
+                        && row.Currency == invoice.Currency)
                     .OrderByDescending(row => row.ValueDate)
                     .ThenByDescending(row => row.CreatedAt)
                     .Select(row => new ReceiptOption(
@@ -591,7 +591,8 @@ public static class InvoicesEndpoints
                         row.ValueDate,
                         row.AmountMinor,
                         row.Currency,
-                        row.Client == null ? null : row.Client.Name))
+                        row.Client == null ? null : row.Client.Name,
+                        row.ClientId))
                     .ToArrayAsync(cancellationToken);
 
                 return Results.Ok(options);
@@ -600,8 +601,8 @@ public static class InvoicesEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        // Closest due date first: issued, not paid, in the receipt's currency, and its client's, or any
-        // client's when the receipt names none.
+        // Closest due date first: issued, not paid and in the receipt's currency, whatever the client, since a
+        // client may pay through an intermediary; the screen warns when the payer is not the invoice's client.
         invoices.MapGet("/payable-by/{receiptId:guid}", async (
                 Guid receiptId,
                 UserManager<ApplicationUser> users,
@@ -631,8 +632,7 @@ public static class InvoicesEndpoints
                 var candidates = await database.Invoices.AsNoTracking().Include(invoice => invoice.Client)
                     .Where(invoice => invoice.UserId == user.Id
                         && invoice.Status == InvoiceStatus.Issued
-                        && invoice.Currency == receipt.Currency
-                        && (receipt.ClientId == null || invoice.ClientId == receipt.ClientId))
+                        && invoice.Currency == receipt.Currency)
                     .OrderBy(invoice => invoice.DueDate)
                     .ThenBy(invoice => invoice.NumberYear)
                     .ThenBy(invoice => invoice.NumberSequence)

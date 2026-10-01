@@ -241,6 +241,7 @@ function TransactionRow({
           receiptId={transaction.id}
           invoices={suggested}
           rowName={rowName}
+          receiptClientId={transaction.clientId ?? null}
           onDismiss={() => onDismissSuggestion(transaction.id)}
           onFailure={(message) => onSuggestionFailure?.(transaction.id, message)}
         />
