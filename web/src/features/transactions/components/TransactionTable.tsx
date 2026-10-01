@@ -23,11 +23,15 @@ export function TransactionTable({
   onEdit,
   suggestions,
   onDismissSuggestion,
+  failures,
+  onSuggestionFailure,
 }: {
   items: TransactionResponse[];
   onEdit: (transaction: TransactionResponse) => void;
   suggestions?: Record<string, InvoiceSummary[]>;
   onDismissSuggestion?: (id: string) => void;
+  failures?: Readonly<Record<string, string>>;
+  onSuggestionFailure?: (id: string, message: string | null) => void;
 }) {
   return (
     <ul className="flex flex-col gap-2">
@@ -38,6 +42,8 @@ export function TransactionTable({
           onEdit={onEdit}
           suggested={suggestions?.[transaction.id]}
           onDismissSuggestion={onDismissSuggestion}
+          suggestionFailure={failures?.[transaction.id]}
+          onSuggestionFailure={onSuggestionFailure}
         />
       ))}
     </ul>
@@ -49,11 +55,15 @@ function TransactionRow({
   onEdit,
   suggested,
   onDismissSuggestion,
+  suggestionFailure,
+  onSuggestionFailure,
 }: {
   transaction: TransactionResponse;
   onEdit: (transaction: TransactionResponse) => void;
   suggested?: InvoiceSummary[];
   onDismissSuggestion?: (id: string) => void;
+  suggestionFailure?: string;
+  onSuggestionFailure?: (id: string, message: string | null) => void;
 }) {
   const t = useTranslations("transactions");
   const tKinds = useTranslations("transactions.kinds");
@@ -232,8 +242,11 @@ function TransactionRow({
           invoices={suggested}
           rowName={rowName}
           onDismiss={() => onDismissSuggestion(transaction.id)}
+          onFailure={(message) => onSuggestionFailure?.(transaction.id, message)}
         />
       ) : null}
+
+      {suggestionFailure ? <p className="text-xs text-destructive">{suggestionFailure}</p> : null}
 
       {deleteFailure ? (
         <p className="text-xs text-destructive">

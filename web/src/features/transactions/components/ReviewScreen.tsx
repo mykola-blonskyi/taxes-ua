@@ -16,6 +16,7 @@ export function ReviewScreen() {
   const { data: offered } = useInvoiceSuggestions();
   // A dismissal only hides the offer for this visit. Confirming the receipt unlinked is what ends it.
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
+  const [failures, setFailures] = useState<Readonly<Record<string, string>>>({});
   const suggestions: Record<string, InvoiceSummary[]> = {};
   for (const offer of offered ?? []) {
     if (!dismissed.has(offer.receiptId)) {
@@ -54,6 +55,19 @@ export function ReviewScreen() {
             items={data}
             onEdit={startEdit}
             suggestions={suggestions}
+            failures={failures}
+            onSuggestionFailure={(id, message) =>
+              setFailures((current) => {
+                const next = { ...current };
+                if (message) {
+                  next[id] = message;
+                } else {
+                  delete next[id];
+                }
+
+                return next;
+              })
+            }
             onDismissSuggestion={(id) => setDismissed((current) => new Set(current).add(id))}
           />
         )

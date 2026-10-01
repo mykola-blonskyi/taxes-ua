@@ -545,8 +545,9 @@ Suggested payment. An imported receipt waiting for review (Rule 12) is offered a
 open invoice when it is an `Income` row in the invoice's currency, its amount equals what the invoice
 still has due, and the invoice number or the client's name appears in the bank's counterparty name,
 description or comment. The number must stand alone (`2026-003` is not found in `2026-0031`); the name
-is compared without case and extra spaces, as a whole word, and a name shorter than three characters is
-never matched. Overdue invoices are offered too; a paid, draft or cancelled one never is. A receipt
+is compared without case and extra spaces, apostrophes, dashes and composed letters being treated alike, as a
+whole word, and a name shorter than three characters is never matched. A number followed or preceded by
+`-` or `/` and a digit (`2026-003-1`) is another number. Overdue invoices are offered too; a paid, draft or cancelled one never is. A receipt
 that fits several invoices is offered all of them, the closest due date first, then the lowest number.
 The offer is only that: nothing links until the owner confirms an invoice, which is the ordinary link
 above. Dismissing the offer hides it for that visit and leaves the receipt unlinked; confirming the

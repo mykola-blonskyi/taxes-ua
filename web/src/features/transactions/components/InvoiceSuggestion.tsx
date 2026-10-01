@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
 import { useLinkReceipt, type InvoiceSummary } from "@/data/invoices/useInvoices";
@@ -14,16 +13,18 @@ export function InvoiceSuggestion({
   invoices,
   rowName,
   onDismiss,
+  onFailure,
 }: {
   receiptId: string;
   invoices: InvoiceSummary[];
   rowName: string;
   onDismiss: () => void;
+  // Kept by the review screen: a failed link reloads the offers and this panel may unmount with it.
+  onFailure: (message: string | null) => void;
 }) {
   const t = useTranslations("transactions.row.invoiceSuggestion");
   const locale = useLocale();
   const linkReceipt = useLinkReceipt();
-  const [failure, setFailure] = useState<string | null>(null);
 
   return (
     <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-3">
@@ -50,12 +51,12 @@ export function InvoiceSuggestion({
                 aria-label={`${t("confirm")} ${invoice.number ?? ""}: ${rowName}`}
                 disabled={linkReceipt.isPending}
                 onClick={() => {
-                  setFailure(null);
+                  onFailure(null);
                   linkReceipt.mutate(
                     { invoiceId: invoice.id, receiptId },
                     {
                       onError: (error) =>
-                        setFailure(error instanceof ApiError && error.status === 409 ? t("conflict") : t("failed")),
+                        onFailure(error instanceof ApiError && error.status === 409 ? t("conflict") : t("failed")),
                     },
                   );
                 }}
@@ -66,7 +67,6 @@ export function InvoiceSuggestion({
           </li>
         ))}
       </ul>
-      {failure ? <p className="text-xs text-destructive">{failure}</p> : null}
       <div>
         <Button type="button" size="sm" variant="outline" aria-label={`${t("dismiss")}: ${rowName}`} onClick={onDismiss}>
           {t("dismiss")}

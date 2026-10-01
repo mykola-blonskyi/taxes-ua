@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace TaxesUa.Engine;
 
 /// <summary>An imported receipt as the matcher sees it: its currency, amount and the bank's free text.</summary>
@@ -41,10 +43,26 @@ public static class InvoiceMatcher
         return name.Length >= MinClientNameLength && ContainsWord(text, name);
     }
 
-    private static string Normalize(string value) =>
-        string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
+    // Banks and owners type the same name with different apostrophes, dashes and composed forms; the
+    // modifier apostrophe is a letter, so a name such as "Прат'ко" is one word.
+    private static string Normalize(string value)
+    {
+        var folded = new StringBuilder(value.Normalize(NormalizationForm.FormC));
+        for (var i = 0; i < folded.Length; i++)
+        {
+            folded[i] = folded[i] switch
+            {
+                '\'' or '\u2019' => '\u02BC',
+                >= '\u2010' and <= '\u2015' or '\u2212' => '-',
+                var other => other,
+            };
+        }
 
-    // A match inside a longer word or number ("2026-0031" for "2026-003") is another thing, not this one.
+        return string.Join(' ', folded.ToString().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
+    }
+
+    // A match inside a longer word or number ("2026-0031", "2026-003-1" or "2026-003/2" for "2026-003")
+    // is another thing, not this one.
     private static bool ContainsWord(string text, string needle)
     {
         if (needle.Length == 0)
@@ -61,7 +79,7 @@ public static class InvoiceMatcher
             }
 
             var end = at + needle.Length;
-            if ((at == 0 || !char.IsLetterOrDigit(text[at - 1])) && (end == text.Length || !char.IsLetterOrDigit(text[end])))
+            if (!ContinuesBefore(text, at) && !ContinuesAfter(text, end))
             {
                 return true;
             }
@@ -71,4 +89,12 @@ public static class InvoiceMatcher
 
         return false;
     }
+
+    private static bool ContinuesBefore(string text, int at) =>
+        at > 0 && (char.IsLetterOrDigit(text[at - 1]) || (at > 1 && IsJoiner(text[at - 1]) && char.IsDigit(text[at - 2])));
+
+    private static bool ContinuesAfter(string text, int end) =>
+        end < text.Length && (char.IsLetterOrDigit(text[end]) || (end + 1 < text.Length && IsJoiner(text[end]) && char.IsDigit(text[end + 1])));
+
+    private static bool IsJoiner(char c) => c is '-' or '/';
 }

@@ -18,6 +18,10 @@ public class InvoiceMatcherTests
     [InlineData("invoice #2026-003", null)]
     [InlineData("Wire", "ACME   INC")]
     [InlineData("acme inc payment", null)]
+    [InlineData("2026\u2011003", null)]
+    [InlineData("invoice 2026\u2013003", null)]
+    [InlineData("invoice 2026-003, thanks", null)]
+    [InlineData("invoice 2026-003/", null)]
     public void The_number_in_the_text_or_the_client_in_the_name_matches(string first, string? second)
     {
         Assert.Equal([Acme], InvoiceMatcher.Suggest(Receipt("USD", 1_500_00, first, second), [AcmeInvoice]));
@@ -37,6 +41,9 @@ public class InvoiceMatcherTests
     [InlineData("USD", 1_500_00, "2026-0031")]
     [InlineData("USD", 1_500_00, "12026-003")]
     [InlineData("USD", 1_500_00, "")]
+    [InlineData("USD", 1_500_00, "2026-003-1")]
+    [InlineData("USD", 1_500_00, "2026-003/2")]
+    [InlineData("USD", 1_500_00, "2025-2026-003")]
     public void A_mismatch_of_amount_currency_or_text_offers_nothing(string currency, long amountMinor, string text)
     {
         Assert.Empty(InvoiceMatcher.Suggest(Receipt(currency, amountMinor, text), [AcmeInvoice]));
@@ -58,7 +65,7 @@ public class InvoiceMatcherTests
     }
 
     [Fact]
-    public void A_very_short_client_name_does_not_match_inside_words()
+    public void A_client_name_under_the_minimum_length_is_never_matched()
     {
         var short1 = AcmeInvoice with { ClientName = "A" };
         var short2 = AcmeInvoice with { ClientName = "Ab" };
@@ -100,5 +107,33 @@ public class InvoiceMatcherTests
         var offered = InvoiceMatcher.Suggest(Receipt("USD", 1_500_00, "Acme Inc", "paying 2026-009"), [AcmeInvoice, byNumber]);
 
         Assert.Equal([Beta, Acme], offered);
+    }
+
+    [Theory]
+    [InlineData("ФОП Мар'яна Коваль", "оплата ФОП Мар\u02BCяна Коваль")]
+    [InlineData("ФОП Мар'яна Коваль", "оплата ФОП Мар\u2019яна Коваль")]
+    [InlineData("ФОП Мар\u2019яна Коваль", "ФОП МАР'ЯНА КОВАЛЬ")]
+    public void Apostrophes_and_composed_letters_do_not_hide_a_client_name(string client, string text)
+    {
+        var invoice = AcmeInvoice with { ClientName = client };
+
+        Assert.Equal([Acme], InvoiceMatcher.Suggest(Receipt("USD", 1_500_00, text), [invoice]));
+    }
+
+    [Fact]
+    public void A_decomposed_letter_matches_its_precomposed_form()
+    {
+        var invoice = AcmeInvoice with { ClientName = "ТОВ Кий" };
+
+        Assert.Equal([Acme], InvoiceMatcher.Suggest(Receipt("USD", 1_500_00, "тов к\u0438\u0438\u0306"), [invoice]));
+    }
+
+    [Fact]
+    public void A_name_does_not_match_inside_a_longer_name_with_an_apostrophe()
+    {
+        var invoice = AcmeInvoice with { ClientName = "ТОВ Прат" };
+
+        Assert.Empty(InvoiceMatcher.Suggest(Receipt("USD", 1_500_00, "ТОВ Прат'ко"), [invoice]));
+        Assert.Empty(InvoiceMatcher.Suggest(Receipt("USD", 1_500_00, "ТОВ Прат\u2019ко"), [invoice]));
     }
 }
