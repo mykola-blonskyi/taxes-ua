@@ -69,6 +69,7 @@ Responsibilities:
 - Balances per payment kind, overpayments and remainders, recommended advances.
 - Income-limit monitoring with 85% and 100% thresholds and the excess rate.
 - Warnings: operations before the registration date, a year without verified parameters.
+- Invoice matching: which open invoices an imported receipt may be paying (`InvoiceMatcher`, Rule 14).
 
 Dependencies: none. Input is plain data only: `DateOnly`, `long` kopecks, enums, records.
 

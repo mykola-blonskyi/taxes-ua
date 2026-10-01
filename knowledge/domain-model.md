@@ -680,6 +680,12 @@ invoice, choosing among unlinked receipts in its currency of its client or of no
 or from the receipt, choosing among the open invoices in its currency of its client (any client's when
 it names none), closest due date first.
 
+Suggested payment (#94): `GET /api/invoices/suggestions` answers, for each of the owner's receipts waiting
+for review that fits an open invoice, the receipt's id and the matching invoices as summaries, closest due
+date first. Nothing is stored: the match is `InvoiceMatcher` in `TaxesUa.Engine` (currency, amount equal to
+`DueMinor`, invoice number or client name in the counterparty, description or comment), and linking is the
+ordinary link of #93. Rule 14 states the rule.
+
 Audited as `Invoice`: `Create`, `Update` (edits, issue, cancel) and `Delete` of a draft.
 
 Relationships: belongs to `User` and `Client`, has many `Transaction` (the receipts paying it).

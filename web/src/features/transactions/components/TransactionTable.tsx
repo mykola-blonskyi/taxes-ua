@@ -14,19 +14,37 @@ import { formatDateOnly, formatNumericDate } from "@/shared/lib/dates";
 import { formatAmount, formatMinor, formatMoney, formatRateE4 } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
 import { isNonIncomeKind } from "../kinds";
+import type { InvoiceSummary } from "@/data/invoices/useInvoices";
 import { InvoiceLinkAction } from "./InvoiceLinkAction";
+import { InvoiceSuggestion } from "./InvoiceSuggestion";
 
 export function TransactionTable({
   items,
   onEdit,
+  suggestions,
+  onDismissSuggestion,
+  failures,
+  onSuggestionFailure,
 }: {
   items: TransactionResponse[];
   onEdit: (transaction: TransactionResponse) => void;
+  suggestions?: Record<string, InvoiceSummary[]>;
+  onDismissSuggestion?: (id: string) => void;
+  failures?: Readonly<Record<string, string>>;
+  onSuggestionFailure?: (id: string, message: string | null) => void;
 }) {
   return (
     <ul className="flex flex-col gap-2">
       {items.map((transaction) => (
-        <TransactionRow key={transaction.id} transaction={transaction} onEdit={onEdit} />
+        <TransactionRow
+          key={transaction.id}
+          transaction={transaction}
+          onEdit={onEdit}
+          suggested={suggestions?.[transaction.id]}
+          onDismissSuggestion={onDismissSuggestion}
+          suggestionFailure={failures?.[transaction.id]}
+          onSuggestionFailure={onSuggestionFailure}
+        />
       ))}
     </ul>
   );
@@ -35,9 +53,17 @@ export function TransactionTable({
 function TransactionRow({
   transaction,
   onEdit,
+  suggested,
+  onDismissSuggestion,
+  suggestionFailure,
+  onSuggestionFailure,
 }: {
   transaction: TransactionResponse;
   onEdit: (transaction: TransactionResponse) => void;
+  suggested?: InvoiceSummary[];
+  onDismissSuggestion?: (id: string) => void;
+  suggestionFailure?: string;
+  onSuggestionFailure?: (id: string, message: string | null) => void;
 }) {
   const t = useTranslations("transactions");
   const tKinds = useTranslations("transactions.kinds");
@@ -209,6 +235,18 @@ function TransactionRow({
           </>
         )}
       </div>
+
+      {suggested && suggested.length > 0 && onDismissSuggestion ? (
+        <InvoiceSuggestion
+          receiptId={transaction.id}
+          invoices={suggested}
+          rowName={rowName}
+          onDismiss={() => onDismissSuggestion(transaction.id)}
+          onFailure={(message) => onSuggestionFailure?.(transaction.id, message)}
+        />
+      ) : null}
+
+      {suggestionFailure ? <p className="text-xs text-destructive">{suggestionFailure}</p> : null}
 
       {deleteFailure ? (
         <p className="text-xs text-destructive">
