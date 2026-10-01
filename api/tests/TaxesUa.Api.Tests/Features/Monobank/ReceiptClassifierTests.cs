@@ -120,6 +120,30 @@ public sealed class ReceiptClassifierTests
         Assert.All(kinds.Values, kind => Assert.Equal(TransactionKind.FxSale, kind));
     }
 
+    // The order credits and debits arrive in must not decide who wins, since a window reads whatever
+    // order the database gives it.
+    [Fact]
+    public void The_pairs_do_not_depend_on_the_order_the_legs_arrive_in()
+    {
+        IncomingCredit[] credits =
+        [
+            new("at-0", Currency.UAH, Noon, AtNbu, Stranger),
+            new("at-50", Currency.UAH, Noon.AddSeconds(50), AtNbu, Stranger),
+            new("at+30", Currency.UAH, Noon.AddSeconds(30), AtNbu, Stranger),
+        ];
+        OutgoingDebit[] debits =
+        [
+            new("at+25", Currency.USD, Noon.AddSeconds(25), Sold, Rate),
+            new("at-40", Currency.USD, Noon.AddSeconds(-40), Sold, Rate),
+        ];
+
+        var forward = ReceiptClassifier.Classify(credits, debits, new HashSet<string>());
+        var reversed = ReceiptClassifier.Classify([.. credits.Reverse()], [.. debits.Reverse()], new HashSet<string>());
+
+        Assert.Equal(2, forward.Values.Count(kind => kind == TransactionKind.FxSale));
+        Assert.Equal(forward.OrderBy(pair => pair.Key), reversed.OrderBy(pair => pair.Key));
+    }
+
     [Fact]
     public void Two_sales_in_the_same_minute_pair_one_to_one()
     {
