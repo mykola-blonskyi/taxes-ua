@@ -755,9 +755,8 @@ A fixed URL per owner derived from their id. It could not be revoked.
 
 Anyone with the link sees the owner's deadlines until the owner rotates. Rotating breaks existing
 subscriptions by design; the owner subscribes again. The path appears wherever a proxy in front of the
-app logs request paths, which this app does not control. Alarms fire at the event's start, which for
-an all-day event is midnight, so they are a calendar-side nudge and the reminders of #108 are the timed
-message.
+app logs request paths, which this app does not control. Alarms are a calendar-side nudge at 09:00
+local; the reminders of #108 remain the message that names what is owed.
 
 ---
 
