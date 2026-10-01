@@ -60,7 +60,14 @@ describe("todayInKyiv", () => {
     ["before midnight in Kyiv, winter", "2026-01-15T21:59:59Z", "2026-01-15"],
     ["after midnight in Kyiv, winter", "2026-01-15T22:00:00Z", "2026-01-16"],
     ["the New Year already in Kyiv", "2026-12-31T22:00:00Z", "2027-01-01"],
-    ["the day the clocks go forward", "2026-03-29T00:30:00Z", "2026-03-29"],
+    ["the last midnight at UTC+2 before clocks go forward", "2026-03-28T21:59:59Z", "2026-03-28"],
+    ["midnight at UTC+2 starting the day clocks go forward", "2026-03-28T22:00:00Z", "2026-03-29"],
+    ["the end of the day clocks go forward, at UTC+3", "2026-03-29T20:59:59Z", "2026-03-29"],
+    ["midnight at UTC+3 after clocks go forward", "2026-03-29T21:00:00Z", "2026-03-30"],
+    ["the last moment before midnight at UTC+3, clocks about to go back", "2026-10-24T20:59:59Z", "2026-10-24"],
+    ["midnight at UTC+3 starting the day clocks go back", "2026-10-24T21:00:00Z", "2026-10-25"],
+    ["the end of the day clocks go back, at UTC+2", "2026-10-25T21:59:59Z", "2026-10-25"],
+    ["midnight at UTC+2 after clocks go back", "2026-10-25T22:00:00Z", "2026-10-26"],
   ])("gives the Kyiv day for %s", (_name, instant, day) => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(instant));

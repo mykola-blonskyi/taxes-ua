@@ -947,10 +947,9 @@ asserting anything; a snapshot asserts on markup, which is what the tests are me
 
 ### Consequences
 
-Four dev dependencies for the runner (`vitest`, `jsdom`, `@vitejs/plugin-react`, `vite-tsconfig-paths`),
+Three dev dependencies for the runner (`vitest`, `jsdom`, `@vitejs/plugin-react`),
 `@types/node` raised to 24 to match the Node the image and CI run and what Vitest asks for, and a `web-test` CI
-job that the deploy job needs. Tests run in a time zone far from
-Kyiv, so a date that shifts with the zone fails here and not in production. A pure function that lived
+job that the deploy job needs. Tests run in a time zone far from Kyiv, so a date that shifts with the zone fails here and not in production. A pure function that lived
 inside a component file moves to a sibling module when a test needs it (the IBAN message mapping did).
 The component and end-to-end layers add Testing Library, Playwright and a CI job each, in their own tickets.
 
