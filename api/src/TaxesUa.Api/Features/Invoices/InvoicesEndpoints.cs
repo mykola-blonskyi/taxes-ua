@@ -650,6 +650,27 @@ public static class InvoicesEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
+        // Only the review queue: a suggestion is for a receipt the owner has not yet settled, and
+        // confirming the receipt unlinked is what dismisses it for good.
+        invoices.MapGet("/suggestions", async (
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                TimeProvider time,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                return Results.Ok(await InvoiceSuggestions.ForReviewAsync(
+                    database, user.Id, time.TodayInKyiv(), ToSummary, cancellationToken));
+            })
+            .Produces<InvoiceSuggestion[]>()
+            .Produces(StatusCodes.Status401Unauthorized);
+
         return routes;
     }
 
@@ -747,7 +768,7 @@ public static class InvoicesEndpoints
         return ToResponse(invoice, InvoicePayments.Balance(invoice, linked, time.TodayInKyiv()), linked);
     }
 
-    private static InvoiceSummary ToSummary(Invoice invoice, InvoiceBalance balance) => new(
+    internal static InvoiceSummary ToSummary(Invoice invoice, InvoiceBalance balance) => new(
         invoice.Id,
         invoice.Status,
         balance.Standing,

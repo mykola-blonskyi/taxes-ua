@@ -160,6 +160,20 @@ export function useReceiptOptions(invoiceId: string, enabled: boolean) {
   });
 }
 
+export type InvoiceSuggestion = components["schemas"]["InvoiceSuggestion"];
+
+// Open invoices that imports waiting for review may be paying, by receipt id. Reloads with every link.
+export function useInvoiceSuggestions() {
+  return useQuery({
+    queryKey: [...invoicesQueryKey, "suggestions"],
+    queryFn: async () => {
+      const { data } = await api.GET("/api/invoices/suggestions");
+
+      return data;
+    },
+  });
+}
+
 export function usePayableInvoices(receiptId: string, enabled: boolean) {
   return useQuery({
     queryKey: [...invoicesQueryKey, "payable-by", receiptId],

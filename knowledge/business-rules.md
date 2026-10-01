@@ -541,6 +541,18 @@ deleting a linked receipt reopen the invoice. Deleting a linked receipt removes 
 the same save; dismissing an imported one (Rule 12) unlinks it and clears its number, since a
 tombstone counts nowhere and must not keep an invoice paid. The home screen counts overdue invoices.
 
+Suggested payment. An imported receipt waiting for review (Rule 12) is offered as the payment of an
+open invoice when it is an `Income` row in the invoice's currency, its amount equals what the invoice
+still has due, and the invoice number or the client's name appears in the bank's counterparty name,
+description or comment. The number must stand alone (`2026-003` is not found in `2026-0031`); the name
+is compared without case and extra spaces, as a whole word, and a name shorter than three characters is
+never matched. Overdue invoices are offered too; a paid, draft or cancelled one never is. A receipt
+that fits several invoices is offered all of them, the closest due date first, then the lowest number.
+The offer is only that: nothing links until the owner confirms an invoice, which is the ordinary link
+above. Dismissing the offer hides it for that visit and leaves the receipt unlinked; confirming the
+receipt without an invoice (Rule 12) ends the offer for good, because only receipts waiting for review
+are offered. It is computed on every read, so it follows a new invoice, a payment or a sync.
+
 Retention. An issued or cancelled invoice is kept for at least 1095 days from the day the declaration
 covering its income was filed, or from that declaration's deadline if it was not (Tax Code art. 44.3).
 The period is extended by the time limitation periods were suspended under martial law. The app never
