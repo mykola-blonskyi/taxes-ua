@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxesUa.Api.Data;
@@ -11,9 +12,11 @@ using TaxesUa.Api.Data;
 namespace TaxesUa.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260930213936_AddSentReminders")]
+    partial class AddSentReminders
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -292,39 +295,6 @@ namespace TaxesUa.Api.Data.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.ToTable("AspNetUsers", (string)null);
-                });
-
-            modelBuilder.Entity("TaxesUa.Api.Features.Declarations.DeclarationFile", b =>
-                {
-                    b.Property<string>("UserId")
-                        .HasColumnType("text");
-
-                    b.Property<int>("Year")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Quarter")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.Property<byte[]>("Content")
-                        .IsRequired()
-                        .HasColumnType("bytea");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("GeneratedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("UserId", "Year", "Quarter", "Type");
-
-                    b.ToTable("DeclarationFiles", t =>
-                        {
-                            t.HasCheckConstraint("CK_DeclarationFiles_Quarter", "\"Quarter\" BETWEEN 1 AND 4");
-                        });
                 });
 
             modelBuilder.Entity("TaxesUa.Api.Features.Declarations.DeclarationFiling", b =>
@@ -955,10 +925,6 @@ namespace TaxesUa.Api.Data.Migrations
                     b.Property<int?>("TaxOfficeDistrict")
                         .HasColumnType("integer");
 
-                    b.Property<string>("TaxOfficeName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<int?>("TaxOfficeRegion")
                         .HasColumnType("integer");
 
@@ -1490,15 +1456,6 @@ namespace TaxesUa.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<string>", b =>
-                {
-                    b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("TaxesUa.Api.Features.Declarations.DeclarationFile", b =>
                 {
                     b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
                         .WithMany()

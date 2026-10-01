@@ -1,8 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -11,21 +9,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Notifications;
-using TaxesUa.Api.Features.Settings;
-using EsvRegistrationMonthPolicy = TaxesUa.Api.Features.Settings.EsvRegistrationMonthPolicy;
+using static TaxesUa.Api.Tests.Features.Notifications.TelegramSteps;
 
 namespace TaxesUa.Api.Tests.Features.Notifications;
 
 public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
-    private const string Channels = "/api/notifications/channels";
-
-    private const long OwnerChat = 4242;
-
     private static readonly DateTimeOffset Start = new(2031, 6, 1, 10, 0, 0, TimeSpan.Zero);
-
-    private static readonly JsonSerializerOptions Json =
-        new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
     [Fact]
     public async Task Connecting_links_the_chat_that_presses_start_and_confirms_in_the_owners_language()
@@ -598,59 +588,6 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
         return client;
     }
 
-    // The tests share one database, so each starts from an owner with nothing linked. The poll offset is
-    // the bot's, not an owner's, so the first owner's reset clears it too.
-    private static async Task Reset(WebApplicationFactory<Program> application, string email = ApiFixture.AllowedEmail)
-    {
-        await using var scope = application.Services.CreateAsyncScope();
-        await Reset(scope.ServiceProvider, email);
-    }
-
-    private static async Task Reset(IServiceProvider services, string email = ApiFixture.AllowedEmail)
-    {
-        var database = services.GetRequiredService<AppDbContext>();
-        var users = database.Users.Where(user => user.Email == email).Select(user => user.Id);
-        await database.NotificationChannels.Where(row => users.Contains(row.UserId)).ExecuteDeleteAsync();
-        await database.NotificationLinkCodes.Where(row => users.Contains(row.UserId)).ExecuteDeleteAsync();
-        if (email == ApiFixture.AllowedEmail)
-        {
-            await database.TelegramPollStates.ExecuteDeleteAsync();
-        }
-    }
-
-    private static async Task<string> Connect(HttpClient owner)
-    {
-        var response = await owner.PostAsync(Channels + "/telegram/connect", null);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<JsonObject>())!["url"]!.GetValue<string>();
-    }
-
-    private static string CodeOf(string url) => url[(url.IndexOf("start=", StringComparison.Ordinal) + "start=".Length)..];
-
-    private static Task Poll(WebApplicationFactory<Program> application) =>
-        application.Services.GetRequiredService<TelegramPoller>().PollOnceAsync(TimeSpan.Zero, CancellationToken.None);
-
-    private async Task Link(WebApplicationFactory<Program> application, HttpClient owner, StubTelegramHandler telegram)
-    {
-        var next = telegram.Updates.Count == 0 ? 10 : telegram.Updates.Max(update => update["update_id"]!.GetValue<long>()) + 1;
-        telegram.Updates.Add(StubTelegramHandler.Update(next, OwnerChat, $"/start {CodeOf(await Connect(owner))}"));
-        await Poll(application);
-        Assert.True((await Channel(owner))["linked"]!.GetValue<bool>());
-    }
-
-    private static async Task<JsonObject> Channel(HttpClient client)
-    {
-        var channels = await client.GetFromJsonAsync<JsonArray>(Channels);
-        return channels!.Single()!.AsObject();
-    }
-
-    private static async Task<JsonObject> Toggle(HttpClient client, bool enabled)
-    {
-        var response = await client.PutAsJsonAsync(Channels + "/telegram", new { enabled });
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return (await response.Content.ReadFromJsonAsync<JsonObject>())!;
-    }
-
     private static async Task<JsonObject> Test(HttpClient client)
     {
         var response = await client.PostAsync(Channels + "/telegram/test", null);
@@ -673,14 +610,6 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
         }
 
         return await sending;
-    }
-
-    private static async Task SetLocale(HttpClient owner, string locale)
-    {
-        var request = new SettingsRequest(
-            new DateOnly(2031, 1, 1), PaymentMode.Quarterly, EsvRegistrationMonthPolicy.FullMonth, false, true, true,
-            [DayOfWeek.Saturday, DayOfWeek.Sunday], locale, "system", "UAH");
-        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", request, Json)).StatusCode);
     }
 
     private static async Task<JsonObject[]> History(HttpClient owner) =>

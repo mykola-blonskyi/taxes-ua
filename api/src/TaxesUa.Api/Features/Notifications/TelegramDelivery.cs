@@ -19,7 +19,7 @@ internal sealed record DeliveryResult(DeliveryOutcome Outcome, DeliveryFailure? 
 /// A transient failure is retried three times after the first attempt, waiting 1, 2 and 4 seconds (or
 /// what Telegram's 429 asks for, when that is longer and not absurd); then the failure is written on
 /// the channel for settings to show. A 403 means the owner blocked the bot: no retry, and the channel
-/// is switched off.
+/// is switched off. A timeout is not retried either, since the message may have been delivered.
 /// </summary>
 internal sealed class TelegramDelivery(
     AppDbContext database,
@@ -69,7 +69,7 @@ internal sealed class TelegramDelivery(
                 wait = asked > wait ? asked : wait;
             }
 
-            if (!IsTransient(failure) || attempt >= Backoff.Length || wait > MaxRetryAfter)
+            if (!failure.IsTransient() || attempt >= Backoff.Length || wait > MaxRetryAfter)
             {
                 logger.LogWarning("Telegram delivery for owner {UserId} failed after {Attempts} attempt(s): {Failure}.", userId, attempt + 1, failure);
                 await RecordAsync(channel.Id, failure, cancellationToken);
@@ -79,9 +79,6 @@ internal sealed class TelegramDelivery(
             await Task.Delay(wait, time, cancellationToken);
         }
     }
-
-    private static bool IsTransient(DeliveryFailure failure) =>
-        failure is DeliveryFailure.RateLimited or DeliveryFailure.Unreachable or DeliveryFailure.Timeout or DeliveryFailure.ServerError;
 
     // The channel is read again because the owner may have disconnected or toggled it while the
     // message was being retried.
@@ -116,6 +113,8 @@ internal sealed class TelegramDelivery(
         }
         catch (DbUpdateConcurrencyException)
         {
+            // Left Modified, the next save on this context (the reminder sender's) would fail again.
+            database.Entry(channel).State = EntityState.Detached;
             logger.LogInformation("The Telegram channel was disconnected while a message was being delivered.");
         }
     }

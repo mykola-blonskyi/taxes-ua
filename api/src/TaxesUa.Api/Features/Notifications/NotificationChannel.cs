@@ -18,6 +18,14 @@ internal enum DeliveryFailure
     Unreadable,
 }
 
+internal static class DeliveryFailures
+{
+    // A timeout is not here: the message may have been delivered before the answer was lost, so it is
+    // neither retried nor released for a later run.
+    public static bool IsTransient(this DeliveryFailure failure) =>
+        failure is DeliveryFailure.RateLimited or DeliveryFailure.Unreachable or DeliveryFailure.ServerError;
+}
+
 /// <summary>
 /// Where one owner's reminders go. One row per owner and kind. Audited like settings, except the
 /// delivery bookkeeping, which changes on every message and is not a decision the owner made.

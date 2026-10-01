@@ -52,7 +52,8 @@ Responsibilities:
 - Authentication and sessions. Every data request is filtered by `UserId`.
 - Boundary adapters: import parsing, Europe/Kyiv date conversion, NBU rate, conversion to
   kopecks, validation.
-- Background jobs as `IHostedService`: reminders, bank-sync queue (Stage 2).
+- Background jobs as `IHostedService`: reminders every 5 minutes (ADR-019), bank-sync queue, Telegram
+  polling (Stage 2).
 - Change log.
 
 Dependencies: `TaxesUa.Engine`, PostgreSQL, the NBU API, later the Telegram Bot API, SMTP, bank
@@ -99,9 +100,11 @@ External systems:
 - Telegram Bot API (Stage 2, #106): the token is configuration (`TELEGRAM_BOT_TOKEN`), optional. `TelegramClient` is
   a typed HttpClient registered without the framework's request logging, because the Bot API puts the token in
   the URL path. `TelegramPollWorker` long-polls `getUpdates` when a token is set (ADR-015); `TelegramDelivery` is
-  the one way a message is sent (test button now, reminders later): three retries after the first attempt with
+  the one way a message is sent (the test button and the reminders): three retries after the first attempt with
   1, 2 and 4 second backoff, honouring a 429's `retry_after` up to 30 seconds, a 403 switching the channel off.
   `Telegram:BaseUrl` (default `https://api.telegram.org/`) exists so a local run can point at a stub.
+  Reminders (#108, ADR-019) reach it through `IReminderChannel`, the boundary email (#107) plugs into, and
+  link to `App:PublicUrl` (`APP_PUBLIC_URL`), or `https://` and the first `ALLOWED_HOSTS` domain when unset.
 - SMTP for reminders (Stage 2).
 - DPS XML declaration schema F0103309 (Stage 3).
 

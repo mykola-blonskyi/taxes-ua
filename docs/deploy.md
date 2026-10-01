@@ -172,6 +172,10 @@ Reminders reach the owner through a bot the owner creates; nothing is paid for a
    in Telegram, and the tab shows the channel as connected within a few seconds. "Send a test message"
    confirms delivery.
 
+From then on the api sends deadline reminders to the chat at 09:00 Kyiv (Rule 17). Each ends with a link to
+the app, built from `APP_PUBLIC_URL` when set and otherwise from the first `ALLOWED_HOSTS` domain, so production
+needs nothing more; set `APP_PUBLIC_URL` only when the app is reached at another address.
+
 If the token leaks, use `/revoke` in @BotFather, put the new token in Coolify and redeploy: the api reads
 updates for the new bot from its own beginning and the chat is linked again from settings. A bot must not
 be polled from two places at once, so a local stack keeps `TELEGRAM_BOT_TOKEN` empty or uses a second bot.

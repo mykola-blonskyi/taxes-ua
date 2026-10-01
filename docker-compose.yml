@@ -33,6 +33,7 @@ services:
       Monobank__TokenEncryptionKeyBase64: ${MONOBANK_TOKEN_ENCRYPTION_KEY:-}
       Monobank__PublicBaseUrl: ${MONOBANK_PUBLIC_BASE_URL:-}
       Telegram__BotToken: ${TELEGRAM_BOT_TOKEN:-}
+      App__PublicUrl: ${APP_PUBLIC_URL:-}
     volumes:
       - dataprotection-keys:/var/lib/taxes-ua/keys
     expose:

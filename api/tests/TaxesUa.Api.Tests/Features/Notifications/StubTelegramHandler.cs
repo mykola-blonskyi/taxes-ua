@@ -48,6 +48,8 @@ public sealed class StubTelegramHandler : HttpMessageHandler
 
     public IReadOnlyList<TelegramCall> To(string method) => [.. _calls.Where(call => call.Method == method)];
 
+    public void ClearCalls() => _calls.Clear();
+
     public static HttpResponseMessage Ok(JsonNode result) => Json(
         HttpStatusCode.OK, new JsonObject { ["ok"] = true, ["result"] = result });
 

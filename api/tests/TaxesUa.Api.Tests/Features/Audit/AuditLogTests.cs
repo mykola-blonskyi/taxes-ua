@@ -250,6 +250,8 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
             // A generated file is derived from rows that are audited themselves; its bytes are no
             // change the owner made.
             typeof(DeclarationFile),
+            // What the reminder runs sent, written on every send; no owner decision is in it.
+            typeof(SentReminder),
         ];
 
         await using var scope = fixture.CreateScope();

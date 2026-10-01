@@ -554,9 +554,9 @@ rather than replacing it, so each imported record keeps its own history from its
 ### NotificationChannel (Stage 2)
 
 Responsibilities: where one owner's reminders go (#106). One row per owner and kind; only `Telegram`
-exists so far, `Email` joins with #107. Reminders are not pre-scheduled rows: the planner computes what
-is due and a sent log keyed by a stable reminder key (#108) makes delivery idempotent, because a
-payment changes what is owed between scheduling and sending.
+exists so far, `Email` joins with #107. Reminders are not stored ahead: `ReminderPlan` computes what is
+due at each run (Rule 17) and `SentReminder` makes delivery idempotent, because a payment changes what is
+owed between scheduling and sending. Every enabled channel with an available sender gets each reminder.
 
 Fields: `Kind: Telegram | Email`, `Address` (the Telegram chat id as text, or an email; never sent to
 the browser), `Enabled`, `LinkedAt`, `LastDeliveryAt?`, and `LastFailure?` with `LastFailureAt?` (both
@@ -567,6 +567,29 @@ A Telegram 403 (the owner blocked the bot) sets `Blocked` and `Enabled = false`;
 on again clears the failure. Audited like `Settings`, except `LastDeliveryAt`, `LastFailure` and
 `LastFailureAt`, which change with every message and are left out of the snapshot. Carried in the backup
 (kind, address, enabled, linked at) from schema version 11; a restore starts with a clean delivery record.
+
+### SentReminder (Stage 2)
+
+Responsibilities: the log of reminders already claimed for sending (#108), which is what makes Rule 17's
+"at most once per channel" hold across restarts, redeploys and overlapping runs. Written by the reminder
+worker only.
+
+Fields: `UserId`, `Date` (the deadline or advance date the reminder is about), `Kinds` (flags:
+`SingleTax`, `MilitaryLevy`, `Esv`, `Declaration`), `Offset` (days from `Date`: -7, -1, 0 or 1), `Channel`
+(`NotificationChannelKind`), `ClaimedAt`, `DeliveredAt?`. Unique on (`UserId`, `Date`, `Kinds`, `Offset`,
+`Channel`).
+
+A row is inserted before the message is sent and gets `DeliveredAt` once the channel accepts it. A
+failure that proves nothing was delivered (unreachable, rate limited, server error) deletes the row so a
+later run retries; a permanent failure, a timeout (possibly delivered) or a crash mid-send leaves
+it without `DeliveredAt`, and the message is not sent again. A run sends nothing for a date, offset and
+channel whose rows already name every kind it would send.
+
+Not audited and not in the backup: it records what was sent to a chat, not the owner's data, and a restore
+never touches it, so a restore never resends. Only restoring into a fresh database starts without it; the cost is at most one repeat
+of a reminder whose window is still open, since Rule 17 never replays a moment older than the latest one
+passed, and a day-after reminder only on its day. Rows are never pruned: about a hundred a year per
+channel.
 
 ### NotificationLinkCode, TelegramPollState (Stage 2)
 

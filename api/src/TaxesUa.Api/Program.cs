@@ -167,6 +167,10 @@ builder.Services.AddScoped<TelegramLinking>();
 builder.Services.AddScoped<TelegramDelivery>();
 builder.Services.AddSingleton<TelegramPoller>();
 builder.Services.AddHostedService<TelegramPollWorker>();
+builder.Services.AddSingleton<AppLink>();
+builder.Services.AddScoped<IReminderChannel, TelegramReminderChannel>();
+builder.Services.AddSingleton<ReminderSender>();
+builder.Services.AddHostedService<ReminderWorker>();
 
 var authentication = builder.Services.AddAuthentication(options =>
 {
@@ -231,11 +235,12 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// Resolved eagerly so a malformed (as opposed to merely absent) key or public base URL fails startup
-// instead of the first monobank request.
+// Resolved eagerly so a malformed (as opposed to merely absent) key or public URL fails startup
+// instead of the first monobank request or reminder.
 app.Services.GetRequiredService<TokenEncryptor>();
 app.Services.GetRequiredService<MonobankWebhooks>();
 app.Services.GetRequiredService<TelegramBot>();
+app.Services.GetRequiredService<AppLink>();
 
 app.UseForwardedHeaders();
 
