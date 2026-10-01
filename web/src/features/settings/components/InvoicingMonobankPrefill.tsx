@@ -38,7 +38,11 @@ export function InvoicingMonobankPrefill({
       </div>
       {failure ? (
         <p role="alert" className="text-sm text-destructive">
-          {failure.status === 409 ? t("notConnected") : t("failed")}
+          {failure.status === 409
+            ? t("notConnected")
+            : failure.status === 429
+              ? t("tryAgainIn", { seconds: failure.retryAfterSeconds ?? 60 })
+              : t("failed")}
         </p>
       ) : null}
       {suggestion ? (

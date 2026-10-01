@@ -925,7 +925,8 @@ disconnecting monobank leaves it.
 
 ### Alternatives Considered
 
-Waiting for the slot with `WaitTurnAsync`, as the invoicing prefill does. It holds a request or the shared
+Waiting for the slot with `WaitTurnAsync`, as the invoicing prefill once did (it now takes the slot only
+when free and answers `429`, like the jar refresh). It holds a request or the shared
 worker for a minute whenever another call came just before, and the jar read follows every sync run.
 
 Storing every jar from every `client-info`. The picker would need no bank call, but the owner's other
@@ -934,7 +935,7 @@ savings, names and balances would sit in the database and the backup for no use.
 ### Consequences
 
 A refresh within a minute of another `client-info` call, including the invoicing prefill, which does not
-share its answer, gets a `429` or the earlier balance, and the screen shows the time of the balance either
+share its answer (and itself answers `429` in that minute), gets a `429` or the earlier balance, and the screen shows the time of the balance either
 way. A balance is at most a sync run old plus whatever the slot skipped. The answer lives in process memory,
 so it needs the single api instance the queue and the gate already need.
 

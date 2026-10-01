@@ -70,7 +70,10 @@ row. Whether the details are complete enough to issue an invoice is for the invo
 Prefill from monobank is a read that stores nothing. For the FOP accounts in UAH,
 USD or EUR (a followed one first, one per currency) it suggests the stored `BankAccount` IBAN with the constants `JSC Universal Bank, Kyiv` and
 `UNJSUAUKXXX` (all monobank accounts are held at Universal Bank), and the Ukrainian name from a fresh
-`client-info` call through the rate gate. The RNOKPP, the addresses, the Latin name and the
+`client-info` call through the rate gate. The call takes the gate's slot only when it is free: within a
+minute of another `client-info` call (the token save included) it answers `429` with `Retry-After` and
+the screen says when to try again, and a token monobank rejects answers `409` so the owner connects
+again. The RNOKPP, the addresses, the Latin name and the
 intermediary banks are not in the personal API and stay owner-entered. A suggestion is applied to the
 form only when the owner accepts it and reaches the database only when they save: a later change at
 the bank never alters saved details.

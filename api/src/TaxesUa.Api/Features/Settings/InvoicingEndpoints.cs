@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -71,6 +72,15 @@ public static partial class InvoicingEndpoints
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
+                // JSON null binds into the array, and the backup path refuses it the same way.
+                if (Array.Exists(request.PaymentDetails, row => row is null))
+                {
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["paymentDetails"] = ["paymentDetails must not contain null."],
+                    });
+                }
+
                 var normalized = Normalize(request);
                 if (Validate(normalized) is { } errors)
                 {
@@ -255,10 +265,28 @@ public static partial class InvoicingEndpoints
                         title: "The stored monobank token cannot be read. Connect monobank again.");
                 }
 
-                // The accounts are the stored rows; only the name needs the bank, and the gate keeps
-                // this call inside monobank's limit of one client-info per minute.
-                await gate.WaitTurnAsync(user.Id, ClientInfoMethod, cancellationToken);
-                if (await client.GetClientInfoAsync(token, cancellationToken) is not ClientInfoResult.Found found)
+                // The accounts are the stored rows; only the name needs the bank. The slot is shared with the
+                // token save and the jar reads, and a request must not park for up to a minute on it, so a
+                // busy slot is answered at once with how long to wait.
+                if (!gate.TryTakeTurn(user.Id, ClientInfoMethod, out var retryAfter))
+                {
+                    var seconds = (int)Math.Ceiling(retryAfter.TotalSeconds);
+                    http.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status429TooManyRequests,
+                        title: "monobank allows one request a minute.",
+                        detail: $"Try again in {seconds} seconds.");
+                }
+
+                var read = await client.GetClientInfoAsync(token, cancellationToken);
+                if (read is ClientInfoResult.InvalidToken)
+                {
+                    return Results.Problem(
+                        statusCode: StatusCodes.Status409Conflict,
+                        title: "monobank rejected the token. Connect monobank again.");
+                }
+
+                if (read is not ClientInfoResult.Found found)
                 {
                     return Results.Problem(
                         statusCode: StatusCodes.Status502BadGateway,
@@ -296,6 +324,7 @@ public static partial class InvoicingEndpoints
             .Produces<MonobankPrefillResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
             .ProducesProblem(StatusCodes.Status502BadGateway);
 
         return routes;
