@@ -34,6 +34,14 @@ public sealed class StubMonobankHandler(Func<HttpRequestMessage, HttpResponseMes
         return $$"""{"clientId":"{{clientId}}","name":"Test FOP","webHookUrl":"","permissions":"psfj","accounts":[{{accountsJson}}],"jars":[]}""";
     }
 
+    // client-info with the given jars in place of the empty list ClientInfo writes; a title is JSON-escaped.
+    public static string WithJars(string clientInfo, params (string Id, string Title, int CurrencyCode, long Balance)[] jars)
+    {
+        var jarsJson = string.Join(",", jars.Select(jar =>
+            $$"""{"id":"{{jar.Id}}","sendId":"jar-send","title":{{System.Text.Json.JsonSerializer.Serialize(jar.Title)}},"description":"","currencyCode":{{jar.CurrencyCode}},"balance":{{jar.Balance}},"goal":0}"""));
+        return clientInfo.Replace("\"jars\":[]", $"\"jars\":[{jarsJson}]", StringComparison.Ordinal);
+    }
+
     public static HttpResponseMessage Json(string body) =>
         new(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 

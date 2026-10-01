@@ -4,6 +4,7 @@ using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Invoices;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
@@ -87,7 +88,7 @@ public static class DashboardEndpoints
                     burden is null ? null : new TaxBurdenResponse(burden.IncomeKop, burden.TaxKop, burden.RateBp),
                     limit is null ? null : ToLimit(limit),
                     LimitCrossingResponse.Of(loaded.Viewed),
-                    reserve is null ? null : ToReserve(reserve, today),
+                    reserve is null ? null : await ToReserveAsync(database, user.Id, reserve, today, time.GetUtcNow(), cancellationToken),
                     needsReview,
                     declaration,
                     overdueInvoices));
@@ -161,18 +162,47 @@ public static class DashboardEndpoints
         debt.DueDate.DayNumber - today.DayNumber,
         debt.AdvanceMonth);
 
-    private static ReserveResponse ToReserve(ReserveNeed reserve, DateOnly today) => new(
-        reserve.TotalKop,
-        [
-            .. reserve.Dues.Select(due => new ReserveDueResponse(
-                due.DueDate,
-                due.Status,
-                due.DueDate.DayNumber - today.DayNumber,
-                due.SingleTaxKop,
-                due.MilitaryLevyKop,
-                due.EsvKop,
-                due.TotalKop)),
-        ]);
+    // The jar comes from what the last sync stored; the dashboard never asks the bank.
+    private static async Task<ReserveResponse> ToReserveAsync(
+        AppDbContext database,
+        string userId,
+        ReserveNeed reserve,
+        DateOnly today,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var jar = await database.ReserveJars.AsNoTracking()
+            .FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
+        var canChooseJar = jar is null && await database.MonobankConnections.AnyAsync(
+            row => row.UserId == userId && row.RejectedAt == null, cancellationToken);
+        var cover = jar is null ? null : TaxReserve.Cover(reserve, jar.BalanceKop);
+
+        return new ReserveResponse(
+            reserve.TotalKop,
+            [
+                .. reserve.Dues.Select(due => new ReserveDueResponse(
+                    due.DueDate,
+                    due.Status,
+                    due.DueDate.DayNumber - today.DayNumber,
+                    due.SingleTaxKop,
+                    due.MilitaryLevyKop,
+                    due.EsvKop,
+                    due.TotalKop)),
+            ],
+            jar is null || cover is null
+                ? null
+                : new ReserveJarCoverResponse(
+                    jar.Title,
+                    jar.BalanceKop,
+                    jar.FetchedAt,
+                    ReserveJarService.IsStale(jar.FetchedAt, now),
+                    cover.SurplusKop,
+                    cover.ShortfallKop,
+                    cover.TopUpBy,
+                    cover.TopUpKop,
+                    cover.TopUpBy is { } by ? by.DayNumber - today.DayNumber : null),
+            canChooseJar);
+    }
 
     private static LimitStatusResponse ToLimit(LimitStatus limit) => new(
         limit.IncomeKop,
@@ -275,9 +305,29 @@ internal sealed record LimitStatusResponse(
 /// <summary>
 /// What the taxes need by now (Rule 13): every accrued and unpaid amount plus the current quarter to
 /// date, grouped by due date, oldest first. <c>TotalKop</c> adds the kinds, which is why it is a
-/// derived figure and not a balance.
+/// derived figure and not a balance. <c>Jar</c> is the monobank jar the owner keeps for taxes compared with
+/// <c>TotalKop</c>, from its last stored balance, and is null without one; <c>CanChooseJar</c> is true when
+/// there is no jar yet but a monobank token that could offer them.
 /// </summary>
-internal sealed record ReserveResponse(long TotalKop, ReserveDueResponse[] Dues);
+internal sealed record ReserveResponse(
+    long TotalKop, ReserveDueResponse[] Dues, ReserveJarCoverResponse? Jar, bool CanChooseJar);
+
+/// <summary>
+/// The jar's name and balance, shown to the owner only, and when the balance was true (<c>Stale</c> once it
+/// is over a day old). Short: <c>ShortfallKop</c> is the whole gap to <c>TotalKop</c> and <c>TopUpKop</c>
+/// what must be there by <c>TopUpBy</c>, the first deadline the balance does not cover (<c>TopUpDaysLeft</c>
+/// is negative when it has passed). Covered: <c>SurplusKop</c>, zero when exactly covered.
+/// </summary>
+internal sealed record ReserveJarCoverResponse(
+    string Title,
+    long BalanceKop,
+    DateTimeOffset FetchedAt,
+    bool Stale,
+    long SurplusKop,
+    long ShortfallKop,
+    DateOnly? TopUpBy,
+    long TopUpKop,
+    int? TopUpDaysLeft);
 
 internal sealed record ReserveDueResponse(
     DateOnly DueDate,

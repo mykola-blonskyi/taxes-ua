@@ -496,6 +496,34 @@ The figure is grouped by the obligation's due date (Rule 5), oldest first, with 
 apart inside a group. It is the same in `Quarterly` and `MonthlyAdvance` mode, because the mode
 changes recommendations only (Rule 6). It needs a registration date and does not need a bank.
 
+### The reserve jar
+
+The owner may choose one monobank jar as the place the reserve is kept. Only a jar in hryvnias is
+offered, so its balance is compared with the total without a conversion. The app keeps the jar's id,
+name and last balance with the time the bank reported it. It compares the stored balance with the
+total needed and shows one of two results; the dashboard never asks the bank.
+
+- **Covered.** The balance is at least the total. The surplus is the balance minus the total, zero
+  when they are equal.
+- **Short.** The balance is below the total. The dues are walked oldest first and added up; the first
+  due date at which the sum exceeds the balance is the date to top up by, and the amount to top up is
+  that sum minus the balance, so a balance that pays the early deadlines is short only from a later
+  one. The whole gap (the total minus the balance) is shown beside it when it is larger. A date that
+  has passed reads as overdue. A negative balance counts as zero.
+
+The balance is refreshed from `client-info` on every sync run of the owner (webhook, nightly and "sync
+now") and on the owner's explicit refresh. monobank allows one `client-info` call a minute for a
+token, so every read takes the rate gate's `client-info` slot, and an answer under a minute old is
+reused instead of asked for again. A read that finds the slot taken is skipped by a sync run and
+answered `429` with the seconds to wait for an explicit refresh. A balance that cannot be refreshed
+stays as it was and the screen always shows when it was true; one more than 24 hours old is marked
+stale. A jar the bank no longer reports (closed, or a different token) is kept the same way until the
+owner chooses another or removes it.
+
+The jar's name and balance are the owner's savings: they are shown to the owner only, are not in the
+change log, and the token that reads them is never returned. Disconnecting monobank leaves the stored
+balance and its time. The choice, the balance and its time are in the backup.
+
 ---
 
 ## Rule 14. Invoicing

@@ -29,6 +29,15 @@ public sealed record ReserveNeed(IReadOnlyList<ReserveDue> Dues)
 }
 
 /// <summary>
+/// What a reserve holding <c>BalanceKop</c> covers of <see cref="ReserveNeed"/>. At most one of
+/// <c>SurplusKop</c> and <c>ShortfallKop</c> is above zero: they are the balance minus the total needed,
+/// and the total needed minus the balance. When short, <c>TopUpBy</c> is the first due date the balance
+/// does not cover on its own and <c>TopUpKop</c> what must be there by it (the dues up to it, minus the
+/// balance); it is at most <c>ShortfallKop</c>, and equal when the first uncovered date is the last.
+/// </summary>
+public sealed record ReserveCover(long BalanceKop, long SurplusKop, long ShortfallKop, DateOnly? TopUpBy, long TopUpKop);
+
+/// <summary>
 /// The tax reserve of Rule 13 of <c>knowledge/business-rules.md</c>: figures read off the accruals and
 /// the Rule 7 allocation, never a tax rule of their own. Nothing reads a clock; <c>today</c> is an
 /// argument.
@@ -80,6 +89,33 @@ public static class TaxReserve
 
         static long Of(IEnumerable<(DateOnly DueDate, PaymentKind Kind, long NeededKop)> rows, PaymentKind kind) =>
             rows.Where(row => row.Kind == kind).Sum(row => row.NeededKop);
+    }
+
+    /// <summary>
+    /// Compares a reserve balance with what the taxes need. The dues are walked oldest first, so a
+    /// balance that pays the earliest deadlines but not a later one is short from that later date. A
+    /// negative balance counts as zero.
+    /// </summary>
+    public static ReserveCover Cover(ReserveNeed need, long balanceKop)
+    {
+        var balance = Math.Max(balanceKop, 0);
+        var total = need.TotalKop;
+        if (balance >= total)
+        {
+            return new ReserveCover(balance, balance - total, 0, null, 0);
+        }
+
+        var cumulative = 0L;
+        foreach (var due in need.Dues)
+        {
+            cumulative += due.TotalKop;
+            if (cumulative > balance)
+            {
+                return new ReserveCover(balance, 0, total - balance, due.DueDate, cumulative - balance);
+            }
+        }
+
+        throw new InvalidOperationException("The dues add up to the total, so a shortfall has a first uncovered due.");
     }
 
     private static long AccruedToDate(Obligation obligation, IReadOnlyList<MonthAccrual> months, DateOnly today)

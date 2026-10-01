@@ -253,6 +253,28 @@ Relationships: belongs to `User`, 1-to-1.
 
 ---
 
+### ReserveJar
+
+Responsibilities: the monobank jar one owner keeps the tax reserve in (Rule 13). At most one row per
+owner, key `UserId`. Not audited, because it is rewritten by every sync and holds the owner's savings.
+
+Fields: `JarId` (the jar's id in `client-info`, up to 100 characters), `Title` (the jar's name as the
+bank last reported it, up to 200), `BalanceKop` (an integer, never negative), `FetchedAt` (when the
+bank reported that balance; a reused answer keeps its own time). Only a jar with the hryvnia currency
+code is ever stored. A refresh updates the title, balance and time of the row it read, never a row
+that was changed, cleared or restored meanwhile; a failed or skipped refresh leaves the row as it was.
+
+The jars are read by one path: `client-info` through `MonobankClient` and the rate gate's `client-info`
+slot. `MonobankJarReader` holds the last answer in memory for one gate interval, so listing the jars,
+choosing one and refreshing take one bank call between them; the answer is never stored and never
+holds the token. The row is returned only by the owner's own endpoints, which are the Settings
+section, the refresh button and the dashboard's reserve card; none of them returns the token.
+
+Relationships: belongs to `User`, 1-to-1. Carried in the backup from schema version 14. Disconnecting
+monobank leaves it.
+
+---
+
 ### Client
 
 Responsibilities: a counterparty for linking receipts and invoices, and the buyer's details an invoice
@@ -429,7 +451,10 @@ the Rule 7 allocation, and never fed back into a balance.
 Fields: per receipt `SetAside` (`SingleTaxKop`, `MilitaryLevyKop`; zero for a non-income kind,
 negative for a refund, absent for a row Rule 8 excludes); in total `Dues`, one per due date, oldest
 first, each with the `SingleTaxKop`, `MilitaryLevyKop` and `EsvKop` still needed by then, and
-`TotalKop` (the dues added).
+`TotalKop` (the dues added). Against a stored `ReserveJar` balance the engine's `TaxReserve.Cover`
+answers `SurplusKop` or `ShortfallKop` (at most one is above zero) and, when short, `TopUpBy` with
+`TopUpKop` (Rule 13, the reserve jar); the dashboard returns these under `Reserve.Jar` with the jar's
+name, balance and `FetchedAt`.
 
 ---
 
@@ -447,11 +472,11 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (13), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (14), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
 payment details and the signature as base64 with its content type), `Invoices` (with their lines, their
 number as year and sequence, the frozen snapshot and the frozen signature as base64), `DeclarationDetails?`,
-`DeclarationFilings`, `DeclarationFiles` (the XML and its annex as base64), `TreasuryAccounts` (by kind, without an id), `NotificationChannels` (kind, address, enabled, linked at: no delivery record, no link code), each row with its id and every stored column except `UserId`, an invoice's
+`DeclarationFilings`, `DeclarationFiles` (the XML and its annex as base64), `TreasuryAccounts` (by kind, without an id), `NotificationChannels` (kind, address, enabled, linked at: no delivery record, no link code), `ReserveJar?` (jar id, name, balance and the time of the balance), each row with its id and every stored column except `UserId`, an invoice's
 `TotalMinor` (recomputed from its lines) and a
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
 which a restore clears.
@@ -462,17 +487,17 @@ and the payments' bank operation (#80); version 4 added the invoicing details (#
 clients' details (#90); version 6 added the invoices (#92); version 7 added the declaration details and
 the filed marks (#110); version 8 added the receipts' `InvoiceId` (#93); version 9 added the Treasury
 accounts and the candidates' `CounterEdrpou` (#98); version 10 added the settings' `BackOnGroup3From` (#118); version 11 added the notification channels (#106); version 12 added the declaration files and the
-declaration details' `TaxOfficeName` (#111). A version 1 file still restores, read as having none of
+declaration details' `TaxOfficeName` (#111); version 13 added the declaration files' annex (#112); version 14 added the reserve jar (#102). A version 1 file still restores, read as having none of
 them and every transaction `Confirmed`, a version 2 file as having no candidates and every payment typed by
 the owner, a version 1 to 3 file as having no invoicing details, so the owner's are cleared like the rest, a
 version 1 to 4 file as having no details on any client, a version 1 to 5 file as having no invoices, a
 version 1 to 6 file as having no declaration details and nothing marked filed, a version 1 to 7 file as
 having no receipt linked to an invoice, and a version 1 to 8 file as having no Treasury accounts and
 candidates without a counterparty code, a version 1 to 9 file as having no return to group 3, and a version 1 to 10 file as having no notification channels, and a version 1 to 11 file as having no declaration
-files and no tax office name; a file of a version this build does not know is refused by its
+files and no tax office name, a version 1 to 12 file as having no annex on any declaration file, and a version 1 to 13 file as having no reserve jar; a file of a version this build does not know is refused by its
 version number rather than by whichever field it added.
 
-A restore replaces the owner's settings, invoicing details, declaration details, filed marks, declaration files, clients, invoices, transactions, payments, candidates, Treasury accounts and import batches in one
+A restore replaces the owner's settings, invoicing details, declaration details, filed marks, declaration files, clients, invoices, transactions, payments, candidates, Treasury accounts, the reserve jar and import batches in one
 database transaction and passes every row through the endpoints' own validation, refund and invoice links
 included; any violation changes nothing. Bank accounts are matched rather than replaced (see
 `BankAccount`). Ids are kept, so a restore after a wipe reproduces the same file. When another owner
