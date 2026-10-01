@@ -287,7 +287,8 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
         AssertGaps(attempts, TelegramDelivery.Backoff);
         var channel = await Channel(owner);
         Assert.Equal("Unreachable", channel["lastFailure"]!.GetValue<string>());
-        Assert.Equal(clock.GetUtcNow(), channel["lastFailureAt"]!.GetValue<DateTimeOffset>());
+        // Deliver keeps the clock moving until the send completes, so it may tick after the failure is stamped.
+        Assert.InRange(channel["lastFailureAt"]!.GetValue<DateTimeOffset>(), attempts[^1].At, clock.GetUtcNow());
         Assert.True(channel["enabled"]!.GetValue<bool>());
     }
 
