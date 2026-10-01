@@ -150,13 +150,15 @@ is disabled.
    | `MONOBANK_TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32`, once, kept in the password manager (ADR-011) |
    | `MONOBANK_PUBLIC_BASE_URL` | `https://taxes.blonskyi.dev`, or empty to run without the webhook (ADR-012) |
    | `TELEGRAM_BOT_TOKEN` | the token @BotFather gives, see "Telegram bot" below, or empty to run without Telegram (ADR-015) |
+   | `SMTP_HOST`, `SMTP_PORT`, `SMTP_TLS`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | the mail server, see "Email" below, or all empty to run without email (ADR-022) |
 
    Set these only in Coolify. Never put the domain in a local `.env`: `docker-compose.local.yml`
    overrides only the environment name and the connection string, so a local run would inherit it
    and refuse to start.
 
 **Check.** Persistent Storage lists the `dataprotection-keys` volume. The `api` service has no
-domain. The six required variables have values; the two `MONOBANK_*` ones and `TELEGRAM_BOT_TOKEN` may stay empty.
+domain. The six required variables have values; the two `MONOBANK_*` ones, `TELEGRAM_BOT_TOKEN` and the
+six `SMTP_*` ones may stay empty.
 
 ### Telegram bot
 
@@ -179,6 +181,39 @@ needs nothing more; set `APP_PUBLIC_URL` only when the app is reached at another
 If the token leaks, use `/revoke` in @BotFather, put the new token in Coolify and redeploy: the api reads
 updates for the new bot from its own beginning and the chat is linked again from settings. A bot must not
 be polled from two places at once, so a local stack keeps `TELEGRAM_BOT_TOKEN` empty or uses a second bot.
+
+### Email
+
+Reminders and the address confirmation go out through an SMTP server you already have (a mailbox at your
+domain's host, a relay such as Brevo's or Mailjet's free tier, your own Postfix). The app only sends; it needs no
+inbound mail and no new service.
+
+| Variable | Meaning |
+| --- | --- |
+| `SMTP_HOST` | the server's name. Empty switches email off |
+| `SMTP_PORT` | optional. 587 for `starttls`, 465 for `implicit`, otherwise what the server documents |
+| `SMTP_TLS` | `starttls` (default), `implicit` (TLS from the first byte, usually port 465) or `none` |
+| `SMTP_USER`, `SMTP_PASSWORD` | the sign-in, both or neither. Refused with `SMTP_TLS=none` unless the host is on this machine (`localhost`, a loopback address), so a password never crosses a network in the clear |
+| `SMTP_FROM` | the sender, `noreply@taxes.example.com` or `Taxes UA <noreply@taxes.example.com>`. Use an address the server may send as, and give its domain SPF and DKIM or the mail lands in spam |
+
+Set them in Coolify only, like every secret, and redeploy. `SMTP_PASSWORD` is read from configuration and
+never logged, never put in a URL and never returned by the api. A half-set or invalid configuration (a
+password without a user, a malformed sender, an unknown `SMTP_TLS`) is not a startup error: the api logs
+one warning that names the variable, not its value, and settings shows email as unavailable. Email also
+needs an address for the confirmation link, which `APP_PUBLIC_URL` or the first `ALLOWED_HOSTS` domain
+already provides in production.
+
+In the app open settings, the Notifications tab, type the address and press "Send confirmation". The
+owner opens the link in the email while signed in (it expires after 24 hours; "Send the link again" issues
+a new one), and from then on the address gets the reminders. "Send a test email" confirms delivery.
+A refused sign-in, an unreachable server or a rejected address shows on the tab with its reason.
+
+The confirmation link is signed with the data-protection key ring, so it survives a redeploy because the
+ring is on the `dataprotection-keys` volume, and an unconfirmed link dies with the ring if the volume is lost.
+
+A local stack needs a sink instead of a real server, for example `SMTP_HOST=host.docker.internal`,
+`SMTP_PORT=2525`, `SMTP_TLS=none`, `SMTP_FROM=noreply@taxes.test` and `APP_PUBLIC_URL=http://localhost:3000`
+against any SMTP catcher listening on the host. Never point a local stack at a real mailbox you do not want mailed.
 
 ## 6. First deploy
 

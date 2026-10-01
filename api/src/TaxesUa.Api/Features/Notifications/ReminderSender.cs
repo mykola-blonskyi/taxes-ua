@@ -39,7 +39,7 @@ internal sealed class ReminderSender(
             }
 
             owners = await scope.ServiceProvider.GetRequiredService<AppDbContext>().NotificationChannels
-                .Where(row => row.Enabled && available.Contains(row.Kind))
+                .Where(row => row.Enabled && row.ConfirmedAt != null && available.Contains(row.Kind))
                 .Select(row => row.UserId)
                 .Distinct()
                 .ToListAsync(cancellationToken);
@@ -87,7 +87,7 @@ internal sealed class ReminderSender(
         }
 
         var enabled = await database.NotificationChannels
-            .Where(row => row.UserId == userId && row.Enabled)
+            .Where(row => row.UserId == userId && row.Enabled && row.ConfirmedAt != null)
             .Select(row => row.Kind)
             .ToListAsync(cancellationToken);
         var channels = scope.ServiceProvider.GetServices<IReminderChannel>()

@@ -14,25 +14,40 @@ import {
 import { formatInstantInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
 import { CheckboxField } from "@/shared/ui/fields";
+import { ChannelFailureNotice, ChannelStatusBadge } from "./ChannelParts";
+import { EmailChannel } from "./EmailChannel";
 
-export function NotificationsSection() {
+export function NotificationsSection({
+  confirmEmailToken,
+  onEmailTokenSpent,
+}: {
+  confirmEmailToken?: string;
+  onEmailTokenSpent: () => void;
+}) {
   const t = useTranslations("settings.notifications");
   const [link, setLink] = useState<TelegramConnect | null>(null);
   const { data, isLoading, isError } = useNotificationChannels({ awaitingLink: link !== null });
   const telegram = data?.find((channel) => channel.kind === "Telegram");
+  const email = data?.find((channel) => channel.kind === "Email");
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
   }
 
-  if (isError || !telegram) {
+  if (isError || !telegram || !email) {
     return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
   }
 
   return (
-    <div className="flex max-w-xl flex-col gap-3">
-      <h3 className="text-sm font-medium">{t("telegram.title")}</h3>
-      <TelegramChannel channel={telegram} link={link} onLink={setLink} />
+    <div className="flex max-w-xl flex-col gap-8">
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-medium">{t("telegram.title")}</h3>
+        <TelegramChannel channel={telegram} link={link} onLink={setLink} />
+      </div>
+      <div className="flex flex-col gap-3">
+        <h3 className="text-sm font-medium">{t("email.title")}</h3>
+        <EmailChannel channel={email} confirmToken={confirmEmailToken} onTokenSpent={onEmailTokenSpent} />
+      </div>
     </div>
   );
 }
@@ -98,15 +113,7 @@ function TelegramChannel({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span
-          className={
-            channel.enabled
-              ? "rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"
-              : "rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground"
-          }
-        >
-          {channel.enabled ? t("statusOn") : t("statusOff")}
-        </span>
+        <ChannelStatusBadge on={channel.enabled}>{channel.enabled ? t("statusOn") : t("statusOff")}</ChannelStatusBadge>
         {channel.linkedAt ? (
           <span className="text-xs text-muted-foreground">{t("linkedAt", { at: formatInstantInKyiv(channel.linkedAt, locale) })}</span>
         ) : null}
@@ -121,10 +128,10 @@ function TelegramChannel({
       />
 
       {channel.lastFailure && channel.lastFailureAt ? (
-        <p role="alert" className="min-w-0 break-words rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <ChannelFailureNotice>
           {t("lastFailure", { at: formatInstantInKyiv(channel.lastFailureAt, locale), reason: t(`failure.${channel.lastFailure}`) })}
           {channel.lastFailure === "Blocked" ? ` ${t("blockedHint")}` : ""}
-        </p>
+        </ChannelFailureNotice>
       ) : null}
       {channel.lastDeliveryAt ? (
         <p className="text-xs text-muted-foreground">{t("lastDelivery", { at: formatInstantInKyiv(channel.lastDeliveryAt, locale) })}</p>

@@ -139,6 +139,43 @@ public sealed class ApiFixture : IAsyncLifetime
             configure?.Invoke(builder);
         });
 
+    public const string SmtpTestPassword = "sm7p-t3st-p4ssw0rd";
+
+    // An application whose SMTP settings are set (with a password the tests prove never leaks) and whose
+    // outgoing email goes to email, in memory. Workers stay off unless asked for, and time is fake so a
+    // retry's backoff is stepped through rather than waited for.
+    internal WebApplicationFactory<Program> CreateApplication(
+        InMemoryEmailTransport email,
+        FakeTimeProvider? time = null,
+        bool runWorkers = false,
+        Action<IWebHostBuilder>? configure = null) =>
+        CreateApplication(builder =>
+        {
+            email.Clock = time;
+            builder.UseSetting("Smtp:Host", "smtp.test");
+            builder.UseSetting("Smtp:Port", "587");
+            builder.UseSetting("Smtp:Tls", "starttls");
+            builder.UseSetting("Smtp:User", "mailer");
+            builder.UseSetting("Smtp:Password", SmtpTestPassword);
+            builder.UseSetting("Smtp:From", "Taxes <noreply@taxes.test>");
+            builder.UseSetting("App:PublicUrl", "https://taxes.test");
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IEmailTransport>();
+                services.AddSingleton<IEmailTransport>(email);
+                if (time is not null)
+                {
+                    services.AddSingleton<TimeProvider>(time);
+                }
+
+                if (!runWorkers)
+                {
+                    services.RemoveAll<IHostedService>();
+                }
+            });
+            configure?.Invoke(builder);
+        });
+
     // An application with no monobank key configured at all (ADR-011): every monobank endpoint must
     // answer "not configured" instead of ever reaching the encryptor or the bank.
     public WebApplicationFactory<Program> CreateApplicationWithoutMonobankKey() =>

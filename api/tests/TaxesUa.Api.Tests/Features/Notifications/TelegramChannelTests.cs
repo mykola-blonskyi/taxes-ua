@@ -262,7 +262,7 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(DeliveryOutcome.Sent, result.Outcome);
         var attempts = telegram.To("sendMessage").Skip(linkedCalls).ToList();
         Assert.Equal(4, attempts.Count);
-        AssertGaps(attempts, TelegramDelivery.Backoff);
+        AssertGaps(attempts, ChannelDelivery.Backoff);
         var channel = await Channel(owner);
         Assert.Null(channel["lastFailure"]);
         Assert.NotNull(channel["lastDeliveryAt"]);
@@ -284,7 +284,7 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(new DeliveryResult(DeliveryOutcome.Failed, DeliveryFailure.Unreachable), result);
         var attempts = telegram.To("sendMessage").Skip(linkedCalls).ToList();
         Assert.Equal(4, attempts.Count);
-        AssertGaps(attempts, TelegramDelivery.Backoff);
+        AssertGaps(attempts, ChannelDelivery.Backoff);
         var channel = await Channel(owner);
         Assert.Equal("Unreachable", channel["lastFailure"]!.GetValue<string>());
         // Deliver keeps the clock moving until the send completes, so it may tick after the failure is stamped.

@@ -98,6 +98,7 @@ internal sealed partial class TelegramPoller(
             channel.Address = chatId;
             channel.Enabled = true;
             channel.LinkedAt = now;
+            channel.ConfirmedAt = now;
             channel.LastFailure = null;
             channel.LastFailureAt = null;
 

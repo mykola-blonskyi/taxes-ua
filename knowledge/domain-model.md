@@ -472,11 +472,11 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (14), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (15), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
 payment details and the signature as base64 with its content type), `Invoices` (with their lines, their
 number as year and sequence, the frozen snapshot and the frozen signature as base64), `DeclarationDetails?`,
-`DeclarationFilings`, `DeclarationFiles` (the XML and its annex as base64), `TreasuryAccounts` (by kind, without an id), `NotificationChannels` (kind, address, enabled, linked at: no delivery record, no link code), `ReserveJar?` (jar id, name, balance and the time of the balance), each row with its id and every stored column except `UserId`, an invoice's
+`DeclarationFilings`, `DeclarationFiles` (the XML and its annex as base64), `TreasuryAccounts` (by kind, without an id), `NotificationChannels` (kind, address, enabled, linked at, confirmed at: no delivery record, no link code, no confirmation token), `ReserveJar?` (jar id, name, balance and the time of the balance), each row with its id and every stored column except `UserId`, an invoice's
 `TotalMinor` (recomputed from its lines) and a
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
 which a restore clears.
@@ -487,14 +487,14 @@ and the payments' bank operation (#80); version 4 added the invoicing details (#
 clients' details (#90); version 6 added the invoices (#92); version 7 added the declaration details and
 the filed marks (#110); version 8 added the receipts' `InvoiceId` (#93); version 9 added the Treasury
 accounts and the candidates' `CounterEdrpou` (#98); version 10 added the settings' `BackOnGroup3From` (#118); version 11 added the notification channels (#106); version 12 added the declaration files and the
-declaration details' `TaxOfficeName` (#111); version 13 added the declaration files' annex (#112); version 14 added the reserve jar (#102). A version 1 file still restores, read as having none of
+declaration details' `TaxOfficeName` (#111); version 13 added the declaration files' annex (#112); version 14 added the reserve jar (#102); version 15 added the notification channels' `ConfirmedAt` (#107). A version 1 file still restores, read as having none of
 them and every transaction `Confirmed`, a version 2 file as having no candidates and every payment typed by
 the owner, a version 1 to 3 file as having no invoicing details, so the owner's are cleared like the rest, a
 version 1 to 4 file as having no details on any client, a version 1 to 5 file as having no invoices, a
 version 1 to 6 file as having no declaration details and nothing marked filed, a version 1 to 7 file as
 having no receipt linked to an invoice, and a version 1 to 8 file as having no Treasury accounts and
 candidates without a counterparty code, a version 1 to 9 file as having no return to group 3, and a version 1 to 10 file as having no notification channels, and a version 1 to 11 file as having no declaration
-files and no tax office name, a version 1 to 12 file as having no annex on any declaration file, and a version 1 to 13 file as having no reserve jar; a file of a version this build does not know is refused by its
+files and no tax office name, a version 1 to 12 file as having no annex on any declaration file, and a version 1 to 13 file as having no reserve jar, and a version 1 to 14 file as having its channels confirmed when they were linked (every channel before email is a Telegram chat); a file of a version this build does not know is refused by its
 version number rather than by whichever field it added.
 
 A restore replaces the owner's settings, invoicing details, declaration details, filed marks, declaration files, clients, invoices, transactions, payments, candidates, Treasury accounts, the reserve jar and import batches in one
@@ -580,20 +580,27 @@ rather than replacing it, so each imported record keeps its own history from its
 
 ### NotificationChannel (Stage 2)
 
-Responsibilities: where one owner's reminders go (#106). One row per owner and kind; only `Telegram`
-exists so far, `Email` joins with #107. Reminders are not stored ahead: `ReminderPlan` computes what is
+Responsibilities: where one owner's reminders go (#106, #107). One row per owner and kind: `Telegram` and
+`Email`. Reminders are not stored ahead: `ReminderPlan` computes what is
 due at each run (Rule 17) and `SentReminder` makes delivery idempotent, because a payment changes what is
 owed between scheduling and sending. Every enabled channel with an available sender gets each reminder.
 
-Fields: `Kind: Telegram | Email`, `Address` (the Telegram chat id as text, or an email; never sent to
-the browser), `Enabled`, `LinkedAt`, `LastDeliveryAt?`, and `LastFailure?` with `LastFailureAt?` (both
-set or both null; a later delivery clears them). `LastFailure: Blocked | Rejected | RateLimited |
-Unreachable | Timeout | ServerError | Unreadable`. Unique on (`UserId`, `Kind`).
+Fields: `Kind: Telegram | Email`, `Address` (the Telegram chat id as text, never sent to the browser; or
+the email address, which is), `Enabled`, `LinkedAt`, `ConfirmedAt?`, `LastDeliveryAt?`, and `LastFailure?`
+with `LastFailureAt?` (both set or both null; a later delivery clears them). `LastFailure: Blocked |
+Rejected | RateLimited | Unreachable | Timeout | ServerError | Unreadable | Authentication`. Unique on
+(`UserId`, `Kind`).
+
+`ConfirmedAt` is null while an email address waits for its link; `Enabled` is never true before it is
+set, and an unconfirmed address receives the confirmation email and nothing else (Rule 17). A Telegram
+chat is confirmed by pressing Start, so its `ConfirmedAt` is set with `LinkedAt`. Adding a different
+address replaces the row's address, clears `ConfirmedAt`, `Enabled` and the delivery record, and sends a
+new confirmation. The confirmation link is stateless (ADR-022): nothing about it is stored.
 
 A Telegram 403 (the owner blocked the bot) sets `Blocked` and `Enabled = false`; switching the channel
 on again clears the failure. Audited like `Settings`, except `LastDeliveryAt`, `LastFailure` and
 `LastFailureAt`, which change with every message and are left out of the snapshot. Carried in the backup
-(kind, address, enabled, linked at) from schema version 11; a restore starts with a clean delivery record.
+(kind, address, enabled, linked at) from schema version 11 and confirmed at from 15; a restore starts with a clean delivery record, and brings an email address back unconfirmed and off (a file proves nothing about a mailbox), so the owner sends the link again.
 
 ### SentReminder (Stage 2)
 

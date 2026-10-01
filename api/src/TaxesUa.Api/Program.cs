@@ -174,11 +174,20 @@ builder.Services.AddHttpClient<TelegramClient>(client =>
     .RemoveAllLoggers()
     .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { PooledConnectionLifetime = TimeSpan.FromMinutes(2) });
 builder.Services.AddScoped<TelegramLinking>();
+builder.Services.AddScoped<ChannelDelivery>();
 builder.Services.AddScoped<TelegramDelivery>();
 builder.Services.AddSingleton<TelegramPoller>();
 builder.Services.AddHostedService<TelegramPollWorker>();
 builder.Services.AddSingleton<AppLink>();
 builder.Services.AddScoped<IReminderChannel, TelegramReminderChannel>();
+
+// SMTP is optional like the bot token: without valid settings the email channel reports itself
+// unavailable and nothing is sent. The password lives only in EmailSettings and is never logged.
+builder.Services.AddSingleton<EmailSettings>();
+builder.Services.AddSingleton<IEmailTransport, SmtpEmailTransport>();
+builder.Services.AddSingleton<EmailConfirmation>();
+builder.Services.AddScoped<EmailDelivery>();
+builder.Services.AddScoped<IReminderChannel, EmailReminderChannel>();
 builder.Services.AddSingleton<ReminderSender>();
 builder.Services.AddHostedService<ReminderWorker>();
 
@@ -251,6 +260,7 @@ app.Services.GetRequiredService<TokenEncryptor>();
 app.Services.GetRequiredService<MonobankWebhooks>();
 app.Services.GetRequiredService<TelegramBot>();
 app.Services.GetRequiredService<AppLink>();
+app.Services.GetRequiredService<EmailSettings>();
 
 app.UseForwardedHeaders();
 

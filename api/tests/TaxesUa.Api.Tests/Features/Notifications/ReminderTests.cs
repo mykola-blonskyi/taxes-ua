@@ -185,6 +185,16 @@ public sealed partial class ReminderTests(ApiFixture fixture) : IClassFixture<Ap
         string locale = "uk",
         PaymentMode mode = PaymentMode.Quarterly)
     {
+        var owner = await PrepareOwner(application, locale, mode);
+        await Link(application, owner, telegram);
+        telegram.ClearCalls();
+        return owner;
+    }
+
+    // The same owner with no channel connected, for the email channel's tests.
+    private static async Task<HttpClient> PrepareOwner(
+        WebApplicationFactory<Program> application, string locale = "uk", PaymentMode mode = PaymentMode.Quarterly)
+    {
         var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         await using (var scope = application.Services.CreateAsyncScope())
         {
@@ -204,8 +214,6 @@ public sealed partial class ReminderTests(ApiFixture fixture) : IClassFixture<Ap
             new DateOnly(2031, 2, 10), 12_345_600, Currency.UAH, null, TransactionKind.Income, null, null, null, null, null);
         Assert.Equal(HttpStatusCode.Created, (await owner.PostAsJsonAsync("/api/transactions", income, Json)).StatusCode);
 
-        await Link(application, owner, telegram);
-        telegram.ClearCalls();
         return owner;
     }
 
