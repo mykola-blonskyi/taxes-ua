@@ -19,3 +19,18 @@ export function usePeriods(year: number | undefined) {
     enabled: year !== undefined,
   });
 }
+
+// Mirrors the engine (Rule 4): after the switch the crossing names, a quarter the response leaves out is
+// outside group 3, and a payment naming it stays out of the ledger.
+export function useIsOutsideGroup3(year: number, quarter: number): boolean {
+  const periods = usePeriods(year);
+  const crossing = periods.data?.limitCrossing;
+  if (!periods.data || !crossing) {
+    return false;
+  }
+
+  const switchYear = Number(crossing.switchFromYear);
+  const afterSwitch = year > switchYear || (year === switchYear && quarter >= Number(crossing.switchFromQuarter));
+
+  return afterSwitch && !periods.data.quarters.some((accrual) => Number(accrual.quarter) === quarter);
+}

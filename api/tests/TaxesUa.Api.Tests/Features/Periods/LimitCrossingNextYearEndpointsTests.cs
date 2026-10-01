@@ -126,6 +126,45 @@ public sealed class LimitCrossingNextYearEndpointsTests(ApiFixture fixture) : IC
         Assert.Equal(ObligationStatus.Overdue, periods.Quarters[0].Obligations!.Esv.Status);
     }
 
+    [Fact]
+    public async Task Moving_back_on_group_3_moves_a_payment_into_the_ledger()
+    {
+        const int year = 2082;
+        await using var application = At(new DateOnly(year + 1, 11, 25));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year, new YearQuarter(year + 1, 2));
+        await PostIncome(owner, new DateOnly(year, 11, 10), 1_000_000);
+        await PostEsv(owner, year + 1, periodQuarter: 1, periodMonth: null, 570_702);
+
+        var stopped = (await owner.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year + 1}", Json))!.Balances!;
+        var moved = await owner.PutAsJsonAsync(
+            "/api/settings", Settings(new DateOnly(year, 1, 1), new YearQuarter(year + 1, 1)), Json);
+        var resumed = (await owner.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year + 1}", Json))!.Balances!;
+
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        Assert.Equal([new OutsideGroup3PaymentResponse(PaymentKind.Esv, 1, null, 570_702)], stopped.OutsideGroup3Payments);
+        Assert.Equal(4 * 570_702, stopped.Esv.EarlierOwedKop);
+        Assert.Empty(resumed.OutsideGroup3Payments);
+        Assert.Equal(3 * 570_702, resumed.Esv.EarlierOwedKop);
+    }
+
+    [Fact]
+    public async Task An_owner_who_never_crossed_has_no_payment_listed_apart()
+    {
+        const int year = 2085;
+        await using var application = At(new DateOnly(year, 11, 25));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year);
+        await PostIncome(owner, new DateOnly(year, 2, 10), 300_000);
+        await PostEsv(owner, year, periodQuarter: 3, periodMonth: null, 570_702);
+        await PostEsv(owner, year, periodQuarter: null, periodMonth: 8, 190_234);
+
+        var balances = (await owner.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json))!.Balances!;
+
+        Assert.Empty(balances.OutsideGroup3Payments);
+        Assert.Equal(570_702 + 190_234, balances.Esv.PaidKop);
+    }
+
     [Theory]
     [InlineData(2099, 0)]
     [InlineData(2099, 5)]

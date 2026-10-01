@@ -232,6 +232,7 @@ function CandidateCard({
         <div className="min-w-0">
           <PeriodSelect
             id={`candidate-period-${candidate.id}`}
+            year={state.periodYear}
             value={state.period}
             onChange={(period) => setState((current) => ({ ...current, period }))}
           />
