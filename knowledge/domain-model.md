@@ -580,7 +580,8 @@ Fields: `UserId`, `Date` (the deadline or advance date the reminder is about), `
 `Channel`).
 
 A row is inserted before the message is sent and gets `DeliveredAt` once the channel accepts it. A
-transient failure deletes the row so a later run retries; a permanent failure or a crash mid-send leaves
+failure that proves nothing was delivered (unreachable, rate limited, server error) deletes the row so a
+later run retries; a permanent failure, a timeout (possibly delivered) or a crash mid-send leaves
 it without `DeliveredAt`, and the message is not sent again. A run sends nothing for a date, offset and
 channel whose rows already name every kind it would send.
 

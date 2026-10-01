@@ -726,8 +726,10 @@ minutes and at start.
 
 Delivery is at most once. Before sending, the worker inserts a `SentReminder` row keyed by owner, date,
 kinds, offset and channel, and commits it; the unique key makes a second, concurrent run fail that
-insert and skip. The row gets `DeliveredAt` when the channel accepts the message. A transient failure
-deletes the row so a later run retries; a permanent one keeps it. A crash after the insert leaves the row,
+insert and skip. The row gets `DeliveredAt` when the channel accepts the message. A failure that proves
+nothing was delivered (unreachable, rate limited, server error) deletes the row so a later run retries.
+Any other failure keeps it, and so does a timeout: the message may have arrived before the answer was
+lost, so it is not retried, in the channel or by a later run. A crash after the insert leaves the row,
 and the message is never sent again.
 
 Channels are behind `IReminderChannel` (kind, availability, send). Telegram's wraps `TelegramDelivery`,

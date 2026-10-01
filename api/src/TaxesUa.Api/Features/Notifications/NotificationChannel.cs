@@ -20,8 +20,10 @@ internal enum DeliveryFailure
 
 internal static class DeliveryFailures
 {
+    // A timeout is not here: the message may have been delivered before the answer was lost, so it is
+    // neither retried nor released for a later run.
     public static bool IsTransient(this DeliveryFailure failure) =>
-        failure is DeliveryFailure.RateLimited or DeliveryFailure.Unreachable or DeliveryFailure.Timeout or DeliveryFailure.ServerError;
+        failure is DeliveryFailure.RateLimited or DeliveryFailure.Unreachable or DeliveryFailure.ServerError;
 }
 
 /// <summary>

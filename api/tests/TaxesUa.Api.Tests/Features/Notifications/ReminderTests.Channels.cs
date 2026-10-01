@@ -57,6 +57,44 @@ public sealed partial class ReminderTests
     }
 
     [Fact]
+    public async Task A_timeout_may_have_delivered_so_it_is_not_retried_and_the_claim_is_kept()
+    {
+        var telegram = new StubTelegramHandler();
+        var clock = new FakeTimeProvider(Kyiv(TaxDue.AddDays(-7), 9, 0));
+        await using var application = fixture.CreateApplication(telegram, clock);
+        await Prepare(application, telegram);
+        telegram.SendAnswer = _ => throw new OperationCanceledException();
+
+        await Run(application);
+
+        Assert.Single(telegram.To("sendMessage"));
+        Assert.Null(Assert.Single(await SentLog(application)).DeliveredAt);
+
+        telegram.SendAnswer = _ => StubTelegramHandler.Ok(new JsonObject { ["message_id"] = 1 });
+        clock.Advance(ReminderWorker.Interval);
+        await Run(application);
+        Assert.Single(telegram.To("sendMessage"));
+    }
+
+    [Fact]
+    public async Task Disconnecting_while_a_message_is_in_flight_does_not_abort_the_run()
+    {
+        var telegram = new StubTelegramHandler();
+        var clock = new FakeTimeProvider(Kyiv(TaxDue.AddDays(-7), 9, 0));
+        await using var application = fixture.CreateApplication(telegram, clock);
+        var owner = await Prepare(application, telegram);
+        telegram.SendAnswer = _ =>
+        {
+            owner.DeleteAsync(Channels + "/telegram").GetAwaiter().GetResult();
+            return StubTelegramHandler.Ok(new JsonObject { ["message_id"] = 1 });
+        };
+
+        await Run(application);
+
+        Assert.NotNull(Assert.Single(await SentLog(application)).DeliveredAt);
+    }
+
+    [Fact]
     public async Task A_failure_that_may_pass_gives_the_claim_back_so_a_later_run_delivers()
     {
         var telegram = new StubTelegramHandler();
