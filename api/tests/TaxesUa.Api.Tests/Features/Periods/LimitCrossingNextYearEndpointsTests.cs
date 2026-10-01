@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Features.Dashboard;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
@@ -15,6 +16,7 @@ using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Api.Tests.Features.Fx;
 using TaxesUa.Engine;
 using EsvRegistrationMonthPolicy = TaxesUa.Api.Features.Settings.EsvRegistrationMonthPolicy;
+using KindYearBalance = TaxesUa.Api.Features.Periods.KindYearBalance;
 
 namespace TaxesUa.Api.Tests.Features.Periods;
 
@@ -101,6 +103,29 @@ public sealed class LimitCrossingNextYearEndpointsTests(ApiFixture fixture) : IC
         Assert.Equal((300_000L, 10_000L, 5_000L), (q3.Figures!.TotalIncomeKop, q3.Figures.PreviousSingleTaxKop, q3.Figures.SingleTaxPayableKop));
     }
 
+    [Fact]
+    public async Task A_payment_naming_a_quarter_outside_group_3_is_listed_apart_from_the_balances()
+    {
+        const int year = 2088;
+        await using var application = At(new DateOnly(year + 1, 11, 25));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year, new YearQuarter(year + 1, 2));
+        await PostIncome(owner, new DateOnly(year, 11, 10), 1_000_000);
+        await PostEsv(owner, year + 1, periodQuarter: 1, periodMonth: null, 570_702);
+        await PostEsv(owner, year + 1, periodQuarter: null, periodMonth: 3, 190_234);
+
+        var periods = (await owner.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year + 1}", Json))!;
+
+        Assert.Equal(
+            [
+                new OutsideGroup3PaymentResponse(PaymentKind.Esv, 1, null, 570_702),
+                new OutsideGroup3PaymentResponse(PaymentKind.Esv, 1, 3, 190_234),
+            ],
+            periods.Balances!.OutsideGroup3Payments.OrderBy(payment => payment.Month ?? 0));
+        Assert.Equal(new KindYearBalance(4 * 570_702, 3 * 570_702, 0, 7 * 570_702, 0), periods.Balances.Esv);
+        Assert.Equal(ObligationStatus.Overdue, periods.Quarters[0].Obligations!.Esv.Status);
+    }
+
     [Theory]
     [InlineData(2099, 0)]
     [InlineData(2099, 5)]
@@ -159,6 +184,13 @@ public sealed class LimitCrossingNextYearEndpointsTests(ApiFixture fixture) : IC
         var request = new TransactionRequest(
             valueDate, amountKop, Currency.UAH, null, TransactionKind.Income, null, null, null, null, null);
         Assert.Equal(HttpStatusCode.Created, (await owner.PostAsJsonAsync("/api/transactions", request, Json)).StatusCode);
+    }
+
+    private static async Task PostEsv(HttpClient owner, int periodYear, int? periodQuarter, int? periodMonth, long amountKop)
+    {
+        var request = new PaymentRequest(
+            new DateOnly(periodYear, 6, 1), PaymentKind.Esv, amountKop, periodYear, periodQuarter, periodMonth, null);
+        Assert.Equal(HttpStatusCode.Created, (await owner.PostAsJsonAsync("/api/payments", request, Json)).StatusCode);
     }
 
     private static async Task<DeclarationResponse> Declaration(HttpClient owner, int year, int quarter)

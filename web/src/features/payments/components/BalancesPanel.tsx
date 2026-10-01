@@ -5,6 +5,7 @@ import { paymentKinds, type PaymentKind } from "@/data/payments/usePayments";
 import type { PeriodsResponse } from "@/data/periods/usePeriods";
 import { formatMoney } from "@/shared/lib/money";
 import { cn } from "@/shared/lib/utils";
+import { monthName } from "../period";
 
 type Balances = NonNullable<PeriodsResponse["balances"]>;
 
@@ -62,6 +63,34 @@ export function BalancesPanel({ year, balances }: { year: number; balances: Bala
           );
         })}
       </ul>
+      {balances.outsideGroup3Payments.length > 0 ? (
+        <OutsideGroup3Payments payments={balances.outsideGroup3Payments} />
+      ) : null}
     </section>
+  );
+}
+
+function OutsideGroup3Payments({ payments }: { payments: Balances["outsideGroup3Payments"] }) {
+  const t = useTranslations("payments");
+  const locale = useLocale();
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-dashed p-3">
+      <h4 className="text-sm font-semibold">{t("balances.outsideGroup3.title")}</h4>
+      <p className="text-xs text-muted-foreground">{t("balances.outsideGroup3.hint")}</p>
+      <ul className="flex flex-col gap-1 text-sm">
+        {payments.map((payment, index) => (
+          <li key={index} className="flex min-w-0 items-baseline justify-between gap-2">
+            <span className="min-w-0">
+              {t(`kinds.${payment.kind}`)},{" "}
+              {payment.month !== null
+                ? monthName(Number(payment.month), locale)
+                : t("quarter", { quarter: Number(payment.quarter) })}
+            </span>
+            <span className="shrink-0 tabular-nums">{formatMoney(Number(payment.amountKop), locale)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

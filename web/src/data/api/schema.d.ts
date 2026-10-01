@@ -5998,6 +5998,15 @@ export interface components {
         };
         /** @enum {string} */
         ObligationStatus: "Upcoming" | "Due" | "Overdue" | "Done";
+        OutsideGroup3PaymentResponse: {
+            kind: components["schemas"]["PaymentKind"];
+            /** Format: int32 */
+            quarter: number | string;
+            /** Format: int32 */
+            month: null | number | string;
+            /** Format: int64 */
+            amountKop: number | string;
+        };
         PasskeyCredentialSubmission: {
             credentialJson: null | string;
         };
@@ -6561,6 +6570,7 @@ export interface components {
             singleTax: components["schemas"]["KindYearBalance"];
             militaryLevy: components["schemas"]["KindYearBalance"];
             esv: components["schemas"]["KindYearBalance"];
+            outsideGroup3Payments: components["schemas"]["OutsideGroup3PaymentResponse"][];
         };
         YearQuarter: {
             /** Format: int32 */

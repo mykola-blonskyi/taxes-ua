@@ -92,8 +92,9 @@ another group. The engine accrues nothing for those quarters, no ESV either, rat
 figures that would be wrong: their obligations, advances, reserve and declaration are absent, and
 every screen that would show them says the FOP must switch from that quarter instead, naming the
 crossing quarter and the quarter the switch starts from. The warning also says plainly that ESV and
-the general system's taxes are still owed for that period; the app only does not compute them. The
-stop runs across years: after a Q4 crossing the switch starts with the next year's Q1, after a Q1 to
+the general system's taxes are still owed for that period; the app only does not compute them. A
+payment the owner records for such a quarter, or for a month of one, is kept and listed apart from the
+group 3 balances, and never settles a group 3 obligation (Rule 7). The stop runs across years: after a Q4 crossing the switch starts with the next year's Q1, after a Q1 to
 Q3 crossing with the next quarter, and in both cases every later configured year is outside group 3
 too, whatever its own income. A year missing from the configured run passes the stop on.
 
@@ -220,6 +221,16 @@ payments against debt, Tax Code art. 87.9). Q1 levy 1,000.00 unpaid, Q2 levy 1,0
 2,000.00 paid "for Q2" leaves both quarters settled. The period a payment names is kept and shown;
 it no longer decides which obligation the payment settles. A refund that turns a quarter's accrual
 negative adds that amount to the kind's credit in the same way.
+
+A payment that names a quarter outside group 3 (Rule 4), or a month of one, stays out of the kind's
+ledger (owner decision 2026-10-01, #125). It is not paid, not credit, and settles nothing in any year:
+its money paid for a system the app does not compute, so pooling it would let it clear a resumed
+quarter's obligation, or an older group 3 debt, that it never paid. It is still kept and shown: the
+year's balances list it separately with its kind, period and amount, and no figure beside the list
+counts it. This is the one thing the named period decides. Every payment naming a group 3 quarter,
+the crossing quarter included, is allocated oldest first as above. Which quarters are outside group 3
+follows the "back on group 3 from" setting, so moving it moves payments in or out of the ledger. A
+FOP who never crossed the limit has no quarter outside group 3, so nothing changes for them.
 
 The allocation runs across years (owner decision 2026-09-27). An unpaid balance of year Y is still
 owed, and still overdue, in Y+1; an overpayment at the end of Y settles Y+1's obligations of the same

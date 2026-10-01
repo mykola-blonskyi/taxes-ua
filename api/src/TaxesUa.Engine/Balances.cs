@@ -18,7 +18,8 @@ public enum PaymentKind
 /// nullable <c>PeriodQuarter</c> beside a nullable <c>PeriodMonth</c>, which admits a row with
 /// neither and a row with both; as cases, neither is representable. The period is what the owner
 /// named and is shown back; it does not decide which obligation the payment settles, because Rule 7
-/// settles the oldest debt of the kind first.
+/// settles the oldest debt of the kind first. It only decides whether the payment enters the ledger at
+/// all: one naming a quarter outside group 3 does not (Rule 4).
 /// </summary>
 public abstract record PaymentPeriod
 {
@@ -150,13 +151,17 @@ public sealed record KindYearBalance(
 /// <summary>
 /// One kind's ledger across the years in range. <c>Obligations</c> are in the order credit settles
 /// them, oldest due date first. <c>CreditKop</c> is what is left of the pool once every obligation is
-/// settled, and is nonzero only when nothing remains owed.
+/// settled, and is nonzero only when nothing remains owed. <c>OutsideGroup3</c> are the payments that
+/// name a quarter outside group 3 (Rule 4). They paid for a system this engine does not compute, so
+/// they are listed here and never enter <c>Payments</c> or the pool, where they would settle a resumed
+/// quarter's obligation with money meant for a stopped one.
 /// </summary>
 public sealed record KindLedger(
     PaymentKind Kind,
     IReadOnlyList<Obligation> Obligations,
     IReadOnlyList<BudgetPaymentInput> Payments,
-    long CreditKop)
+    long CreditKop,
+    IReadOnlyList<BudgetPaymentInput> OutsideGroup3)
 {
     /// <summary>Positive is owed, negative is overpaid.</summary>
     public long BalanceKop =>
@@ -186,8 +191,9 @@ public sealed record PaymentLedger(KindLedger SingleTax, KindLedger MilitaryLevy
 /// <summary>
 /// Accrued against paid per kind, per Rule 7 of <c>knowledge/business-rules.md</c>. Within a kind,
 /// every payment and every refund quarter's negative accrual goes into one pool that settles the
-/// oldest outstanding obligation first, across years, whatever period a payment names: that is how
-/// the tax office credits payments against debt (Tax Code art. 87.9). Nothing reads the cumulative
+/// oldest outstanding obligation first, across years, whatever group 3 period a payment names: that is
+/// how the tax office credits payments against debt (Tax Code art. 87.9). A payment naming a quarter
+/// outside group 3 stays out of the pool (Rule 4). Nothing reads the cumulative
 /// accrual fields: ESV has no cumulative counterpart, and a mix of one kind's delta with another's
 /// absolute is the one arithmetic mistake this file could make silently. Nothing reads a clock;
 /// <c>today</c> is an argument.
@@ -196,8 +202,10 @@ public static class Balances
 {
     /// <param name="years">The years in range, in any order and not necessarily contiguous.</param>
     /// <param name="payments">Every payment the owner has. Those named for a year after the last one
-    /// in range belong to a later view and are left out; those named for any earlier year, even one
-    /// before registration or absent from <paramref name="years"/>, are credit.</param>
+    /// in range belong to a later view and are left out; those named for a quarter of a year in range
+    /// that is outside group 3 go to <see cref="KindLedger.OutsideGroup3"/>; those named for any other
+    /// quarter, even one of a year before registration or absent from <paramref name="years"/>, are
+    /// credit.</param>
     public static PaymentLedger ForYears(
         IReadOnlyList<LedgerYear> years,
         FopSettingsInput settings,
@@ -215,7 +223,11 @@ public static class Balances
         }
 
         var horizon = years.Max(year => year.Accrual.Year);
-        var pooled = payments.Where(payment => payment.PeriodYear <= horizon).ToArray();
+        var accrualOf = years.ToDictionary(year => year.Accrual.Year, year => year.Accrual);
+        var outsideGroup3 = payments
+            .Where(payment => payment.PeriodYear <= horizon)
+            .ToLookup(payment => accrualOf.TryGetValue(payment.PeriodYear, out var accrual)
+                && !accrual.InGroup3(payment.Period.Quarter));
         return new PaymentLedger(
             ForKind(PaymentKind.SingleTax, quarter => quarter.SingleTaxKop, deadlines => deadlines.TaxPayment),
             ForKind(PaymentKind.MilitaryLevy, quarter => quarter.MilitaryLevyKop, deadlines => deadlines.TaxPayment),
@@ -226,11 +238,12 @@ public static class Balances
             Func<QuarterAccrual, long> accruedKop,
             Func<QuarterDeadlines, Deadline> deadlineOf)
         {
-            var ofKind = pooled.Where(payment => payment.Kind == kind).ToArray();
+            var ofKind = outsideGroup3[false].Where(payment => payment.Kind == kind).ToArray();
+            var excluded = outsideGroup3[true].Where(payment => payment.Kind == kind).ToArray();
             var creditKop = ofKind.Sum(payment => payment.AmountKop);
             if (settings.FopRegistrationDate is null)
             {
-                return new KindLedger(kind, [], ofKind, creditKop);
+                return new KindLedger(kind, [], ofKind, creditKop, excluded);
             }
 
             var due = years
@@ -265,7 +278,7 @@ public static class Balances
                     StatusOf(owedKop - paidKop, row.Deadline.Due, today));
             }
 
-            return new KindLedger(kind, obligations, ofKind, creditKop);
+            return new KindLedger(kind, obligations, ofKind, creditKop, excluded);
         }
     }
 

@@ -102,7 +102,17 @@ public static class PeriodsEndpoints
                 : new YearBalancesResponse(
                     ToYearBalance(ledger.SingleTax.ForYear(year)),
                     ToYearBalance(ledger.MilitaryLevy.ForYear(year)),
-                    ToYearBalance(ledger.Esv.ForYear(year))));
+                    ToYearBalance(ledger.Esv.ForYear(year)),
+                    [
+                        .. new[] { ledger.SingleTax, ledger.MilitaryLevy, ledger.Esv }
+                            .SelectMany(kind => kind.OutsideGroup3)
+                            .Where(payment => payment.PeriodYear == year)
+                            .Select(payment => new OutsideGroup3PaymentResponse(
+                                payment.Kind,
+                                payment.Period.Quarter,
+                                (payment.Period as PaymentPeriod.Monthly)?.Month,
+                                payment.AmountKop)),
+                    ]));
     }
 
     private static QuarterObligations? ToObligations(
@@ -209,11 +219,17 @@ internal sealed record MonthPeriodResponse(
 /// <summary>
 /// Rule 7's three ledgers for the year, one named field per kind like the engine's
 /// <see cref="PaymentLedger"/>, so the web has no collection to pool into one figure either.
+/// <c>OutsideGroup3Payments</c> are the payments that name a quarter of this year outside group 3
+/// (Rule 4), listed apart because none of the three ledgers counts them.
 /// </summary>
 internal sealed record YearBalancesResponse(
     KindYearBalance SingleTax,
     KindYearBalance MilitaryLevy,
-    KindYearBalance Esv);
+    KindYearBalance Esv,
+    OutsideGroup3PaymentResponse[] OutsideGroup3Payments);
+
+/// <summary>A payment naming a quarter outside group 3, or a month of one.</summary>
+internal sealed record OutsideGroup3PaymentResponse(PaymentKind Kind, int Quarter, int? Month, long AmountKop);
 
 /// <summary>
 /// One kind's year as the oldest-first allocation left it (Rule 7). <c>EarlierOwedKop</c> is what
