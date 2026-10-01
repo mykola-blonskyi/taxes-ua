@@ -10,10 +10,18 @@ internal sealed record MonobankAccount(
     int CurrencyCode,
     string Iban);
 
+// A monobank savings jar. BalanceKop is in the jar currency's minor units, as the bank sends it.
+internal sealed record MonobankJar(
+    string Id,
+    string Title,
+    int CurrencyCode,
+    long BalanceKop);
+
 internal sealed record MonobankClientInfo(
     string ClientId,
     string Name,
-    IReadOnlyList<MonobankAccount> Accounts);
+    IReadOnlyList<MonobankAccount> Accounts,
+    IReadOnlyList<MonobankJar> Jars);
 
 // One statement operation. Time is the bank's instant; Amount is in the account currency's minor units
 // and negative for a debit. CurrencyCode is kept as the bank sent it, and is not trusted to name the
@@ -239,7 +247,27 @@ internal sealed class MonobankClient(HttpClient http, TimeProvider time, ILogger
             }
         }
 
-        return new ClientInfoResult.Found(new MonobankClientInfo(clientId, name, accounts));
+        var jars = new List<MonobankJar>();
+        if (root.TryGetProperty("jars", out var jarsProperty) && jarsProperty.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var jar in jarsProperty.EnumerateArray())
+            {
+                if (jar.ValueKind != JsonValueKind.Object)
+                {
+                    throw new FormatException($"monobank client-info jar is {jar.ValueKind}, not an object.");
+                }
+
+                var id = ReadString(jar, "id");
+                if (string.IsNullOrEmpty(id))
+                {
+                    continue;
+                }
+
+                jars.Add(new MonobankJar(id, ReadString(jar, "title") ?? string.Empty, ReadCurrencyCode(jar), ReadBalance(jar)));
+            }
+        }
+
+        return new ClientInfoResult.Found(new MonobankClientInfo(clientId, name, accounts, jars));
     }
 
     private static StatementResult ParseStatement(string body)
@@ -318,6 +346,21 @@ internal sealed class MonobankClient(HttpClient http, TimeProvider time, ILogger
         }
 
         return currencyCode;
+    }
+
+    private static long ReadBalance(JsonElement element)
+    {
+        if (!element.TryGetProperty("balance", out var value) || value.ValueKind == JsonValueKind.Null)
+        {
+            return 0;
+        }
+
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt64(out var balance))
+        {
+            throw new FormatException("monobank client-info \"balance\" is not a valid 64-bit integer.");
+        }
+
+        return balance;
     }
 
     private abstract record Answer

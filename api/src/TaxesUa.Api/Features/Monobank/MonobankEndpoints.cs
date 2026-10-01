@@ -47,6 +47,7 @@ public static class MonobankEndpoints
                 MonobankSyncQueue queue,
                 MonobankWebhooks webhooks,
                 MonobankClient client,
+                MonobankJarReader jars,
                 TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
@@ -92,6 +93,8 @@ public static class MonobankEndpoints
                             database, encryptor, user.Id, request.Token, found.Info, cancellationToken);
                         await EnqueueFollowedAsync(database, queue, user.Id, cancellationToken);
                         webhooks.Reconcile(user.Id);
+                        // This call spent the client-info slot; the jars it returned serve the next minute's reads.
+                        jars.Remember(user.Id, found.Info);
 
                         return Results.Ok(await LoadStatusAsync(database, queue, webhooks, time, user.Id, cancellationToken));
 
@@ -171,6 +174,7 @@ public static class MonobankEndpoints
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 MonobankWebhooks webhooks,
+                MonobankJarReader jars,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -180,8 +184,11 @@ public static class MonobankEndpoints
                     return Results.Unauthorized();
                 }
 
+                jars.Forget(user.Id);
+
                 // Disconnect only ever removes the token; BankAccount rows (and anything imported
-                // against them later) stay, per #75's acceptance criteria.
+                // against them later) stay, per #75's acceptance criteria. So does the reserve jar's
+                // last balance, which keeps its time.
                 var connection = await database.MonobankConnections.FindAsync([user.Id], cancellationToken);
                 if (connection is not null)
                 {

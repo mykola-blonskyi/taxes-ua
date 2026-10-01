@@ -887,3 +887,47 @@ to the date: the latest passed moment goes out late with the real number of days
 wrong instant loses one message, never duplicates one. The sent log is not backed up (domain model,
 `SentReminder`). The planner is a pure function with table tests, and the worker is tested with fake time
 and the Telegram stub.
+
+---
+
+## ADR-021. Read the reserve jar through the rate gate without ever waiting for it
+
+Date: 2026-10-01
+
+Status: Accepted
+
+### Context
+
+#102 compares a monobank jar with what the taxes need. The jars come only from `client-info`, which
+monobank allows once a minute per token. The gate (`MonobankRateGate`) paces by making a caller wait for
+its slot, which is right for the sync worker's statement calls but would park an HTTP request, or the
+worker that serves every owner, for up to a minute here. Listing the jars, choosing one and refreshing its
+balance would also each cost a call if they did not share an answer.
+
+### Decision
+
+`MonobankJarReader` is the one way the jars are read: `MonobankClient.GetClientInfoAsync` behind the gate's
+`client-info` slot, taken with the new `TryTakeTurn`, which succeeds only when the slot is free. It keeps
+its last answer in memory per owner for one gate interval and serves it to any read inside it. A token
+save, which validates the token with `client-info` outside the gate, marks the slot used and hands the
+reader its answer. A read that finds the slot taken is skipped by a sync run, which refreshes the jar after
+the statement and tries again at the next run, and is answered `429` with `Retry-After` for the owner's
+refresh. Only the chosen jar is stored (`ReserveJar`: id, name, balance, the time the bank reported it), and
+a balance that cannot be refreshed keeps its time, marked stale after 24 hours. The row is not audited: it
+is rewritten by every sync and holds the owner's savings. It is in the backup (schema 14), and
+disconnecting monobank leaves it.
+
+### Alternatives Considered
+
+Waiting for the slot with `WaitTurnAsync`, as the invoicing prefill does. It holds a request or the shared
+worker for a minute whenever another call came just before, and the jar read follows every sync run.
+
+Storing every jar from every `client-info`. The picker would need no bank call, but the owner's other
+savings, names and balances would sit in the database and the backup for no use.
+
+### Consequences
+
+A refresh within a minute of another `client-info` call, including the invoicing prefill, which does not
+share its answer, gets a `429` or the earlier balance, and the screen shows the time of the balance either
+way. A balance is at most a sync run old plus whatever the slot skipped. The answer lives in process memory,
+so it needs the single api instance the queue and the gate already need.

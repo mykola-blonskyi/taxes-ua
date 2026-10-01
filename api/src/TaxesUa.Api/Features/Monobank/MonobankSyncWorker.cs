@@ -45,8 +45,33 @@ internal sealed class MonobankSyncWorker(
             }
             finally
             {
+                await RefreshReserveJarAsync(work, stoppingToken);
                 queue.Complete(work);
             }
+        }
+    }
+
+    // After the statement, so a slow or failed jar read never delays the operations, and before the work is
+    // complete, so a sync that reads as finished has refreshed the jar too. The read takes the gate's
+    // client-info slot only when it is free; several accounts of one owner in a run share one call.
+    private async Task RefreshReserveJarAsync(SyncWork work, CancellationToken stoppingToken)
+    {
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var outcome = await scope.ServiceProvider.GetRequiredService<ReserveJarService>()
+                .RefreshAsync(work.OwnerId, stoppingToken);
+            if (outcome is JarOutcome.Unavailable or JarOutcome.InvalidToken)
+            {
+                logger.LogWarning("The reserve jar of owner {OwnerId} was not refreshed: {Outcome}.", work.OwnerId, outcome.GetType().Name);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "The reserve jar of owner {OwnerId} could not be refreshed.", work.OwnerId);
         }
     }
 

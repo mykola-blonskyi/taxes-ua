@@ -1,8 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import type { DashboardResponse, Reserve } from "@/data/dashboard/useDashboard";
+import { jarErrorKind, useRefreshReserveJar } from "@/data/monobank/useReserveJar";
+import { formatInstantInKyiv } from "@/shared/lib/dates";
 import { formatMoney } from "@/shared/lib/money";
+import { Button } from "@/shared/ui/button";
 import { formatLongDate } from "./debt";
 import { DaysLeft } from "./DebtParts";
 
@@ -23,6 +27,7 @@ export function ReserveCard({
 }) {
   const t = useTranslations("dashboard.reserve");
   const tKinds = useTranslations("payments.kinds");
+  const tJar = useTranslations("reserveJar");
   const locale = useLocale();
 
   return (
@@ -54,6 +59,13 @@ export function ReserveCard({
         </ul>
       )}
       <p className="text-xs text-muted-foreground">{t("hint")}</p>
+      {reserve.jar ? (
+        <JarCover jar={reserve.jar} today={today} />
+      ) : reserve.canChooseJar ? (
+        <Link href="/settings?tab=monobank" className="text-sm text-primary underline-offset-4 hover:underline">
+          {tJar("card.choose")}
+        </Link>
+      ) : null}
       {limitCrossing ? (
         <p className="break-words text-xs text-destructive">
           {t("crossingNote", {
@@ -63,5 +75,49 @@ export function ReserveCard({
         </p>
       ) : null}
     </section>
+  );
+}
+
+function JarCover({ jar, today }: { jar: NonNullable<Reserve["jar"]>; today: string }) {
+  const t = useTranslations("reserveJar");
+  const locale = useLocale();
+  const refresh = useRefreshReserveJar();
+  const shortfall = Number(jar.shortfallKop);
+  const topUp = Number(jar.topUpKop);
+  const surplus = Number(jar.surplusKop);
+  const time = formatInstantInKyiv(jar.fetchedAt, locale);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1 rounded-lg border p-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 text-sm">
+        <span className="min-w-0 break-words text-muted-foreground">{t("card.title", { title: jar.title })}</span>
+        <span className="font-semibold tabular-nums">{formatMoney(Number(jar.balanceKop), locale)}</span>
+      </div>
+      {shortfall > 0 && jar.topUpBy ? (
+        <>
+          <p className="text-sm font-semibold text-destructive">
+            {t("card.topUp", { amount: formatMoney(topUp, locale), date: formatLongDate(jar.topUpBy, today, locale) })}
+          </p>
+          {shortfall > topUp ? (
+            <p className="text-xs text-muted-foreground">{t("card.shortfallTotal", { amount: formatMoney(shortfall, locale) })}</p>
+          ) : null}
+        </>
+      ) : (
+        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+          {surplus > 0 ? t("card.covered", { amount: formatMoney(surplus, locale) }) : t("card.coveredExactly")}
+        </p>
+      )}
+      <p className={jar.stale ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+        {jar.stale ? t("stale", { time }) : t("asOf", { time })}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" size="sm" disabled={refresh.isPending} onClick={() => refresh.mutate()}>
+          {refresh.isPending ? t("refreshing") : t("refresh")}
+        </Button>
+        {refresh.isError ? (
+          <span className="min-w-0 break-words text-xs text-destructive">{t(`errors.${jarErrorKind(refresh.error)}`)}</span>
+        ) : null}
+      </div>
+    </div>
   );
 }

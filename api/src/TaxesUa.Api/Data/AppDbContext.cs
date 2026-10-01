@@ -52,6 +52,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<MonobankConnection> MonobankConnections => Set<MonobankConnection>();
 
+    public DbSet<ReserveJar> ReserveJars => Set<ReserveJar>();
+
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
 
     public DbSet<ForeignDebit> ForeignDebits => Set<ForeignDebit>();

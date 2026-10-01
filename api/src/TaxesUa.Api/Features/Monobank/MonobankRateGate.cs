@@ -13,6 +13,40 @@ internal sealed class MonobankRateGate(TimeProvider time)
 
     private readonly Lock _lock = new();
 
+    /// <summary>
+    /// Takes the slot only when it is free now, for a caller that must not park a request or the sync
+    /// worker for up to a minute. False, with how long until the slot frees, when it is not.
+    /// </summary>
+    public bool TryTakeTurn(string ownerId, string method, out TimeSpan retryAfter)
+    {
+        lock (_lock)
+        {
+            var now = time.GetUtcNow();
+            if (_nextSlot.TryGetValue((ownerId, method), out var next) && next > now)
+            {
+                retryAfter = next - now;
+                return false;
+            }
+
+            _nextSlot[(ownerId, method)] = now + Interval;
+            retryAfter = TimeSpan.Zero;
+            return true;
+        }
+    }
+
+    /// <summary>Records a call made outside the gate, so the next turn starts a full interval after it.</summary>
+    public void Mark(string ownerId, string method)
+    {
+        lock (_lock)
+        {
+            var earliest = time.GetUtcNow() + Interval;
+            if (!_nextSlot.TryGetValue((ownerId, method), out var next) || next < earliest)
+            {
+                _nextSlot[(ownerId, method)] = earliest;
+            }
+        }
+    }
+
     public async Task WaitTurnAsync(string ownerId, string method, CancellationToken cancellationToken)
     {
         DateTimeOffset slot;

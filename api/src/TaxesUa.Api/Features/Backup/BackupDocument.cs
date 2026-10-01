@@ -36,7 +36,8 @@ internal sealed record BackupDocument(
     DeclarationFilingBackup[] DeclarationFilings,
     DeclarationFileBackup[] DeclarationFiles,
     TreasuryAccountBackup[] TreasuryAccounts,
-    NotificationChannelBackup[] NotificationChannels)
+    NotificationChannelBackup[] NotificationChannels,
+    ReserveJarBackup? ReserveJar)
 {
     // 2 added bankAccounts, importBatches and the transactions' import fields (#76); 3 added
     // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91); 5 added
@@ -44,9 +45,9 @@ internal sealed record BackupDocument(
     // (#110); 8 added the receipts' invoice links (#93); 9 added treasuryAccounts and the candidates'
     // counterEdrpou (#98); 10 added the settings' backOnGroup3From (#118); 11 added notificationChannels (#106);
     // 12 added declarationFiles and the declaration details' taxOfficeName (#111); 13 added the declaration
-    // files' annexFileName and annexContent (#112). An older file is upgraded to this shape one version at a
-    // time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 13;
+    // files' annexFileName and annexContent (#112); 14 added reserveJar (#102). An older file is upgraded to
+    // this shape one version at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 14;
 
     private const int MaxExternalIdLength = 200;
 
@@ -65,7 +66,8 @@ internal sealed record BackupDocument(
         IEnumerable<DeclarationFiling> declarationFilings,
         IEnumerable<DeclarationFile> declarationFiles,
         IEnumerable<TreasuryAccount> treasuryAccounts,
-        IEnumerable<NotificationChannel> notificationChannels) => new(
+        IEnumerable<NotificationChannel> notificationChannels,
+        ReserveJar? reserveJar) => new(
         CurrentSchemaVersion,
         settings is null ? null : SettingsBackup.From(settings),
         [.. clients.Select(ClientBackup.From)],
@@ -80,7 +82,8 @@ internal sealed record BackupDocument(
         [.. declarationFilings.Select(DeclarationFilingBackup.From)],
         [.. declarationFiles.Select(DeclarationFileBackup.From)],
         [.. treasuryAccounts.Select(TreasuryAccountBackup.From)],
-        [.. notificationChannels.Select(NotificationChannelBackup.From)]);
+        [.. notificationChannels.Select(NotificationChannelBackup.From)],
+        reserveJar is null ? null : ReserveJarBackup.From(reserveJar));
 
     // Bank accounts are left out: a restore matches them to the owner's rows by bank and external id.
     public IEnumerable<Guid> Ids() =>
@@ -151,6 +154,11 @@ internal sealed record BackupDocument(
         if (version <= 12)
         {
             UpgradeFromVersion12(root);
+        }
+
+        if (version <= 13)
+        {
+            UpgradeFromVersion13(root);
         }
     }
 
@@ -303,7 +311,7 @@ internal sealed record BackupDocument(
     // A version 12 file predates the ESV annex: no declaration file had one.
     private static void UpgradeFromVersion12(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 13;
         if (root["declarationFiles"] is JsonArray files)
         {
             foreach (var file in files.OfType<JsonObject>())
@@ -312,6 +320,13 @@ internal sealed record BackupDocument(
                 file["annexContent"] = null;
             }
         }
+    }
+
+    // A version 13 file predates the reserve jar: none was chosen.
+    private static void UpgradeFromVersion13(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        root["reserveJar"] = null;
     }
 
     /// <summary>
@@ -363,6 +378,11 @@ internal sealed record BackupDocument(
         if (DeclarationDetails is { } declaration)
         {
             Merge("declarationDetails", DeclarationDetailsEndpoints.Validate(declaration.ToRequest()));
+        }
+
+        if (ReserveJar?.Error() is var (jarKey, jarMessage))
+        {
+            errors[$"reserveJar.{jarKey}"] = [jarMessage];
         }
 
         var filedQuarters = new HashSet<(int, int)>();

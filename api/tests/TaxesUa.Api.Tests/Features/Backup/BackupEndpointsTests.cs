@@ -40,7 +40,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":13,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[]}""";
+        """{"schemaVersion":14,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -165,12 +165,14 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         current["invoices"] = new JsonArray();
         current["treasuryAccounts"] = new JsonArray();
         current["notificationChannels"] = new JsonArray();
+        current["reserveJar"] = null;
         current["declarationFiles"] = new JsonArray();
         current["settings"]!["backOnGroup3From"] = null;
         var version2 = current.DeepClone().AsObject();
         version2["schemaVersion"] = 2;
         version2.Remove("treasuryAccounts");
         version2.Remove("notificationChannels");
+        version2.Remove("reserveJar");
         version2.Remove("declarationFiles");
         version2.Remove("invoicingDetails");
         version2.Remove("declarationDetails");
@@ -305,6 +307,31 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.True(restored["enabled"]!.GetValue<bool>());
         Assert.Null(restored["lastDeliveryAt"]);
         Assert.False(upgraded["linked"]!.GetValue<bool>());
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public async Task A_restore_brings_back_the_reserve_jar_with_the_time_of_its_balance_and_a_version_13_file_has_none()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+
+        await Restore(owner, Baseline().ToJsonString());
+        var restored = await owner.GetFromJsonAsync<ReserveJarStateResponse>("/api/monobank/reserve-jar", Json);
+        var backup = JsonSerializer.Deserialize<BackupDocument>(await Backup(owner), Json)!;
+        var version13 = Baseline();
+        version13["schemaVersion"] = 13;
+        version13.Remove("reserveJar");
+        await Restore(owner, version13.ToJsonString());
+        var upgraded = await owner.GetFromJsonAsync<ReserveJarStateResponse>("/api/monobank/reserve-jar", Json);
+
+        var expected = new ReserveJarBackup("jar-taxes", "На податки", 12_345_00, new DateTimeOffset(2031, 5, 1, 12, 30, 0, TimeSpan.Zero));
+        Assert.Equal(expected, backup.ReserveJar);
+        Assert.Equal(
+            ("jar-taxes", "На податки", 12_345_00L, expected.FetchedAt),
+            (restored!.Jar!.JarId, restored.Jar.Title, restored.Jar.BalanceKop, restored.Jar.FetchedAt));
+        Assert.Null(upgraded!.Jar);
         Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
     }
 
@@ -704,6 +731,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "notice without a manual account", "treasuryAccounts[1].noticeAt" },
         { "learned treasury account without its operation", "treasuryAccounts[1].learnedIban" },
         { "a channel address that is not a chat id", "notificationChannels[0].address" },
+        { "a reserve jar with a negative balance", "reserveJar.balanceKop" },
+        { "a reserve jar without an id", "reserveJar.jarId" },
+        { "a reserve jar title with a control character", "reserveJar.title" },
         { "a newer schema version", null },
         { "country that is not ISO 3166-1", "clients[0].country" },
         { "malformed client email", "clients[0].email" },
@@ -830,6 +860,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [typeof(DeclarationFile)] = typeof(DeclarationFileBackup),
             [typeof(TreasuryAccount)] = typeof(TreasuryAccountBackup),
             [typeof(NotificationChannel)] = typeof(NotificationChannelBackup),
+            [typeof(ReserveJar)] = typeof(ReserveJarBackup),
         };
         Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(FxRate)];
         // The change log is history, not state: a restore does not replay it and does not carry it.
@@ -1086,7 +1117,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                     PaymentKind.Esv, null, null, null, null,
                     LearnedTreasuryIban, null, null, "op-learned-esv", new DateOnly(2031, 4, 16), created, null),
             ],
-            [new NotificationChannelBackup(NotificationChannelKind.Telegram, "424242", true, created)]);
+            [new NotificationChannelBackup(NotificationChannelKind.Telegram, "424242", true, created)],
+            new ReserveJarBackup("jar-taxes", "На податки", 12_345_00, created.AddHours(3)));
 
         return JsonSerializer.SerializeToNode(document, Json)!.AsObject();
     }
@@ -1262,6 +1294,15 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "a channel address that is not a chat id":
                 file["notificationChannels"]![0]!["address"] = "someone@example.com";
+                break;
+            case "a reserve jar with a negative balance":
+                file["reserveJar"]!["balanceKop"] = -1;
+                break;
+            case "a reserve jar without an id":
+                file["reserveJar"]!["jarId"] = string.Empty;
+                break;
+            case "a reserve jar title with a control character":
+                file["reserveJar"]!["title"] = "jar\u0007";
                 break;
             case "a newer schema version":
                 file["schemaVersion"] = BackupDocument.CurrentSchemaVersion + 1;

@@ -16,6 +16,7 @@ import {
 import { formatDateOnly, formatInstantInKyiv, formatMonthInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
 import { CheckboxField, TextField } from "@/shared/ui/fields";
+import { ReserveJarSection } from "./ReserveJarSection";
 
 export function MonobankConnectionSection() {
   const t = useTranslations("settings.monobank");
@@ -223,6 +224,8 @@ function MonobankConnectionBody({
           ) : null}
         </div>
       ) : null}
+
+      {connection.connected && !tokenRejected ? <ReserveJarSection /> : null}
     </div>
   );
 }

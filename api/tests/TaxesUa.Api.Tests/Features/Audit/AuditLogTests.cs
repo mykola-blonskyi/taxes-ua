@@ -256,6 +256,9 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
             // The calendar feed's secret is a bearer credential like a link code; rotating it is a
             // click, and the value must not reach the log (ADR-017).
             typeof(CalendarFeed),
+            // The bank's last answer for the jar, rewritten on every sync, and the jar's name and balance
+            // are the owner's savings: the choice is a click, and neither belongs on the History screen.
+            typeof(ReserveJar),
         ];
 
         await using var scope = fixture.CreateScope();

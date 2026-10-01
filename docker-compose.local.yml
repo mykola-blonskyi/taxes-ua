@@ -19,6 +19,8 @@ services:
       # Points the Telegram client at a stub Bot API on the host for the browser proof; empty uses the
       # real one.
       Telegram__BaseUrl: ${TELEGRAM_BASE_URL:-}
+      # The same for monobank, for the browser proof of the reserve jar; empty uses the real one.
+      Monobank__BaseUrl: ${MONOBANK_BASE_URL:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

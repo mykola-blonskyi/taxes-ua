@@ -19,7 +19,7 @@ namespace TaxesUa.Api.Tests.Features.Dashboard;
 // Each test owns a year of its own, two apart from the next: the ledger runs from the registration year
 // through every consecutive configured year, so a year left unconfigured between two tests keeps one
 // test's receipts and payments out of another's ledger, whatever order xUnit runs them in.
-public sealed class TaxReserveEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>
+public sealed partial class TaxReserveEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
     private const long EsvMonthKop = 190_234;
 

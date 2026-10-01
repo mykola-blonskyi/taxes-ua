@@ -743,6 +743,17 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
 
         public bool StatementsFail { get; set; }
 
+        public bool ClientInfoFails { get; set; }
+
+        private readonly ConcurrentDictionary<string, (string Id, string Title, int CurrencyCode, long Balance)[]> _jars = new();
+
+        // The jars client-info reports for a token from now on; each call replaces the whole list.
+        public void Jars(string token, params (string Id, string Title, int CurrencyCode, long Balance)[] jars) =>
+            _jars[token] = jars;
+
+        public (Uri Uri, DateTimeOffset At)[] ClientInfoCalls(StubMonobankHandler handler) =>
+            [.. handler.Calls.Where(call => call.Uri.AbsolutePath.EndsWith("/personal/client-info", StringComparison.Ordinal))];
+
         public bool WebhookFails { get; set; }
 
         public bool WebhookRejects { get; set; }
@@ -798,7 +809,9 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
             var path = request.RequestUri!.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
             if (path is ["personal", "client-info"])
             {
-                return StubMonobankHandler.Json(clientInfo);
+                return ClientInfoFails
+                    ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                    : StubMonobankHandler.Json(StubMonobankHandler.WithJars(clientInfo, _jars.GetValueOrDefault(token) ?? []));
             }
 
             if (path is ["personal", "webhook"] && request.Method == HttpMethod.Post)

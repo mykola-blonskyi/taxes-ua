@@ -146,10 +146,14 @@ builder.Services.AddHttpClient<NbuRateClient>(client =>
 builder.Services.AddSingleton<TokenEncryptor>();
 builder.Services.AddHttpClient<MonobankClient>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["Monobank:BaseUrl"] ?? "https://api.monobank.ua/");
+    // Empty means the real bank: the local Compose file passes it through, empty unless a stub is wanted.
+    var baseUrl = builder.Configuration["Monobank:BaseUrl"];
+    client.BaseAddress = new Uri((string.IsNullOrWhiteSpace(baseUrl) ? "https://api.monobank.ua" : baseUrl).TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 builder.Services.AddSingleton<MonobankRateGate>();
+builder.Services.AddSingleton<MonobankJarReader>();
+builder.Services.AddScoped<ReserveJarService>();
 builder.Services.AddSingleton<MonobankSyncQueue>();
 builder.Services.AddScoped<MonobankStatementImport>();
 builder.Services.AddHostedService<MonobankSyncWorker>();
@@ -319,6 +323,7 @@ api.MapImportApi();
 api.MapAuditApi();
 api.MapDashboardApi();
 api.MapMonobankApi();
+api.MapReserveJarApi();
 api.MapNotificationsApi();
 api.MapCalendarApi();
 
