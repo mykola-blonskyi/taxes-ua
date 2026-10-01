@@ -111,6 +111,38 @@ public sealed class InvoicePaymentsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(InvoiceStanding.Paid, paid.Standing);
         var linked = await Transaction(owner, nameless.Id);
         Assert.Equal((invoice.Id, "Same Client Ltd"), (linked.InvoiceId!.Value, linked.ClientName));
+
+        // Unlinking keeps the client the receipt adopted: only the link and the number are cleared.
+        Assert.Equal(HttpStatusCode.OK, (await owner.DeleteAsync($"/api/invoices/{invoice.Id}/receipts/{nameless.Id}")).StatusCode);
+        var unlinked = await Transaction(owner, nameless.Id);
+        Assert.Equal((null, "Same Client Ltd", (Guid?)client.Id), (unlinked.InvoiceId, unlinked.ClientName, unlinked.ClientId));
+    }
+
+    [Fact]
+    public async Task Receipts_name_their_client_by_id_so_a_renamed_client_is_still_the_invoices_client()
+    {
+        await using var application = App();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SaveDetails(owner);
+        var client = await CreateClient(owner, "Before Rename Ltd");
+        var intermediary = await CreateClient(owner, "Rename Intermediary Ltd");
+        var invoice = await IssuedInvoice(owner, client.Id, new DateOnly(2059, 3, 1), 1_000_00);
+        var own = await Receipt(owner, "Before Rename Ltd", 100_00);
+        var viaIntermediary = await Receipt(owner, "Rename Intermediary Ltd", 200_00);
+        var nameless = await Receipt(owner, null, 300_00);
+        var renamed = await owner.PutAsJsonAsync($"/api/clients/{client.Id}", ClientBody("After Rename Ltd"), Json);
+        Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
+
+        var options = (await owner.GetFromJsonAsync<ReceiptOption[]>($"/api/invoices/{invoice.Id}/receipt-options", Json))!
+            .ToDictionary(option => option.Id);
+        var shown = await Get(owner, invoice.Id);
+
+        // The invoice shows the buyer it was issued to, the receipt the client's new name; the ids still agree.
+        Assert.Equal("Before Rename Ltd", shown.ClientName);
+        Assert.Equal("After Rename Ltd", options[own.Id].ClientName);
+        Assert.Equal((client.Id, intermediary.Id, (Guid?)null), (options[own.Id].ClientId, options[viaIntermediary.Id].ClientId, options[nameless.Id].ClientId));
+        Assert.Equal(shown.ClientId, options[own.Id].ClientId);
+        Assert.Equal(client.Id, (await Transaction(owner, own.Id)).ClientId);
     }
 
     [Fact]
@@ -138,15 +170,19 @@ public sealed class InvoicePaymentsTests(ApiFixture fixture) : IClassFixture<Api
         Guid[] mine = [otherClients.Id, newer.Id, older.Id, nameless.Id, euros.Id, paying.Id];
         Assert.Equal([otherClients.Id, newer.Id, older.Id, nameless.Id], receipts!.Select(option => option.Id).Where(mine.Contains));
 
-        var invoices = await owner.GetFromJsonAsync<InvoiceSummary[]>($"/api/invoices/payable-by/{newer.Id}", Json);
-        Assert.Equal([sooner.Id, later.Id], invoices!.Select(invoice => invoice.Id));
-        var forNameless = await owner.GetFromJsonAsync<InvoiceSummary[]>($"/api/invoices/payable-by/{nameless.Id}", Json);
-        Assert.Contains(sooner.Id, forNameless!.Select(invoice => invoice.Id));
-        Assert.DoesNotContain(
-            (await owner.GetFromJsonAsync<InvoiceSummary[]>($"/api/invoices/payable-by/{otherClients.Id}", Json))!,
-            invoice => invoice.ClientId == client.Id);
-        Assert.Empty((await owner.GetFromJsonAsync<InvoiceSummary[]>($"/api/invoices/payable-by/{euros.Id}", Json))!);
-        Assert.Empty((await owner.GetFromJsonAsync<InvoiceSummary[]>($"/api/invoices/payable-by/{paying.Id}", Json))!);
+        // Whatever the client here too, so an intermediary's receipt reaches every open invoice; the shared owner
+        // has other tests' invoices, so only this test's are looked at.
+        Guid[] mineInvoices = [later.Id, sooner.Id, paid.Id];
+
+        async Task<Guid[]> PayableBy(Guid receiptId) =>
+            [.. (await owner.GetFromJsonAsync<InvoiceSummary[]>($"/api/invoices/payable-by/{receiptId}", Json))!
+                .Select(invoice => invoice.Id).Where(mineInvoices.Contains)];
+
+        Assert.Equal([sooner.Id, later.Id], await PayableBy(newer.Id));
+        Assert.Equal([sooner.Id, later.Id], await PayableBy(nameless.Id));
+        Assert.Equal([sooner.Id, later.Id], await PayableBy(otherClients.Id));
+        Assert.Empty(await PayableBy(euros.Id));
+        Assert.Empty(await PayableBy(paying.Id));
     }
 
     [Fact]

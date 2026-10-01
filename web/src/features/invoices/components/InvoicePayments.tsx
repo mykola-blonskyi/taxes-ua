@@ -127,7 +127,7 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceResponse }) {
                     {option.clientName ? (
                       <span className="break-words text-muted-foreground">{option.clientName}</span>
                     ) : null}
-                    {option.clientName && option.clientName !== invoice.clientName ? (
+                    {option.clientId && option.clientId !== invoice.clientId ? (
                       <span role="note" className="text-xs text-amber-700 dark:text-amber-400">
                         {t("payerDiffers")}
                       </span>

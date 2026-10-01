@@ -328,7 +328,7 @@ Fields:
   `Income` row in the invoice's currency, to the same owner's issued invoice, of any client (an intermediary may pay; the receipt keeps its client, and one
   without a client takes the invoice's when linked). A receipt pays at most one
   invoice. `InvoiceNumber?` is free text on an unlinked receipt; linking overwrites it with the invoice's
-  number and unlinking clears it. While linked, the receipt keeps its kind, currency and number (an edit
+  number and unlinking clears it but keeps an adopted client. While linked, the receipt keeps its kind, currency and number (an edit
   changing them is refused). Deleting a linked receipt removes the link with it; dismissing an imported
   one clears both fields.
 - `BankAccountId?` the account an imported row came from, and `ExternalId?` the bank's operation id,
@@ -718,8 +718,9 @@ a cancelled invoice); an invoice also lists its receipts. Paid when `PaidMinor` 
 overdue when issued, not paid and today in Kyiv is after `DueDate` (Rule 14). The owner links from the
 invoice, choosing among unlinked receipts in its currency of any client, newest first, with a warning on one whose client is
 not the invoice's,
-or from the receipt, choosing among the open invoices in its currency of its client (any client's when
-it names none), closest due date first.
+or from the receipt, choosing among the open invoices in its currency of any client, closest due date first, with
+the same warning on one whose client is not the receipt's. The warning compares client ids, never names, so
+renaming a client does not raise it. Unlinking keeps a client the receipt adopted on linking.
 
 Suggested payment (#94): `GET /api/invoices/suggestions` answers, for each of the owner's receipts waiting
 for review that fits an open invoice, the receipt's id and the matching invoices as summaries, closest due

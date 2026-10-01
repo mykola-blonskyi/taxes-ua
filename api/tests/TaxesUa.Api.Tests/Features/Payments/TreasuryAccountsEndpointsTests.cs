@@ -101,6 +101,19 @@ public sealed class TreasuryAccountsEndpointsTests(ApiFixture fixture) : IClassF
         Assert.Equal(TreasuryAccountSource.None, (await Accounts(owner)).Single(row => row.Kind == PaymentKind.SingleTax).Source);
     }
 
+    [Fact]
+    public async Task A_pasted_iban_with_no_break_spaces_or_tabs_counts_its_real_length()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        var pasted = Iban.Insert(4, "\u00A0").Insert(9, "\t").Insert(15, "\u2009").ToLowerInvariant();
+
+        var response = await owner.PutAsJsonAsync("/api/settings/treasury-accounts/Esv", new TreasuryAccountRequest(pasted, "ГУ ДПС", "43141912"), Json);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(Iban, (await response.Content.ReadFromJsonAsync<TreasuryAccountResponse>(Json))!.Iban);
+    }
+
     [Theory]
     [InlineData("UA23060070000082704", "iban has 19 characters, 29 expected.")]
     [InlineData("UA2306 0070 0000 8270 4", "iban has 19 characters, 29 expected.")]

@@ -227,9 +227,21 @@ public static class TreasuryAccountsEndpoints
         row.LearnedExternalId = null;
         row.LearnedPaidOn = null;
         row.LearnedAt = null;
-        foreach (var candidate in confirmations)
+        var standing = confirmations.ToList();
+        foreach (var candidate in standing)
         {
             Teach(row, candidate, now);
+        }
+
+        // Another IBAN confirmed in between breaks the carrying of a name or code from one confirmation to the
+        // next, so what the Learned IBAN still lacks is taken from its own confirmations, newest first (Rule 12).
+        foreach (var candidate in standing
+                     .Where(candidate => candidate.CounterIban == row.LearnedIban)
+                     .OrderByDescending(candidate => candidate.PaidOn)
+                     .ThenByDescending(candidate => candidate.ResolvedAt))
+        {
+            row.LearnedRecipientName ??= NameOf(candidate);
+            row.LearnedRecipientCode ??= CodeOf(candidate);
         }
 
         if (row.LearnedIban is null || row.ManualIban is null || row.ManualIban == row.LearnedIban)
@@ -238,14 +250,18 @@ public static class TreasuryAccountsEndpoints
         }
     }
 
+    private static string? NameOf(BudgetPaymentCandidate candidate) =>
+        string.IsNullOrWhiteSpace(candidate.CounterName) ? null : candidate.CounterName.Trim();
+
+    private static string? CodeOf(BudgetPaymentCandidate candidate) =>
+        candidate.CounterEdrpou is { Length: RecipientCodeLength } edrpou && edrpou.All(char.IsAsciiDigit) ? edrpou : null;
+
     // True when the candidate became the Learned account: it is no older than the operation learned before,
     // and a later confirmation of the same day wins.
     private static bool Teach(TreasuryAccount row, BudgetPaymentCandidate candidate, DateTimeOffset now)
     {
-        var name = string.IsNullOrWhiteSpace(candidate.CounterName) ? null : candidate.CounterName.Trim();
-        var code = candidate.CounterEdrpou is { Length: RecipientCodeLength } edrpou && edrpou.All(char.IsAsciiDigit)
-            ? edrpou
-            : null;
+        var name = NameOf(candidate);
+        var code = CodeOf(candidate);
         var sameIban = row.LearnedIban == candidate.CounterIban;
         if (row.LearnedPaidOn is { } learnedOn && candidate.PaidOn < learnedOn)
         {

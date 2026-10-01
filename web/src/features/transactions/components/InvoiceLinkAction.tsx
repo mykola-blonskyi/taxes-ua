@@ -91,6 +91,11 @@ export function InvoiceLinkAction({ transaction, rowName }: { transaction: Trans
                       ) : null}
                     </span>
                     <span className="break-words text-muted-foreground">{invoice.clientName}</span>
+                    {transaction.clientId && transaction.clientId !== invoice.clientId ? (
+                      <span role="note" className="text-xs text-amber-700 dark:text-amber-400">
+                        {t("payerDiffers")}
+                      </span>
+                    ) : null}
                     <span className="text-xs text-muted-foreground">
                       {t("dueDate", { date: formatDateOnly(invoice.dueDate, locale) })}
                     </span>

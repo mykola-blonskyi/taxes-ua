@@ -12,15 +12,15 @@ export function InvoiceSuggestion({
   receiptId,
   invoices,
   rowName,
-  receiptClientName,
+  receiptClientId,
   onDismiss,
   onFailure,
 }: {
   receiptId: string;
   invoices: InvoiceSummary[];
   rowName: string;
-  // The payer's client on the receipt; a payer other than the invoice's client is allowed, with a warning.
-  receiptClientName: string | null;
+  // The receipt's client, by id (a rename must not look like another payer); another client is allowed, with a warning.
+  receiptClientId: string | null;
   onDismiss: () => void;
   // Kept by the review screen: a failed link reloads the offers and this panel may unmount with it.
   onFailure: (message: string | null) => void;
@@ -44,7 +44,7 @@ export function InvoiceSuggestion({
               ) : null}
             </span>
             <span className="break-words text-muted-foreground">{invoice.clientName}</span>
-            {receiptClientName && receiptClientName !== invoice.clientName ? (
+            {receiptClientId && receiptClientId !== invoice.clientId ? (
               <span role="note" className="text-xs text-amber-700 dark:text-amber-400">
                 {t("payerDiffers")}
               </span>

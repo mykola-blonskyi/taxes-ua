@@ -64,4 +64,39 @@ public sealed partial class MonobankSyncTests
         account = await TreasuryAccount(owner, PaymentKind.SingleTax);
         Assert.Equal(("op-late-b", "37993783", 0), (account.Learned!.OperationId, account.RecipientCode, account.Missing.Length));
     }
+
+    [Fact]
+    public async Task A_relearn_keeps_the_name_and_code_of_the_learned_iban_when_another_iban_was_confirmed_in_between()
+    {
+        const int year = 2098;
+        var bank = new FakeBank();
+        bank.Connect("token-tre-keep", ("tre-keep-uah", 980));
+        bank.Put("tre-keep-uah", new Operation("op-keep-d", At(year, 3, 1, 9), -50_00, 980,
+            Comment: "ЄП", CounterIban: OtherTreasuryIban, CounterName: null, CounterEdrpou: null));
+        bank.Put("tre-keep-uah", new Operation("op-keep-a", At(year, 3, 2, 9), -100_00, 980,
+            Comment: "ЄП", CounterIban: OtherTreasuryIban, CounterName: "ГУК А", CounterEdrpou: "37993783"));
+        bank.Put("tre-keep-uah", new Operation("op-keep-b", At(year, 3, 3, 9), -200_00, 980,
+            Comment: "ЄП", CounterIban: ThirdTreasuryIban, CounterName: "ГУК Б", CounterEdrpou: "37993784"));
+        bank.Put("tre-keep-uah", new Operation("op-keep-c", At(year, 3, 4, 9), -300_00, 980,
+            Comment: "ЄП", CounterIban: OtherTreasuryIban, CounterName: null, CounterEdrpou: null));
+        await using var app = Create(At(year, 3, 6, 10), bank);
+        await ForgetPayments(app, ApiFixture.AllowedEmail);
+        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-tre-keep");
+        await ConfirmByAmount(owner, year, 50_00, PaymentKind.SingleTax);
+        await ConfirmByAmount(owner, year, 100_00, PaymentKind.SingleTax);
+        await ConfirmByAmount(owner, year, 300_00, PaymentKind.SingleTax);
+        await ConfirmByAmount(owner, year, 200_00, PaymentKind.SingleTax);
+        var account = await TreasuryAccount(owner, PaymentKind.SingleTax);
+        Assert.Equal(("op-keep-c", "ГУК А", "37993783"), (account.Learned!.OperationId, account.RecipientName, account.RecipientCode));
+        var payments = (await Payments(owner, year)).ToDictionary(payment => payment.AmountKop);
+
+        // Retracting another confirmation of the same IBAN rebuilds the account: b, newer than a, is replayed
+        // between a and c, so c no longer inherits a's name and code unless they are taken back from a.
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/payments/{payments[50_00].Id}")).StatusCode);
+
+        account = await TreasuryAccount(owner, PaymentKind.SingleTax);
+        Assert.Equal(
+            ("op-keep-c", OtherTreasuryIban, "ГУК А", "37993783"),
+            (account.Learned!.OperationId, account.Iban, account.RecipientName, account.RecipientCode));
+    }
 }

@@ -581,7 +581,7 @@ takes the invoice's), from the invoice or from the receipt. Several receipts can
 receipt pays at most one. A draft, a cancelled invoice, an invoice already paid, a receipt in another
 currency and a receipt already paying another invoice are refused. Linking writes the invoice's number
 into the receipt's invoice number, so the receipts list and every export carry it, and marks an
-imported receipt reviewed; unlinking clears the number. A receipt never linked keeps whatever number
+imported receipt reviewed; unlinking clears the number but keeps the client the receipt adopted on linking. A receipt never linked keeps whatever number
 the owner typed. While linked, a receipt keeps its kind, currency and number; the owner unlinks it to
 change them, and an invoice with receipts linked cannot be cancelled until they are unlinked.
 

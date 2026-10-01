@@ -30,9 +30,15 @@ internal static partial class TreasuryPayment
     /// <summary>The IBAN in the form it is stored and compared in, or null when there is none.</summary>
     public static string? Normalize(string? iban)
     {
-        var compact = iban?.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+        var compact = iban is null ? null : Compact(iban);
         return string.IsNullOrEmpty(compact) ? null : compact;
     }
+
+    /// <summary>
+    /// An IBAN as typed or pasted, without any whitespace (a no-break space or a tab from a table included) and
+    /// in capitals. The one form both the invoicing and the Treasury paths compare and store.
+    /// </summary>
+    public static string Compact(string iban) => string.Concat(iban.Where(c => !char.IsWhiteSpace(c))).ToUpperInvariant();
 
     public static bool IsTreasury(string? iban) =>
         Normalize(iban) is { Length: UkrainianIbanLength } normalized

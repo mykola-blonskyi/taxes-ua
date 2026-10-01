@@ -6210,6 +6210,8 @@ export interface components {
             amountMinor: number | string;
             currency: components["schemas"]["Currency"];
             clientName: null | string;
+            /** Format: uuid */
+            clientId: null | string;
         };
         RefundedReceipt: {
             /** Format: uuid */
@@ -6500,6 +6502,8 @@ export interface components {
             kind: components["schemas"]["TransactionKind"];
             nonIncomeReason: null | string;
             clientName: null | string;
+            /** Format: uuid */
+            clientId: null | string;
             /** Format: uuid */
             invoiceId: null | string;
             invoiceNumber: null | string;

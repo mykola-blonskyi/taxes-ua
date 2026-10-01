@@ -522,7 +522,7 @@ public static partial class InvoicingEndpoints
 
     private static PaymentDetailsInput Normalize(PaymentDetailsInput payment) => payment with
     {
-        Iban = string.Concat(payment.Iban.Where(c => !char.IsWhiteSpace(c))).ToUpperInvariant(),
+        Iban = TreasuryPayment.Compact(payment.Iban),
         BeneficiaryBank = payment.BeneficiaryBank.Trim(),
         Swift = string.Concat(payment.Swift.Where(c => !char.IsWhiteSpace(c))).ToUpperInvariant(),
         IntermediaryBank = payment.IntermediaryBank.Trim(),
