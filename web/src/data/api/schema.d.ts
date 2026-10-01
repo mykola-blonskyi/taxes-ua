@@ -6134,6 +6134,7 @@ export interface components {
             quarters: components["schemas"]["QuarterPeriodResponse"][];
             months: null | components["schemas"]["MonthPeriodResponse"][];
             balances: null | components["schemas"]["YearBalancesResponse"];
+            group3Quarters: (number | string)[];
         };
         PeriodWarnings: {
             taxYearUnverified: boolean;

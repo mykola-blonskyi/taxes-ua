@@ -112,7 +112,8 @@ public static class PeriodsEndpoints
                                 payment.Period.Quarter,
                                 (payment.Period as PaymentPeriod.Monthly)?.Month,
                                 payment.AmountKop)),
-                    ]));
+                    ]),
+            [.. Enumerable.Range(1, 4).Where(loaded.Accrual.InGroup3)]);
     }
 
     private static QuarterObligations? ToObligations(
@@ -193,6 +194,8 @@ public static class PeriodsEndpoints
 /// <c>Months</c> is sent only in <c>MonthlyAdvance</c> mode and only for a year the ledger covers;
 /// the mode changes nothing else in this response (Rule 6). <c>Quarters</c> and <c>Months</c> stop at
 /// the quarter named by <c>LimitCrossing</c>, when the year's income went over its limit (Rule 4).
+/// <c>Group3Quarters</c> are the year's quarters in group 3, before registration included, so a client
+/// can tell which payment periods the ledger leaves out without redoing the crossings.
 /// </summary>
 internal sealed record PeriodsResponse(
     int Year,
@@ -200,7 +203,8 @@ internal sealed record PeriodsResponse(
     LimitCrossingResponse? LimitCrossing,
     QuarterPeriodResponse[] Quarters,
     MonthPeriodResponse[]? Months,
-    YearBalancesResponse? Balances);
+    YearBalancesResponse? Balances,
+    int[] Group3Quarters);
 
 /// <summary>
 /// One month's accruals and Rule 6's advance for it. <c>RecommendedKop</c> is what of the month's

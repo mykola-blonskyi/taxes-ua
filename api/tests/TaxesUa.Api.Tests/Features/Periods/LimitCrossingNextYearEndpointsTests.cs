@@ -149,6 +149,27 @@ public sealed class LimitCrossingNextYearEndpointsTests(ApiFixture fixture) : IC
     }
 
     [Fact]
+    public async Task After_a_return_and_a_second_crossing_the_group_3_quarters_name_what_the_ledger_counts()
+    {
+        const int year = 2079;
+        await using var application = At(new DateOnly(year + 1, 11, 25));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year, new YearQuarter(year + 1, 2));
+        await PostIncome(owner, new DateOnly(year, 11, 10), 1_000_000);
+        await PostIncome(owner, new DateOnly(year + 1, 5, 10), 200_000);
+        await PostIncome(owner, new DateOnly(year + 1, 8, 10), 800_000);
+        await PostEsv(owner, year + 1, periodQuarter: 1, periodMonth: null, 570_702);
+
+        var periods = (await owner.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year + 1}", Json))!;
+
+        Assert.Equal((year + 1, 3), (periods.LimitCrossing!.Year, periods.LimitCrossing.Quarter));
+        Assert.Equal([2, 3], periods.Group3Quarters);
+        Assert.Equal(
+            [new OutsideGroup3PaymentResponse(PaymentKind.Esv, 1, null, 570_702)],
+            periods.Balances!.OutsideGroup3Payments);
+    }
+
+    [Fact]
     public async Task An_owner_who_never_crossed_has_no_payment_listed_apart()
     {
         const int year = 2085;
@@ -159,8 +180,10 @@ public sealed class LimitCrossingNextYearEndpointsTests(ApiFixture fixture) : IC
         await PostEsv(owner, year, periodQuarter: 3, periodMonth: null, 570_702);
         await PostEsv(owner, year, periodQuarter: null, periodMonth: 8, 190_234);
 
-        var balances = (await owner.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json))!.Balances!;
+        var periods = (await owner.GetFromJsonAsync<PeriodsResponse>($"/api/periods/{year}", Json))!;
+        var balances = periods.Balances!;
 
+        Assert.Equal([1, 2, 3, 4], periods.Group3Quarters);
         Assert.Empty(balances.OutsideGroup3Payments);
         Assert.Equal(570_702 + 190_234, balances.Esv.PaidKop);
     }
