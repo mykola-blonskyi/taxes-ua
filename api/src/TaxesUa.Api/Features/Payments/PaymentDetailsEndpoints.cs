@@ -16,7 +16,7 @@ public static class PaymentDetailsEndpoints
                 int periodYear,
                 int? periodQuarter,
                 int? periodMonth,
-                long amountKop,
+                long? amountKop,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 HttpContext http,
@@ -67,7 +67,7 @@ public static class PaymentDetailsEndpoints
                     purpose,
                     complete ? new PaymentRecipientResponse(iban!, name!, code!, source) : null,
                     missing,
-                    complete ? NbuQr.Content(name!, iban!, code!, amountKop, purpose) : null));
+                    complete && amountKop is { } amount ? NbuQr.Content(name!, iban!, code!, amount, purpose) : null));
             })
             .WithTags("Payments")
             .RequireAuthorization()
@@ -94,7 +94,7 @@ public static class PaymentDetailsEndpoints
     }
 
     private static Dictionary<string, string[]>? Validate(
-        PaymentKind kind, int periodYear, int? periodQuarter, int? periodMonth, long amountKop)
+        PaymentKind kind, int periodYear, int? periodQuarter, int? periodMonth, long? amountKop)
     {
         var errors = new Dictionary<string, string[]>();
 
@@ -140,7 +140,7 @@ internal sealed record PaymentDetailsResponse(
     int PeriodYear,
     int? PeriodQuarter,
     int? PeriodMonth,
-    long AmountKop,
+    long? AmountKop,
     string Purpose,
     PaymentRecipientResponse? Recipient,
     string[] Missing,

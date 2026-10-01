@@ -193,8 +193,10 @@ public static class TreasuryAccountsEndpoints
     }
 
     /// <summary>
-    /// Learns the account of <paramref name="kind"/> again when it was learned from <paramref name="source"/>,
-    /// which has since changed: its payment was deleted, it now pays another kind, or it gained a code. The
+    /// Learns the account of <paramref name="kind"/> again when <paramref name="source"/>, a confirmation of the
+    /// Learned IBAN, has since changed: its payment was deleted, it now pays another kind, or it gained a code.
+    /// Any such confirmation counts, not only the one learned from, because an older one of the same IBAN may
+    /// have filled in the name or code the account holds. The
     /// owner's confirmations of the kind, as this unit of work leaves them, are taught again in order; none
     /// left clears the Learned account. A notice stays only while the Learned IBAN differs from the Manual one.
     /// </summary>
@@ -207,7 +209,7 @@ public static class TreasuryAccountsEndpoints
     {
         var row = await database.TreasuryAccounts
             .FirstOrDefaultAsync(account => account.UserId == source.UserId && account.Kind == kind, cancellationToken);
-        if (row is null || row.LearnedExternalId != source.ExternalId)
+        if (row is null || row.LearnedIban != source.CounterIban)
         {
             return;
         }
@@ -271,9 +273,6 @@ public static class TreasuryAccountsEndpoints
         return true;
     }
 
-    internal static bool IsValidTreasuryIban(string iban) =>
-        TreasuryPayment.IsTreasury(iban) && InvoicingEndpoints.IsValidUkrainianIban(iban);
-
     internal static TreasuryAccountRequest Normalize(TreasuryAccountRequest request) => new(
         TreasuryPayment.Normalize(request.Iban) ?? string.Empty,
         request.RecipientName?.Trim() ?? string.Empty,
@@ -282,9 +281,9 @@ public static class TreasuryAccountsEndpoints
     internal static Dictionary<string, string[]>? Validate(TreasuryAccountRequest request)
     {
         var errors = new Dictionary<string, string[]>();
-        if (!IsValidTreasuryIban(request.Iban))
+        if (InvoicingEndpoints.IbanProblem(request.Iban, TreasuryPayment.TreasuryBankId) is { } ibanProblem)
         {
-            errors["iban"] = ["iban must be a Treasury account: a valid Ukrainian IBAN with bank id 899998."];
+            errors["iban"] = [ibanProblem];
         }
 
         if (request.RecipientName.Length == 0)

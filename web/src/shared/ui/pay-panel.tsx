@@ -29,7 +29,7 @@ type PayDetails = {
   recipient: { iban: string; name: string; code: string } | null;
   missing: string[];
   qrContent: string | null;
-  amountKop: number | string;
+  amountKop: number | string | null;
 };
 
 export function PayPanel({
@@ -190,7 +190,7 @@ function QrBlock({ details, amountKop }: { details: PayDetails; amountKop: numbe
     return <p className="text-sm text-muted-foreground">{t("qrUnavailable")}</p>;
   }
   // keepPreviousData keeps the old amount's details on screen while the new ones load.
-  if (amountKop === null || Number(details.amountKop) !== amountKop) {
+  if (amountKop === null || details.amountKop === null || Number(details.amountKop) !== amountKop) {
     return <p className="text-sm text-muted-foreground">{t("qrUpdating")}</p>;
   }
 

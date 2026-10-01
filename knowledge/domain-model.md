@@ -325,7 +325,8 @@ Fields:
   currency.
 - `ClientId?`, `Description`, `Counterparty`.
 - `InvoiceId?` the issued invoice this receipt pays (#93): set only by linking, only on a confirmed
-  `Income` row in the invoice's currency, to the same owner's issued invoice. A receipt pays at most one
+  `Income` row in the invoice's currency, to the same owner's issued invoice of the same client (a receipt without a client takes the invoice's when
+  linked). A receipt pays at most one
   invoice. `InvoiceNumber?` is free text on an unlinked receipt; linking overwrites it with the invoice's
   number and unlinking clears it. While linked, the receipt keeps its kind, currency and number (an edit
   changing them is refused). Deleting a linked receipt removes the link with it; dismissing an imported
@@ -415,7 +416,9 @@ payment, by a sync that fills its candidate's code, and by the settings screen.
 Responsibilities: what the Pay panel shows for one obligation (#99, Rule 16). A derived value, not
 stored and not audited: computed on request from the owner's `TreasuryAccount` of the kind.
 
-Fields: `Kind`, `PeriodYear`, `PeriodQuarter?` or `PeriodMonth?` (exactly one), `AmountKop`, `Purpose`
+Fields: `Kind`, `PeriodYear`, `PeriodQuarter?` or `PeriodMonth?` (exactly one), `AmountKop?` (the query's amount, optional: without it the
+recipient, purpose and `Missing` still come, so the panel reads them once whatever is typed, and `QrContent`
+is null), `Purpose`
 (Rule 16), `Recipient?` (IBAN, name, code and the account's source, `Learned | Manual`) and `Missing`
 (`iban`, `recipientName`, `recipientCode`, in that order). `Recipient` is set exactly when `Missing` is
 empty. `QrContent?` is the NBU QR of the same details (#100, Rule 16), set only with a `Recipient` and

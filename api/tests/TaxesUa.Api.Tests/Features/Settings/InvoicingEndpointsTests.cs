@@ -320,6 +320,21 @@ public sealed class InvoicingEndpointsTests(ApiFixture fixture) : IClassFixture<
         Assert.Equal([Currency.EUR], saved.PaymentDetails.Select(row => row.Currency));
     }
 
+    [Theory]
+    [InlineData("UA23060070000082704", "iban has 19 characters, 29 expected.")]
+    [InlineData("DE573220010000026007233566001", "iban must start with UA.")]
+    [InlineData("UA573220010000026007233566002", "iban checksum is wrong.")]
+    public async Task A_rejected_iban_says_what_is_wrong_with_it(string iban, string message)
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+
+        var response = await owner.PutAsJsonAsync(Url, Valid() with { PaymentDetails = [Payment(Currency.USD) with { Iban = iban }] }, Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
+        Assert.Equal(message, Assert.Single(problem.GetProperty("errors").GetProperty("paymentDetails[0].iban").EnumerateArray()).GetString());
+    }
+
     [Fact]
     public async Task A_null_payment_details_element_is_a_validation_error_not_a_server_error()
     {

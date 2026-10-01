@@ -11,6 +11,7 @@ import {
   type TreasuryAccount,
 } from "@/data/treasury/useTreasuryAccounts";
 import { formatDateOnly } from "@/shared/lib/dates";
+import { parseIbanProblem } from "@/shared/lib/ibanProblem";
 import { Button } from "@/shared/ui/button";
 import { TextField } from "@/shared/ui/fields";
 
@@ -104,6 +105,11 @@ function AccountCard({ account }: { account: TreasuryAccount }) {
               {t("notice.useLearned")}
             </Button>
           </div>
+          {actionFailed ? (
+            <p role="alert" className="text-destructive">
+              {t("actionFailed")}
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -128,7 +134,7 @@ function AccountCard({ account }: { account: TreasuryAccount }) {
               {t("missing", { fields: account.missing.map((field) => t(field as "recipientName" | "recipientCode").toLowerCase()).join(", ") })}
             </p>
           ) : null}
-          {actionFailed ? <p className="text-sm text-destructive">{t("actionFailed")}</p> : null}
+          {actionFailed && !account.notice ? <p className="text-sm text-destructive">{t("actionFailed")}</p> : null}
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
               {account.iban ? t("edit") : t("enter")}
@@ -158,6 +164,11 @@ function AccountEditor({ account, onClose }: { account: TreasuryAccount; onClose
 
   function fieldErrors(field: keyof FormState): string[] | undefined {
     return failure?.errors[field]?.map((message) => {
+      const iban = field === "iban" ? parseIbanProblem(message) : null;
+      if (iban) {
+        return iban.key === "ibanLength" ? t("errors.ibanLength", { count: iban.count }) : t(`errors.${iban.key}`);
+      }
+
       const key = errorKey(field, message);
 
       return key === null ? message : t(`errors.${key}`);

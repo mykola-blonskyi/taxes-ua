@@ -80,6 +80,8 @@ internal static class InvoicePayments
         ({ Status: InvoiceStatus.Cancelled }, _) => $"Invoice {invoice.Number} is cancelled and cannot be paid.",
         _ when receipt.Currency != invoice.Currency =>
             $"Invoice {invoice.Number} is in {invoice.Currency}; a {receipt.Currency} receipt cannot pay it.",
+        _ when receipt.ClientId is { } client && client != invoice.ClientId =>
+            $"The receipt belongs to another client than invoice {invoice.Number}.",
         _ when paidMinor >= invoice.TotalMinor => $"Invoice {invoice.Number} is already paid.",
         _ => null,
     };

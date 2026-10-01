@@ -492,6 +492,7 @@ public static class InvoicesEndpoints
                     // and a sync can no longer move its kind.
                     receipt.InvoiceId = invoice.Id;
                     receipt.InvoiceNumber = invoice.Number;
+                    receipt.ClientId ??= invoice.ClientId;
                     receipt.ReviewStatus = ReviewStatus.Confirmed;
                     receipt.UpdatedAt = time.GetUtcNow();
                     await database.SaveChangesAsync(cancellationToken);

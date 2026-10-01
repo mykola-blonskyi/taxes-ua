@@ -24,7 +24,7 @@ internal static class InvoiceSuggestions
                 && row.Kind == TransactionKind.Income
                 && row.InvoiceId == null
                 && row.BankAccountId != null)
-            .Select(row => new { row.Id, row.Currency, row.AmountMinor, row.Counterparty, row.Description })
+            .Select(row => new { row.Id, row.Currency, row.AmountMinor, row.Counterparty, row.Description, row.ClientId })
             .ToListAsync(cancellationToken);
         if (receipts.Count == 0)
         {
@@ -52,9 +52,12 @@ internal static class InvoiceSuggestions
         return [.. receipts
             .Select(receipt => (
                 receipt.Id,
+                // A receipt of another client cannot pay the invoice (Rule 14), so it is not offered.
                 Ids: InvoiceMatcher.Suggest(
-                    new ReceiptToMatch(receipt.Currency.ToString(), receipt.AmountMinor, [receipt.Counterparty, receipt.Description]),
-                    candidates)))
+                        new ReceiptToMatch(receipt.Currency.ToString(), receipt.AmountMinor, [receipt.Counterparty, receipt.Description]),
+                        candidates)
+                    .Where(id => receipt.ClientId is null || receipt.ClientId == open[id].Invoice.ClientId)
+                    .ToList()))
             .Where(match => match.Ids.Count > 0)
             .Select(match => new InvoiceSuggestion(
                 match.Id,

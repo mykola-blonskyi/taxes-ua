@@ -128,6 +128,11 @@ function NoticeCard({ notice, onClose }: { notice: ConfirmedNotice; onClose: () 
           {t("settings")}
         </Link>
       </div>
+      {dismiss.isError ? (
+        <p role="alert" className="text-destructive">
+          {t("dismissFailed")}
+        </p>
+      ) : null}
     </li>
   );
 }

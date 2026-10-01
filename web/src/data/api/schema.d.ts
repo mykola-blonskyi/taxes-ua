@@ -51,7 +51,7 @@ export interface paths {
                     periodYear: number | string;
                     periodQuarter?: number | string;
                     periodMonth?: number | string;
-                    amountKop: number | string;
+                    amountKop?: number | string;
                 };
                 header?: never;
                 path?: never;
@@ -6071,7 +6071,7 @@ export interface components {
             /** Format: int32 */
             periodMonth: null | number | string;
             /** Format: int64 */
-            amountKop: number | string;
+            amountKop: null | number | string;
             purpose: string;
             recipient: null | components["schemas"]["PaymentRecipientResponse"];
             missing: string[];

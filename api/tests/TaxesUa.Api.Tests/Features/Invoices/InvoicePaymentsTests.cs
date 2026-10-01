@@ -89,6 +89,30 @@ public sealed class InvoicePaymentsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task A_receipt_of_another_client_cannot_pay_the_invoice_and_one_without_a_client_takes_the_invoices()
+    {
+        await using var application = App();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SaveDetails(owner);
+        var client = await CreateClient(owner, "Same Client Ltd");
+        await CreateClient(owner, "Stranger Client Ltd");
+        var invoice = await IssuedInvoice(owner, client.Id, new DateOnly(2058, 3, 1), 1_000_00);
+        var strangers = await Receipt(owner, "Stranger Client Ltd", 1_000_00);
+        var nameless = await Receipt(owner, null, 400_00);
+
+        var refused = await TryLink(owner, invoice.Id, strangers.Id);
+
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Null((await Transaction(owner, strangers.Id)).InvoiceId);
+        Assert.Empty((await Get(owner, invoice.Id)).Receipts);
+
+        await Link(owner, invoice.Id, nameless.Id);
+
+        var linked = await Transaction(owner, nameless.Id);
+        Assert.Equal((invoice.Id, "Same Client Ltd"), (linked.InvoiceId!.Value, linked.ClientName));
+    }
+
+    [Fact]
     public async Task The_pickers_offer_only_what_can_be_linked()
     {
         await using var application = App();

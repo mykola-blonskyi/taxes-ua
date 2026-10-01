@@ -11,7 +11,7 @@ namespace TaxesUa.Api.Features.Monobank;
 internal static partial class TreasuryPayment
 {
     // The NBU bank id every Treasury account carries at IBAN positions 5 to 10.
-    private const string TreasuryBankId = "899998";
+    internal const string TreasuryBankId = "899998";
 
     // ESV is paid to non-budget balance account 3556 of the regional tax office, budget taxes to budget
     // accounts; seen in a few published examples only, so it is the last resort.
