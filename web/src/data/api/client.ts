@@ -8,6 +8,8 @@ export class ApiError extends Error {
     readonly status: number,
     message?: string,
     readonly errors: Readonly<Record<string, string[]>> = {},
+    // Whole seconds from a Retry-After header, for a 429 that says when to come back.
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(message ?? `HTTP ${status}`);
     this.name = "ApiError";
@@ -32,9 +34,16 @@ const failOnErrorStatus: Middleware = {
       response.status,
       problem?.title ?? response.statusText ?? undefined,
       problem?.errors ?? {},
+      retryAfterSeconds(response),
     );
   },
 };
+
+function retryAfterSeconds(response: Response) {
+  const seconds = Number(response.headers.get("retry-after"));
+
+  return Number.isInteger(seconds) && seconds > 0 ? seconds : null;
+}
 
 export const api = createClient<paths>({ baseUrl: "" });
 

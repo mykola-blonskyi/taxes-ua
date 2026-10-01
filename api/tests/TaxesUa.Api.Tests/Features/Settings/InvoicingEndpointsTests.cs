@@ -4,7 +4,10 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TaxesUa.Api.Features.Audit;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Tests.Features.Monobank;
 
@@ -281,12 +284,20 @@ public sealed class InvoicingEndpointsTests(ApiFixture fixture) : IClassFixture<
             ("black", "black", 980, "UA000000000000000000000000001"),
             ("fop-pln", "fop", 985, "UA000000000000000000000000002"));
         var stub = StubMonobankHandler.ForToken("prefill-token", clientInfo);
-        await using var application = fixture.CreateApplication(stub);
+        // A fake clock, because the token save spends the client-info slot and the prefill answers 429 until a
+        // minute has passed.
+        var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2095, 7, 1, 10, 0, 0, TimeSpan.Zero));
+        await using var application = fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<TimeProvider>(clock);
+            services.AddHttpClient<MonobankClient>().ConfigurePrimaryHttpMessageHandler(() => stub);
+        }));
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         await owner.PutAsJsonAsync(Url, Valid() with { SellerNameUk = "Збережене ім'я", PaymentDetails = [Payment(Currency.EUR)] }, Json);
         Assert.Equal(
             HttpStatusCode.OK,
             (await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "prefill-token" })).StatusCode);
+        clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
 
         var response = await owner.PostAsync($"{Url}/prefill-from-monobank", null);
 
@@ -307,6 +318,19 @@ public sealed class InvoicingEndpointsTests(ApiFixture fixture) : IClassFixture<
         var saved = await owner.GetFromJsonAsync<InvoicingDetailsResponse>(Url, Json);
         Assert.Equal("Збережене ім'я", saved!.SellerNameUk);
         Assert.Equal([Currency.EUR], saved.PaymentDetails.Select(row => row.Currency));
+    }
+
+    [Fact]
+    public async Task A_null_payment_details_element_is_a_validation_error_not_a_server_error()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        var body = JsonSerializer.SerializeToNode(Valid(), Json)!.AsObject();
+        body["paymentDetails"] = new System.Text.Json.Nodes.JsonArray((System.Text.Json.Nodes.JsonNode?)null);
+
+        var response = await owner.PutAsJsonAsync(Url, body, Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("paymentDetails", await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
     }
 
     [Fact]
