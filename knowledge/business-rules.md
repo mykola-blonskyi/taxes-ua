@@ -43,6 +43,9 @@ Formula: `AmountUahKop = roundHalfUp(AmountMinor × RateE4 / 10000)`.
   confirmed by the owner. `EsvRegistrationMonthPolicy.FullMonth` stays available as a setting. What is
   prorated is the base, the minimum wage times active days over the month's days, rounded once; the ESV
   is the rate on that base, rounded once, so annex 1's column 4 is column 2 times column 3 (Rule 15).
+  This order (base × rate) can differ by 1 kopeck from prorating the month's full ESV instead: with the
+  2026 minimum wage, registration on 5 April gives 1,648.70 UAH (not 1,648.69) and on 12 April
+  1,204.81 UAH (not 1,204.82).
 - ESV exemption (`Settings.EsvExempt`) zeroes out the ESV accrual.
 
 The declaration is filed cumulatively. Quarter tax = tax on cumulative income minus tax already
@@ -158,7 +161,8 @@ that quarter carries obligations.
 | Q3 | 2026-10-19 | 2026-11-09 | 2026-11-19 |
 | Q4 | 2027-01-19 | 2027-02-09 | 2027-02-19 |
 
-The annual declaration (for Q4) includes the ESV attachment.
+The year's last group 3 declaration (Q4, or the crossing quarter's after a limit crossing) includes
+the ESV annex (annex 1, Rule 15).
 
 **Calendar feed.** The owner's deadlines are also served as an iCalendar document (ADR-017), for
 every deadline dated in the current or the next calendar year (so last year's Q4 and December advance

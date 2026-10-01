@@ -783,8 +783,9 @@ The engine builds the annex once, in the year's accruals, and the declaration's 
 annex's total, so the two cannot differ.
 
 The engine prorates the registration month's ESV base, not its amount, and applies the rate to the base,
-so each annex row satisfies column 4 = column 2 × column 3. Every existing prorated figure came out the
-same to the kopeck.
+so each annex row satisfies column 4 = column 2 × column 3. The registration month's ESV is now base ×
+rate, which can differ by 1 kopeck from the old figure (the month's ESV prorated) on some dates: with the
+2026 minimum wage, registration on 5 April was 1,648.69 UAH and is now 1,648.70.
 
 The annex is a second file of the same filing, not a filing of its own: `DeclarationFile` gains
 `AnnexFileName` and `AnnexContent`, both set or both null by a check constraint, and the backup carries

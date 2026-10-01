@@ -38,6 +38,20 @@ public class EsvAnnexTests
         Assert.Equal(year.Quarters.Sum(quarter => quarter.EsvKop), annex.EsvKop);
     }
 
+    // Base × rate, rounded once each; prorating the month's ESV instead gave 164_869 and 120_482.
+    [Theory]
+    [InlineData("2026-04-05", 164_870)]
+    [InlineData("2026-04-12", 120_481)]
+    public void The_registration_month_esv_is_the_prorated_base_at_the_rate(string registered, long aprilEsvKop)
+    {
+        var year = Accruals.ForYear(2026, [], Config2026, Settings(Date(registered)));
+
+        var april = year.EsvAnnex!.Months[0];
+
+        Assert.Equal((4, aprilEsvKop), (april.Month, april.EsvKop));
+        Assert.Equal(aprilEsvKop, year.Months.Single(month => month.Month == 4).EsvKop);
+    }
+
     [Fact]
     public void The_crossing_quarter_carries_the_annex_for_the_months_before_the_switch()
     {

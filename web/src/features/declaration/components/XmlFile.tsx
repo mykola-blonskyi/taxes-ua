@@ -19,6 +19,9 @@ import type { Period } from "../period";
 
 const declarationTypes = ["Reporting", "NewReporting", "Clarifying"] as const satisfies readonly DeclarationType[];
 
+// Safari can drop a second download started in the same tick, so the annex follows a moment later.
+const ANNEX_DOWNLOAD_DELAY_MS = 500;
+
 function startDownload(url: string, fileName: string) {
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -46,7 +49,9 @@ export function XmlFile({ declaration, period }: { declaration: DeclarationRespo
         if (file) {
           startDownload(declarationFileUrl(period.year, period.quarter, file.type), file.fileName);
           if (file.annexFileName) {
-            startDownload(declarationAnnexUrl(period.year, period.quarter, file.type), file.annexFileName);
+            const annexUrl = declarationAnnexUrl(period.year, period.quarter, file.type);
+            const annexFileName = file.annexFileName;
+            window.setTimeout(() => startDownload(annexUrl, annexFileName), ANNEX_DOWNLOAD_DELAY_MS);
           }
         }
       },
