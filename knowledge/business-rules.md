@@ -216,7 +216,7 @@ Per kind (EP, VZ, ESV) independently: accrued cumulatively minus paid = owed or 
 never mixed: an overpayment of one kind never reduces another kind's debt.
 
 Within a kind, money paid settles the oldest outstanding obligation first, by due date, whatever
-quarter or month the payment names (owner decision 2026-09-27; this is how the tax office credits
+group 3 quarter or month the payment names (owner decision 2026-09-27; this is how the tax office credits
 payments against debt, Tax Code art. 87.9). Q1 levy 1,000.00 unpaid, Q2 levy 1,000.00 accrued and
 2,000.00 paid "for Q2" leaves both quarters settled. The period a payment names is kept and shown;
 it no longer decides which obligation the payment settles. A refund that turns a quarter's accrual
@@ -227,7 +227,8 @@ ledger (owner decision 2026-10-01, #125). It is not paid, not credit, and settle
 its money paid for a system the app does not compute, so pooling it would let it clear a resumed
 quarter's obligation, or an older group 3 debt, that it never paid. It is still kept and shown: the
 year's balances list it separately with its kind, period and amount, and no figure beside the list
-counts it. This is the one thing the named period decides. Every payment naming a group 3 quarter,
+counts it. Beyond the year's view a payment belongs to, this is all the named period decides. Every
+payment naming a group 3 quarter,
 the crossing quarter included, is allocated oldest first as above. Which quarters are outside group 3
 follows the "back on group 3 from" setting, so moving it moves payments in or out of the ledger. A
 FOP who never crossed the limit has no quarter outside group 3, so nothing changes for them.
