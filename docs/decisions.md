@@ -638,8 +638,8 @@ replaced by asking for a new one.
 
 A webhook. It needs a public route, a secret to authenticate Telegram's calls (a `secret_token` header),
 and a `setWebhook` call at every deployment, and the route must be reachable through Traefik and the
-web proxy. That is a new anonymous endpoint on an app whose only public surface is otherwise the login
-page, to save a request that costs nothing when idle. It also makes a local run unable to receive
+web proxy. That is a new anonymous endpoint on an app whose public surface is otherwise the login page and
+the secret-path monobank webhook (ADR-012), to save a request that costs nothing when idle. It also makes a local run unable to receive
 anything without a tunnel. Polling needs only an outbound HTTPS call, which the VPS and a laptop both
 have.
 
@@ -647,7 +647,8 @@ have.
 
 Nothing new is exposed to the internet. One process may poll a given bot: a second instance, such as a
 local stack started with the production token, makes Telegram answer 409 to one of them, so the local
-stack must use its own bot or none. The api already runs as a single instance for the same reason as the
+stack must use its own bot or none. A 409 also means a webhook is set on the bot, and then linking would silently never complete; on the first 409 the poller
+calls `deleteWebhook` once and logs it, and a 409 that is another poller's is unaffected by that call. The api already runs as a single instance for the same reason as the
 monobank queue. Links complete within about a second while the service is up and wait, without loss,
 while it is down, because Telegram keeps updates for 24 hours. Idle cost is one open request. The token
 sits in the request path of every call, which is why the client is registered without the framework's
@@ -1027,8 +1028,9 @@ can read the mailbox; the second sends a tax reminder to a typo.
 
 One new package. Email depends on an SMTP server the owner supplies; deliverability (SPF, DKIM, the sender
 domain) is the server's and the owner's, not this app's, and the deploy runbook says so. The test-email and
-confirmation calls block for up to the backoff (7 seconds) plus the socket timeouts (20 seconds each) while
-retrying, as the Telegram test does. There is no cooldown on asking for the confirmation again: only the
+confirmation calls make one attempt, so they block for at most the socket timeouts (20 seconds), under the
+web proxy's rewrite timeout; retries belong to reminders, where nobody is waiting, and the owner presses the
+button again after a failure, which is shown on the channel. There is no cooldown on asking for the confirmation again: only the
 signed-in owner can ask, and an address is the owner's own choice. Addresses are plain ASCII addresses
 (no display name, no internationalised domain); a Cyrillic domain is refused with a clear message and can be
 added if it is ever needed. A restored backup carries the address but no token and no delivery record (schema 15),

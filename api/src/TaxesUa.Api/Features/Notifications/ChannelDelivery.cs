@@ -32,10 +32,13 @@ internal readonly record struct DeliveryAttempt(DeliveryFailure? Failure = null,
 
 /// <summary>
 /// What every channel shares about sending: who may be sent to, the retries, and the record on the
-/// channel that settings shows. A transient failure is retried three times after the first attempt,
-/// waiting 1, 2 and 4 seconds (or what the service's 429 asks for, when that is longer and not
-/// absurd); then the failure is written on the channel. Blocked switches the channel off. A timeout
-/// is not retried, since the message may have been delivered. A channel contributes only the attempt.
+/// channel that settings shows. A reminder's transient failure is retried three times after the first
+/// attempt, waiting 1, 2 and 4 seconds (or what the service's 429 asks for, when that is longer and
+/// not absurd); then the failure is written on the channel. A test or a confirmation is answering a
+/// request the owner is waiting on, behind a proxy that gives up sooner than four slow attempts
+/// would, so it gets one attempt and the owner presses the button again. Blocked switches the
+/// channel off. A timeout is not retried, since the message may have been delivered. A channel
+/// contributes only the attempt.
 /// </summary>
 internal sealed class ChannelDelivery(AppDbContext database, TimeProvider time, ILogger<ChannelDelivery> logger)
 {
@@ -68,6 +71,7 @@ internal sealed class ChannelDelivery(AppDbContext database, TimeProvider time, 
             return new DeliveryResult(DeliveryOutcome.Disabled);
         }
 
+        var retries = purpose == DeliveryPurpose.Reminder ? Backoff.Length : 0;
         for (var tried = 0; ; tried++)
         {
             var result = await attempt(channel, cancellationToken);
@@ -78,13 +82,13 @@ internal sealed class ChannelDelivery(AppDbContext database, TimeProvider time, 
             }
 
             var failure = result.Failure!.Value;
-            var wait = tried < Backoff.Length ? Backoff[tried] : TimeSpan.Zero;
+            var wait = tried < retries ? Backoff[tried] : TimeSpan.Zero;
             if (result.RetryAfter is { } asked)
             {
                 wait = asked > wait ? asked : wait;
             }
 
-            if (!failure.IsTransient() || tried >= Backoff.Length || wait > MaxRetryAfter)
+            if (!failure.IsTransient() || tried >= retries || wait > MaxRetryAfter)
             {
                 logger.LogWarning(
                     "{Channel} delivery for owner {UserId} failed after {Attempts} attempt(s): {Failure}.",

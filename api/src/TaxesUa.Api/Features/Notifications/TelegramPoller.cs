@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
@@ -6,7 +7,7 @@ namespace TaxesUa.Api.Features.Notifications;
 
 /// <summary>
 /// One round of long polling: read the updates after the persisted offset, act on each, and move the
-/// offset past it in the same save as the effect (ADR-014). A restart therefore neither replays an
+/// offset past it in the same save as the effect (ADR-015). A restart therefore neither replays an
 /// update nor skips one. Only <c>/start &lt;code&gt;</c> from a private chat does anything; every
 /// other private message gets one short reply.
 /// </summary>
@@ -18,6 +19,11 @@ internal sealed partial class TelegramPoller(
     ILogger<TelegramPoller> logger)
 {
     public static readonly TimeSpan LongPoll = TimeSpan.FromSeconds(30);
+
+    // Telegram answers getUpdates with 409 while a webhook is set on the bot (or another process is
+    // polling it). Removing the webhook is tried once per process: if the 409 is a second poller's,
+    // deleting a webhook that is not there changes nothing, and asking again every round would not help.
+    private bool _webhookCleared;
 
     // False when Telegram could not be read, so the caller backs off instead of hammering it.
     public async Task<bool> PollOnceAsync(TimeSpan longPoll, CancellationToken cancellationToken)
@@ -36,6 +42,15 @@ internal sealed partial class TelegramPoller(
         if (!result.IsOk)
         {
             logger.LogWarning("Telegram updates could not be read: {Failure}.", result.Failure);
+            if (result.Status == HttpStatusCode.Conflict && !_webhookCleared)
+            {
+                _webhookCleared = true;
+                var cleared = await client.DeleteWebhookAsync(cancellationToken);
+                logger.LogWarning(
+                    "Telegram answered 409: the bot has a webhook set or is polled elsewhere. Removing the webhook {Outcome}.",
+                    cleared.IsOk ? "succeeded" : "failed: " + cleared.Failure);
+            }
+
             return false;
         }
 

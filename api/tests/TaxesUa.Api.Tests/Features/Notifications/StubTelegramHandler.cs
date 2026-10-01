@@ -115,6 +115,8 @@ public sealed class StubTelegramHandler : HttpMessageHandler
 
                     await _pushed.WaitAsync(cancellationToken);
                 }
+            case "deleteWebhook":
+                return Ok(JsonValue.Create(true));
             case "sendMessage":
                 return SendAnswer(Interlocked.Increment(ref _sendAttempts) - 1);
             default:

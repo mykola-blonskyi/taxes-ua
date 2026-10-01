@@ -858,7 +858,8 @@ the app's home screen, where the pay panel is. The runs are 5 minutes apart.
 
 Email is a channel like Telegram, through the same sender, the same sent log (the channel is part of the
 claim's key, so one reminder is claimed once for Telegram and once for email) and the same retry rule: three
-retries after the first attempt, then a failure shown on the channel. An address is added unconfirmed and
+retries after the first attempt, then a failure shown on the channel. A test message and a confirmation email
+are answers to a button the owner pressed, so each makes one attempt and shows its failure on the channel. An address is added unconfirmed and
 receives nothing but the confirmation email until the owner opens its link, signed in, within 24 hours; the
 link names the address, so a link for an address since replaced or removed opens nothing. Asking for a
 confirmation again, changing the address, or restoring a backup (which brings an email address back
