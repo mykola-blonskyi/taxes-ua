@@ -350,8 +350,9 @@ counterparty's name. Its `ValueDate` is the Kyiv calendar date of the bank's ins
   own FOP accounts: within 60 seconds of it, and worth the debit at that day's NBU rate within 5
   percent. Both legs of a sale are booked by one in-bank conversion, so they land seconds apart, and
   the bank converts at its own buying rate, which sits a few percent under the NBU rate. Each debit
-  pairs with one credit, and overlapping candidates pair as many sales as they can, the closest
-  first among equals. Only the UAH leg is recorded; the debit never is.
+  pairs with one credit, and overlapping candidates pair as many sales as they can. Among
+  matchings that pair as many, closer legs are tried first, which is a preference and not a
+  guarantee of the smallest total gap. Only the UAH leg is recorded; the debit never is.
 - `OwnTransfer` for a credit whose counterparty IBAN is one of the owner's own known bank accounts.
 - `Income` for everything else.
 
@@ -361,9 +362,14 @@ next starts, so the two legs of a sale can be read months apart in either order.
 keeps every settled debit of a foreign-currency FOP account (never as a transaction, and not in the
 backup, since a restore walks the history again), and each window of any account classifies its new
 credits together with the stored UAH legs and stored foreign debits around it. Whichever leg is read
-second finds the other, with no extra call to the bank. An unreviewed leg in the window moves to
-`FxSale` once it pairs, and one once suggested as a sale that no longer pairs, because the real leg
-settled later and closer, moves back to `Income`, so a stale guess never keeps income out. A
+second finds the other, with no extra call to the bank. The range read around a window grows until
+nothing outside it is within 60 seconds of what it holds, so every leg that can compete for a debit
+is seen together, and two legs never both claim one debit across a window's edge. An unreviewed
+stored leg moves to `FxSale` once it pairs, and one once suggested as a sale that no longer pairs,
+because the real leg settled later and closer or took its debit, moves back to `Income`, so a stale
+guess never keeps income out. It goes back to `Income` even when its counterparty is one of the
+owner's own accounts, because a transaction does not store the counterparty's IBAN; the owner sees
+it unreviewed and changes the kind. Rates for the debits are read before the owner's lock is taken. A
 non-income suggestion
 carries a system reason (`monobank: own transfer`, `monobank: currency sale`), which satisfies
 Rule 1 until the owner writes their own.

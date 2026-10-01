@@ -62,8 +62,11 @@ internal static class ReceiptClassifier
 
     // A maximum matching, each leg used once, so one debit never turns two receipts into sales and
     // overlapping candidates still yield every sale they can (Kuhn's augmenting paths). The credit with
-    // the closest debit claims first and each tries its closest debits first, so among equally large
-    // matchings the closer legs win, and the same inputs always give the same pairs.
+    // the closest debit claims first and each tries its closest debits first, which favours closer legs
+    // and makes the same inputs give the same pairs whatever order they arrive in. It is a heuristic
+    // for the choice among equally large matchings, not a guarantee of the smallest total gap: an
+    // exact choice would be a minimum-cost matching, more than the few overlapping legs a minute can
+    // hold are worth.
     private static HashSet<string> CurrencySales(
         IReadOnlyCollection<IncomingCredit> credits, IReadOnlyCollection<OutgoingDebit> debits)
     {

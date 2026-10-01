@@ -210,9 +210,16 @@ internal sealed class MonobankStatementImport(
         var ownerId = connection.UserId;
         var bankAccountId = account.Id;
         var today = time.TodayInKyiv();
+        // NBU can take seconds to answer and a restore waits on the lock, so the rates the pairing needs
+        // are fetched before it is taken, as the transaction edit and POST do. FxRates saves its cache
+        // rows as it goes, so this also has to run before anything is changed in the context.
+        var saleRates = await LookUpSaleRatesAsync(ownerId, account, statement, cancellationToken);
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         await database.Database.ExecuteSqlAsync(
             $"SELECT pg_advisory_xact_lock(hashtext({ownerId}))", cancellationToken);
+        // Rows an earlier window of this walk left tracked would otherwise stand in for what the owner
+        // has since confirmed or edited; nothing is pending here, so dropping them loses nothing.
+        database.ChangeTracker.Clear();
 
         var holds = await database.BankAccounts.AnyAsync(
                 row => row.Id == bankAccountId && row.IsActive && row.SyncedThrough == cursor,
@@ -253,7 +260,7 @@ internal sealed class MonobankStatementImport(
             .ToListAsync(cancellationToken);
         var fresh = credits.ExceptBy(present, item => item.Id).OrderBy(item => item.Time).ToList();
         await StoreForeignDebitsAsync(ownerId, account, statement, cancellationToken);
-        var suggestions = await SuggestAsync(ownerId, account, statement, fresh, cancellationToken);
+        var suggestions = await SuggestAsync(ownerId, account, statement, fresh, saleRates, cancellationToken);
 
         var imported = 0;
         var skipped = 0;
@@ -271,7 +278,7 @@ internal sealed class MonobankStatementImport(
             }
         }
 
-        await MoveStoredSuggestionsAsync(statement, suggestions, cancellationToken);
+        await MoveStoredSuggestionsAsync(suggestions, cancellationToken);
         imported += await StoreCandidatesAsync(ownerId, account, statement, cancellationToken);
 
         await database.ImportBatches
@@ -364,10 +371,7 @@ internal sealed class MonobankStatementImport(
             return;
         }
 
-        var debits = statement.Items
-            .Where(item => item.Amount < 0 && !item.Hold)
-            .DistinctBy(item => item.Id)
-            .ToList();
+        var debits = SettledDebits(statement);
         var ids = debits.Select(item => item.Id).ToList();
         var stored = await database.ForeignDebits
             .Where(row => row.BankAccountId == account.Id && ids.Contains(row.ExternalId))
@@ -436,6 +440,80 @@ internal sealed class MonobankStatementImport(
         return fresh.Count;
     }
 
+    private static List<MonobankStatementItem> SettledDebits(Statement statement) => statement.Items
+        .Where(item => item.Amount < 0 && !item.Hold)
+        .DistinctBy(item => item.Id)
+        .ToList();
+
+    // The hryvnia legs and foreign debits around a window that its pairing has to see. A leg pairs with a
+    // debit up to a tolerance away and competes for it with every other leg within the tolerance of that
+    // debit, so the range grows from the window by a tolerance on each side until the earliest and the
+    // latest item loaded are a tolerance clear of its ends. Then nothing outside the range can change
+    // who pairs with what inside it, whichever window reads a leg first. Nothing is loaded without a
+    // debit, since nothing pairs without one.
+    private async Task<(List<ForeignDebit> Debits, List<Transaction> Legs)> LoadAroundAsync(
+        string ownerId, Statement statement, bool track, CancellationToken cancellationToken)
+    {
+        var tolerance = ReceiptClassifier.SaleTolerance;
+        var low = statement.From - tolerance;
+        var high = statement.To + tolerance;
+        while (true)
+        {
+            var debitRows = database.ForeignDebits
+                .Where(row => row.UserId == ownerId && row.BankTime >= low && row.BankTime <= high);
+            var debits = await (track ? debitRows : debitRows.AsNoTracking()).ToListAsync(cancellationToken);
+            if (debits.Count == 0)
+            {
+                return ([], []);
+            }
+
+            var legRows = database.Transactions
+                .IgnoreQueryFilters()
+                .Where(row => row.UserId == ownerId
+                    && row.ExternalId != null
+                    && row.Currency == Currency.UAH
+                    && row.BankTime >= low
+                    && row.BankTime <= high);
+            var legs = await (track ? legRows : legRows.AsNoTracking()).ToListAsync(cancellationToken);
+
+            var times = debits.Select(row => row.BankTime).Concat(legs.Select(row => row.BankTime!.Value)).ToList();
+            var widenedLow = times.Min() - tolerance;
+            var widenedHigh = times.Max() + tolerance;
+            if (widenedLow >= low && widenedHigh <= high)
+            {
+                return (debits, legs);
+            }
+
+            low = Min(low, widenedLow);
+            high = widenedHigh > high ? widenedHigh : high;
+        }
+    }
+
+    // The NBU rate of every day a debit around this window falls on, read without the owner's lock. The
+    // rows are only peeked at here (nothing tracked) and read again under the lock, where a debit that
+    // appeared in between falls back to a lookup of its own.
+    private async Task<Dictionary<(Currency, DateOnly), int?>> LookUpSaleRatesAsync(
+        string ownerId, BankAccount account, Statement statement, CancellationToken cancellationToken)
+    {
+        var (stored, _) = await LoadAroundAsync(ownerId, statement, track: false, cancellationToken);
+        var days = stored.Select(debit => (debit.Currency, Date: debit.BankTime.KyivDate())).ToHashSet();
+        if (IsoCurrency.FromNumeric(account.CurrencyCode) is { } currency && currency != Currency.UAH)
+        {
+            days.UnionWith(SettledDebits(statement).Select(item => (currency, Date: item.Time.KyivDate())));
+        }
+
+        var rateOn = new Dictionary<(Currency, DateOnly), int?>();
+        foreach (var day in days)
+        {
+            rateOn[day] = await RateAsync(day.Currency, day.Date, cancellationToken);
+        }
+
+        return rateOn;
+    }
+
+    private async Task<int?> RateAsync(Currency currency, DateOnly date, CancellationToken cancellationToken) =>
+        await rates.GetAsync(currency, date, cancellationToken) is NbuLookup.Found found ? found.RateE4 : null;
+
     // One classification over the window's fresh credits, the hryvnia legs already stored around it and
     // every stored foreign debit around it, so a sale pairs whichever account was read first. It runs
     // before anything else is changed in this window, since FxRates saves its cache rows as it goes.
@@ -444,34 +522,21 @@ internal sealed class MonobankStatementImport(
         BankAccount account,
         Statement statement,
         IReadOnlyList<MonobankStatementItem> fresh,
+        Dictionary<(Currency, DateOnly), int?> rateOn,
         CancellationToken cancellationToken)
     {
-        var from = statement.From - ReceiptClassifier.SaleTolerance;
-        var to = statement.To + ReceiptClassifier.SaleTolerance;
-        var debits = await database.ForeignDebits
-            .Where(row => row.UserId == ownerId && row.BankTime >= from && row.BankTime <= to)
-            .ToListAsync(cancellationToken);
-        var legs = debits.Count == 0
-            ? []
-            : await database.Transactions
-                .IgnoreQueryFilters()
-                .Where(row => row.UserId == ownerId
-                    && row.ExternalId != null
-                    && row.Currency == Currency.UAH
-                    && row.BankTime >= from
-                    && row.BankTime <= to)
-                .ToListAsync(cancellationToken);
+        var (debits, legs) = await LoadAroundAsync(ownerId, statement, track: true, cancellationToken);
         var ownIbans = await database.BankAccounts
             .Where(row => row.UserId == ownerId && row.Iban != "")
             .Select(row => row.Iban)
             .ToListAsync(cancellationToken);
 
-        var rateOn = new Dictionary<(Currency, DateOnly), int?>();
         foreach (var key in debits.Select(debit => (debit.Currency, Date: debit.BankTime.KyivDate())).Distinct())
         {
-            rateOn[key] = await rates.GetAsync(key.Currency, key.Date, cancellationToken) is NbuLookup.Found found
-                ? found.RateE4
-                : null;
+            if (!rateOn.ContainsKey(key))
+            {
+                rateOn[key] = await RateAsync(key.Currency, key.Date, cancellationToken);
+            }
         }
 
         IncomingCredit[] credits = IsoCurrency.FromNumeric(account.CurrencyCode) is { } currency
@@ -490,19 +555,21 @@ internal sealed class MonobankStatementImport(
         return new Suggestions(kinds, legs);
     }
 
-    // Moves the suggestion of a stored leg inside this window that the pairing now reads differently:
-    // to FxSale once its foreign leg is read, and back to Income when a guess no longer pairs (the real
-    // leg settled later and closer). Only unreviewed rows move, since any edit or confirmation sets
-    // Confirmed under the owner's lock this runs under. Legs just outside the window only take part:
-    // their partners may lie beyond what was loaded, and their own window already placed them.
-    private async Task MoveStoredSuggestionsAsync(
-        Statement statement, Suggestions suggestions, CancellationToken cancellationToken)
+    // Moves the suggestion of every stored leg the pairing now reads differently: to FxSale once its
+    // foreign leg is read, and back to Income when a guess no longer pairs (the real leg settled later
+    // and closer, or took the debit this one shared). Only unreviewed rows move, since any edit or
+    // confirmation sets Confirmed under the owner's lock this runs under. Legs outside the window move
+    // too: the range loaded around it holds everything that can compete for their debits.
+    //
+    // A leg that goes back goes to Income, never to OwnTransfer, though its counterparty may be one of
+    // the owner's own accounts: Transaction does not keep the counterparty's IBAN, and keeping it would
+    // mean a column and a backup schema change for a case that needs a sale guess displaced by a closer
+    // leg. The row stays unreviewed and counts as income until the owner reviews it, which Rule 12 says.
+    private async Task MoveStoredSuggestionsAsync(Suggestions suggestions, CancellationToken cancellationToken)
     {
         var saleReason = ReceiptClassifier.ReasonFor(TransactionKind.FxSale);
         var unreviewed = suggestions.Legs
-            .Where(row => row.ReviewStatus == ReviewStatus.NeedsReview
-                && row.BankTime >= statement.From
-                && row.BankTime <= statement.To)
+            .Where(row => row.ReviewStatus == ReviewStatus.NeedsReview)
             .ToList();
         var sold = unreviewed
             .Where(row => row.Kind != TransactionKind.FxSale && suggestions.Kinds[Stored(row)] == TransactionKind.FxSale)

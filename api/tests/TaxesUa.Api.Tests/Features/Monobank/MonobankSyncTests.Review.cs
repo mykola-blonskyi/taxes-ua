@@ -1,10 +1,16 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
+using TaxesUa.Api.Tests.Features.Fx;
 
 namespace TaxesUa.Api.Tests.Features.Monobank;
 
@@ -90,6 +96,85 @@ public sealed partial class MonobankSyncTests
         var rows = (await List(owner, 2049)).Items.ToDictionary(row => row.AmountMinor);
         Assert.Equal((TransactionKind.FxSale, "monobank: currency sale"), (rows[40_000_00].Kind, rows[40_000_00].NonIncomeReason));
         Assert.Equal((TransactionKind.Income, (string?)null), (rows[40_100_00].Kind, rows[40_100_00].NonIncomeReason));
+    }
+
+    // Transaction keeps no counterparty IBAN, so a leg that loses its sale guess cannot be told from
+    // any other income: it returns to Income although it named the owner's own account. Rule 12 says so.
+    [Fact]
+    public async Task A_displaced_sale_guess_that_named_an_own_account_returns_to_income()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-displaced", ("disp-uah", 980), ("disp-usd", 840));
+        bank.Put("disp-usd", new Operation("op-disp-sold", At(2030, 5, 3, 9), -1_000_00, 840));
+        bank.Put("disp-uah", new Operation(
+            "op-disp-own", At(2030, 5, 3, 9).AddSeconds(50), 40_100_00, 980, CounterName: "Me", CounterIban: "UAdisp-usd"));
+        await using var app = Create(At(2030, 5, 5, 10), bank, Nbu(("USD", new DateOnly(2030, 5, 3), "40.2000")));
+        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-displaced");
+        await Sync(app, owner);
+        Assert.Equal(TransactionKind.FxSale, Assert.Single((await List(owner, 2030)).Items).Kind);
+
+        bank.Put("disp-uah", new Operation("op-disp-sale", At(2030, 5, 3, 9).AddSeconds(2), 40_000_00, 980));
+        await Sync(app, owner);
+
+        var rows = (await List(owner, 2030)).Items.ToDictionary(row => row.AmountMinor);
+        Assert.Equal(TransactionKind.FxSale, rows[40_000_00].Kind);
+        Assert.Equal((TransactionKind.Income, (string?)null), (rows[40_100_00].Kind, rows[40_100_00].NonIncomeReason));
+    }
+
+    // A window ends where the next begins, so the hryvnia legs either side of the edge are read in
+    // different windows. The one that settled closer to the debit has to win it, whichever is read first.
+    [Fact]
+    public async Task Two_legs_either_side_of_a_window_edge_do_not_both_claim_one_debit()
+    {
+        var registered = new DateOnly(2031, 1, 1);
+        var edge = registered.KyivMidnight() + MonobankStatementImport.Window;
+        var bank = new FakeBank();
+        bank.Connect("token-edge", ("edge-usd", 840));
+        bank.Put("edge-usd", new Operation("op-edge-sold", edge.AddSeconds(-30), -1_000_00, 840));
+        await using var app = Create(At(2031, 3, 1, 10), bank, Nbu(("USD", new DateOnly(2031, 1, 31), "40.0000")));
+        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-edge", registered);
+        await DrainUntil(app, owner, "edge-usd", account => account.BackfillComplete && !account.SyncPending);
+
+        bank.Connect("token-edge", ("edge-usd", 840), ("edge-uah", 980));
+        bank.Put("edge-uah", new Operation("op-edge-early", edge.AddSeconds(-90), 40_000_00, 980, CounterName: "Early"));
+        bank.Put("edge-uah", new Operation("op-edge-late", edge.AddSeconds(10), 40_000_00, 980, CounterName: "Late"));
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "token-edge" })).StatusCode);
+        await DrainUntil(app, owner, "edge-uah", account => account.BackfillComplete && !account.SyncPending);
+
+        var rows = (await List(owner, 2031)).Items.ToDictionary(row => row.ClientName!, row => row.Kind);
+        Assert.Equal(TransactionKind.FxSale, rows["Late"]);
+        Assert.Equal(TransactionKind.Income, rows["Early"]);
+    }
+
+    // The sync and restore take the owner's lock for whole windows, so NBU must be asked before it.
+    [Fact]
+    public async Task The_nbu_rates_a_sale_needs_are_fetched_before_the_owners_lock_is_taken()
+    {
+        var lockFreeWhileNbuAnswered = new ConcurrentQueue<bool>();
+        var nbu = new StubNbuHandler(_ =>
+        {
+            using var scope = fixture.CreateScope();
+            var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var ownerId = database.Users.Single(user => user.Email == ApiFixture.AllowedEmail).Id;
+            lockFreeWhileNbuAnswered.Enqueue(database.Database
+                .SqlQuery<bool>($"SELECT pg_try_advisory_xact_lock(hashtext({ownerId})) AS \"Value\"")
+                .AsEnumerable()
+                .Single());
+            return StubNbuHandler.Json(StubNbuHandler.Row("USD", new DateOnly(2031, 6, 3), "40.0000"));
+        });
+        var bank = new FakeBank();
+        bank.Connect("token-rates-first", ("rates-uah", 980), ("rates-usd", 840));
+        bank.Put("rates-usd", new Operation("op-rates-sold", At(2031, 6, 3, 9), -1_000_00, 840));
+        bank.Put("rates-uah", new Operation("op-rates-sale", At(2031, 6, 3, 9).AddSeconds(2), 40_000_00, 980));
+        await using var app = Create(At(2031, 6, 5, 10), bank, nbu);
+        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-rates-first");
+        await Sync(app, owner);
+
+        Assert.Equal(TransactionKind.FxSale, Assert.Single((await List(owner, 2031)).Items).Kind);
+        Assert.NotEmpty(lockFreeWhileNbuAnswered);
+        Assert.All(lockFreeWhileNbuAnswered, free => Assert.True(free));
     }
 
     // The foreign account's whole backfill runs before the hryvnia account is even followed, so the
