@@ -753,6 +753,20 @@ and channel.
 
 ### Consequences
 
+Where the link points. A reminder ends with a link to the home screen: `App:PublicUrl` (`APP_PUBLIC_URL`) when
+set, otherwise `https://` and the first `ALLOWED_HOSTS` domain, which production already pins; with
+neither, or with a wildcard host, the message goes without a link. A malformed `APP_PUBLIC_URL` fails
+startup rather than every reminder.
+
+The sent log is not in the backup and a restore does not touch it (the backup schema version is
+unchanged), so restoring never makes an already-sent reminder go out again.
+
+Accepted gap. The planner reads the ledger once per run, and the claim and the send follow. If a payment
+lands within about a second of a run that has already read the old amount, the owner can get one message
+with the old amount, and two runs racing within that second can send two messages for a changed set of
+kinds. Closing it would need a lock around payment recording and reminder sending, which a one-second
+window on a single-owner app does not justify.
+
 The amount is always the current one, and a paid obligation is never reminded. Downtime costs nothing up
 to the date: the latest passed moment goes out late with the real number of days left. A crash at the
 wrong instant loses one message, never duplicates one. The sent log is not backed up (domain model,

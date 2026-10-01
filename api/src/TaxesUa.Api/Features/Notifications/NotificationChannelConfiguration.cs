@@ -49,3 +49,20 @@ internal sealed class TelegramPollStateConfiguration : IEntityTypeConfiguration<
         builder.Property(state => state.BotId).ValueGeneratedNever();
     }
 }
+
+internal sealed class SentReminderConfiguration : IEntityTypeConfiguration<SentReminder>
+{
+    public void Configure(EntityTypeBuilder<SentReminder> builder)
+    {
+        builder.HasKey(sent => sent.Id);
+
+        builder.HasOne<ApplicationUser>()
+            .WithMany()
+            .HasForeignKey(sent => sent.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(sent => new { sent.UserId, sent.Date, sent.Kinds, sent.Offset, sent.Channel }).IsUnique();
+
+        builder.Property(sent => sent.Channel).HasConversion<string>().HasMaxLength(20);
+    }
+}

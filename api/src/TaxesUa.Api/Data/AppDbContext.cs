@@ -61,6 +61,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<TelegramPollState> TelegramPollStates => Set<TelegramPollState>();
 
+    public DbSet<SentReminder> SentReminders => Set<SentReminder>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

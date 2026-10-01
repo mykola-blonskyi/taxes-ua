@@ -52,7 +52,7 @@ Responsibilities:
 - Authentication and sessions. Every data request is filtered by `UserId`.
 - Boundary adapters: import parsing, Europe/Kyiv date conversion, NBU rate, conversion to
   kopecks, validation.
-- Background jobs as `IHostedService`: reminders every 5 minutes (ADR-016), bank-sync queue, Telegram
+- Background jobs as `IHostedService`: reminders every 5 minutes (ADR-019), bank-sync queue, Telegram
   polling (Stage 2).
 - Change log.
 
@@ -103,7 +103,7 @@ External systems:
   the one way a message is sent (the test button and the reminders): three retries after the first attempt with
   1, 2 and 4 second backoff, honouring a 429's `retry_after` up to 30 seconds, a 403 switching the channel off.
   `Telegram:BaseUrl` (default `https://api.telegram.org/`) exists so a local run can point at a stub.
-  Reminders (#108, ADR-016) reach it through `IReminderChannel`, the boundary email (#107) plugs into, and
+  Reminders (#108, ADR-019) reach it through `IReminderChannel`, the boundary email (#107) plugs into, and
   link to `App:PublicUrl` (`APP_PUBLIC_URL`), or `https://` and the first `ALLOWED_HOSTS` domain when unset.
 - SMTP for reminders (Stage 2).
 - DPS XML declaration schema F0103309 (Stage 3).

@@ -69,7 +69,7 @@ internal sealed class TelegramDelivery(
                 wait = asked > wait ? asked : wait;
             }
 
-            if (!IsTransient(failure) || attempt >= Backoff.Length || wait > MaxRetryAfter)
+            if (!failure.IsTransient() || attempt >= Backoff.Length || wait > MaxRetryAfter)
             {
                 logger.LogWarning("Telegram delivery for owner {UserId} failed after {Attempts} attempt(s): {Failure}.", userId, attempt + 1, failure);
                 await RecordAsync(channel.Id, failure, cancellationToken);
@@ -79,9 +79,6 @@ internal sealed class TelegramDelivery(
             await Task.Delay(wait, time, cancellationToken);
         }
     }
-
-    private static bool IsTransient(DeliveryFailure failure) =>
-        failure is DeliveryFailure.RateLimited or DeliveryFailure.Unreachable or DeliveryFailure.Timeout or DeliveryFailure.ServerError;
 
     // The channel is read again because the owner may have disconnected or toggled it while the
     // message was being retried.

@@ -753,7 +753,7 @@ before it is sent, so neither a restart, a redeploy nor two runs at once can sen
 moment already sent for every kind a run would name is not sent again, so paying the levy after the 7-day
 message does not repeat it; a kind no message of that date and moment named yet, such as a newly owed
 one, is sent with everything due. A crash between the record and the send loses that one message rather
-than risk a second. A transient failure (Telegram unreachable, slow, rate limiting or a server error,
+than risk a second. A restore does not touch the record, so it never resends. A transient failure (Telegram unreachable, slow, rate limiting or a server error,
 after the channel's own retries) removes the record, so a later run tries again within the window. A
 permanent one keeps it and shows on the channel in settings; a blocked bot also switches the channel off.
 

@@ -585,7 +585,7 @@ it without `DeliveredAt`, and the message is not sent again. A run sends nothing
 channel whose rows already name every kind it would send.
 
 Not audited and not in the backup: it records what was sent to a chat, not the owner's data, and a restore
-into the same database keeps it. Restoring into a fresh database loses it; the cost is at most one repeat
+never touches it, so a restore never resends. Only restoring into a fresh database starts without it; the cost is at most one repeat
 of a reminder whose window is still open, since Rule 17 never replays a moment older than the latest one
 passed, and a day-after reminder only on its day. Rows are never pruned: about a hundred a year per
 channel.

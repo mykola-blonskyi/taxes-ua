@@ -82,6 +82,24 @@ public sealed class StartupTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Contains(variable, failure.ToString(), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("taxes.example")]
+    [InlineData("ftp://taxes.example")]
+    [InlineData("https://taxes.example/?from=reminder")]
+    public void A_malformed_public_url_refuses_to_start(string publicUrl)
+    {
+        using var application = fixture.CreateApplication(builder =>
+        {
+            Deployed(builder);
+            builder.UseSetting("App:PublicUrl", publicUrl);
+        });
+
+        var failure = Record.Exception(() => application.CreateClient());
+
+        Assert.NotNull(failure);
+        Assert.Contains("APP_PUBLIC_URL", failure.ToString(), StringComparison.Ordinal);
+    }
+
     // The allowlist splits on both separators, so a value made only of them allows nobody.
     [Theory]
     [InlineData("   ")]

@@ -812,7 +812,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Type[] bankRecordNotBackedUp = [typeof(ForeignDebit)];
         // A link code is a secret of the running server and the poll offset belongs to the bot, not to
         // the owner; neither is written to a file.
-        Type[] telegramRuntimeNotBackedUp = [typeof(NotificationLinkCode), typeof(TelegramPollState)];
+        // The sent-reminder log is what already reached the owner's chat, not the owner's data; a restore
+        // leaves it in place so restoring does not send the same reminder twice.
+        Type[] telegramRuntimeNotBackedUp = [typeof(NotificationLinkCode), typeof(TelegramPollState), typeof(SentReminder)];
 
         var featureTables = model.GetEntityTypes()
             .Select(type => type.ClrType)
