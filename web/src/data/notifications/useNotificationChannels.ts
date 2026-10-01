@@ -22,7 +22,8 @@ export function useNotificationChannels({ awaitingLink }: { awaitingLink: boolea
 
       return data;
     },
-    refetchInterval: (query) => (awaitingLink && !query.state.data?.some((channel) => channel.linked) ? linkingPollMs : false),
+    refetchInterval: (query) =>
+      awaitingLink && !query.state.data?.some((channel) => channel.kind === "Telegram" && channel.linked) ? linkingPollMs : false,
   });
 }
 
@@ -69,6 +70,85 @@ export function useDisconnectTelegram() {
   return useMutation({
     mutationFn: async () => {
       await api.DELETE("/api/notifications/channels/telegram");
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: notificationChannelsQueryKey }),
+  });
+}
+
+// Email. The address is the owner's own, so unlike a Telegram chat id it comes back for settings to show.
+// Every call reads the channel back when it settles: a confirmation or test that could not be sent
+// leaves the failure written on the channel for the screen to show.
+export function useAddEmail() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (address: string) => {
+      const { data } = await api.POST("/api/notifications/channels/email", { body: { address } });
+
+      return data;
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: notificationChannelsQueryKey }),
+  });
+}
+
+export function useResendEmailConfirmation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.POST("/api/notifications/channels/email/resend");
+
+      return data;
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: notificationChannelsQueryKey }),
+  });
+}
+
+export function useConfirmEmail() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (token: string) => {
+      const { data } = await api.POST("/api/notifications/channels/email/confirm", { body: { token } });
+
+      return data;
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: notificationChannelsQueryKey }),
+  });
+}
+
+export function useToggleEmail() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { data } = await api.PUT("/api/notifications/channels/email", { body: { enabled } });
+
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: notificationChannelsQueryKey }),
+  });
+}
+
+export function useTestEmail() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.POST("/api/notifications/channels/email/test");
+
+      return data;
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: notificationChannelsQueryKey }),
+  });
+}
+
+export function useRemoveEmail() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      await api.DELETE("/api/notifications/channels/email");
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: notificationChannelsQueryKey }),
   });

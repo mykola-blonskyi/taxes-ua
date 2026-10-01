@@ -937,3 +937,102 @@ A refresh within a minute of another `client-info` call, including the invoicing
 share its answer, gets a `429` or the earlier balance, and the screen shows the time of the balance either
 way. A balance is at most a sync run old plus whatever the slot skipped. The answer lives in process memory,
 so it needs the single api instance the queue and the gate already need.
+
+---
+
+## ADR-022. Send email with MailKit, and confirm an address with a signed, expiring link opened in the owner's session
+
+Date: 2026-10-01
+
+Status: Accepted
+
+### Context
+
+#107 adds email as the second reminder channel. Three things were open: which library speaks SMTP, how the
+owner proves an address is theirs, and how a channel that can hold an address nobody has confirmed fits the
+channel model Telegram set (ADR-015, ADR-019).
+
+### Decision
+
+**Library: MailKit 4.18.1** (MIT, free, self-hosted, the only new package; it brings MimeKit). The built-in
+`System.Net.Mail.SmtpClient` was the first choice, since the project prefers the framework to a package,
+and it was ruled out on the facts rather than on taste. Its documentation says not to use it for new
+development and recommends MailKit. It cannot do implicit TLS (port 465, the mode many providers
+document first), only STARTTLS on 587, so a deployment could be unable to use its own provider. It does
+not tell a refused sign-in from an unreachable server, a 4xx from a 5xx reply, or a failure before the message
+was handed over from one after it, and ADR-019's rule depends on exactly that last distinction. MailKit
+has typed exceptions for each (`AuthenticationException`, `SmtpCommandException` with its status code,
+`SmtpProtocolException`), explicit `SecureSocketOptions`, and a timeout per socket operation. The cost is
+one dependency, kept behind one interface, `IEmailTransport`, so replacing it touches one class.
+
+**Settings.** `SMTP_HOST`, `SMTP_PORT`, `SMTP_TLS` (`starttls`, `implicit`, `none`), `SMTP_USER`,
+`SMTP_PASSWORD`, `SMTP_FROM`, read once into `EmailSettings`. They live only in configuration, in Coolify
+for production. Nothing logs them: the class has no `ToString` that prints the password, the transport logs the
+failure class and the exception type and never a message (a server's reply can quote the address), and no
+protocol logger is attached. The channel is available only when host and sender are valid, user and password
+are both set or both absent, credentials are not combined with `none` unless the host is on this machine (a password never crosses a network in the clear),
+and an address for the link exists (`APP_PUBLIC_URL`, else the first `ALLOWED_HOSTS` domain). Anything else
+leaves it unavailable with one warning naming the variable, never failing startup, as for the Telegram token.
+
+**Channel model.** One `NotificationChannel` row per owner and kind, as before, with a new `ConfirmedAt`.
+Telegram sets it with `LinkedAt`. An email row exists from the moment the address is added, with
+`ConfirmedAt` null and `Enabled` false, and the shared delivery code refuses to send anything but the
+confirmation to it; the reminder sender also selects only confirmed rows, so no path reaches an unconfirmed
+address by omission. The retries, the failure record and the 403-style switch-off moved out of
+`TelegramDelivery` into `ChannelDelivery`, which both channels use, so the retry policy exists once.
+`EmailReminderChannel` is the second `IReminderChannel`: `ReminderSender` is unchanged, and the channel is
+already part of the sent log's key, so one reminder is claimed once per channel.
+
+**Failure semantics.** The transport connects and signs in first, then sends, and classifies by phase. A
+refusal to connect or a timeout before the message is handed over is `Unreachable`, retried (nothing was
+delivered). A sign-in refusal is `Authentication` (new), final. A 4xx reply is `ServerError`, retried; a 5xx
+is `Rejected`, final. A timeout or a lost connection after the hand-over is `Timeout`: the server may have
+accepted the message before the answer was lost, so it is not retried, in the channel or by a later run, and
+its claim is kept (ADR-019's rule, unchanged). Retries are the same three after the first attempt at 1, 2 and 4
+seconds.
+
+**Confirmation link.** `https://<app>/settings?tab=notifications&confirmEmail=<token>`. The token is the
+owner's id, the lower-cased address and the expiry (24 hours), protected with ASP.NET Core's data-protection
+key ring under its own purpose string: authenticated and encrypted, so a changed character, another purpose
+or another key ring fails to open. The expiry is checked against the app's `TimeProvider`, not the
+protector's own clock, so it is testable. Nothing is stored: asking for a new link does not need to cancel the
+old one, because the token names the address, and a link for an address since replaced or removed opens
+nothing (410). The key ring is on a persistent volume (ADR-010), so links survive a redeploy.
+
+The settings page spends the token by posting it to `POST /api/notifications/channels/email/confirm` under
+the owner's own session, then removes it from the address bar. The confirm call needs the session and the
+token's owner must be the signed-in owner (a link opened by another account is a 400).
+
+### Alternatives Considered
+
+`System.Net.Mail.SmtpClient`, above.
+
+A confirmation on a plain `GET` that works for whoever holds the link, which is the usual double opt-in.
+A mail scanner or link preview fetches the link before the owner sees it and would confirm an address the
+owner never read, and nothing would say the person who opened it is the owner. Doing it in the app, in the
+owner's session, costs one sign-in when the link is opened in a browser that is not signed in (the redirect to
+sign-in does not carry the link back, so the owner opens it again) and nothing else, for an app with one owner.
+
+A random code stored hashed, like the Telegram link code (ADR-015). It would work and is also simple, but it
+needs a table or a column, a cleanup of expired rows and a rule for superseding earlier codes, and the ticket
+asks for a link that is signed. The data-protection token needs none of that.
+
+A separate `EmailChannel` table. It would keep `NotificationChannel` free of a null column, and duplicate the
+toggle, test, remove and failure endpoints, the audit and the backup row for a second shape of the same idea.
+
+An allowlist of addresses, or confirming only on the first reminder. The first does not prove the owner
+can read the mailbox; the second sends a tax reminder to a typo.
+
+### Consequences
+
+One new package. Email depends on an SMTP server the owner supplies; deliverability (SPF, DKIM, the sender
+domain) is the server's and the owner's, not this app's, and the deploy runbook says so. The test-email and
+confirmation calls block for up to the backoff (7 seconds) plus the socket timeouts (20 seconds each) while
+retrying, as the Telegram test does. There is no cooldown on asking for the confirmation again: only the
+signed-in owner can ask, and an address is the owner's own choice. Addresses are plain ASCII addresses
+(no display name, no internationalised domain); a Cyrillic domain is refused with a clear message and can be
+added if it is ever needed. A restored backup carries the address but no token and no delivery record (schema 15),
+and an email address comes back unconfirmed and switched off whatever the file says: a file proves nothing
+about a mailbox (it may be edited, or restored on another server), so the owner sends the link again. A Telegram
+channel keeps its confirmation, since a chat id is only ever linked by pressing Start. The backup upgrade runs 14 to 15 after main's 13 to 14; the migration adds the column and marks every existing
+channel confirmed, since all of them are Telegram chats.

@@ -22,7 +22,10 @@ function isTab(value: string | undefined): value is Tab {
   return (tabs as readonly (string | undefined)[]).includes(value);
 }
 
-export function SettingsTabs({ initialTab }: { initialTab?: string }) {
+export function SettingsTabs({ initialTab, confirmEmailToken }: { initialTab?: string; confirmEmailToken?: string }) {
+  // Held here, above the tabs, because an inactive tab unmounts: a flag kept inside it would forget the
+  // token was spent and post it again when the owner comes back.
+  const [pendingEmailToken, setPendingEmailToken] = useState(confirmEmailToken);
   const t = useTranslations("settings");
   const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "fop");
   const listRef = useRef<HTMLDivElement>(null);
@@ -76,7 +79,7 @@ export function SettingsTabs({ initialTab }: { initialTab?: string }) {
       </Tabs.Content>
       <Tabs.Content value="notifications" className="min-w-0">
         <div className="flex flex-col gap-8">
-          <NotificationsSection />
+          <NotificationsSection confirmEmailToken={pendingEmailToken} onEmailTokenSpent={() => setPendingEmailToken(undefined)} />
           <CalendarFeedSection />
         </div>
       </Tabs.Content>

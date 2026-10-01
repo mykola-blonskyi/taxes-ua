@@ -26,3 +26,13 @@ internal sealed class TelegramReminderChannel(TelegramBot bot, TelegramDelivery 
     public Task<DeliveryResult> SendAsync(string userId, ReminderMessage message, CancellationToken cancellationToken) =>
         delivery.SendAsync(userId, message.Text, evenIfDisabled: false, cancellationToken);
 }
+
+internal sealed class EmailReminderChannel(EmailSettings settings, EmailDelivery delivery) : IReminderChannel
+{
+    public NotificationChannelKind Kind => NotificationChannelKind.Email;
+
+    public bool IsAvailable => settings.IsConfigured;
+
+    public Task<DeliveryResult> SendAsync(string userId, ReminderMessage message, CancellationToken cancellationToken) =>
+        delivery.SendAsync(userId, DeliveryPurpose.Reminder, address => EmailTexts.Reminder(address, message), cancellationToken);
+}

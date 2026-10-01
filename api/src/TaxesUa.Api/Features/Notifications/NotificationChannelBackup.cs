@@ -13,15 +13,21 @@ internal sealed record NotificationChannelBackup(
     NotificationChannelKind Kind,
     string Address,
     bool Enabled,
-    DateTimeOffset LinkedAt)
+    DateTimeOffset LinkedAt,
+    DateTimeOffset? ConfirmedAt)
 {
-    public static NotificationChannelBackup From(NotificationChannel row) => new(row.Kind, row.Address, row.Enabled, row.LinkedAt);
+    public static NotificationChannelBackup From(NotificationChannel row) =>
+        new(row.Kind, row.Address, row.Enabled, row.LinkedAt, row.ConfirmedAt);
 
     public (string Key, string Message)? Error() => Kind switch
     {
         _ when !Enum.IsDefined(Kind) => ("kind", "kind must name a channel kind."),
         NotificationChannelKind.Telegram when !long.TryParse(Address, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _) =>
             ("address", "A Telegram address must be a chat id."),
+        NotificationChannelKind.Email when !EmailTexts.TryNormalize(Address, out _) =>
+            ("address", "An email address must be a plain address such as name@example.com."),
+        NotificationChannelKind.Telegram when ConfirmedAt is null => ("confirmedAt", "A Telegram channel is always confirmed."),
+        _ when Enabled && ConfirmedAt is null => ("enabled", "A channel cannot be enabled before it is confirmed."),
         _ => null,
     };
 
@@ -31,7 +37,10 @@ internal sealed record NotificationChannelBackup(
         UserId = userId,
         Kind = Kind,
         Address = Address,
-        Enabled = Enabled,
+        // A file proves nothing about a mailbox, so an email address comes back unconfirmed and off, and
+        // the owner sends the link again (ADR-022). A Telegram chat id is only ever linked by pressing Start.
+        Enabled = Kind != NotificationChannelKind.Email && Enabled,
         LinkedAt = LinkedAt.ToUniversalTime(),
+        ConfirmedAt = Kind == NotificationChannelKind.Email ? null : ConfirmedAt?.ToUniversalTime(),
     };
 }

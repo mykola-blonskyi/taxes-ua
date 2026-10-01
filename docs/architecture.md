@@ -106,7 +106,14 @@ External systems:
   `Telegram:BaseUrl` (default `https://api.telegram.org/`) exists so a local run can point at a stub.
   Reminders (#108, ADR-019) reach it through `IReminderChannel`, the boundary email (#107) plugs into, and
   link to `App:PublicUrl` (`APP_PUBLIC_URL`), or `https://` and the first `ALLOWED_HOSTS` domain when unset.
-- SMTP for reminders (Stage 2).
+- SMTP for reminders (Stage 2, #107, ADR-022): `EmailSettings` reads `SMTP_*` once and leaves the channel
+  unavailable when they are absent or invalid (or when there is no address for the confirmation link). `IEmailTransport`
+  is the seam: `SmtpEmailTransport` sends with MailKit and classifies failures into `DeliveryFailure`, and tests
+  replace it with an in-memory sender. `EmailDelivery` and `TelegramDelivery` both go through `ChannelDelivery`
+  (who may be sent to, the retries and backoff, the failure record), and `EmailReminderChannel` is the
+  `IReminderChannel` that lets `ReminderSender` send reminders to email with the channel in the claim key.
+  The confirmation link carries a data-protection token (`EmailConfirmation`): owner, address and expiry,
+  nothing stored.
 - DPS XML schemas F0103309 (the declaration) and F0133109 (its ESV annex), vendored and embedded (ADR-016, ADR-018).
 
 ---

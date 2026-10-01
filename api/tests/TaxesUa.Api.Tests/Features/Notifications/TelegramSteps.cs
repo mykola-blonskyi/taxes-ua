@@ -64,10 +64,12 @@ internal static class TelegramSteps
         Assert.True((await Channel(owner))["linked"]!.GetValue<bool>());
     }
 
-    public static async Task<JsonObject> Channel(HttpClient client)
+    public static Task<JsonObject> Channel(HttpClient client) => Channel(client, "Telegram");
+
+    public static async Task<JsonObject> Channel(HttpClient client, string kind)
     {
         var channels = await client.GetFromJsonAsync<JsonArray>(Channels);
-        return channels!.Single()!.AsObject();
+        return channels!.Single(channel => channel!["kind"]!.GetValue<string>() == kind)!.AsObject();
     }
 
     public static async Task<JsonObject> Toggle(HttpClient client, bool enabled)

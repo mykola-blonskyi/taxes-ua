@@ -40,7 +40,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":14,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
+        """{"schemaVersion":15,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -296,12 +296,12 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         await Wipe(owner);
 
         await Restore(owner, Baseline().ToJsonString());
-        var restored = (await owner.GetFromJsonAsync<JsonArray>("/api/notifications/channels"))!.Single()!;
+        var restored = (await owner.GetFromJsonAsync<JsonArray>("/api/notifications/channels"))!.Single(channel => channel!["kind"]!.GetValue<string>() == "Telegram")!;
         var version10 = Baseline();
         version10["schemaVersion"] = 10;
         version10.Remove("notificationChannels");
         await Restore(owner, version10.ToJsonString());
-        var upgraded = (await owner.GetFromJsonAsync<JsonArray>("/api/notifications/channels"))!.Single()!;
+        var upgraded = (await owner.GetFromJsonAsync<JsonArray>("/api/notifications/channels"))!.Single(channel => channel!["kind"]!.GetValue<string>() == "Telegram")!;
 
         Assert.True(restored["linked"]!.GetValue<bool>());
         Assert.True(restored["enabled"]!.GetValue<bool>());
@@ -333,6 +333,65 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             (restored!.Jar!.JarId, restored.Jar.Title, restored.Jar.BalanceKop, restored.Jar.FetchedAt));
         Assert.Null(upgraded!.Jar);
         Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public async Task A_restore_brings_back_an_email_address_unconfirmed_and_off_and_the_file_holds_no_link()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+        var file = Baseline();
+        file["notificationChannels"]!.AsArray().Add(JsonNode.Parse(
+            """{"kind":"Email","address":"owner@mail.test","enabled":true,"linkedAt":"2031-03-01T08:00:00+00:00","confirmedAt":"2031-03-01T08:05:00+00:00"}"""));
+
+        await Restore(owner, file.ToJsonString());
+        var channels = (await owner.GetFromJsonAsync<JsonArray>("/api/notifications/channels"))!;
+        var email = channels.Single(channel => channel!["kind"]!.GetValue<string>() == "Email")!;
+        var telegram = channels.Single(channel => channel!["kind"]!.GetValue<string>() == "Telegram")!;
+        var backup = await Backup(owner);
+
+        Assert.True(email["linked"]!.GetValue<bool>());
+        Assert.False(email["confirmed"]!.GetValue<bool>());
+        Assert.False(email["enabled"]!.GetValue<bool>());
+        Assert.Equal("owner@mail.test", email["address"]!.GetValue<string>());
+        Assert.True(telegram["confirmed"]!.GetValue<bool>());
+        Assert.True(telegram["enabled"]!.GetValue<bool>());
+        var saved = JsonNode.Parse(backup)!["notificationChannels"]!.AsArray()
+            .Single(channel => channel!["kind"]!.GetValue<string>() == "Email")!;
+        Assert.Null(saved["confirmedAt"]);
+        Assert.False(saved["enabled"]!.GetValue<bool>());
+        Assert.DoesNotContain("confirmEmail", backup);
+        Assert.DoesNotContain("token", backup, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(13)]
+    [InlineData(14)]
+    public async Task A_version_13_or_14_file_upgrades_with_every_channel_confirmed_when_it_was_linked(int version)
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+        var file = Baseline();
+        file["schemaVersion"] = version;
+        if (version == 13)
+        {
+            file.Remove("reserveJar");
+        }
+
+        var channel = file["notificationChannels"]![0]!.AsObject();
+        var linkedAt = channel["linkedAt"]!.GetValue<DateTimeOffset>();
+        channel.Remove("confirmedAt");
+
+        await Restore(owner, file.ToJsonString());
+        var saved = JsonNode.Parse(await Backup(owner))!["notificationChannels"]![0]!;
+
+        Assert.Equal(linkedAt, saved["confirmedAt"]!.GetValue<DateTimeOffset>());
+        var telegram = (await owner.GetFromJsonAsync<JsonArray>("/api/notifications/channels"))!
+            .Single(row => row!["kind"]!.GetValue<string>() == "Telegram")!;
+        Assert.True(telegram["confirmed"]!.GetValue<bool>());
+        Assert.True(telegram["enabled"]!.GetValue<bool>());
     }
 
     [Fact]
@@ -735,6 +794,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "a reserve jar without an id", "reserveJar.jarId" },
         { "a reserve jar read in the future", "reserveJar.fetchedAt" },
         { "a reserve jar title with a control character", "reserveJar.title" },
+        { "an email address that is not a plain address", "notificationChannels[1].address" },
+        { "an email channel enabled before it is confirmed", "notificationChannels[1].enabled" },
+        { "a telegram channel that was never confirmed", "notificationChannels[0].confirmedAt" },
         { "a newer schema version", null },
         { "country that is not ISO 3166-1", "clients[0].country" },
         { "malformed client email", "clients[0].email" },
@@ -1118,11 +1180,21 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                     PaymentKind.Esv, null, null, null, null,
                     LearnedTreasuryIban, null, null, "op-learned-esv", new DateOnly(2031, 4, 16), created, null),
             ],
-            [new NotificationChannelBackup(NotificationChannelKind.Telegram, "424242", true, created)],
+            [new NotificationChannelBackup(NotificationChannelKind.Telegram, "424242", true, created, created)],
             new ReserveJarBackup("jar-taxes", "На податки", 12_345_00, created.AddHours(3)));
 
         return JsonSerializer.SerializeToNode(document, Json)!.AsObject();
     }
+
+    private static void AddEmailChannel(JsonObject file, string address, bool enabled, string? confirmedAt) =>
+        file["notificationChannels"]!.AsArray().Add(new JsonObject
+        {
+            ["kind"] = "Email",
+            ["address"] = address,
+            ["enabled"] = enabled,
+            ["linkedAt"] = "2031-03-01T08:00:00+00:00",
+            ["confirmedAt"] = confirmedAt,
+        });
 
     private static string Invalid(string name)
     {
@@ -1307,6 +1379,15 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "a reserve jar title with a control character":
                 file["reserveJar"]!["title"] = "jar\u0007";
+                break;
+            case "an email address that is not a plain address":
+                AddEmailChannel(file, "Owner <owner@mail.test>", true, "2031-03-01T08:05:00+00:00");
+                break;
+            case "an email channel enabled before it is confirmed":
+                AddEmailChannel(file, "owner@mail.test", true, null);
+                break;
+            case "a telegram channel that was never confirmed":
+                file["notificationChannels"]![0]!["confirmedAt"] = null;
                 break;
             case "a newer schema version":
                 file["schemaVersion"] = BackupDocument.CurrentSchemaVersion + 1;

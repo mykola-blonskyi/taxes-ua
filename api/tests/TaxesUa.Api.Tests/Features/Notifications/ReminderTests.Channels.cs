@@ -105,7 +105,7 @@ public sealed partial class ReminderTests
 
         await RunThroughBackoff(application, clock);
 
-        Assert.Equal(1 + TelegramDelivery.Backoff.Length, telegram.To("sendMessage").Count);
+        Assert.Equal(1 + ChannelDelivery.Backoff.Length, telegram.To("sendMessage").Count);
         Assert.Empty(await SentLog(application));
 
         telegram.ClearCalls();

@@ -807,7 +807,7 @@ Once the bank operation is confirmed (#80), the debt moves as it does for any pa
 ## Rule 17. Reminders
 
 The app reminds the owner of each date that still has something to do, through every channel the owner
-connected and switched on (Telegram, and email once #107 adds it). Nothing is scheduled ahead: every run
+connected and switched on (Telegram and email). Nothing is scheduled ahead: every run
 computes the reminders due from the Rule 7 ledger, the filed marks and the settings, so the amount is what
 is owed when the message is sent, and a payment recorded in between changes the amount or drops the
 reminder.
@@ -849,3 +849,17 @@ kept as possibly sent. Any other failure keeps the record too, and shows on the 
 A message is plain text in the owner's interface language (uk or ru): the date and the days left, one
 line per item (the kind and period with the amount owed now, or the declaration to file), and a link to
 the app's home screen, where the pay panel is. The runs are 5 minutes apart.
+
+Email is a channel like Telegram, through the same sender, the same sent log (the channel is part of the
+claim's key, so one reminder is claimed once for Telegram and once for email) and the same retry rule: three
+retries after the first attempt, then a failure shown on the channel. An address is added unconfirmed and
+receives nothing but the confirmation email until the owner opens its link, signed in, within 24 hours; the
+link names the address, so a link for an address since replaced or removed opens nothing. Asking for a
+confirmation again, changing the address, or restoring a backup (which brings an email address back
+unconfirmed) switches the channel off until the new link is opened. The
+message is the Telegram text as the plain-text part plus a simple HTML part of the same words. The server's
+answers decide the retry: unreachable and 4xx replies are retried and release the claim; a refused
+sign-in, a 5xx reply to the sender or the recipient is final and keeps it; a connection lost or timed out
+after the message was handed to the server may have delivered it, so it is kept as possibly sent, never
+retried (the rule above). Without valid SMTP settings, or without an address for the link to point at, the
+channel is unavailable and a run sends nothing and claims nothing.

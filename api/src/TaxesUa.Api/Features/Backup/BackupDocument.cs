@@ -45,9 +45,10 @@ internal sealed record BackupDocument(
     // (#110); 8 added the receipts' invoice links (#93); 9 added treasuryAccounts and the candidates'
     // counterEdrpou (#98); 10 added the settings' backOnGroup3From (#118); 11 added notificationChannels (#106);
     // 12 added declarationFiles and the declaration details' taxOfficeName (#111); 13 added the declaration
-    // files' annexFileName and annexContent (#112); 14 added reserveJar (#102). An older file is upgraded to
-    // this shape one version at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 14;
+    // files' annexFileName and annexContent (#112); 14 added reserveJar (#102); 15 added the notification
+    // channels' confirmedAt, which email needs because an address waits for its link (#107). An older file is
+    // upgraded to this shape one version at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 15;
 
     private const int MaxExternalIdLength = 200;
 
@@ -159,6 +160,11 @@ internal sealed record BackupDocument(
         if (version <= 13)
         {
             UpgradeFromVersion13(root);
+        }
+
+        if (version <= 14)
+        {
+            UpgradeFromVersion14(root);
         }
     }
 
@@ -325,8 +331,22 @@ internal sealed record BackupDocument(
     // A version 13 file predates the reserve jar: none was chosen.
     private static void UpgradeFromVersion13(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 14;
         root["reserveJar"] = null;
+    }
+
+    // A version 14 file predates email and the confirmation of a channel (#107). Every channel it holds is
+    // a Telegram chat, confirmed when it was linked.
+    private static void UpgradeFromVersion14(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        if (root["notificationChannels"] is JsonArray channels)
+        {
+            foreach (var channel in channels.OfType<JsonObject>())
+            {
+                channel["confirmedAt"] = channel["linkedAt"]?.DeepClone();
+            }
+        }
     }
 
     /// <summary>
