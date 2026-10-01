@@ -225,7 +225,7 @@ function MonobankConnectionBody({
         </div>
       ) : null}
 
-      {connection.connected && !tokenRejected ? <ReserveJarSection /> : null}
+      <ReserveJarSection canRead={connection.connected && !tokenRejected} />
     </div>
   );
 }

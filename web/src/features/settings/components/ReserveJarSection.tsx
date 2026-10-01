@@ -17,7 +17,7 @@ import { SelectField } from "@/shared/ui/fields";
 
 // Which monobank jar holds the tax reserve. The jar's name and balance appear here and on the home screen
 // only, to the owner; the list of jars is read from the bank when the owner asks for it.
-export function ReserveJarSection() {
+export function ReserveJarSection({ canRead }: { canRead: boolean }) {
   const t = useTranslations("reserveJar");
   const locale = useLocale();
   const stored = useReserveJar();
@@ -38,6 +38,12 @@ export function ReserveJarSection() {
         load.reset();
       },
     });
+  }
+
+  // A stored jar outlives a disconnect or a rejected token, so it can always be seen and removed; asking the
+  // bank needs a working token.
+  if (!jar && !canRead) {
+    return null;
   }
 
   return (
@@ -63,24 +69,26 @@ export function ReserveJarSection() {
       <div className="flex flex-wrap items-center gap-2">
         {jar ? (
           <>
-            <Button type="button" variant="outline" size="sm" disabled={refresh.isPending} onClick={() => refresh.mutate()}>
-              {refresh.isPending ? t("refreshing") : t("refresh")}
-            </Button>
+            {canRead ? (
+              <Button type="button" variant="outline" size="sm" disabled={refresh.isPending} onClick={() => refresh.mutate()}>
+                {refresh.isPending ? t("refreshing") : t("refresh")}
+              </Button>
+            ) : null}
             <Button type="button" variant="outline" size="sm" disabled={clear.isPending} onClick={() => clear.mutate()}>
               {t("remove")}
             </Button>
           </>
         ) : null}
-        {!choices ? (
+        {canRead && !choices ? (
           <Button type="button" variant="outline" size="sm" disabled={load.isPending} onClick={() => load.mutate()}>
             {load.isPending ? t("loading") : jar ? t("change") : t("load")}
           </Button>
         ) : null}
       </div>
 
-      {choices && choices.length === 0 ? <p className="text-sm text-muted-foreground">{t("noUahJars")}</p> : null}
+      {canRead && choices && choices.length === 0 ? <p className="text-sm text-muted-foreground">{t("noUahJars")}</p> : null}
 
-      {choices && choices.length > 0 ? (
+      {canRead && choices && choices.length > 0 ? (
         <form className="flex flex-col gap-2" onSubmit={submit}>
           <SelectField
             id="reserve-jar-pick"

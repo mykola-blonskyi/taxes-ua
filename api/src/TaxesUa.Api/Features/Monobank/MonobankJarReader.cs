@@ -25,7 +25,7 @@ internal abstract record JarsRead
 /// choosing one and refreshing its balance therefore cost the bank one call between them.
 /// The answer is held in memory per owner and never leaves the process; a token is never part of it.
 /// </summary>
-internal sealed class MonobankJarReader(MonobankClient client, MonobankRateGate gate, TimeProvider time)
+internal sealed class MonobankJarReader(MonobankRateGate gate, TimeProvider time)
 {
     public const string Method = "client-info";
 
@@ -33,7 +33,13 @@ internal sealed class MonobankJarReader(MonobankClient client, MonobankRateGate 
 
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
-    public async Task<JarsRead> ReadAsync(string ownerId, string token, CancellationToken cancellationToken)
+    // Bumped whenever the owner's token changes. A read that began under an earlier number belongs to a
+    // token that is gone, so it must not fill the cache or be believed.
+    private readonly ConcurrentDictionary<string, int> _generation = new();
+
+    // The client is the caller's, resolved from its scope, so this singleton does not pin one handler.
+    public async Task<JarsRead> ReadAsync(
+        MonobankClient client, string ownerId, string token, CancellationToken cancellationToken)
     {
         var owners = _locks.GetOrAdd(ownerId, _ => new SemaphoreSlim(1, 1));
         await owners.WaitAsync(cancellationToken);
@@ -49,7 +55,14 @@ internal sealed class MonobankJarReader(MonobankClient client, MonobankRateGate 
                 return new JarsRead.Waiting(retryAfter);
             }
 
-            switch (await client.GetClientInfoAsync(token, cancellationToken))
+            var generation = Generation(ownerId);
+            var result = await client.GetClientInfoAsync(token, cancellationToken);
+            if (Generation(ownerId) != generation)
+            {
+                return new JarsRead.Unavailable("The monobank token changed while it was being read.");
+            }
+
+            switch (result)
             {
                 case ClientInfoResult.Found found:
                     var at = time.GetUtcNow();
@@ -77,9 +90,16 @@ internal sealed class MonobankJarReader(MonobankClient client, MonobankRateGate 
     public void Remember(string ownerId, MonobankClientInfo info)
     {
         gate.Mark(ownerId, Method);
+        _generation.AddOrUpdate(ownerId, 1, (_, number) => number + 1);
         _last[ownerId] = (time.GetUtcNow(), info.Jars);
     }
 
     /// <summary>Drops what was read with a token that is gone.</summary>
-    public void Forget(string ownerId) => _last.TryRemove(ownerId, out _);
+    public void Forget(string ownerId)
+    {
+        _generation.AddOrUpdate(ownerId, 1, (_, number) => number + 1);
+        _last.TryRemove(ownerId, out _);
+    }
+
+    private int Generation(string ownerId) => _generation.GetValueOrDefault(ownerId);
 }

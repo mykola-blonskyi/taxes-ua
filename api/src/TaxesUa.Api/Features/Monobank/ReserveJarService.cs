@@ -36,6 +36,7 @@ internal sealed class ReserveJarService(
     AppDbContext database,
     TokenEncryptor encryptor,
     MonobankJarReader reader,
+    MonobankClient client,
     ILogger<ReserveJarService> logger)
 {
     // Later than the nightly run (ADR-012) and the webhook syncs would leave a balance, so a balance this
@@ -68,7 +69,25 @@ internal sealed class ReserveJarService(
         }
 
         Apply(row, chosen, found.At);
-        await database.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await database.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException) when (database.Entry(row).State == EntityState.Added)
+        {
+            // A double submit inserted the owner's row first: this choice is then an update of it.
+            database.Entry(row).State = EntityState.Detached;
+            var existing = await database.ReserveJars.FindAsync([ownerId], cancellationToken);
+            if (existing is null)
+            {
+                throw;
+            }
+
+            Apply(existing, chosen, found.At);
+            await database.SaveChangesAsync(cancellationToken);
+            row = existing;
+        }
+
         return new JarOutcome.Stored(row);
     }
 
@@ -137,7 +156,7 @@ internal sealed class ReserveJarService(
             return new JarOutcome.Unavailable("The stored monobank token cannot be read.");
         }
 
-        return await reader.ReadAsync(ownerId, token, cancellationToken) switch
+        return await reader.ReadAsync(client, ownerId, token, cancellationToken) switch
         {
             JarsRead.Found found => new JarOutcome.Listed(Offered(found.Jars), found.At),
             JarsRead.Waiting waiting => new JarOutcome.Waiting(waiting.RetryAfter),

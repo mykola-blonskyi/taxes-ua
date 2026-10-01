@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/data/api/client";
 import type { components } from "@/data/api/schema";
+import { dashboardQueryKey } from "@/data/dashboard/useDashboard";
 import { clientsQueryKey, transactionsQueryKey } from "@/data/transactions/useTransactions";
 
 export type MonobankConnectionResponse = components["schemas"]["MonobankConnectionResponse"];
@@ -94,6 +95,8 @@ export function useDisconnectMonobank() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: monobankQueryKey });
+      // The home screen's jar offer depends on the connection.
+      queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
     },
   });
 }

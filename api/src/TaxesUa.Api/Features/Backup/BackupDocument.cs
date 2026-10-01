@@ -334,7 +334,7 @@ internal sealed record BackupDocument(
     /// endpoints run. The refund links need the receipts' stored state, so
     /// <see cref="TransactionsEndpoints.ValidateLinksAsync"/> checks them after the rows are written.
     /// </summary>
-    public Dictionary<string, string[]>? Validate(DateOnly today)
+    public Dictionary<string, string[]>? Validate(DateOnly today, DateTimeOffset now)
     {
         // RespectNullableAnnotations checks members, not array elements.
         if (Array.Exists(Clients, row => row is null)
@@ -380,7 +380,7 @@ internal sealed record BackupDocument(
             Merge("declarationDetails", DeclarationDetailsEndpoints.Validate(declaration.ToRequest()));
         }
 
-        if (ReserveJar?.Error() is var (jarKey, jarMessage))
+        if (ReserveJar?.Error(now) is var (jarKey, jarMessage))
         {
             errors[$"reserveJar.{jarKey}"] = [jarMessage];
         }

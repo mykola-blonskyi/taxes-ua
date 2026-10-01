@@ -294,6 +294,76 @@ public sealed partial class MonobankSyncTests
         await ForgetJar(owner);
     }
 
+    [Fact]
+    public async Task A_read_in_flight_when_the_token_is_replaced_is_discarded_and_never_cached()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-jar-race-a", ("jar-race-fop", 980));
+        bank.Jars("token-jar-race-a", ("jar-old", "Стара скарбничка", 980, 1_00));
+        bank.Connect("token-jar-race-b", ("jar-race-fop", 980));
+        bank.Jars("token-jar-race-b", ("jar-new", "Нова скарбничка", 980, 2_00));
+        await using var app = Create(At(2095, 2, 10, 10), bank);
+        await ClearJars(app);
+        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-jar-race-a");
+        app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
+        bank.HoldClientInfo("token-jar-race-a");
+
+        var inFlight = owner.GetAsync("/api/monobank/jars");
+        Assert.True(bank.HeldArrived(TimeSpan.FromSeconds(10)));
+        var replaced = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "token-jar-race-b" });
+        bank.ReleaseClientInfo();
+        var late = await inFlight;
+        var listed = (await owner.GetFromJsonAsync<JarChoicesResponse>("/api/monobank/jars", Json))!;
+
+        Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
+        Assert.Equal(HttpStatusCode.BadGateway, late.StatusCode);
+        Assert.DoesNotContain("Стара", await late.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(["jar-new"], listed.Jars.Select(jar => jar.Id));
+    }
+
+    [Fact]
+    public async Task A_token_save_spends_the_slot_even_when_the_bank_refuses_the_token()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-jar-spent", ("jar-spent-fop", 980));
+        bank.Jars("token-jar-spent", (TaxesJar, "На податки", 980, 10_000_00));
+        await using var app = Create(At(2095, 1, 10, 10), bank);
+        await ClearJars(app);
+        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-jar-spent");
+        await Choose(owner, TaxesJar);
+        app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
+
+        var refused = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "token-nobody" });
+        var calls = bank.ClientInfoCalls(app.Handler).Length;
+        var refresh = await Refresh(owner);
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Equal(HttpStatusCode.TooManyRequests, refresh.StatusCode);
+        Assert.Equal(calls, bank.ClientInfoCalls(app.Handler).Length);
+
+        await ForgetJar(owner);
+    }
+
+    [Fact]
+    public async Task Choosing_twice_at_once_leaves_one_jar_and_no_error()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-jar-double", ("jar-double-fop", 980));
+        bank.Jars("token-jar-double", (TaxesJar, "На податки", 980, 10_000_00), ("jar-trip", "Подорож", 980, 5_00));
+        await using var app = Create(At(2095, 3, 20, 10), bank);
+        await ClearJars(app);
+        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-jar-double");
+
+        var both = await Task.WhenAll(
+            owner.PutAsJsonAsync("/api/monobank/reserve-jar", new { jarId = TaxesJar }, Json),
+            owner.PutAsJsonAsync("/api/monobank/reserve-jar", new { jarId = "jar-trip" }, Json));
+
+        Assert.All(both, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
+        Assert.Contains((await StoredJar(owner)).Jar!.JarId, new[] { TaxesJar, "jar-trip" });
+
+        await ForgetJar(owner);
+    }
+
     private static async Task<ReserveJarResponse> Choose(HttpClient owner, string jarId)
     {
         var response = await owner.PutAsJsonAsync("/api/monobank/reserve-jar", new { jarId }, Json);

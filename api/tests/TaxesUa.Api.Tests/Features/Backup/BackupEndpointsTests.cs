@@ -733,6 +733,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "a channel address that is not a chat id", "notificationChannels[0].address" },
         { "a reserve jar with a negative balance", "reserveJar.balanceKop" },
         { "a reserve jar without an id", "reserveJar.jarId" },
+        { "a reserve jar read in the future", "reserveJar.fetchedAt" },
         { "a reserve jar title with a control character", "reserveJar.title" },
         { "a newer schema version", null },
         { "country that is not ISO 3166-1", "clients[0].country" },
@@ -1297,6 +1298,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "a reserve jar with a negative balance":
                 file["reserveJar"]!["balanceKop"] = -1;
+                break;
+            case "a reserve jar read in the future":
+                file["reserveJar"]!["fetchedAt"] = "2031-06-01T10:06:00+00:00";
                 break;
             case "a reserve jar without an id":
                 file["reserveJar"]!["jarId"] = string.Empty;

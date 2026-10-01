@@ -11,13 +11,18 @@ export type JarChoice = components["schemas"]["JarChoiceResponse"];
 export const reserveJarQueryKey = ["monobank", "reserve-jar"] as const;
 
 // What the owner can do about a failed call: wait a minute (429), choose again (400 and 409), or try later.
-export function jarErrorKind(error: unknown): "wait" | "conflict" | "unavailable" | "failed" {
+export function jarErrorKind(error: unknown): "wait" | "rejected" | "conflict" | "unavailable" | "failed" {
   if (!(error instanceof ApiError)) {
     return "failed";
   }
 
   if (error.status === 429) {
     return "wait";
+  }
+
+  // The api's title for a token monobank refused; the owner has to connect again, not choose again.
+  if (error.status === 409 && error.message === "monobank rejected the token; replace it first.") {
+    return "rejected";
   }
 
   if (error.status === 400 || error.status === 409) {

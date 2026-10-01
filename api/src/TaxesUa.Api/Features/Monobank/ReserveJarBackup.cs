@@ -10,10 +10,12 @@ namespace TaxesUa.Api.Features.Monobank;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record ReserveJarBackup(string JarId, string Title, long BalanceKop, DateTimeOffset FetchedAt)
 {
+    private static readonly TimeSpan FutureTolerance = TimeSpan.FromMinutes(5);
+
     public static ReserveJarBackup From(ReserveJar row) => new(row.JarId, row.Title, row.BalanceKop, row.FetchedAt);
 
     // The column limits of ReserveJarConfiguration, and the only balance a UAH jar can hold.
-    public (string Key, string Message)? Error() => this switch
+    public (string Key, string Message)? Error(DateTimeOffset now) => this switch
     {
         { JarId: null } or { Title: null } => ("jarId", "jarId and title are required."),
         { JarId.Length: 0 or > ReserveJarConfiguration.MaxJarIdLength } =>
@@ -24,6 +26,7 @@ internal sealed record ReserveJarBackup(string JarId, string Title, long Balance
         _ when TextRules.HasDisallowedControlChar(Title) => ("title", "title must not contain a control character."),
         { BalanceKop: < 0 } => ("balanceKop", "balanceKop must not be negative."),
         { FetchedAt.Year: < 2000 } => ("fetchedAt", "fetchedAt must be a real time."),
+        _ when FetchedAt > now + FutureTolerance => ("fetchedAt", "fetchedAt must not be in the future."),
         _ => null,
     };
 

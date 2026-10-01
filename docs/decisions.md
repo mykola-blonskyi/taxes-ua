@@ -909,8 +909,14 @@ balance would also each cost a call if they did not share an answer.
 `MonobankJarReader` is the one way the jars are read: `MonobankClient.GetClientInfoAsync` behind the gate's
 `client-info` slot, taken with the new `TryTakeTurn`, which succeeds only when the slot is free. It keeps
 its last answer in memory per owner for one gate interval and serves it to any read inside it. A token
-save, which validates the token with `client-info` outside the gate, marks the slot used and hands the
-reader its answer. A read that finds the slot taken is skipped by a sync run, which refreshes the jar after
+save, which validates the token with `client-info` outside the gate, marks the slot used whatever the
+answer and, when the token is good, hands the reader its answer. The save is the one call that is not
+gated: it must check the token now, so if a gated read took the slot in the minute before it, the bank
+can see two calls within 60 seconds (a 429 to the save reads as the bank being unavailable and nothing is
+stored). Gating it with `TryTakeTurn` and answering 429 would refuse a valid token for no reason of the
+owner's, so the exception is accepted. The reader is a singleton that takes the client as an argument
+from the caller's scope and numbers each owner's token: a read that began before a save or a disconnect
+is discarded rather than cached. A read that finds the slot taken is skipped by a sync run, which refreshes the jar after
 the statement and tries again at the next run, and is answered `429` with `Retry-After` for the owner's
 refresh. Only the chosen jar is stored (`ReserveJar`: id, name, balance, the time the bank reported it), and
 a balance that cannot be refreshed keeps its time, marked stale after 24 hours. The row is not audited: it

@@ -88,7 +88,7 @@ public static class BackupEndpoints
                     return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: reason);
                 }
 
-                if (document.Validate(time.TodayInKyiv()) is { } errors)
+                if (document.Validate(time.TodayInKyiv(), time.GetUtcNow()) is { } errors)
                 {
                     return Results.ValidationProblem(errors, title: "The backup file breaks the rules below.");
                 }

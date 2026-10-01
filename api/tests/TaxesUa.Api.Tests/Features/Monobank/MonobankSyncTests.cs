@@ -745,6 +745,19 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
 
         public bool ClientInfoFails { get; set; }
 
+        // Makes client-info calls made with this token wait for Release, after saying they arrived.
+        private string? _heldToken;
+
+        private readonly ManualResetEventSlim _heldArrived = new(false);
+
+        private readonly ManualResetEventSlim _heldRelease = new(false);
+
+        public void HoldClientInfo(string token) => _heldToken = token;
+
+        public bool HeldArrived(TimeSpan timeout) => _heldArrived.Wait(timeout);
+
+        public void ReleaseClientInfo() => _heldRelease.Set();
+
         private readonly ConcurrentDictionary<string, (string Id, string Title, int CurrencyCode, long Balance)[]> _jars = new();
 
         // The jars client-info reports for a token from now on; each call replaces the whole list.
@@ -809,6 +822,12 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
             var path = request.RequestUri!.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
             if (path is ["personal", "client-info"])
             {
+                if (token == _heldToken)
+                {
+                    _heldArrived.Set();
+                    _heldRelease.Wait(TimeSpan.FromSeconds(20));
+                }
+
                 return ClientInfoFails
                     ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
                     : StubMonobankHandler.Json(StubMonobankHandler.WithJars(clientInfo, _jars.GetValueOrDefault(token) ?? []));
