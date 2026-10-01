@@ -553,8 +553,8 @@ public static class InvoicesEndpoints
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status404NotFound);
 
-        // Newest first: unlinked, in the invoice's currency, and the invoice's client's or no client's, so
-        // a receipt typed without a client is not stranded.
+        // Newest first: unlinked and in the invoice's currency, whatever its client, since a client may pay
+        // through an intermediary; the picker warns when the payer is not the invoice's client.
         invoices.MapGet("/{id:guid}/receipt-options", async (
                 Guid id,
                 UserManager<ApplicationUser> users,
@@ -583,8 +583,7 @@ public static class InvoicesEndpoints
                     .Where(row => row.UserId == user.Id
                         && row.Kind == TransactionKind.Income
                         && row.InvoiceId == null
-                        && row.Currency == invoice.Currency
-                        && (row.ClientId == invoice.ClientId || row.ClientId == null))
+                        && row.Currency == invoice.Currency)
                     .OrderByDescending(row => row.ValueDate)
                     .ThenByDescending(row => row.CreatedAt)
                     .Select(row => new ReceiptOption(

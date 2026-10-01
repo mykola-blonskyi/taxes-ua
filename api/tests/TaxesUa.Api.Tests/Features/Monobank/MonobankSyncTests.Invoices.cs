@@ -87,8 +87,8 @@ public sealed partial class MonobankSyncTests
         var offered = await Suggestions(owner);
         Assert.Equal([byNumber.Id], offered[number.Id]);
         Assert.Equal([byClientSooner.Id, byClientLater.Id], offered[client.Id]);
-        // Another client's receipt cannot pay the invoice, so it is not offered even with the number in it.
-        Assert.DoesNotContain(stranger.Id, offered.Keys);
+        // A payer other than the invoice's client (an intermediary) is still offered by the number in it.
+        Assert.Equal([byNumber.Id], offered[stranger.Id]);
         Assert.DoesNotContain(wrongAmount.Id, offered.Keys);
         Assert.DoesNotContain(wrongCurrency.Id, offered.Keys);
         Assert.All(rows, row => Assert.Null(row.InvoiceId));

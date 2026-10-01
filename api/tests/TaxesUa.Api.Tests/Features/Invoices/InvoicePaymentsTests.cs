@@ -89,25 +89,26 @@ public sealed class InvoicePaymentsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task A_receipt_of_another_client_cannot_pay_the_invoice_and_one_without_a_client_takes_the_invoices()
+    public async Task A_receipt_of_another_client_may_pay_through_an_intermediary_and_keeps_its_client()
     {
         await using var application = App();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         await SaveDetails(owner);
         var client = await CreateClient(owner, "Same Client Ltd");
-        await CreateClient(owner, "Stranger Client Ltd");
+        await CreateClient(owner, "Intermediary Ltd");
         var invoice = await IssuedInvoice(owner, client.Id, new DateOnly(2058, 3, 1), 1_000_00);
-        var strangers = await Receipt(owner, "Stranger Client Ltd", 1_000_00);
+        var intermediary = await Receipt(owner, "Intermediary Ltd", 600_00);
         var nameless = await Receipt(owner, null, 400_00);
 
-        var refused = await TryLink(owner, invoice.Id, strangers.Id);
+        var viaIntermediary = await Link(owner, invoice.Id, intermediary.Id);
 
-        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
-        Assert.Null((await Transaction(owner, strangers.Id)).InvoiceId);
-        Assert.Empty((await Get(owner, invoice.Id)).Receipts);
+        Assert.Equal(600_00, viaIntermediary.PaidMinor);
+        var kept = await Transaction(owner, intermediary.Id);
+        Assert.Equal((invoice.Id, "Intermediary Ltd"), (kept.InvoiceId!.Value, kept.ClientName));
 
-        await Link(owner, invoice.Id, nameless.Id);
+        var paid = await Link(owner, invoice.Id, nameless.Id);
 
+        Assert.Equal(InvoiceStanding.Paid, paid.Standing);
         var linked = await Transaction(owner, nameless.Id);
         Assert.Equal((invoice.Id, "Same Client Ltd"), (linked.InvoiceId!.Value, linked.ClientName));
     }
@@ -132,7 +133,10 @@ public sealed class InvoicePaymentsTests(ApiFixture fixture) : IClassFixture<Api
         await Link(owner, paid.Id, paying.Id);
 
         var receipts = await owner.GetFromJsonAsync<ReceiptOption[]>($"/api/invoices/{later.Id}/receipt-options", Json);
-        Assert.Equal([newer.Id, older.Id, nameless.Id], receipts!.Select(option => option.Id));
+        // Whatever the client: a client may pay through an intermediary.
+        // Tests share the owner, so other tests' unlinked USD receipts are listed too: look at this test's own.
+        Guid[] mine = [otherClients.Id, newer.Id, older.Id, nameless.Id, euros.Id, paying.Id];
+        Assert.Equal([otherClients.Id, newer.Id, older.Id, nameless.Id], receipts!.Select(option => option.Id).Where(mine.Contains));
 
         var invoices = await owner.GetFromJsonAsync<InvoiceSummary[]>($"/api/invoices/payable-by/{newer.Id}", Json);
         Assert.Equal([sooner.Id, later.Id], invoices!.Select(invoice => invoice.Id));

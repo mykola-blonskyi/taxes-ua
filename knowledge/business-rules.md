@@ -575,7 +575,8 @@ Amounts. Integer minor units of the invoice currency. A line is quantity (in tho
 rate, rounded once half away from zero; the total is the sum of the rounded lines.
 
 Payment. Receipts pay invoices. The owner links a receipt (`Income`) to an issued invoice of their own
-in the same currency and of the same client (a receipt of another client is refused; one with no client
+in the same currency (a client may pay through an intermediary, so the receipt may be of another client: it keeps
+its own client, the screens warn that the payer differs from the invoice's client, and a receipt with no client
 takes the invoice's), from the invoice or from the receipt. Several receipts can pay one invoice; a
 receipt pays at most one. A draft, a cancelled invoice, an invoice already paid, a receipt in another
 currency and a receipt already paying another invoice are refused. Linking writes the invoice's number
@@ -595,7 +596,7 @@ tombstone counts nowhere and must not keep an invoice paid. The home screen coun
 Suggested payment. An imported receipt waiting for review (Rule 12) is offered as the payment of an
 open invoice when it is an `Income` row in the invoice's currency, its amount equals what the invoice
 still has due, and the invoice number or the client's name appears in the bank's counterparty name,
-description or comment, and the receipt has no client or the invoice's client. The number must stand alone (`2026-003` is not found in `2026-0031`); the name
+description or comment, whoever the receipt's client is. The number must stand alone (`2026-003` is not found in `2026-0031`); the name
 is compared without case and extra spaces, apostrophes, dashes and composed letters being treated alike, as a
 whole word, and a name shorter than three characters is never matched. A number followed or preceded by
 `-` or `/` and a digit (`2026-003-1`) is another number. Overdue invoices are offered too; a paid, draft or cancelled one never is. A receipt

@@ -325,8 +325,8 @@ Fields:
   currency.
 - `ClientId?`, `Description`, `Counterparty`.
 - `InvoiceId?` the issued invoice this receipt pays (#93): set only by linking, only on a confirmed
-  `Income` row in the invoice's currency, to the same owner's issued invoice of the same client (a receipt without a client takes the invoice's when
-  linked). A receipt pays at most one
+  `Income` row in the invoice's currency, to the same owner's issued invoice, of any client (an intermediary may pay; the receipt keeps its client, and one
+  without a client takes the invoice's when linked). A receipt pays at most one
   invoice. `InvoiceNumber?` is free text on an unlinked receipt; linking overwrites it with the invoice's
   number and unlinking clears it. While linked, the receipt keeps its kind, currency and number (an edit
   changing them is refused). Deleting a linked receipt removes the link with it; dismissing an imported
@@ -716,7 +716,8 @@ stored, the API returns `Standing: Draft | Issued | Overdue | Paid | Cancelled`,
 receipts less the refunds linked to each) and `DueMinor` (the total less `PaidMinor`, null on a draft and
 a cancelled invoice); an invoice also lists its receipts. Paid when `PaidMinor` reaches the total;
 overdue when issued, not paid and today in Kyiv is after `DueDate` (Rule 14). The owner links from the
-invoice, choosing among unlinked receipts in its currency of its client or of no client, newest first,
+invoice, choosing among unlinked receipts in its currency of any client, newest first, with a warning on one whose client is
+not the invoice's,
 or from the receipt, choosing among the open invoices in its currency of its client (any client's when
 it names none), closest due date first.
 
