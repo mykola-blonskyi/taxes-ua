@@ -48,7 +48,7 @@ public sealed class IcsDocumentTests
     public void The_document_uses_crlf_throughout_and_ends_with_a_line_break()
     {
         var ics = IcsDocument.Render(
-            [new CalendarDeadline(CalendarDeadlineKind.Esv, 2090, 1, null, new DateOnly(2090, 4, 19))],
+            [new CalendarDeadline("3f9a1c2e", CalendarDeadlineKind.Esv, 2090, 1, null, new DateOnly(2090, 4, 19))],
             "uk",
             new DateTimeOffset(2090, 1, 1, 0, 0, 0, TimeSpan.Zero));
 

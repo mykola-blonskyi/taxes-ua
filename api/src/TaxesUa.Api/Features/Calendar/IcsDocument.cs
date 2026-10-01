@@ -13,8 +13,9 @@ internal static class IcsDocument
 
     private const int MaxLineOctets = 75;
 
-    // Alarms fire at the start of the all-day event, so each trigger counts back from midnight.
-    private static readonly string[] AlarmTriggers = ["-P7D", "-P1D"];
+    // An all-day event starts at midnight, so the alarms count back from 00:00 to fire at 09:00 local,
+    // when the Telegram reminders go out: 7 and 1 days before.
+    private static readonly string[] AlarmTriggers = ["-P6DT15H", "-PT15H"];
 
     public static string Render(IEnumerable<CalendarDeadline> deadlines, string locale, DateTimeOffset now)
     {

@@ -72,7 +72,7 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
         {
             Assert.False(each.DtStart!.HasTime);
             Assert.Equal(DayOf(each).AddDays(1), DateOnly.FromDateTime(each.DtEnd!.Value));
-            Assert.Equal(["-P7D", "-P1D"], AlarmTriggers(ics, each.Uid!));
+            Assert.Equal(["-P6DT15H", "-PT15H"], AlarmTriggers(ics, each.Uid!));
             Assert.Equal(2, each.Alarms.Count);
         }
 
@@ -265,6 +265,79 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
     }
 
     [Fact]
+    public async Task In_January_the_previous_years_fourth_quarter_and_december_advance_are_still_listed()
+    {
+        const int year = 2070;
+        await using var application = At(new FakeClock(new DateTimeOffset(year, 1, 15, 9, 0, 0, TimeSpan.Zero)));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year - 1, new DateOnly(year - 1, 1, 1), PaymentMode.MonthlyAdvance, years: [year - 1, year, year + 1]);
+
+        var calendar = Parse(await Subscribe(application, owner));
+
+        var previous = calendar.Events.Where(each => each.Uid!.Contains($"-{year - 1}-", StringComparison.Ordinal)).ToArray();
+        Assert.Equal(
+            [$"advance-{year - 1}-m12@taxes-ua", $"declaration-{year - 1}-q4@taxes-ua", $"esv-{year - 1}-q4@taxes-ua", $"taxpayment-{year - 1}-q4@taxes-ua"],
+            previous.Select(each => each.Uid!).OrderBy(each => each, StringComparer.Ordinal));
+        Assert.Equal(new DateOnly(year, 1, 15), DayOf(previous.Single(each => each.Uid!.StartsWith("advance-", StringComparison.Ordinal))));
+        Assert.All(calendar.Events, each => Assert.True(DayOf(each).Year >= year));
+        Assert.Contains(calendar.Events, each => each.Uid == $"esv-{year}-q1@taxes-ua");
+        Assert.Contains(calendar.Events, each => each.Uid == $"advance-{year + 1}-m12@taxes-ua");
+    }
+
+    [Fact]
+    public async Task An_esv_exempt_owner_has_no_esv_events()
+    {
+        const int year = 2068;
+        await using var application = At(year);
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year, new DateOnly(year, 1, 1), PaymentMode.Quarterly, esvExempt: true);
+
+        var calendar = Parse(await Subscribe(application, owner));
+
+        Assert.DoesNotContain(calendar.Events, each => each.Uid!.StartsWith("esv-", StringComparison.Ordinal));
+        Assert.Equal(16, calendar.Events.Count);
+    }
+
+    [Fact]
+    public async Task A_year_outside_the_ledger_gets_no_advances()
+    {
+        const int year = 2066;
+        await using var application = At(year);
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        // Year 2066 has no tax year row, so 2067 lies past the gap and the periods screen shows no advances for it.
+        await SetUp(owner, year - 1, new DateOnly(year - 1, 1, 1), PaymentMode.MonthlyAdvance, years: [year - 1, year + 1]);
+
+        var calendar = Parse(await Subscribe(application, owner));
+
+        Assert.Equal([$"advance-{year - 1}-m12@taxes-ua"], calendar.Events.Where(each => each.Uid!.StartsWith("advance-", StringComparison.Ordinal)).Select(each => each.Uid!));
+    }
+
+    [Fact]
+    public async Task Uids_carry_a_short_owner_key_that_differs_between_owners_and_survives_rotation()
+    {
+        const int year = 2064;
+        await using var application = At(year);
+        using var first = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var second = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
+        await SetUp(first, year, new DateOnly(year, 1, 1), PaymentMode.Quarterly);
+        await SetUp(second, year, new DateOnly(year, 1, 1), PaymentMode.Quarterly);
+        using var anonymous = ApiFixture.CreateClient(application);
+
+        var firstPath = await Rotate(first);
+        var firstUids = RawUids(await anonymous.GetStringAsync(firstPath));
+        var rotatedUids = RawUids(await anonymous.GetStringAsync(await Rotate(first)));
+        var secondUids = RawUids(await anonymous.GetStringAsync(await Rotate(second)));
+
+        Assert.All(firstUids, uid => Assert.Matches("^[a-z]+-\\d{4}-(q\\d|m\\d{2})-[0-9a-f]{8}@taxes-ua$", uid));
+        Assert.Equal(firstUids, rotatedUids);
+        Assert.Empty(firstUids.Intersect(secondUids));
+        Assert.Equal(firstUids.Count, secondUids.Count);
+    }
+
+    private static HashSet<string> RawUids(string ics) =>
+        [.. Regex.Matches(Regex.Replace(ics, "\r\n ", string.Empty), @"UID:(\S+)").Select(match => match.Groups[1].Value)];
+
+    [Fact]
     public async Task The_download_needs_no_subscription_and_the_summaries_follow_the_owners_locale()
     {
         const int year = 2078;
@@ -320,7 +393,17 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
     private WebApplicationFactory<Program> At(FakeClock clock) =>
         fixture.CreateApplication(builder => builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(clock)));
 
-    private static IcsCalendar Parse(string ics) => IcsCalendar.Load(ics)!;
+    // Events carry an owner key in their UID; the tests name events without it.
+    private static IcsCalendar Parse(string ics)
+    {
+        var calendar = IcsCalendar.Load(ics)!;
+        foreach (var each in calendar.Events)
+        {
+            each.Uid = Regex.Replace(each.Uid!, "-[0-9a-f]{8}@taxes-ua$", "@taxes-ua");
+        }
+
+        return calendar;
+    }
 
     private static DateOnly DayOf(Ical.Net.CalendarComponents.CalendarEvent each) => DateOnly.FromDateTime(each.DtStart!.Value);
 
@@ -337,7 +420,7 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
     private static string[] AlarmTriggers(string ics, string uid)
     {
         var unfolded = Regex.Replace(ics, "\r\n ", string.Empty);
-        var start = unfolded.IndexOf("UID:" + uid + "\r\n", StringComparison.Ordinal);
+        var start = Regex.Match(unfolded, "UID:" + Regex.Escape(uid[..^"@taxes-ua".Length]) + "-[0-9a-f]{8}@taxes-ua\r\n").Index;
         var end = unfolded.IndexOf("END:VEVENT", start, StringComparison.Ordinal);
         return [.. Regex.Matches(unfolded[start..end], @"TRIGGER:(\S+)").Select(match => match.Groups[1].Value)];
     }
@@ -386,9 +469,11 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
         PaymentMode mode,
         int incomeLimitMinWages = 1_167,
         YearQuarter? backOnGroup3From = null,
-        string locale = "uk")
+        string locale = "uk",
+        int[]? years = null,
+        bool esvExempt = false)
     {
-        foreach (var each in new[] { year, year + 1 })
+        foreach (var each in years ?? [year, year + 1])
         {
             var taxYear = new TaxYearConfigRequest(
                 864_700, 500, 100, 2_200, 1_500, incomeLimitMinWages, [85, 100], 19, 40, 10, 15, Holidays(each), "a test source");
@@ -399,7 +484,7 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
             registered,
             mode,
             Api.Features.Settings.EsvRegistrationMonthPolicy.FullMonth,
-            EsvExempt: false,
+            EsvExempt: esvExempt,
             TaxPaymentCountsFromStatutoryDeclarationDate: true,
             ShiftTaxPaymentFromWeekend: true,
             Weekend,

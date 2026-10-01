@@ -733,9 +733,13 @@ leaves an existing one alone, and the owner creates or rotates one in settings. 
 no-store` keeps an intermediary from holding a copy.
 
 The document is an RFC 5545 VCALENDAR of all-day VEVENTs with a stable UID per deadline
-(`esv-2026-q1@taxes-ua`, `advance-2026-m03@taxes-ua`), so a client updates an event when a date moves
-instead of adding a second one, and the UID survives rotation and re-subscription. Each event has a
-DISPLAY alarm 7 and 1 days before. The owner's settings locale chooses Ukrainian or Russian for the
+and owner (`esv-2026-q1-3f9a1c2e@taxes-ua`, `advance-2026-m03-3f9a1c2e@taxes-ua`, the suffix being the
+first 8 hex characters of SHA-256 of the user id, not secret), so a client updates an event when a date
+moves instead of adding a second one, the UID survives rotation and re-subscription, and two owners or a
+feed beside an import never share one. The feed lists every deadline dated this calendar year or next,
+which includes last year's Q4 and December advance until January and February have passed them. Each
+event has two DISPLAY alarms, `-P6DT15H` and `-PT15H`: an all-day event starts at 00:00, so they fire at
+09:00 local, 7 and 1 days before, when the Telegram reminders go out. The owner's settings locale chooses Ukrainian or Russian for the
 summaries. The same document is served to the signed-in owner at `GET /api/calendar/deadlines.ics`
 as a download, with or without a subscription.
 
