@@ -119,45 +119,33 @@ public sealed partial class ReminderTests
         Assert.Null((await Channel(owner, "Email"))["lastFailure"]);
     }
 
-    [Fact]
-    public async Task A_timeout_may_have_delivered_so_the_reminder_is_not_sent_again_by_email()
+    // A refused sign-in or recipient is final and a timeout may have delivered: none is retried, in the
+    // channel or by a later run, and the claim stays.
+    [Theory]
+    [InlineData("Authentication")]
+    [InlineData("Rejected")]
+    [InlineData("Timeout")]
+    public async Task A_failure_that_will_not_pass_or_may_have_delivered_is_not_retried_and_keeps_the_claim(string name)
     {
+        var failure = Enum.Parse<DeliveryFailure>(name);
         var email = new InMemoryEmailTransport();
         var clock = new FakeTimeProvider(Kyiv(TaxDue.AddDays(-7), 9, 0));
         await using var application = fixture.CreateApplication(email, clock);
         var owner = await PrepareOwner(application);
         await Connected(owner, email, MailAddress);
-        email.Answer = (_, _) => new DeliveryAttempt(DeliveryFailure.Timeout);
+        email.Answer = (_, _) => new DeliveryAttempt(failure);
 
         await Run(application);
-
         Assert.Single(email.Attempts);
         Assert.Null(Assert.Single(await SentLog(application)).DeliveredAt);
 
         email.Answer = null;
         clock.Advance(ReminderWorker.Interval);
         await Run(application);
-        Assert.Single(email.Attempts);
-        Assert.Equal("Timeout", (await Channel(owner, "Email"))["lastFailure"]!.GetValue<string>());
-    }
-
-    [Fact]
-    public async Task A_refused_sign_in_is_not_retried_and_keeps_the_claim()
-    {
-        var email = new InMemoryEmailTransport();
-        var clock = new FakeTimeProvider(Kyiv(TaxDue.AddDays(-7), 9, 0));
-        await using var application = fixture.CreateApplication(email, clock);
-        var owner = await PrepareOwner(application);
-        await Connected(owner, email, MailAddress);
-        email.Answer = (_, _) => new DeliveryAttempt(DeliveryFailure.Authentication);
-
-        await Run(application);
-        clock.Advance(ReminderWorker.Interval);
-        await Run(application);
 
         Assert.Single(email.Attempts);
         Assert.Null(Assert.Single(await SentLog(application)).DeliveredAt);
-        Assert.Equal("Authentication", (await Channel(owner, "Email"))["lastFailure"]!.GetValue<string>());
+        Assert.Equal(name, (await Channel(owner, "Email"))["lastFailure"]!.GetValue<string>());
         Assert.True((await Channel(owner, "Email"))["enabled"]!.GetValue<bool>());
     }
 

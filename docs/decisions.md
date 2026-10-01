@@ -648,7 +648,7 @@ have.
 Nothing new is exposed to the internet. One process may poll a given bot: a second instance, such as a
 local stack started with the production token, makes Telegram answer 409 to one of them, so the local
 stack must use its own bot or none. A 409 also means a webhook is set on the bot, and then linking would silently never complete; on the first 409 the poller
-calls `deleteWebhook` once and logs it, and a 409 that is another poller's is unaffected by that call. The api already runs as a single instance for the same reason as the
+calls `deleteWebhook` and logs it (again on a later 409 only if that failed), and a 409 that is another poller's is unaffected by that call. The api already runs as a single instance for the same reason as the
 monobank queue. Links complete within about a second while the service is up and wait, without loss,
 while it is down, because Telegram keeps updates for 24 hours. Idle cost is one open request. The token
 sits in the request path of every call, which is why the client is registered without the framework's
@@ -989,8 +989,8 @@ refusal to connect or a timeout before the message is handed over is `Unreachabl
 delivered). A sign-in refusal is `Authentication` (new), final. A 4xx reply is `ServerError`, retried; a 5xx
 is `Rejected`, final. A timeout or a lost connection after the hand-over is `Timeout`: the server may have
 accepted the message before the answer was lost, so it is not retried, in the channel or by a later run, and
-its claim is kept (ADR-019's rule, unchanged). Retries are the same three after the first attempt at 1, 2 and 4
-seconds.
+its claim is kept (ADR-019's rule, unchanged). The three retries after the first attempt, at 1, 2 and 4
+seconds, apply to reminders only; a test message and a confirmation make one attempt.
 
 **Confirmation link.** `https://<app>/settings?tab=notifications&confirmEmail=<token>`. The token is the
 owner's id, the lower-cased address and the expiry (24 hours), protected with ASP.NET Core's data-protection
@@ -1028,8 +1028,8 @@ can read the mailbox; the second sends a tax reminder to a typo.
 
 One new package. Email depends on an SMTP server the owner supplies; deliverability (SPF, DKIM, the sender
 domain) is the server's and the owner's, not this app's, and the deploy runbook says so. The test-email and
-confirmation calls make one attempt, so they block for at most the socket timeouts (20 seconds), under the
-web proxy's rewrite timeout; retries belong to reminders, where nobody is waiting, and the owner presses the
+confirmation calls make one attempt under one overall deadline of 25 seconds (the socket timeout of 20 seconds
+applies to each step, so it alone would not bound the attempt), under the web proxy's 30 second rewrite timeout; retries belong to reminders, where nobody is waiting, and the owner presses the
 button again after a failure, which is shown on the channel. There is no cooldown on asking for the confirmation again: only the
 signed-in owner can ask, and an address is the owner's own choice. Addresses are plain ASCII addresses
 (no display name, no internationalised domain); a Cyrillic domain is refused with a clear message and can be

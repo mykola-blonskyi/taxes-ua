@@ -21,8 +21,8 @@ internal sealed partial class TelegramPoller(
     public static readonly TimeSpan LongPoll = TimeSpan.FromSeconds(30);
 
     // Telegram answers getUpdates with 409 while a webhook is set on the bot (or another process is
-    // polling it). Removing the webhook is tried once per process: if the 409 is a second poller's,
-    // deleting a webhook that is not there changes nothing, and asking again every round would not help.
+    // polling it). Removing the webhook is retried until it succeeds, then not again: if the 409 is a
+    // second poller's, deleting a webhook that is not there changes nothing, and repeating it would not help.
     private bool _webhookCleared;
 
     // False when Telegram could not be read, so the caller backs off instead of hammering it.
@@ -44,8 +44,8 @@ internal sealed partial class TelegramPoller(
             logger.LogWarning("Telegram updates could not be read: {Failure}.", result.Failure);
             if (result.Status == HttpStatusCode.Conflict && !_webhookCleared)
             {
-                _webhookCleared = true;
                 var cleared = await client.DeleteWebhookAsync(cancellationToken);
+                _webhookCleared = cleared.IsOk;
                 logger.LogWarning(
                     "Telegram answered 409: the bot has a webhook set or is polled elsewhere. Removing the webhook {Outcome}.",
                     cleared.IsOk ? "succeeded" : "failed: " + cleared.Failure);

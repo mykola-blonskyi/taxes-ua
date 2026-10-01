@@ -29,21 +29,28 @@ internal sealed class SmtpEmailTransport(EmailSettings settings, ILogger<SmtpEma
 {
     private const int TimeoutMilliseconds = 20_000;
 
+    // SmtpClient.Timeout applies to each operation, so connecting, signing in and sending could each
+    // take it in turn. The owner's test button and confirmation wait on one attempt behind a proxy that
+    // gives up at 30 seconds, so the whole attempt has this one deadline.
+    private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(25);
+
     public async Task<DeliveryAttempt> SendAsync(EmailMessage message, CancellationToken cancellationToken)
     {
         using var client = new SmtpClient { Timeout = TimeoutMilliseconds };
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(Deadline);
         var handedOver = false;
         try
         {
-            await client.ConnectAsync(settings.Host, settings.Port, settings.SocketOptions, cancellationToken);
+            await client.ConnectAsync(settings.Host, settings.Port, settings.SocketOptions, deadline.Token);
             if (settings.User is not null)
             {
-                await client.AuthenticateAsync(settings.User, settings.Password!, cancellationToken);
+                await client.AuthenticateAsync(settings.User, settings.Password!, deadline.Token);
             }
 
             handedOver = true;
-            await client.SendAsync(Build(message), cancellationToken);
-            await client.DisconnectAsync(quit: true, CancellationToken.None);
+            await client.SendAsync(Build(message), deadline.Token);
+            await QuitAsync(client, deadline.Token);
 
             return new DeliveryAttempt();
         }
@@ -53,6 +60,20 @@ internal sealed class SmtpEmailTransport(EmailSettings settings, ILogger<SmtpEma
             logger.LogWarning("SMTP delivery did not complete: {Failure} ({Kind}).", failure, exception.GetType().Name);
 
             return new DeliveryAttempt(failure);
+        }
+    }
+
+    // The server has accepted the message by now; a goodbye that fails or hangs must not turn that into a
+    // failure the owner would see and a reminder would not retry.
+    private static async Task QuitAsync(SmtpClient client, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await client.DisconnectAsync(quit: true, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // The client is disposed by the caller, which closes the connection.
         }
     }
 

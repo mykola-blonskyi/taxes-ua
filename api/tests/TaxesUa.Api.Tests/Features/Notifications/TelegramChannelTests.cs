@@ -348,6 +348,31 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task A_failed_webhook_removal_is_tried_again_on_the_next_409()
+    {
+        var telegram = new StubTelegramHandler();
+        await using var application = fixture.CreateApplication(telegram, new FakeTimeProvider(Start));
+        using var owner = await SignIn(application);
+        var deletes = 0;
+        telegram.Override = call => call.Method switch
+        {
+            "getUpdates" => StubTelegramHandler.Error(HttpStatusCode.Conflict, "Conflict: webhook is active"),
+            "deleteWebhook" => ++deletes == 1
+                ? StubTelegramHandler.Error(HttpStatusCode.InternalServerError, "Internal Server Error")
+                : StubTelegramHandler.Ok(JsonValue.Create(true)),
+            _ => null,
+        };
+        var poller = application.Services.GetRequiredService<TelegramPoller>();
+
+        Assert.False(await poller.PollOnceAsync(TimeSpan.Zero, CancellationToken.None));
+        Assert.False(await poller.PollOnceAsync(TimeSpan.Zero, CancellationToken.None));
+        Assert.Equal(2, telegram.To("deleteWebhook").Count);
+
+        Assert.False(await poller.PollOnceAsync(TimeSpan.Zero, CancellationToken.None));
+        Assert.Equal(2, telegram.To("deleteWebhook").Count);
+    }
+
+    [Fact]
     public async Task A_429_is_waited_out_for_as_long_as_telegram_asks()
     {
         var telegram = new StubTelegramHandler();

@@ -327,26 +327,19 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
         Assert.Null((await Channel(owner, Email))["lastFailure"]);
     }
 
-    [Theory]
-    [InlineData("Authentication")]
-    [InlineData("Rejected")]
-    [InlineData("Timeout")]
-    public async Task A_failure_that_will_not_pass_or_may_have_delivered_is_not_retried(string name)
+    [Fact]
+    public async Task A_confirmation_is_tried_once_even_when_the_failure_could_pass()
     {
-        var failure = Enum.Parse<DeliveryFailure>(name);
-        var email = new InMemoryEmailTransport();
+        var email = new InMemoryEmailTransport { Answer = (_, _) => new DeliveryAttempt(DeliveryFailure.Unreachable) };
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         await Reset(application);
-        await Connected(owner, email);
-        email.Clear();
-        email.Answer = (_, _) => new DeliveryAttempt(failure);
 
-        var response = await owner.PostAsync(Channels + "/email/test", null);
+        var added = await Add(owner, Address);
 
-        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+        Assert.Equal(HttpStatusCode.BadGateway, added.StatusCode);
         Assert.Single(email.Attempts);
-        Assert.Equal(failure.ToString(), (await Channel(owner, Email))["lastFailure"]!.GetValue<string>());
+        Assert.Equal("Unreachable", (await Channel(owner, Email))["lastFailure"]!.GetValue<string>());
     }
 
     [Fact]
