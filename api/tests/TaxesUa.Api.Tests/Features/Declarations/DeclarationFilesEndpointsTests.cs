@@ -38,7 +38,7 @@ public sealed class DeclarationFilesEndpointsTests(ApiFixture fixture) : IClassF
 
         var generatedAt = new DateTimeOffset(today, new TimeOnly(9, 0), TimeSpan.Zero);
         var expected = new DeclarationFileResponse(
-            DeclarationType.Reporting, "26051234567890F0103309100000000120320812605.xml", generatedAt);
+            DeclarationType.Reporting, "26051234567890F0103309100000000120320812605.xml", null, generatedAt);
         Assert.Equal(expected, created);
         Assert.Equal(HttpStatusCode.OK, download.StatusCode);
         Assert.Equal("application/xml", download.Content.Headers.ContentType?.MediaType);
@@ -53,7 +53,49 @@ public sealed class DeclarationFilesEndpointsTests(ApiFixture fixture) : IClassF
         Assert.Contains("<HNAME>Тест</HNAME>", text);
         Assert.Contains("<HSTI>ГУ ДПС у м. Києві</HSTI><HNAME>", text);
         Assert.Contains("<D_FILL>20042081</D_FILL>", text);
+        Assert.DoesNotContain("LINKED_DOCS", text);
         Assert.Equal([expected], (await Get(owner, year, 1)).Files);
+        Assert.Equal(HttpStatusCode.NotFound, (await owner.GetAsync($"/api/declarations/{year}/1/files/Reporting/annex")).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_annual_declaration_stores_its_esv_annex_beside_it_and_both_download()
+    {
+        const int year = 2089;
+        var today = new DateOnly(year + 1, 2, 2);
+        await using var application = At(today);
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year);
+        await PostIncome(owner, new DateOnly(year, 11, 5), 10_000_000);
+
+        var created = await Generate(owner, year, 4, DeclarationType.Reporting);
+        var declaration = await owner.GetAsync($"/api/declarations/{year}/4/files/Reporting");
+        var annex = await owner.GetAsync($"/api/declarations/{year}/4/files/Reporting/annex");
+
+        var expected = new DeclarationFileResponse(
+            DeclarationType.Reporting,
+            "26051234567890F0103309100000000151220892605.xml",
+            "26051234567890F0133109100000000151220892605.xml",
+            new DateTimeOffset(today, new TimeOnly(9, 0), TimeSpan.Zero));
+        Assert.Equal(expected, created);
+        Assert.Equal([expected], (await Get(owner, year, 4)).Files);
+        Assert.Equal(HttpStatusCode.OK, annex.StatusCode);
+        Assert.Equal("application/xml", annex.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(expected.AnnexFileName, annex.Content.Headers.ContentDisposition?.FileName);
+        Assert.Contains("no-store", annex.Headers.CacheControl?.ToString());
+        var declarationBytes = await declaration.Content.ReadAsByteArrayAsync();
+        var annexBytes = await annex.Content.ReadAsByteArrayAsync();
+        Assert.Empty(F0103309.SchemaErrors(declarationBytes));
+        Assert.Empty(F0133109.SchemaErrors(annexBytes));
+        var declarationText = Windows1251.GetString(declarationBytes);
+        var annexText = Windows1251.GetString(annexBytes);
+        Assert.Contains($"<FILENAME>{expected.AnnexFileName}</FILENAME>", declarationText);
+        Assert.Contains($"<FILENAME>{expected.FileName}</FILENAME>", annexText);
+        Assert.Contains("<R021G3>22828.08</R021G3>", declarationText);
+        Assert.Contains("<HD1>1</HD1>", declarationText);
+        Assert.Contains("<R08G1D>01012089</R08G1D><R08G2D>31122089</R08G2D>", annexText);
+        Assert.Contains("<R09G2>103764.00</R09G2><R09G4>22828.08</R09G4>", annexText);
+        Assert.Equal(2_282_808L, (await Get(owner, year, 4)).Figures!.EsvKop);
     }
 
     [Fact]
@@ -81,11 +123,16 @@ public sealed class DeclarationFilesEndpointsTests(ApiFixture fixture) : IClassF
         await PostIncome(owner, new DateOnly(year, 2, 10), 500_000);
         await PostIncome(owner, new DateOnly(year, 5, 10), 500_000);
 
-        var crossing = await Post(owner, year, 2, DeclarationType.Reporting);
+        var crossing = await Generate(owner, year, 2, DeclarationType.Reporting);
         var after = await Post(owner, year, 3, DeclarationType.Reporting);
+        var annex = await owner.GetAsync($"/api/declarations/{year}/2/files/Reporting/annex");
 
-        Assert.Equal(HttpStatusCode.OK, crossing.StatusCode);
+        Assert.Equal("26051234567890F0133109100000000130620832605.xml", crossing.AnnexFileName);
         Assert.Equal(HttpStatusCode.Conflict, after.StatusCode);
+        var annexText = Windows1251.GetString(await annex.Content.ReadAsByteArrayAsync());
+        Assert.Contains("<HHY>1</HHY><HZY>2083</HZY><H03>1</H03>", annexText);
+        Assert.Contains("<R08G2D>30062083</R08G2D>", annexText);
+        Assert.Contains("<R09G4>11414.04</R09G4>", annexText);
     }
 
     [Fact]
@@ -171,6 +218,7 @@ public sealed class DeclarationFilesEndpointsTests(ApiFixture fixture) : IClassF
         using var other = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
 
         Assert.Equal(HttpStatusCode.NotFound, (await other.GetAsync($"/api/declarations/{year}/1/files/Reporting")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await other.GetAsync($"/api/declarations/{year}/1/files/Reporting/annex")).StatusCode);
         Assert.Empty((await Get(other, year, 1)).Files);
     }
 
@@ -192,6 +240,7 @@ public sealed class DeclarationFilesEndpointsTests(ApiFixture fixture) : IClassF
             HttpStatusCode.Unauthorized,
             (await visitor.PostAsJsonAsync("/api/declarations/2088/1/files", new DeclarationFileRequest(DeclarationType.Reporting), Json)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await visitor.GetAsync("/api/declarations/2088/1/files/Reporting")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await visitor.GetAsync("/api/declarations/2088/4/files/Reporting/annex")).StatusCode);
     }
 
     private WebApplicationFactory<Program> At(DateOnly today) =>

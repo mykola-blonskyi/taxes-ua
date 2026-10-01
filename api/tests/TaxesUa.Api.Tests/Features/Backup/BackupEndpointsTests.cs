@@ -40,7 +40,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":12,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[]}""";
+        """{"schemaVersion":13,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[]}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -343,13 +343,40 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             .ToListAsync();
         Assert.Equal(
             [
-                (DeclarationType.Reporting, "26051234567890F0103309100000000120320312605.xml", DeclarationFileBytes),
-                (DeclarationType.Clarifying, "26051234567890F0103309300000000120320312605.xml", new byte[] { 0x3C, 0x00, 0xFF }),
+                (DeclarationType.Reporting, "26051234567890F0103309100000000120320312605.xml", DeclarationFileBytes,
+                    "26051234567890F0133109100000000120320312605.xml", AnnexFileBytes),
+                (DeclarationType.Clarifying, "26051234567890F0103309300000000120320312605.xml", new byte[] { 0x3C, 0x00, 0xFF },
+                    null, null),
             ],
-            files.Select(row => (row.Type, row.FileName, row.Content)));
+            files.Select(row => (row.Type, row.FileName, row.Content, row.AnnexFileName, row.AnnexContent)));
         Assert.Equal(new DateTimeOffset(2031, 5, 1, 9, 30, 0, TimeSpan.Zero), files[0].GeneratedAt);
         var backup = JsonSerializer.Deserialize<BackupDocument>(await Backup(owner), Json)!;
         Assert.Equal(DeclarationFileBytes, backup.DeclarationFiles[0].Content);
+        Assert.Equal(AnnexFileBytes, backup.DeclarationFiles[0].AnnexContent);
+        Assert.Null(backup.DeclarationFiles[1].AnnexContent);
+    }
+
+    [Fact]
+    public async Task A_version_12_file_restores_its_declaration_files_without_an_annex()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+        var version12 = Baseline();
+        version12["schemaVersion"] = 12;
+        foreach (var file in version12["declarationFiles"]!.AsArray())
+        {
+            file!.AsObject().Remove("annexFileName");
+            file.AsObject().Remove("annexContent");
+        }
+
+        await Restore(owner, version12.ToJsonString());
+
+        var backup = JsonSerializer.Deserialize<BackupDocument>(await Backup(owner), Json)!;
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup.SchemaVersion);
+        Assert.Equal(
+            [(DeclarationFileBytes, (byte[]?)null, (string?)null), (new byte[] { 0x3C, 0x00, 0xFF }, null, null)],
+            backup.DeclarationFiles.OrderBy(file => file.Type).Select(file => (file.Content, file.AnnexContent, file.AnnexFileName)));
     }
 
     [Fact]
@@ -696,6 +723,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "an empty declaration file", "declarationFiles[0].content" },
         { "a declaration file over 1 MiB", "declarationFiles[0].content" },
         { "two declaration files of one type", "declarationFiles[1].type" },
+        { "a declaration annex without its content", "declarationFiles[0].annexFileName" },
+        { "a declaration annex not named .xml", "declarationFiles[0].annexFileName" },
+        { "an empty declaration annex", "declarationFiles[0].annexContent" },
     };
 
     [Theory]
@@ -1042,9 +1072,11 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             ],
             [
                 new DeclarationFileBackup(
-                    2031, 1, DeclarationType.Reporting, "26051234567890F0103309100000000120320312605.xml", DeclarationFileBytes, created),
+                    2031, 1, DeclarationType.Reporting, "26051234567890F0103309100000000120320312605.xml", DeclarationFileBytes,
+                    "26051234567890F0133109100000000120320312605.xml", AnnexFileBytes, created),
                 new DeclarationFileBackup(
-                    2031, 1, DeclarationType.Clarifying, "26051234567890F0103309300000000120320312605.xml", [0x3C, 0x00, 0xFF], created.AddDays(4)),
+                    2031, 1, DeclarationType.Clarifying, "26051234567890F0103309300000000120320312605.xml", [0x3C, 0x00, 0xFF],
+                    null, null, created.AddDays(4)),
             ],
             [
                 new TreasuryAccountBackup(
@@ -1283,6 +1315,15 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             case "a declaration file over 1 MiB":
                 file["declarationFiles"]![0]!["content"] = Convert.ToBase64String(new byte[1024 * 1024 + 1]);
                 break;
+            case "a declaration annex without its content":
+                file["declarationFiles"]![0]!["annexContent"] = null;
+                break;
+            case "a declaration annex not named .xml":
+                file["declarationFiles"]![0]!["annexFileName"] = "annex.pdf";
+                break;
+            case "an empty declaration annex":
+                file["declarationFiles"]![0]!["annexContent"] = string.Empty;
+                break;
             case "two declaration files of one type":
                 file["declarationFiles"]![1]!["type"] = "Reporting";
                 break;
@@ -1299,6 +1340,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
     // Not XML at all: a restore carries the stored bytes without reading them, and 0xCF 0xB2 are windows-1251.
     private static readonly byte[] DeclarationFileBytes = [0x3C, 0xCF, 0xB2, 0x3E];
+
+    private static readonly byte[] AnnexFileBytes = [0x3C, 0xC4, 0x31, 0x3E];
 
     private const string LearnedTreasuryIban = "UA148999980313181000026007233";
 

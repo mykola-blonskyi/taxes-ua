@@ -22,8 +22,8 @@ namespace TaxesUa.Engine;
 /// zero for the period's first quarter.</param>
 /// <param name="MilitaryLevyPayableKop">Line 25, line 23 minus line 24, negative like line
 /// 14.1.</param>
-/// <param name="EsvKop">Line 21, the year's ESV from annex 1, which only the annual declaration
-/// carries; null for Q1 to Q3.</param>
+/// <param name="EsvAnnex">Annex 1, on the year's last group 3 declaration only: Q4, or the quarter
+/// the limit was crossed in; null for every other quarter and when no month owes ESV.</param>
 public sealed record DeclarationFigures(
     int Year,
     int Quarter,
@@ -36,8 +36,11 @@ public sealed record DeclarationFigures(
     long MilitaryLevyKop,
     long PreviousMilitaryLevyKop,
     long MilitaryLevyPayableKop,
-    long? EsvKop)
+    EsvAnnex? EsvAnnex)
 {
+    /// <summary>Line 21, the annex's total ESV.</summary>
+    public long? EsvKop => EsvAnnex?.EsvKop;
+
     /// <summary>Line 08, lines 06 and 07.</summary>
     public long TotalIncomeKop => IncomeKop + ExcessIncomeKop;
 
@@ -78,6 +81,6 @@ public static class Declaration
             current.CumulativeMilitaryLevyKop,
             current.CumulativeMilitaryLevyKop - current.MilitaryLevyKop,
             current.MilitaryLevyKop,
-            quarter == 4 ? year.Quarters.Sum(accrual => accrual.EsvKop) : null);
+            year.EsvAnnex?.Quarter == quarter ? year.EsvAnnex : null);
     }
 }

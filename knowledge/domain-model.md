@@ -114,12 +114,14 @@ undoing deletes it. Audited as `DeclarationFiling`. Relationships: belongs to `U
 
 ### DeclarationFile
 
-Responsibilities: the F0103309 XML the owner last prepared for a quarter and a declaration type, kept
-as a record of what was prepared for filing (Rule 15). Key (`UserId`, `Year`, `Quarter`, `Type`).
+Responsibilities: the F0103309 XML the owner last prepared for a quarter and a declaration type, and
+on the year's last group 3 declaration its annex 1 (F0133109), kept as a record of what was prepared for
+filing (Rule 15). Key (`UserId`, `Year`, `Quarter`, `Type`).
 
 Fields: `Type: Reporting | NewReporting | Clarifying`, `FileName` (the DPS name, standard No. 729),
-`Content` (the windows-1251 bytes as generated and validated), `GeneratedAt`. Preparing the same quarter
-and type again replaces the row. Not audited: it is derived from audited records. Relationships: belongs
+`Content` (the windows-1251 bytes as generated and validated), `AnnexFileName?` and `AnnexContent?` (the
+annex the same way, both set or both null), `GeneratedAt`. Preparing the same quarter and type again
+replaces the row, annex included. Not audited: it is derived from audited records. Relationships: belongs
 to `User`.
 
 ---
@@ -445,11 +447,11 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (12), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (13), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
 payment details and the signature as base64 with its content type), `Invoices` (with their lines, their
 number as year and sequence, the frozen snapshot and the frozen signature as base64), `DeclarationDetails?`,
-`DeclarationFilings`, `DeclarationFiles` (the XML as base64), `TreasuryAccounts` (by kind, without an id), `NotificationChannels` (kind, address, enabled, linked at: no delivery record, no link code), each row with its id and every stored column except `UserId`, an invoice's
+`DeclarationFilings`, `DeclarationFiles` (the XML and its annex as base64), `TreasuryAccounts` (by kind, without an id), `NotificationChannels` (kind, address, enabled, linked at: no delivery record, no link code), each row with its id and every stored column except `UserId`, an invoice's
 `TotalMinor` (recomputed from its lines) and a
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
 which a restore clears.

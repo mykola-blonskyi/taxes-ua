@@ -51,6 +51,11 @@ The quarterly declaration as an F0103309 XML file in windows-1251, named per DPS
 the owner imports in the Cabinet ("Імпортувати XML з пристрою"), checks, signs with a KEP and sends. In
 code: `DeclarationFile` (Rule 15).
 
+### ESV annex (annex 1)
+"Відомості про суми нарахованого доходу застрахованих осіб та суми нарахованого єдиного внеску", form
+F0133109: each month's ESV base, rate and ESV for oneself, filed with the year's last group 3 declaration
+and linked to it. Its total is the declaration's line 21. In code: `EsvAnnex` (Rule 15).
+
 ### Integrated ledger card (taxpayer's ledger)
 The taxpayer's account with the State Tax Service (DPS): accrued, paid, owed or overpaid, per
 payment type. The app's equivalent is the per-kind balances.

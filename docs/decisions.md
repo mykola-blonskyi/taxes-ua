@@ -760,6 +760,61 @@ local; the reminders of #108 remain the message that names what is owed.
 
 ---
 
+## ADR-018. Annex 1 travels with the year's last group 3 declaration, as a second file stored beside it
+
+Date: 2026-09-30
+
+Status: Accepted
+
+### Context
+
+#112 adds annex 1 to the declaration (form F0133109): the ESV for oneself, month by month, with its base,
+rate and amount, whose total is the declaration's line 21. Three things were open. The mirror that
+supplied F0103309.xsd has no F0133109.xsd. Rule 15 left open whether, after a limit crossing in Q1 to Q3,
+the year's group 3 ESV goes on the crossing quarter's declaration, since the app filled line 21 only in
+Q4. And the stored declaration file had room for one file.
+
+### Decision
+
+The annex goes with the year's last group 3 declaration: Q4, or the crossing quarter's after a crossing,
+marked H03 ("перехід на сплату інших податків і зборів"). The form itself provides for this: its footnote
+9 describes the FOP who moved to other taxes and asks for item 8, the stretch on the simplified system.
+The engine builds the annex once, in the year's accruals, and the declaration's line 21 reads the
+annex's total, so the two cannot differ.
+
+The engine prorates the registration month's ESV base, not its amount, and applies the rate to the base,
+so each annex row satisfies column 4 = column 2 × column 3. The registration month's ESV is now base ×
+rate, which can differ by 1 kopeck from the old figure (the month's ESV prorated) on some dates: with the
+2026 minimum wage, registration on 5 April was 1,648.69 UAH and is now 1,648.70.
+
+The annex is a second file of the same filing, not a filing of its own: `DeclarationFile` gains
+`AnnexFileName` and `AnnexContent`, both set or both null by a check constraint, and the backup carries
+them (schema version 13). The two files are written together because each names the other in
+LINKED_DOCS, validated each against its own schema, stored together and downloaded from the same row.
+
+F0133109.xsd comes from a second mirror, https://github.com/lzeal/tax-fop-3rd. Its F0103309.xsd is byte
+for byte the copy vendored from the first mirror, which is the evidence that it carries the DPS files
+unaltered. The README records the source, commit, date and hash, and the owner confirms it against the
+register by hand, as for the others.
+
+### Alternatives Considered
+
+Keeping the annex on Q4 only. After a Q1 to Q3 crossing there is no group 3 Q4 declaration, so the group 3
+months' ESV would be declared nowhere.
+
+A second `DeclarationFile` row per form, keyed by form. It lets a declaration exist without its annex, or
+an annex without the declaration it links to, and every reader would have to pair them up again.
+
+One zip with both files. The Cabinet imports XML files, so the owner would unpack it first.
+
+### Consequences
+
+The crossing quarter's declaration now shows line 21 and comes with the annex. A clarifying annex leaves
+item 10 (the correction of the earlier annex's ESV) for the owner to fill in the Cabinet. The owner still
+confirms the pair in the Cabinet by importing it without sending, the acceptance check of #112.
+
+---
+
 ## ADR-019. Compute reminders at each run and claim each one in a sent log before sending
 
 

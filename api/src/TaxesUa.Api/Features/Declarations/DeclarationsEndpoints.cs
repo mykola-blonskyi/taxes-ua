@@ -73,7 +73,7 @@ public static class DeclarationsEndpoints
                 // Ready means no detail is missing, so both rows and every value the header reads exist.
                 var invoicing = declaration.Invoicing!;
                 var details = declaration.Details!;
-                var header = new F0103309.DeclarationHeader(
+                var header = new DeclarationHeader(
                     invoicing.Rnokpp,
                     details.TaxOfficeRegion!.Value,
                     details.TaxOfficeDistrict!.Value,
@@ -81,12 +81,18 @@ public static class DeclarationsEndpoints
                     invoicing.SellerNameUk,
                     details.Address,
                     details.KvedCodes);
-                var errors = F0103309.Unwritable(header);
-                F0103309.DeclarationXml? xml = null;
+                var errors = DpsXml.Unwritable(header);
+                DeclarationXmlFiles? xml = null;
                 if (errors.Length == 0)
                 {
                     xml = F0103309.Write(figures, header, request.Type, time.TodayInKyiv());
-                    errors = F0103309.SchemaErrors(xml.Content);
+                    errors =
+                    [
+                        .. F0103309.SchemaErrors(xml.Declaration.Content),
+                        .. xml.Annex is { } annex
+                            ? F0133109.SchemaErrors(annex.Content).Select(error => $"{annex.FileName} {error}")
+                            : [],
+                    ];
                 }
 
                 if (errors.Length > 0)
@@ -94,7 +100,7 @@ public static class DeclarationsEndpoints
                     return Results.ValidationProblem(
                         new Dictionary<string, string[]> { ["file"] = errors },
                         statusCode: StatusCodes.Status422UnprocessableEntity,
-                        title: "The declaration's data cannot produce a file that passes the F0103309 schema.");
+                        title: "The declaration's data cannot produce files that pass the F0103309 and F0133109 schemas.");
                 }
 
                 var file = await database.DeclarationFiles.FindAsync([user.Id, year, quarter, request.Type], cancellationToken);
@@ -104,12 +110,14 @@ public static class DeclarationsEndpoints
                     database.DeclarationFiles.Add(file);
                 }
 
-                file.FileName = xml!.FileName;
-                file.Content = xml.Content;
+                file.FileName = xml!.Declaration.FileName;
+                file.Content = xml.Declaration.Content;
+                file.AnnexFileName = xml.Annex?.FileName;
+                file.AnnexContent = xml.Annex?.Content;
                 file.GeneratedAt = time.GetUtcNow();
                 await database.SaveChangesAsync(cancellationToken);
 
-                return Results.Ok(new DeclarationFileResponse(file.Type, file.FileName, file.GeneratedAt));
+                return Results.Ok(new DeclarationFileResponse(file.Type, file.FileName, file.AnnexFileName, file.GeneratedAt));
             })
             .Produces<DeclarationFileResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -117,7 +125,7 @@ public static class DeclarationsEndpoints
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesValidationProblem(StatusCodes.Status422UnprocessableEntity);
 
-        declarations.MapGet("/files/{type}", async (
+        declarations.MapGet("/files/{type}", (
                 int year,
                 int quarter,
                 DeclarationType type,
@@ -125,34 +133,20 @@ public static class DeclarationsEndpoints
                 AppDbContext database,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
-            {
-                if (!Enum.IsDefined(type))
-                {
-                    return Results.NotFound();
-                }
+                DownloadAsync(year, quarter, type, file => (file.FileName, file.Content), users, database, http, cancellationToken))
+            .Produces<byte[]>(StatusCodes.Status200OK, "application/xml")
+            .Produces(StatusCodes.Status401Unauthorized)
+            .Produces(StatusCodes.Status404NotFound);
 
-                var user = await users.GetUserAsync(http.User);
-                if (user is null)
-                {
-                    return Results.Unauthorized();
-                }
-
-                var file = await database.DeclarationFiles.AsNoTracking()
-                    .FirstOrDefaultAsync(
-                        row => row.UserId == user.Id && row.Year == year && row.Quarter == quarter && row.Type == type,
-                        cancellationToken);
-                if (file is null)
-                {
-                    return Results.NotFound();
-                }
-
-                var disposition = new ContentDispositionHeaderValue("attachment");
-                disposition.SetHttpFileName(file.FileName);
-                http.Response.Headers.ContentDisposition = disposition.ToString();
-                http.Response.Headers.CacheControl = "private, no-store";
-
-                return Results.File(file.Content, "application/xml");
-            })
+        declarations.MapGet("/files/{type}/annex", (
+                int year,
+                int quarter,
+                DeclarationType type,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+                DownloadAsync(year, quarter, type, file => (file.AnnexFileName, file.AnnexContent), users, database, http, cancellationToken))
             .Produces<byte[]>(StatusCodes.Status200OK, "application/xml")
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status404NotFound);
@@ -235,6 +229,44 @@ public static class DeclarationsEndpoints
         return routes;
     }
 
+    private static async Task<IResult> DownloadAsync(
+        int year,
+        int quarter,
+        DeclarationType type,
+        Func<DeclarationFile, (string? FileName, byte[]? Content)> pick,
+        UserManager<ApplicationUser> users,
+        AppDbContext database,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(type))
+        {
+            return Results.NotFound();
+        }
+
+        var user = await users.GetUserAsync(http.User);
+        if (user is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var file = await database.DeclarationFiles.AsNoTracking()
+            .FirstOrDefaultAsync(
+                row => row.UserId == user.Id && row.Year == year && row.Quarter == quarter && row.Type == type,
+                cancellationToken);
+        if (file is null || pick(file) is not (string fileName, byte[] content))
+        {
+            return Results.NotFound();
+        }
+
+        var disposition = new ContentDispositionHeaderValue("attachment");
+        disposition.SetHttpFileName(fileName);
+        http.Response.Headers.ContentDisposition = disposition.ToString();
+        http.Response.Headers.CacheControl = "private, no-store";
+
+        return Results.File(content, "application/xml");
+    }
+
     /// <summary>The rules a filed mark meets that need no stored row, shared with the restore.</summary>
     internal static Dictionary<string, string[]>? ValidateFiling(int year, int quarter, DateOnly filedOn, DateOnly today)
     {
@@ -307,7 +339,7 @@ public static class DeclarationsEndpoints
         var files = await database.DeclarationFiles.AsNoTracking()
             .Where(row => row.UserId == userId && row.Year == year && row.Quarter == quarter)
             .OrderBy(row => row.Type)
-            .Select(row => new DeclarationFileResponse(row.Type, row.FileName, row.GeneratedAt))
+            .Select(row => new DeclarationFileResponse(row.Type, row.FileName, row.AnnexFileName, row.GeneratedAt))
             .ToArrayAsync(cancellationToken);
 
         var figures = inGroup3 ? Declaration.ForQuarter(viewed.Accrual, quarter) : null;
@@ -416,7 +448,7 @@ internal sealed record DeclarationResponse(
 
 /// <summary>
 /// The form's group 3 lines, as <see cref="DeclarationFigures"/> names them: 06, 07, 08, 09, 11, 12,
-/// 13, 14.1 and 14, 23, 24, 25, and 21 for the annual declaration only.
+/// 13, 14.1 and 14, 23, 24, 25, and 21 for the year's last group 3 declaration only.
 /// </summary>
 internal sealed record DeclarationFiguresResponse(
     long IncomeKop,
@@ -435,8 +467,13 @@ internal sealed record DeclarationFiguresResponse(
 /// <summary>The type decides C_DOC_STAN and the HZ, HZN or HZU mark.</summary>
 internal sealed record DeclarationFileRequest(DeclarationType Type);
 
-/// <summary>The last file prepared for the quarter and type; its bytes are at <c>GET files/{type}</c>.</summary>
-internal sealed record DeclarationFileResponse(DeclarationType Type, string FileName, DateTimeOffset GeneratedAt);
+/// <summary>
+/// The last file prepared for the quarter and type; its bytes are at <c>GET files/{type}</c>. The year's
+/// last group 3 declaration also has annex 1, named by <c>AnnexFileName</c>, at
+/// <c>GET files/{type}/annex</c>; null for every other quarter.
+/// </summary>
+internal sealed record DeclarationFileResponse(
+    DeclarationType Type, string FileName, string? AnnexFileName, DateTimeOffset GeneratedAt);
 
 internal sealed record DeclarationFilingRequest(DateOnly FiledOn, DeclarationType Type);
 
