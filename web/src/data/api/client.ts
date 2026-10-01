@@ -32,7 +32,7 @@ const failOnErrorStatus: Middleware = {
 
     throw new ApiError(
       response.status,
-      problem?.title ?? response.statusText ?? undefined,
+      problem?.title || response.statusText || undefined,
       problem?.errors ?? {},
       retryAfterSeconds(response),
     );

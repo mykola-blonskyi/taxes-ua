@@ -14,24 +14,9 @@ import { formatDateOnly } from "@/shared/lib/dates";
 import { parseIbanProblem } from "@/shared/lib/ibanProblem";
 import { Button } from "@/shared/ui/button";
 import { TextField } from "@/shared/ui/fields";
+import { errorKey } from "./treasuryErrors";
 
 type FormState = { iban: string; recipientName: string; recipientCode: string };
-
-type ErrorKey = "iban" | "recipientName" | "recipientCode" | "tooLong" | "controlChar";
-
-// The api answers in English; the messages it can send for a field are a closed set, so each maps to a
-// translated one and anything unforeseen is shown as it came.
-function errorKey(field: string, message: string): ErrorKey | null {
-  if (message.includes("exceed")) {
-    return "tooLong";
-  }
-
-  if (message.includes("control character")) {
-    return "controlChar";
-  }
-
-  return field === "iban" || field === "recipientName" || field === "recipientCode" ? field : null;
-}
 
 export function TreasuryAccountsSection() {
   const t = useTranslations("settings.treasury");

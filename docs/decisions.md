@@ -891,6 +891,71 @@ and the Telegram stub.
 
 ---
 
+## ADR-020. Test the web in three layers: unit, component and end to end
+
+Date: 2026-10-02
+
+Status: Accepted. Supersedes the "no direct component tests" line in the MVP spec's Testing Decisions
+(`plans/spec-mvp.md`).
+
+### Context
+
+The MVP spec verified the web by hand against each ticket's acceptance criteria, on the grounds that the
+web was UI only. That no longer holds. The web parses the hryvnia amounts the owner types, encodes the NBU
+payment QR, warns when a payment names a period outside group 3, reads the bank's `Retry-After`, explains
+IBAN errors, runs the email confirmation token flow and suggests invoice payments. A wrong figure on screen
+can cost real money. Every UI ticket is proved in a real browser, but each proof is a one-off that nobody
+re-runs, and CI checked the web with lint, typecheck and build only. The group 3 hint bug of #145 was caught
+by a reviewer, not by a check.
+
+### Decision
+
+Three layers run on every pull request, and the deploy waits for all of them (#149).
+
+1. Unit tests (Vitest with jsdom, as the bundled Next.js 16 testing guide sets it up) call the web's pure
+   logic through its exported functions with table-driven cases, edge cases included: amounts, dates, the NBU
+   QR encoder, API error parsing, the IBAN message mapping, the group 3 hint. Tests sit next to the code
+   they test, as `*.test.ts(x)`, and `pnpm test` in `web/` runs them in seconds. A hook that needs React is
+   rendered once on the server with its query cache filled, which needs nothing beyond React and TanStack
+   Query.
+2. Component tests (#151) render the client components that carry state or branching, with the owner's real
+   Ukrainian and Russian message catalogs, Testing Library and a typed fetch stub in place of the API. They
+   assert what the owner sees and which requests are sent, finding elements by role and label. Async Server
+   Components cannot be rendered by Vitest, so they are covered only by layer 3.
+3. End-to-end tests (#152 to #154) drive Chromium through the core flows against the real stack in
+   Development mode, with Telegram and monobank stubbed through their base-URL settings. The 375 px layout
+   check in both languages becomes an automatic gate there.
+
+A good test drives behaviour through the public surface and asserts what the owner observes. There are no
+snapshots and no assertions on internal state or markup. The existing lint boundaries apply to tests, and
+the test harness module (#151) is imported only from tests. From now on a UI ticket adds or updates
+component tests for what it changes, and a new owner flow adds an end-to-end scenario.
+
+### Alternatives Considered
+
+Keeping manual verification only (the MVP spec). It is cheap per ticket, but the proof is not repeatable,
+so a regression surfaces in review or in production.
+
+End-to-end tests alone. They cover the whole path, but they are slow and few, so the arithmetic and parsing
+edge cases would go untested, and a failure points at a flow rather than at the line that broke.
+
+MSW for the component tests' API. A typed `fetch` stub keyed by method and path is enough at this size and
+adds no dependency.
+
+Coverage thresholds and visual regression snapshots. A threshold rewards tests that execute code without
+asserting anything; a snapshot asserts on markup, which is what the tests are meant not to do.
+
+### Consequences
+
+Four dev dependencies for the runner (`vitest`, `jsdom`, `@vitejs/plugin-react`, `vite-tsconfig-paths`),
+`@types/node` raised to 24 to match the Node the image and CI run and what Vitest asks for, and a `web-test` CI
+job that the deploy job needs. Tests run in a time zone far from
+Kyiv, so a date that shifts with the zone fails here and not in production. A pure function that lived
+inside a component file moves to a sibling module when a test needs it (the IBAN message mapping did).
+The component and end-to-end layers add Testing Library, Playwright and a CI job each, in their own tickets.
+
+---
+
 ## ADR-021. Read the reserve jar through the rate gate without ever waiting for it
 
 Date: 2026-10-01

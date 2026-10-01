@@ -1,5 +1,10 @@
 import qrcode from "qrcode-generator";
 
+// The library writes only the low byte of each character unless told otherwise, which turns Cyrillic into
+// the wrong bytes and miscounts it against the capacity. The bank reads the content as UTF-8.
+const utf8 = new TextEncoder();
+qrcode.stringToBytes = (text) => Array.from(utf8.encode(text));
+
 const QUIET_ZONE = 4;
 const MIN_VERSION = 10;
 const MAX_VERSION = 17;
@@ -29,7 +34,12 @@ export type NbuQr = {
 function tryEncode(content: string, level: Level): NbuQr | null {
   let qr = qrcode(0, level);
   qr.addData(content, "Byte");
-  qr.make();
+  try {
+    qr.make();
+  } catch {
+    // The library throws, instead of choosing a version, when the data is longer than the largest code holds.
+    return null;
+  }
   let version = (qr.getModuleCount() - 17) / 4;
   if (version < MIN_VERSION) {
     qr = qrcode(MIN_VERSION, level);
