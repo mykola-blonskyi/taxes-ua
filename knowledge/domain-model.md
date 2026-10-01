@@ -362,7 +362,9 @@ and unique together, #80), `CreatedAt`, `UpdatedAt`.
 Rule: exactly one of `PeriodQuarter` and `PeriodMonth` is set, held by validation and by a database
 check constraint. The period is the one the owner names and is kept and shown, never taken from
 `PaidOn`: a Q4 payment made the next February still names Q4. Which obligation a payment settles is
-Rule 7's allocation, oldest debt of its kind first, whatever quarter or month it names.
+Rule 7's allocation, oldest debt of its kind first, whatever group 3 quarter or month it names. A
+payment naming a quarter outside group 3 (Rule 4) is not allocated at all: the engine lists it on its
+kind's ledger as `OutsideGroup3`, and the year's balances show it apart.
 
 Relationships: belongs to `User`; optionally to the `BankAccount` of its operation.
 

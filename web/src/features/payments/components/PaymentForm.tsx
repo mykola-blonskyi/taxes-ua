@@ -162,6 +162,7 @@ export function PaymentForm({
 
         <PeriodSelect
           id="payment-period"
+          year={form.periodYear}
           value={form.period}
           onChange={(period) => setForm((current) => ({ ...current, period }))}
           hint={tForm("periodHint")}
