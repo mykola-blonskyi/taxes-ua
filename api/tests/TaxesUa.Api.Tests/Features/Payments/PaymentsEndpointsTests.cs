@@ -59,7 +59,7 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         const int year = 2071;
         using var client = await SignIn(fixture, ApiFixture.AllowedEmail);
 
-        await Post(client, Body(year, PaymentKind.MilitaryLevy, 10_000, quarter: 4, paidOn: new DateOnly(year + 1, 2, 10)));
+        await Post(client, Body(year, PaymentKind.MilitaryLevy, 10_000, quarter: 4, paidOn: new DateOnly(2025, 12, 10)));
 
         Assert.Single((await List(client, year)).Items);
         Assert.Empty((await List(client, year + 1)).Items);
@@ -138,12 +138,12 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         const int year = 2074;
         using var client = await SignIn(fixture, ApiFixture.AllowedEmail);
-        await SetRegistrationDate(client, new DateOnly(year, 3, 1));
+        await SetRegistrationDate(client, new DateOnly(2024, 3, 1));
 
         var before = await Post(
-            client, Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(year, 2, 1)));
+            client, Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(2024, 2, 1)));
         var onOrAfter = await Post(
-            client, Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(year, 3, 1)));
+            client, Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(2024, 3, 1)));
 
         Assert.True(before.BeforeRegistration);
         Assert.False(onOrAfter.BeforeRegistration);
@@ -155,7 +155,7 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
 
         var edited = await client.PutAsJsonAsync(
             $"/api/payments/{onOrAfter.Id}",
-            Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(year, 2, 15)),
+            Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(2024, 2, 15)),
             Json);
         Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
         var editedPayment = await edited.Content.ReadFromJsonAsync<PaymentResponse>(Json);
@@ -170,9 +170,43 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         await SetRegistrationDate(client, null);
 
         var payment = await Post(
-            client, Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(year, 1, 1)));
+            client, Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(2025, 1, 1)));
 
         Assert.False(payment.BeforeRegistration);
+    }
+
+    [Fact]
+    public async Task A_payment_is_accepted_up_to_today_in_kyiv_and_refused_after_it()
+    {
+        const int year = 2090;
+        var today = new DateOnly(2070, 6, 15);
+        await using var application = fixture.CreateApplication(
+            new StubNbuHandler(_ => throw new InvalidOperationException("NBU called")), today);
+        using var client = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+
+        var paidToday = await Post(client, Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: today));
+        var tomorrow = Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: today.AddDays(1));
+        var created = await client.PostAsJsonAsync("/api/payments", tomorrow, Json);
+        var edited = await client.PutAsJsonAsync($"/api/payments/{paidToday.Id}", tomorrow, Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, created.StatusCode);
+        await AssertErrorKey(created, "paidOn");
+        Assert.Equal(HttpStatusCode.BadRequest, edited.StatusCode);
+        await AssertErrorKey(edited, "paidOn");
+        var listed = Assert.Single((await List(client, year)).Items);
+        Assert.Equal(today, listed.PaidOn);
+    }
+
+    [Fact]
+    public async Task A_payment_paid_before_its_period_is_accepted_as_an_advance()
+    {
+        const int year = 2091;
+        using var client = await SignIn(fixture, ApiFixture.AllowedEmail);
+
+        var advance = await Post(
+            client, Body(year, PaymentKind.Esv, 100_000, quarter: 4, paidOn: new DateOnly(2025, 3, 1)));
+
+        Assert.Equal(new DateOnly(2025, 3, 1), advance.PaidOn);
     }
 
     [Fact]
@@ -443,7 +477,7 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         int? month = null,
         string? note = null,
         DateOnly? paidOn = null) =>
-        new(paidOn ?? new DateOnly(year, 4, 15), kind, amountKop, year, quarter, month, note);
+        new(paidOn ?? new DateOnly(2025, 4, 15), kind, amountKop, year, quarter, month, note);
 
     // A raw JSON body, kind as a string the compiler would not let PaymentRequest carry (a comma list
     // or, with kindIsRaw, a bare number), so the strict enum binding can be exercised directly.
@@ -452,7 +486,7 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         var node = new JsonObject
         {
-            ["paidOn"] = new DateOnly(year, 4, 15).ToString("yyyy-MM-dd"),
+            ["paidOn"] = new DateOnly(2025, 4, 15).ToString("yyyy-MM-dd"),
             ["kind"] = kindIsRaw ? JsonNode.Parse(kind) : kind,
             ["amountKop"] = amountKop,
             ["periodYear"] = year,

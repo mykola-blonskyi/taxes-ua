@@ -4,15 +4,24 @@ import { useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { recordedPeriodOf, type KindDebt } from "@/data/dashboard/useDashboard";
 import { useRecordPayments } from "@/data/payments/usePayments";
-import { todayInKyiv } from "@/shared/lib/dates";
-import { formatMoney } from "@/shared/lib/money";
+import { formatMoney, formatPlainAmount, parseHryvnia } from "@/shared/lib/money";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
+import { TextField } from "@/shared/ui/fields";
 import { formatLongDate, quarterEndOf } from "./debt";
 import { DebtPeriod, DaysLeft } from "./DebtParts";
 import { PayDebtButton } from "./PayDebtButton";
 
 const electronicCabinetUrl = "https://cabinet.tax.gov.ua/";
+
+// The api's lowest payment year (TransactionsEndpoints.MinYear); a date before it is refused.
+const earliestPaidOn = "2000-01-01";
+
+// Names a debt for as long as its amount stands, so an amount edited for one figure is never carried to
+// the next one a refetch brings.
+function debtKey(debt: KindDebt) {
+  return `${debt.kind}-${debt.fromYear}-${debt.fromQuarter}-${debt.advanceMonth}-${debt.amountKop}`;
+}
 
 // `now` is earliest first. Each debt keeps its own amount and there is no total: Rule 7 never adds
 // kinds together.
@@ -25,6 +34,8 @@ export function HeroCard({ now, today, busy }: { now: KindDebt[]; today: string;
   const mixedDates = now.some((debt) => debt.dueDate !== dueDate);
   // ESV is a fixed monthly sum accrued up front; only the income-based kinds can still grow.
   const quarterOpen = now.some((debt) => debt.kind !== "Esv" && today <= quarterEndOf(debt));
+  // What the owner typed into each debt's pay panel, by debt key; the confirm step starts from it.
+  const [edited, setEdited] = useState<Record<string, number | null>>({});
   const kinds = new Intl.ListFormat(locale, { type: "conjunction" }).format(now.map((debt) => tKinds(debt.kind)));
 
   return (
@@ -57,7 +68,11 @@ export function HeroCard({ now, today, busy }: { now: KindDebt[]; today: string;
                 {mixedDates ? ` · ${formatLongDate(debt.dueDate, today, locale)}` : null}
               </span>
               <span className="text-xl font-semibold tabular-nums">{formatMoney(Number(debt.amountKop), locale)}</span>
-              <PayDebtButton debt={debt} className="col-span-full mt-1 w-fit" />
+              <PayDebtButton
+                debt={debt}
+                className="col-span-full mt-1 w-fit"
+                onAmountChange={(amountKop) => setEdited((current) => ({ ...current, [debtKey(debt)]: amountKop }))}
+              />
             </li>
           ))}
         </ul>
@@ -65,7 +80,7 @@ export function HeroCard({ now, today, busy }: { now: KindDebt[]; today: string;
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start">
-        <MarkPaid now={now} busy={busy} />
+        <MarkPaid now={now} today={today} edited={edited} busy={busy} />
         <a
           href={electronicCabinetUrl}
           target="_blank"
@@ -79,35 +94,62 @@ export function HeroCard({ now, today, busy }: { now: KindDebt[]; today: string;
   );
 }
 
-function MarkPaid({ now, busy }: { now: KindDebt[]; busy: boolean }) {
+type Draft = { step: string; paidOn: string; amounts: Record<string, string> };
+
+function MarkPaid({
+  now,
+  today,
+  edited,
+  busy,
+}: {
+  now: KindDebt[];
+  today: string;
+  edited: Record<string, number | null>;
+  busy: boolean;
+}) {
   const t = useTranslations("dashboard");
+  const tKinds = useTranslations("payments.kinds");
   const recordPayments = useRecordPayments();
   const recording = useRef(false);
-  const step = now.map((debt) => `${debt.kind}-${debt.fromYear}-${debt.fromQuarter}-${debt.advanceMonth}-${debt.amountKop}`).join();
-  // Confirmation belongs to the step it was opened for, so a background refetch that changes the step
+  const step = now.map(debtKey).join();
+  // The draft belongs to the step it was opened for, so a background refetch that changes the step
   // closes it rather than letting it record the new amounts.
-  const [confirmingStep, setConfirmingStep] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const disabled = busy || recordPayments.isPending;
+  const open = draft?.step === step ? draft : null;
+
+  function openDraft() {
+    setDraft({
+      step,
+      paidOn: today,
+      amounts: Object.fromEntries(
+        now.map((debt) => [debtKey(debt), formatPlainAmount(edited[debtKey(debt)] ?? Number(debt.amountKop))]),
+      ),
+    });
+  }
+
+  const amountsKop = open ? now.map((debt) => parseHryvnia(open.amounts[debtKey(debt)] ?? "")) : [];
+  const dateValid = open !== null && /^\d{4}-\d{2}-\d{2}$/.test(open.paidOn) && open.paidOn >= earliestPaidOn && open.paidOn <= today;
+  const valid = dateValid && amountsKop.every((amountKop) => amountKop !== null && amountKop > 0);
 
   function record() {
-    if (recording.current) {
+    if (recording.current || !open || !valid) {
       return;
     }
 
     recording.current = true;
-    const paidOn = todayInKyiv();
     recordPayments.mutate(
-      now.map((debt) => ({
-        paidOn,
+      now.map((debt, index) => ({
+        paidOn: open.paidOn,
         kind: debt.kind,
-        amountKop: debt.amountKop,
+        amountKop: amountsKop[index]!,
         ...recordedPeriodOf(debt),
         note: null,
       })),
       {
         onSettled: () => {
           recording.current = false;
-          setConfirmingStep(null);
+          setDraft(null);
         },
       },
     );
@@ -115,20 +157,48 @@ function MarkPaid({ now, busy }: { now: KindDebt[]; busy: boolean }) {
 
   return (
     <div className="flex flex-col gap-2">
-      {confirmingStep === step ? (
-        <div className="flex flex-col gap-2 rounded-lg border p-3">
+      {open ? (
+        <form
+          className="flex flex-col gap-3 rounded-lg border p-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            record();
+          }}
+        >
           <p className="text-sm">{t("confirmMarkPaid", { count: now.length })}</p>
+          <TextField
+            id="mark-paid-date"
+            label={t("paidOn")}
+            type="date"
+            min={earliestPaidOn}
+            max={today}
+            value={open.paidOn}
+            onChange={(paidOn) => setDraft({ ...open, paidOn })}
+            errors={dateValid ? undefined : [t("paidOnInvalid")]}
+          />
+          {now.map((debt, index) => (
+            <TextField
+              key={debt.kind}
+              id={`mark-paid-amount-${debt.kind}`}
+              label={now.length > 1 ? t("paidAmountOf", { kind: tKinds(debt.kind) }) : t("paidAmount")}
+              inputMode="decimal"
+              autoComplete="off"
+              value={open.amounts[debtKey(debt)] ?? ""}
+              onChange={(text) => setDraft({ ...open, amounts: { ...open.amounts, [debtKey(debt)]: text } })}
+              errors={amountsKop[index] !== null && amountsKop[index]! > 0 ? undefined : [t("paidAmountInvalid")]}
+            />
+          ))}
           <div className="flex flex-wrap gap-2">
-            <Button onClick={record} disabled={disabled}>
+            <Button type="submit" disabled={disabled || !valid}>
               {t("confirm")}
             </Button>
-            <Button variant="outline" onClick={() => setConfirmingStep(null)} disabled={recordPayments.isPending}>
+            <Button type="button" variant="outline" onClick={() => setDraft(null)} disabled={recordPayments.isPending}>
               {t("cancel")}
             </Button>
           </div>
-        </div>
+        </form>
       ) : (
-        <Button onClick={() => setConfirmingStep(step)} disabled={disabled}>
+        <Button onClick={openDraft} disabled={disabled}>
           {t("markPaid")}
         </Button>
       )}
