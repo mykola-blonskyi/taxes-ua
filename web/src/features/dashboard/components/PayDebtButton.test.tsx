@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { KindDebt } from "@/data/dashboard/useDashboard";
-import { act, reply, renderApp, screen, stubFetch, waitFor } from "@/test/harness";
+import { reply, renderApp, screen, stubFetch, useFakeTimers, waitFor } from "@/test/harness";
 import { PayDebtButton } from "./PayDebtButton";
 
 const debt: KindDebt = {
@@ -35,10 +35,6 @@ function paymentDetails(request: { query: Record<string, string> }) {
   };
 }
 
-afterEach(() => {
-  vi.useRealTimers();
-});
-
 describe("PayDebtButton", () => {
   it("asks for the details of the debt's period once opened, then for the amount on screen", async () => {
     const api = stubFetch({ "GET /api/payment-details": paymentDetails });
@@ -59,11 +55,19 @@ describe("PayDebtButton", () => {
   });
 
   it("keeps the old code off the screen while a typed amount is awaited, then asks once for it", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const timers = useFakeTimers();
     const api = stubFetch({ "GET /api/payment-details": paymentDetails });
-    const { user } = renderApp(<PayDebtButton debt={debt} />, {}, { advanceTimers: vi.advanceTimersByTime });
+    const { user } = renderApp(<PayDebtButton debt={debt} />, {}, timers.userOptions);
+    // The responses settle on promises, so the clock steps until the code shows.
+    const settle = async (done: () => boolean) => {
+      for (let step = 0; step < 200 && !done(); step++) {
+        await timers.advance(1);
+      }
+    };
+    const hasCode = () => screen.queryByRole("img", { name: "QR-код для оплати" }) !== null;
     await user.click(screen.getByRole("button", { name: "Сплатити" }));
-    await screen.findByRole("img", { name: "QR-код для оплати" });
+    await settle(hasCode);
+    expect(hasCode()).toBe(true);
 
     const amount = screen.getByLabelText("Сума, ₴");
     await user.clear(amount);
@@ -73,9 +77,10 @@ describe("PayDebtButton", () => {
     expect(screen.queryByRole("img", { name: "QR-код для оплати" })).not.toBeInTheDocument();
     expect(api.requestsTo("GET /api/payment-details")).toHaveLength(2);
 
-    await act(() => vi.advanceTimersByTimeAsync(400));
+    await timers.advance(400);
+    await settle(hasCode);
 
-    expect(await screen.findByRole("img", { name: "QR-код для оплати" })).toBeVisible();
+    expect(hasCode()).toBe(true);
     expect(api.requests.at(-1)?.query).toEqual({
       kind: "SingleTax",
       periodYear: "2026",

@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { useTranslations } from "next-intl";
-import { act, renderApp, screen } from "@/test/harness";
+import { renderApp, screen, useFakeTimers } from "@/test/harness";
 import { CopyField } from "./copy-field";
 
 // The labels come from the real catalog the way pay-panel passes them, so a renamed key fails here too.
@@ -20,10 +20,6 @@ function IbanField({ value, copyValue }: { value: string; copyValue?: string | n
 }
 
 const iban = "UA213223130000026007233566001";
-
-afterEach(() => {
-  vi.useRealTimers();
-});
 
 describe("CopyField", () => {
   it("shows the value and copies it to the clipboard", async () => {
@@ -57,16 +53,21 @@ describe("CopyField", () => {
   });
 
   it("forgets the confirmation after two seconds", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    const { user } = renderApp(<IbanField value={iban} />, {}, { advanceTimers: vi.advanceTimersByTime });
+    const timers = useFakeTimers();
+    const { user } = renderApp(<IbanField value={iban} />, {}, timers.userOptions);
 
     await user.click(screen.getByRole("button", { name: "Копіювати: IBAN" }));
+    // The clipboard answers on a promise; the clock steps until the confirmation shows.
+    for (let step = 0; step < 100 && screen.getByRole("status").textContent === ""; step++) {
+      await timers.advance(1);
+    }
+    expect(screen.getByRole("status")).toHaveTextContent("Скопійовано");
+    const copiedAt = Date.now();
+
+    await timers.advance(1_900);
     expect(screen.getByRole("status")).toHaveTextContent("Скопійовано");
 
-    await act(() => vi.advanceTimersByTimeAsync(1_900));
-    expect(screen.getByRole("status")).toHaveTextContent("Скопійовано");
-
-    await act(() => vi.advanceTimersByTimeAsync(200));
+    await timers.advance(copiedAt + 2_001 - Date.now());
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 
