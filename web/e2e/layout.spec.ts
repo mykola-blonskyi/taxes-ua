@@ -17,12 +17,6 @@ const viewport = { width: 375, height: 812 };
 // is a failure, so a table that starts overflowing its card cannot hide behind its own scrollbar.
 const scrollingStrips: readonly { route: string; tab?: string; strip: string; reason: string }[] = [
   { route: "/settings", strip: "settings-tabs", reason: "eight settings tabs do not fit 375 px, so the tab list scrolls" },
-  {
-    route: "/settings",
-    tab: "taxYears",
-    strip: "tax-years",
-    reason: "the tax year table has a column per tax parameter, about 2000 px wide, and scrolls inside its own box",
-  },
 ];
 
 // Text that proves a screen painted its seeded rows and not an empty state or a loading line. It is filled

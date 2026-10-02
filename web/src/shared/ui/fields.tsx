@@ -13,6 +13,7 @@ export function FieldWrapper({
   label,
   htmlFor,
   hint,
+  hintClassName,
   errors,
   labelClassName,
   children,
@@ -20,6 +21,7 @@ export function FieldWrapper({
   label: string;
   htmlFor: string;
   hint?: string;
+  hintClassName?: string;
   errors?: string[];
   labelClassName?: string;
   children: ReactNode;
@@ -30,7 +32,7 @@ export function FieldWrapper({
         {label}
       </label>
       {children}
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className={cn("text-xs text-muted-foreground", hintClassName)}>{hint}</p> : null}
       {errors && errors.length > 0 ? (
         <ul className="text-xs text-destructive">
           {errors.map((message) => (
@@ -46,6 +48,7 @@ type BaseFieldProps = {
   id: string;
   label: string;
   hint?: string;
+  hintClassName?: string;
   errors?: string[];
   labelClassName?: string;
 };
@@ -54,6 +57,7 @@ export function TextField({
   id,
   label,
   hint,
+  hintClassName,
   errors,
   labelClassName,
   value,
@@ -64,7 +68,7 @@ export function TextField({
   onChange: (value: string) => void;
 } & Omit<ComponentProps<"input">, "id" | "value" | "onChange">) {
   return (
-    <FieldWrapper label={label} htmlFor={id} hint={hint} errors={errors} labelClassName={labelClassName}>
+    <FieldWrapper label={label} htmlFor={id} hint={hint} hintClassName={hintClassName} errors={errors} labelClassName={labelClassName}>
       <input
         id={id}
         value={value}
@@ -106,6 +110,7 @@ export function NumberField({
   id,
   label,
   hint,
+  hintClassName,
   errors,
   labelClassName,
   value,
@@ -116,7 +121,7 @@ export function NumberField({
   onChange: (value: number) => void;
 } & Omit<ComponentProps<"input">, "id" | "value" | "onChange" | "type">) {
   return (
-    <FieldWrapper label={label} htmlFor={id} hint={hint} errors={errors} labelClassName={labelClassName}>
+    <FieldWrapper label={label} htmlFor={id} hint={hint} hintClassName={hintClassName} errors={errors} labelClassName={labelClassName}>
       <input
         id={id}
         type="number"
