@@ -177,7 +177,8 @@ public static class PeriodsEndpoints
             excludedOperationCount,
             [.. negativeQuarters],
             loaded.Settings.FopRegistrationDate is { } registered && loaded.Accrual.Year < registered.Year,
-            loadedYears.MissingTaxYear);
+            loadedYears.MissingTaxYear,
+            BeforeGroup3Response.Of(loaded.Accrual.Income.BeforeGroup3));
     }
 
     private static DateOnly QuarterEnd(int year, int quarter) => MonthEnd(year, 3 * quarter);
@@ -263,7 +264,8 @@ internal sealed record ObligationResponse(
 /// Rule 9, Rule 8 and Rule 7 as the screen needs them. Each field is one sentence the interface
 /// writes; the api sends no text, per ADR-002. <c>YearBeforeRegistration</c> and
 /// <c>MissingTaxYear</c> say why a year with a registration date still has no balances: the year
-/// precedes the Rule 7 ledger, or the ledger stopped at that unconfigured year.
+/// precedes the Rule 7 ledger, or the ledger stopped at that unconfigured year. <c>BeforeGroup3</c>
+/// is the part of the year on the general system, whose quarters are absent from <c>Quarters</c>.
 /// </summary>
 internal sealed record PeriodWarnings(
     bool TaxYearUnverified,
@@ -271,7 +273,18 @@ internal sealed record PeriodWarnings(
     int ExcludedOperationCount,
     int[] NegativeCumulativeTaxQuarters,
     bool YearBeforeRegistration,
-    int? MissingTaxYear);
+    int? MissingTaxYear,
+    BeforeGroup3Response? BeforeGroup3);
+
+/// <summary>
+/// The days from registration to the day before group 3 starts that fall in the year, and the net
+/// income of that stretch, which the general system taxes and the app does not (Tax Code 298.1.4).
+/// </summary>
+internal sealed record BeforeGroup3Response(DateOnly From, DateOnly To, long IncomeKop)
+{
+    public static BeforeGroup3Response? Of(BeforeGroup3? stretch) =>
+        stretch is null ? null : new BeforeGroup3Response(stretch.From, stretch.To, stretch.IncomeKop);
+}
 
 /// <summary>
 /// Rule 4: the income went over the limit in <c>Quarter</c> of <c>Year</c>, so group 3 ends with it and

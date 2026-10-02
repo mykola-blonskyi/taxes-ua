@@ -278,7 +278,7 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
         new(valueDate, amountKop, Currency.UAH, null, TransactionKind.Income, null, clientName, null, description, null);
 
     private static TaxYearConfigRequest TaxYear(long minWageKop) => new(
-        minWageKop, 500, 100, 2200, 1500, 1167, [80, 95], 20, 40, 10, 15, [], "a test source");
+        minWageKop, 500, 100, 2200, 1500, 1167, [80, 95], 20, 40, 10, 15, 10, [], "a test source");
 
     private static async Task PutSettings(HttpClient client, DateOnly registered)
     {

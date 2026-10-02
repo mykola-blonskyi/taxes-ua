@@ -443,14 +443,14 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
     // The 2026 parameters, with weekday holidays on the first half-year's statutory dates, so a
     // holiday shift sits beside the weekend ones.
     private static TaxYearConfigInput Config(int year) => new(
-        864_700, 500, 100, 2_200, 19, 40, 10, Holidays(year), 864_700L * 1_167, 1_500, [85, 100]);
+        864_700, 500, 100, 2_200, 19, 40, 10, Holidays(year), 864_700L * 1_167, 1_500, [85, 100], 10);
 
     private static FopSettingsInput Engine(DateOnly registered) => new(
         Weekend, true, true, registered, TaxesUa.Engine.EsvRegistrationMonthPolicy.FullMonth, false);
 
     private static DateOnly[] Holidays(int year)
     {
-        var bare = new TaxYearConfigInput(864_700, 500, 100, 2_200, 19, 40, 10, [], 864_700L * 1_167, 1_500, [85, 100]);
+        var bare = new TaxYearConfigInput(864_700, 500, 100, 2_200, 19, 40, 10, [], 864_700L * 1_167, 1_500, [85, 100], 10);
         var settings = Engine(new DateOnly(year, 1, 1));
         var q1 = DeadlineCalendar.ForQuarter(year, 1, bare, settings);
         var q2 = DeadlineCalendar.ForQuarter(year, 2, bare, settings);
@@ -476,7 +476,7 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
         foreach (var each in years ?? [year, year + 1])
         {
             var taxYear = new TaxYearConfigRequest(
-                864_700, 500, 100, 2_200, 1_500, incomeLimitMinWages, [85, 100], 19, 40, 10, 15, Holidays(each), "a test source");
+                864_700, 500, 100, 2_200, 1_500, incomeLimitMinWages, [85, 100], 19, 40, 10, 15, 10, Holidays(each), "a test source");
             Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync($"/api/tax-years/{each}", taxYear, Json)).StatusCode);
         }
 

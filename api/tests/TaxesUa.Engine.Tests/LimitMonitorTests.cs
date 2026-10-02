@@ -14,7 +14,8 @@ public class LimitMonitorTests
         Holidays: [],
         IncomeLimitKop: 10_000_000,
         ExcessRateBp: 1_500,
-        LimitWarnThresholdsPct: [85, 100]);
+        LimitWarnThresholdsPct: [85, 100],
+        Group3ApplicationDays: 10);
 
     [Fact]
     public void Below_the_warn_threshold_is_Ok()

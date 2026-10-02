@@ -319,6 +319,7 @@ api.MapSettingsApi();
 api.MapInvoicingApi();
 api.MapInvoicesApi();
 api.MapDeclarationDetailsApi();
+api.MapDpsStatusApi();
 api.MapTaxYearsApi();
 api.MapPeriodsApi();
 api.MapDeclarationsApi();

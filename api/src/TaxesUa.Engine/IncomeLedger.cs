@@ -82,20 +82,31 @@ public sealed record MonthIncome(int Month, long IncomeKop);
 public sealed record QuarterIncome(int Quarter, long IncomeKop, long CumulativeIncomeKop);
 
 /// <summary>
+/// The part of a year after registration and before group 3 starts, when the FOP is on the general
+/// system (Tax Code 298.1.4). <c>IncomeKop</c> is the net income of the operations left out of the
+/// year for it, which the general system taxes and this engine does not.
+/// </summary>
+public sealed record BeforeGroup3(DateOnly From, DateOnly To, long IncomeKop);
+
+/// <summary>
 /// A year of income: all twelve months and all four quarters, present even when empty, so a caller
-/// indexes instead of searching.
+/// indexes instead of searching. <c>BeforeGroup3</c> is null when the year has no day between
+/// registration and the start of group 3.
 /// </summary>
 public sealed record YearIncome(
     int Year,
     IReadOnlyList<MonthIncome> Months,
     IReadOnlyList<QuarterIncome> Quarters,
-    IReadOnlyList<EngineWarning> Warnings)
+    IReadOnlyList<EngineWarning> Warnings,
+    BeforeGroup3? BeforeGroup3)
 {
     public long TotalIncomeKop => Quarters[^1].CumulativeIncomeKop;
 }
 
 /// <summary>
-/// Income by period per Rule 1 and Rule 8 of <c>knowledge/business-rules.md</c>.
+/// Income by period per Rule 1 and Rule 8 of <c>knowledge/business-rules.md</c>. Only group 3 income
+/// counts: an operation from registration to the day before <see cref="FopSettingsInput.Group3Start"/>
+/// is left out and summed into <see cref="YearIncome.BeforeGroup3"/> instead.
 /// </summary>
 public static class IncomeLedger
 {
@@ -106,6 +117,7 @@ public static class IncomeLedger
     {
         var monthlyKop = new long[12];
         var warnings = new List<EngineWarning>();
+        var beforeGroup3Kop = 0L;
 
         if (settings.FopRegistrationDate is not { } registrationDate)
         {
@@ -113,6 +125,7 @@ public static class IncomeLedger
         }
         else
         {
+            var group3Start = settings.Group3Start ?? registrationDate;
             foreach (var transaction in transactions)
             {
                 if (transaction.ValueDate.Year != year)
@@ -123,6 +136,12 @@ public static class IncomeLedger
                 if (Exclusion(transaction, registrationDate) is { } warning)
                 {
                     warnings.Add(warning);
+                    continue;
+                }
+
+                if (IsBeforeGroup3(transaction, group3Start))
+                {
+                    beforeGroup3Kop += transaction.IncomeContributionKop;
                     continue;
                 }
 
@@ -145,7 +164,39 @@ public static class IncomeLedger
             quarters[quarter - 1] = new QuarterIncome(quarter, quarterKop, cumulativeKop);
         }
 
-        return new YearIncome(year, months, quarters, warnings);
+        return new YearIncome(year, months, quarters, warnings, BeforeGroup3Of(year, settings, beforeGroup3Kop));
+    }
+
+    /// <summary>
+    /// Whether the operation is outside group 3 because it, or the receipt a refund reverses, is dated
+    /// before group 3 starts: the same transitive rule as Rule 8. Subsumes Rule 8, since group 3 never
+    /// starts before registration.
+    /// </summary>
+    public static bool IsBeforeGroup3(TransactionInput transaction, DateOnly group3Start) =>
+        transaction.ValueDate < group3Start
+        || transaction is TransactionInput.RefundToClient { ReceiptValueDate: { } receiptValueDate }
+            && receiptValueDate < group3Start;
+
+    private static BeforeGroup3? BeforeGroup3Of(int year, FopSettingsInput settings, long incomeKop)
+    {
+        if (settings.FopRegistrationDate is not { } registered || settings.Group3Start is not { } start
+            || start == registered)
+        {
+            return null;
+        }
+
+        var yearStart = new DateOnly(year, 1, 1);
+        var yearEnd = new DateOnly(year, 12, 31);
+        var lastDay = start.AddDays(-1);
+        if (registered > yearEnd || lastDay < yearStart)
+        {
+            return null;
+        }
+
+        return new BeforeGroup3(
+            registered > yearStart ? registered : yearStart,
+            lastDay < yearEnd ? lastDay : yearEnd,
+            incomeKop);
     }
 
     /// <summary>

@@ -12,6 +12,7 @@ public enum ReminderKinds
     MilitaryLevy = 2,
     Esv = 4,
     Declaration = 8,
+    Group3Application = 16,
 }
 
 /// <summary>Days from the date a reminder is about to the day it is sent on, at 09:00 Kyiv.</summary>
@@ -52,6 +53,12 @@ public abstract record ReminderItem
     {
         public override ReminderKinds Kind => ReminderKinds.Declaration;
     }
+
+    /// <summary>The group 3 application, still unconfirmed, due by <c>Deadline</c>.</summary>
+    public sealed record Group3Application(DateOnly RegistrationDate, DateOnly Deadline) : ReminderItem
+    {
+        public override ReminderKinds Kind => ReminderKinds.Group3Application;
+    }
 }
 
 /// <summary>Everything due on <c>Date</c>, in one message.</summary>
@@ -88,7 +95,8 @@ public static class ReminderPlan
     {
         var candidates = Payments(ledger)
             .Concat(Advances(ledger, advances))
-            .Concat(Declarations(years, settings, filed));
+            .Concat(Declarations(years, settings, filed))
+            .Concat(Group3ApplicationOf(years, settings));
 
         var reminders = new List<Reminder>();
         foreach (var date in candidates.GroupBy(candidate => candidate.Date).OrderBy(group => group.Key))
@@ -204,6 +212,22 @@ public static class ReminderPlan
                 yield return new Candidate(due, new ReminderItem.Declaration(year.Accrual.Year, quarter), OverdueToo: false);
             }
         }
+    }
+
+    /// <summary>
+    /// The registration year's parameters come from the ledger, which starts at that year; without
+    /// them there is no deadline to remind of.
+    /// </summary>
+    private static IEnumerable<Candidate> Group3ApplicationOf(IReadOnlyList<LedgerYear> years, FopSettingsInput settings)
+    {
+        if (settings.FopRegistrationDate is not { } registered
+            || years.FirstOrDefault(year => year.Accrual.Year == registered.Year) is not { } registrationYear
+            || Group3Application.Pending(settings, registrationYear.Config) is not { } deadline)
+        {
+            yield break;
+        }
+
+        yield return new Candidate(deadline, new ReminderItem.Group3Application(registered, deadline), OverdueToo: false);
     }
 
     private static KindLedger[] Kinds(PaymentLedger ledger) => [ledger.SingleTax, ledger.MilitaryLevy, ledger.Esv];

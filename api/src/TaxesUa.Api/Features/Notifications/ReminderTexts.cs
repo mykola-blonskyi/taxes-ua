@@ -28,6 +28,7 @@ internal static class ReminderTexts
         "квартал",
         "Декларація за",
         "подати",
+        ("Заява про обрання 3 групи єдиного податку: подати до", "від реєстрації", "інакше 3 група почнеться не раніше наступного кварталу"),
         ["січень", "лютий", "березень", "квітень", "травень", "червень", "липень", "серпень", "вересень", "жовтень", "листопад", "грудень"],
         "Відкрити застосунок");
 
@@ -48,6 +49,7 @@ internal static class ReminderTexts
         "квартал",
         "Декларация за",
         "подать",
+        ("Заявление о выборе 3 группы единого налога: подать до", "от регистрации", "иначе 3 группа начнётся не раньше следующего квартала"),
         ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"],
         "Открыть приложение");
 
@@ -56,7 +58,7 @@ internal static class ReminderTexts
     public static ReminderMessage Render(Reminder reminder, string locale, DateOnly today, string? appUrl)
     {
         var words = locale == "ru" ? Russian : Ukrainian;
-        var date = reminder.Date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
+        var date = Date(reminder.Date);
         var days = reminder.Date.DayNumber - today.DayNumber;
         var subject = days switch
         {
@@ -84,8 +86,19 @@ internal static class ReminderTexts
             $"{words.Kinds[payment.PaymentKind]} за {Roman[payment.Quarter - 1]} {words.Quarter} {payment.Year}: {Money(payment.AmountKop)}",
         ReminderItem.Declaration declaration =>
             $"{words.DeclarationFor} {Roman[declaration.Quarter - 1]} {words.Quarter} {declaration.Year}: {words.File}",
+        ReminderItem.Group3Application application => Group3ApplicationLine(application, words),
         _ => throw new ArgumentOutOfRangeException(nameof(item), item, "Unknown reminder item."),
     };
+
+    private static string Group3ApplicationLine(ReminderItem.Group3Application application, Words words)
+    {
+        var days = application.Deadline.DayNumber - application.RegistrationDate.DayNumber;
+        return $"{words.Group3Application.FileBy} {Date(application.Deadline)} "
+            + $"({days} {Plural(days, words.Days)} {words.Group3Application.FromRegistration} {Date(application.RegistrationDate)}), "
+            + words.Group3Application.Otherwise;
+    }
+
+    private static string Date(DateOnly date) => date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
 
     private static string Money(long kop) => TransactionExport.FormatScaled(kop, 2, ',', " ") + " ₴";
 
@@ -109,6 +122,7 @@ internal static class ReminderTexts
         string Quarter,
         string DeclarationFor,
         string File,
+        (string FileBy, string FromRegistration, string Otherwise) Group3Application,
         string[] Months,
         string Open);
 }

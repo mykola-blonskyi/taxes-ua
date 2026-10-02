@@ -114,7 +114,8 @@ public sealed record LimitCrossing(int Year, int Quarter)
 /// year, but <c>Quarters</c> and <c>Months</c> hold only those in group 3 (Rule 4): a quarter after a
 /// crossing, in this year or an earlier one, belongs to a system this engine does not compute, so it has
 /// no accrual rather than a group 3 figure that would be wrong, until the owner's
-/// <see cref="FopSettingsInput.BackOnGroup3From"/>. <c>LimitCrossing</c> is the crossing that ends group 3
+/// <see cref="FopSettingsInput.BackOnGroup3From"/>; so does a quarter that ends before
+/// <see cref="FopSettingsInput.Group3Start"/>. <c>LimitCrossing</c> is the crossing that ends group 3
 /// in this year, or else the earlier one that keeps a quarter of this year out of it.
 /// <c>StoppedAtYearEnd</c> is the crossing group 3 is still stopped by after Q4, which the next year
 /// inherits. <c>EsvAnnex</c> is the year's ESV for the group 3 months, as annex 1 of the year's last
@@ -218,7 +219,7 @@ public static class Accruals
                 accruedMilitaryLevyKop = 0;
             }
 
-            if (stop is not null)
+            if (stop is not null || EndsBeforeGroup3(year, quarter, settings))
             {
                 continue;
             }
@@ -293,13 +294,27 @@ public static class Accruals
         var first = quarters[0].Income.Quarter;
         var last = quarters[^1].Income.Quarter;
         var firstDay = new DateOnly(year, 3 * first - 2, 1);
+        var group3Start = settings.Group3Start ?? registrationDate;
         return new EsvAnnex(
             year,
             last,
-            registrationDate > firstDay ? registrationDate : firstDay,
+            group3Start > firstDay ? group3Start : firstDay,
             new DateOnly(year, 3 * last, 1).AddMonths(1).AddDays(-1),
             months,
             crossing?.Quarter == last);
+    }
+
+    /// <summary>
+    /// A quarter of the FOP that is over before group 3 starts is on the general system (Tax Code
+    /// 298.1.4), which this engine does not compute, so it has no accrual, like a quarter after a limit
+    /// crossing. A quarter over before registration keeps its empty accrual, as Rule 8 has it.
+    /// </summary>
+    private static bool EndsBeforeGroup3(int year, int quarter, FopSettingsInput settings)
+    {
+        var quarterEnd = new DateOnly(year, 3 * quarter, 1).AddMonths(1).AddDays(-1);
+        return settings is { FopRegistrationDate: { } registered, Group3Start: { } start }
+            && quarterEnd >= registered
+            && quarterEnd < start;
     }
 
     /// <summary>

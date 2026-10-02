@@ -620,7 +620,7 @@ public static class TransactionsEndpoints
         IReadOnlyCollection<Transaction> rows,
         CancellationToken cancellationToken)
     {
-        if (settings.FopRegistrationDate is not { } registrationDate || rows.Count == 0)
+        if (settings.ToEngineInput().Group3Start is not { } group3Start || rows.Count == 0)
         {
             return _ => null;
         }
@@ -631,7 +631,7 @@ public static class TransactionsEndpoints
             .ToDictionaryAsync(config => config.Year, config => config.ToEngineInput(), cancellationToken);
 
         return row => configs.TryGetValue(row.ValueDate.Year, out var config)
-            && TaxReserve.SetAsideFor(row.ToEngineInput(), config, registrationDate) is { } setAside
+            && TaxReserve.SetAsideFor(row.ToEngineInput(), config, group3Start) is { } setAside
                 ? new SetAsideResponse(setAside.SingleTaxKop, setAside.MilitaryLevyKop)
                 : null;
     }

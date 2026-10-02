@@ -482,7 +482,7 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
     }
 
     private static TaxYearConfigRequest TaxYear(int incomeLimitMinWages = 1_167) => new(
-        864_700, 500, 100, 2_200, 1_500, incomeLimitMinWages, [85, 100], 19, 40, 10, 15, [], "a test source");
+        864_700, 500, 100, 2_200, 1_500, incomeLimitMinWages, [85, 100], 19, 40, 10, 15, 10, [], "a test source");
 
     private static async Task PutSettings(HttpClient owner, DateOnly? registered)
     {

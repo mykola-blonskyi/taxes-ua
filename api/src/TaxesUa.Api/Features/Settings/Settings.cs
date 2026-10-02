@@ -39,6 +39,22 @@ internal sealed class Settings
     public YearQuarter? BackOnGroup3From =>
         BackOnGroup3FromYear is { } year && BackOnGroup3FromQuarter is { } quarter ? new YearQuarter(year, quarter) : null;
 
+    // Tax Code 298.1.4: the day the DPS register has group 3 from when it is later than registration.
+    // Null means from the registration date.
+    public DateOnly? Group3Since { get; set; }
+
+    // The DPS receipt for the group 3 application. Both set or both null, which DpsStatusEndpoints
+    // keeps by writing them from one confirmation.
+    public DateOnly? Group3ConfirmedOn { get; set; }
+
+    public string? Group3ReceiptNumber { get; set; }
+
+    public bool DpsFopRegistered { get; set; }
+
+    public bool DpsEsvRegistered { get; set; }
+
+    public bool DpsAccountsRegistered { get; set; }
+
     public FopSettingsInput ToEngineInput() => new(
         WeekendDays,
         TaxPaymentCountsFromStatutoryDeclarationDate,
@@ -52,7 +68,9 @@ internal sealed class Settings
                 nameof(EsvRegistrationMonthPolicy), EsvRegistrationMonthPolicy, message: null),
         },
         EsvExempt,
-        BackOnGroup3From);
+        BackOnGroup3From,
+        Group3Since,
+        Group3ConfirmedOn is not null);
 }
 
 internal enum PaymentMode

@@ -295,7 +295,8 @@ public class AccrualsTests
         Holidays: [],
         IncomeLimitKop: 1_009_104_900,
         ExcessRateBp: 1_500,
-        LimitWarnThresholdsPct: [85, 100]);
+        LimitWarnThresholdsPct: [85, 100],
+        Group3ApplicationDays: 10);
 
     private static readonly FopSettingsInput RegisteredIn2025 = Settings(Date("2025-01-01"));
 

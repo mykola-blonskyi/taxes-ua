@@ -172,6 +172,7 @@ public static class TaxYearEndpoints
         config.DeclarationDays = request.DeclarationDays;
         config.TaxPaymentDaysAfterDeclaration = request.TaxPaymentDaysAfterDeclaration;
         config.AdvanceRecommendedDay = request.AdvanceRecommendedDay;
+        config.Group3ApplicationDays = request.Group3ApplicationDays;
         config.Holidays = [.. request.Holidays];
         config.Source = request.Source;
         config.VerifiedAt = null;
@@ -193,6 +194,7 @@ public static class TaxYearEndpoints
         config.DeclarationDays,
         config.TaxPaymentDaysAfterDeclaration,
         config.AdvanceRecommendedDay,
+        config.Group3ApplicationDays,
         config.Holidays,
         config.Source,
         config.VerifiedAt);
@@ -228,6 +230,7 @@ public static class TaxYearEndpoints
             1,
             LastDayEveryMonthHas,
             "so the advance date is a day of month every month has, February included");
+        yield return new(nameof(request.Group3ApplicationDays), request.Group3ApplicationDays, 1, MaxDaysInYear);
 
         for (var index = 0; index < request.LimitWarnThresholdsPct.Length; index++)
         {
@@ -296,6 +299,7 @@ internal sealed record TaxYearConfigRequest(
     int DeclarationDays,
     int TaxPaymentDaysAfterDeclaration,
     int AdvanceRecommendedDay,
+    int Group3ApplicationDays,
     DateOnly[] Holidays,
     string Source);
 
@@ -314,6 +318,7 @@ internal sealed record TaxYearConfigResponse(
     int DeclarationDays,
     int TaxPaymentDaysAfterDeclaration,
     int AdvanceRecommendedDay,
+    int Group3ApplicationDays,
     DateOnly[] Holidays,
     string Source,
     DateTimeOffset? VerifiedAt);
