@@ -1377,4 +1377,7 @@ fact; a constant is easier to test and to change in one place.
 One migration adds the column and swaps the unique index for two filtered ones. The dashboard response
 gains a nullable `sync`. Accounts still backfilling are not judged by age, so a backfill that stalls
 without a token error shows as healthy until it finishes; the failure still shows on the settings tab. A
-partial recovery of two accounts re-alerts once. An alert can arrive at any hour.
+stale or unreadable-token incident is held back while any followed account is queued or syncing, so a
+recovery under way (accounts recover one at a time and move the oldest cursor) does not re-key it; if an
+account is still stale once the queue empties it is alerted under its own key. `RejectedAt` is set only
+while null, so a repeat 401 cannot re-key a rejection. An alert can arrive at any hour.

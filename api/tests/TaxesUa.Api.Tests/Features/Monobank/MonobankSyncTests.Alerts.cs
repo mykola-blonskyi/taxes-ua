@@ -157,6 +157,55 @@ public sealed partial class MonobankSyncTests
     }
 
     [Fact]
+    public async Task A_recovery_under_way_does_not_alert_again_while_an_account_is_still_syncing()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-alert-two", ("alert-two-a", 980), ("alert-two-b", 980));
+        var telegram = new StubTelegramHandler();
+        await using var app = CreateAlerting(At(2067, 3, 10, 10), bank, telegram);
+        using var owner = await Connect(app, _ownerEmail, "token-alert-two");
+        await LinkTelegram(app, owner, telegram);
+        var now = app.Clock.GetUtcNow();
+        await SetCursors(app, ("alert-two-a", now.AddDays(-5)), ("alert-two-b", now.AddDays(-4)));
+
+        await SendAlerts(app);
+        Assert.Single(Alerts(telegram));
+
+        // The first account recovers and the oldest cursor moves to the second's; its sync is still running.
+        await SetCursors(app, ("alert-two-a", now));
+        bank.RateLimit(1000, TimeSpan.FromMinutes(5));
+        Assert.Equal(HttpStatusCode.Accepted, (await owner.PostAsync("/api/monobank/sync", null)).StatusCode);
+        Assert.Contains((await Status(owner)).Accounts, account => account.SyncPending);
+        await SendAlerts(app);
+
+        Assert.Single(Alerts(telegram));
+        Assert.Equal("Stale", (await Health(owner))!["state"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task A_second_rejection_of_the_same_token_keeps_the_first_time()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-alert-twice", ("alert-twice-uah", 980));
+        await using var app = CreateAlerting(At(2068, 3, 1, 10), bank, new StubTelegramHandler());
+        using var owner = await Connect(app, _ownerEmail, "token-alert-twice");
+
+        await using var scope = app.Factory.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var import = scope.ServiceProvider.GetRequiredService<MonobankStatementImport>();
+        var ownerId = await database.Users.Where(user => user.Email == _ownerEmail).Select(user => user.Id).SingleAsync();
+        var connection = await database.MonobankConnections.AsNoTracking().SingleAsync(row => row.UserId == ownerId);
+
+        Assert.True(await import.RejectAsync(connection, CancellationToken.None));
+        var first = (await Status(owner)).TokenRejectedAt;
+        app.Clock.Advance(TimeSpan.FromHours(2));
+        Assert.True(await import.RejectAsync(connection, CancellationToken.None));
+
+        Assert.NotNull(first);
+        Assert.Equal(first, (await Status(owner)).TokenRejectedAt);
+    }
+
+    [Fact]
     public async Task No_alert_is_claimed_or_sent_without_a_channel_and_the_dashboard_still_says_so()
     {
         var bank = new FakeBank();
@@ -242,5 +291,19 @@ public sealed partial class MonobankSyncTests
         return await database.SentReminders.AsNoTracking()
             .Where(row => owner.Contains(row.UserId) && row.Incident != string.Empty)
             .ToListAsync();
+    }
+
+    private async Task SetCursors(SyncApp app, params (string ExternalId, DateTimeOffset At)[] cursors)
+    {
+        await using var scope = app.Factory.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        foreach (var (externalId, at) in cursors)
+        {
+            await database.BankAccounts
+                .Where(row => row.ExternalId == externalId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(row => row.SyncedThrough, at)
+                    .SetProperty(row => row.HistoryImportedAt, at));
+        }
     }
 }

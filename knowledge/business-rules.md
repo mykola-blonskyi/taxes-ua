@@ -1045,8 +1045,11 @@ being replaced, is a new incident. An alert needs no particular hour: unlike a d
 sent on the first run that finds the incident, and a run without a switched-on channel claims nothing, so
 connecting a channel later still delivers the incident if it is still open.
 
-Two accounts with different cursors share one `Stale` incident keyed by the oldest. When the oldest
-recovers while the other is still stale, the key moves and the owner is told once more.
+Two accounts with different cursors share one `Stale` incident keyed by the oldest. The key moves as
+accounts recover one at a time, so a `Stale` or `TokenUnreadable` incident is not reported while any
+followed account is queued or syncing: a recovery under way is not a new incident. The dashboard still
+shows the state. If one account then stays stale after the queue empties, it is alerted under its own,
+later key. The first rejection of a token also stays: a later 401 does not overwrite `RejectedAt`.
 
 The same mechanism will carry other incidents, such as a backup that failed (#176) and an expired Treasury
 account (#173): a new kind of incident and a source that reports it, not a new sender.

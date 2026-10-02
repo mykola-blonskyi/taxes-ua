@@ -213,7 +213,8 @@ internal sealed class MonobankWebhooks : BackgroundService
 
             case WebhookResult.InvalidToken:
                 _logger.LogWarning("monobank rejected the token of owner {OwnerId} when setting its webhook.", ownerId);
-                await sameToken.ExecuteUpdateAsync(
+                // The first rejection stays: RejectedAt keys the incident, so a later one must not move it.
+                await sameToken.Where(row => row.RejectedAt == null).ExecuteUpdateAsync(
                     setters => setters.SetProperty(row => row.RejectedAt, _time.GetUtcNow()), cancellationToken);
                 break;
 

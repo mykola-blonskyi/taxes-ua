@@ -40,6 +40,9 @@ namespace TaxesUa.Api.Data.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Incident rows have no meaning without the column, and would collide on the old unique index.
+            migrationBuilder.Sql("DELETE FROM \"SentReminders\" WHERE \"Incident\" <> '';");
+
             migrationBuilder.DropIndex(
                 name: "IX_SentReminders_UserId_Date_Kinds_Offset_Channel",
                 table: "SentReminders");

@@ -188,11 +188,17 @@ internal sealed class MonobankStatementImport(
         }
     }
 
-    // Only the token that was rejected: one saved while this call was in flight stays usable.
-    private async Task<bool> RejectAsync(MonobankConnection connection, CancellationToken cancellationToken) =>
-        await database.MonobankConnections
-            .Where(row => row.UserId == connection.UserId && row.EncryptedToken == connection.EncryptedToken)
-            .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.RejectedAt, time.GetUtcNow()), cancellationToken) > 0;
+    // Only the token that was rejected: one saved while this call was in flight stays usable. The first
+    // rejection stays, since RejectedAt keys the incident alert; a token already rejected counts as done.
+    internal async Task<bool> RejectAsync(MonobankConnection connection, CancellationToken cancellationToken)
+    {
+        var sameToken = database.MonobankConnections
+            .Where(row => row.UserId == connection.UserId && row.EncryptedToken == connection.EncryptedToken);
+
+        return await sameToken.Where(row => row.RejectedAt == null)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.RejectedAt, time.GetUtcNow()), cancellationToken) > 0
+            || await sameToken.AnyAsync(row => row.RejectedAt != null, cancellationToken);
+    }
 
     private static DateTimeOffset Min(DateTimeOffset first, DateTimeOffset second) => first < second ? first : second;
 
