@@ -61,7 +61,7 @@ public sealed class ProblemContractTests(ApiFixture fixture) : IClassFixture<Api
     public void Nothing_writes_a_problem_except_the_one_helper()
     {
         var offenders = Sources()
-            .Where(path => !path.EndsWith("Problems.cs", StringComparison.Ordinal))
+            .Where(path => Path.GetRelativePath(SourceRoot(), path) != "Problems.cs")
             .Where(path => Regex.IsMatch(File.ReadAllText(path), @"\b(Results|TypedResults)\.(Problem|ValidationProblem)\b|new ProblemDetails|new HttpValidationProblemDetails|\.ProducesProblem\(|\.ProducesValidationProblem\("))
             .Select(path => Path.GetRelativePath(SourceRoot(), path))
             .ToArray();

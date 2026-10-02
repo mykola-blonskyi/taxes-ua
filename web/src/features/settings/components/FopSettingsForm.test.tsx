@@ -51,7 +51,7 @@ describe("FopSettingsForm rejection", () => {
 
     await user.click(await screen.findByRole("button", { name: "Сохранить" }));
 
-    expect(await screen.findByText("Дата регистрации не может быть позже даты квитанции ГНС о группе 3.")).toBeVisible();
+    expect(await screen.findByText("Дата регистрации не может быть позже даты квитанции ДПС о группе 3.")).toBeVisible();
   });
 
   it("shows the generic sentence, never the English, for a code this build has no words for", async () => {

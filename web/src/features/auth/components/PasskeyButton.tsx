@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { Button } from "@/shared/ui/button";
 import {
   PasskeyCancelledError,
@@ -12,6 +13,7 @@ import {
 
 export function PasskeyButton({ mode }: { mode: PasskeyMode }) {
   const t = useTranslations("login");
+  const apiText = useApiErrorText();
   const supported = useIsPasskeySupported();
   const ceremony = usePasskeyCeremony(mode);
 
@@ -39,7 +41,7 @@ export function PasskeyButton({ mode }: { mode: PasskeyMode }) {
       )}
       {ceremony.error instanceof ApiError && (
         <p className="text-sm text-destructive">
-          {ceremony.error.status === 403 ? t("passkeyForbidden") : t("passkeyError")}
+          {apiText.withReason(t("passkeyError"), ceremony.error)}
         </p>
       )}
       {!isSignIn && ceremony.isSuccess && (

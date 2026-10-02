@@ -1445,12 +1445,14 @@ pattern for reached the owner in English.
 
 ### Decision
 
-1. **Every failure carries a `code`.** One helper, `Problems` (`api/src/TaxesUa.Api/Problems.cs`), writes every
+1. **Every failure the app writes carries a `code`.** One helper, `Problems` (`api/src/TaxesUa.Api/Problems.cs`), writes every
    failure response; no other code calls `Results.Problem` or `Results.ValidationProblem` (a test scans the
    sources). `Problems.Create` writes a ProblemDetails with the extension `code`; `Problems.Validation` writes a
    400 (or 422) ProblemDetails whose `code` is `validation_failed` unless a more specific one is given
    (`invoice_incomplete`, `backup_invalid`, `prototype_invalid`). `title` and `detail` stay English sentences for
-   logs and for a person reading a response; the web never shows them. The `type` URIs of the earlier problems are
+   logs and for a person reading a response; the web never shows them. The failures the framework writes itself carry none: a malformed JSON or binding 400, the bodyless 401,
+   the 400 for a forwarded host outside `ALLOWED_HOSTS`, and an unhandled 500. The web shows the `unknown`
+   sentence for them. The `type` URIs of the earlier problems are
    gone: the code replaces them. The `reason` extension of the declaration file refusals became `code`
    (`quarter_not_ended`, `file_generated_before_quarter_end`); extra data stays an extension
    (`availableFrom`, `missingInvoices`).
