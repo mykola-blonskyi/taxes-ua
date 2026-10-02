@@ -22,6 +22,8 @@ services:
       Telegram__BaseUrl: ${TELEGRAM_BASE_URL:-}
       # The same for monobank, for the browser proof of the reserve jar; empty uses the real one.
       Monobank__BaseUrl: ${MONOBANK_BASE_URL:-}
+      # The same for the NBU exchange rates, for the end-to-end suite; empty uses the real one.
+      Nbu__BaseUrl: ${NBU_BASE_URL:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

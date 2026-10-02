@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { request, type FullConfig } from "@playwright/test";
 import { ownerEmail, signIn } from "./api";
-import { startStub } from "./stubs";
+import { startNbuStub, startStub } from "./stubs";
 
 const repoRoot = path.resolve(__dirname, "../../..");
 
@@ -27,16 +27,27 @@ export default async function globalSetup(config: FullConfig) {
   const project = `taxesua-e2e-${process.pid}`;
   const telegram = await startStub({ ok: true, result: [] });
   const monobank = await startStub([]);
+  const nbu = await startNbuStub();
   const env = {
     WEB_PORT: new URL(baseURL!).port,
     ALLOWED_EMAILS: ownerEmail,
     TELEGRAM_BASE_URL: `http://host.docker.internal:${telegram.port}`,
     MONOBANK_BASE_URL: `http://host.docker.internal:${monobank.port}`,
+    NBU_BASE_URL: `http://host.docker.internal:${nbu.port}`,
+    // The stack starts without a bot token or SMTP settings whatever the developer's shell holds, so the
+    // notification channels are unavailable and nothing real can be reached through them.
+    TELEGRAM_BOT_TOKEN: "",
+    SMTP_HOST: "",
+    SMTP_PORT: "",
+    SMTP_TLS: "",
+    SMTP_USER: "",
+    SMTP_PASSWORD: "",
+    SMTP_FROM: "",
   };
 
   const teardown = async () => {
     await compose(project, ["down", "--volumes", "--remove-orphans"], env).catch((error) => console.error(error));
-    await Promise.all([telegram.close(), monobank.close()]);
+    await Promise.all([telegram.close(), monobank.close(), nbu.close()]);
   };
 
   try {

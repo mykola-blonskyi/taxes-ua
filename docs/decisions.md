@@ -959,6 +959,18 @@ name and a random port, and removes it with its volumes afterwards. Telegram and
 stubs. The suite runs on one worker against one database, so each test seeds its own data and asserts on the
 change it made rather than on absolute totals. A failed CI run uploads the report and traces.
 
+#153 adds the core owner flows: the pay panel with its QR, the declaration XML, the invoice PDF, the
+unavailable notification channels and the language switch. Each seeds its data through the API
+(`web/e2e/support/seed.ts`); the invoice is created and issued through the API, and the UI create flow is
+not driven. A download is checked by what identifies it, not by being present: the XML by its DPS file
+name, its windows-1251 prolog, its parsed form code and its Cyrillic header values; the QR by its start
+code and the fields of the decoded payload (the image is not decoded); the PDF by its header, trailer
+and the number and seller in its information dictionary. The PDF's body text is not read, because that
+needs a PDF library; it is covered by the API's own tests (`InvoicePdfTests`, PdfPig).
+The stack starts with the bot token and SMTP settings blanked, whatever the developer's shell holds, and
+the NBU base URL (`Nbu__BaseUrl`, passed through `docker-compose.local.yml` only, empty meaning the real
+NBU) points at an in-test stub, so the suite cannot reach the real NBU. Its own data is in hryvnias.
+
 ---
 
 ## ADR-021. Read the reserve jar through the rate gate without ever waiting for it
