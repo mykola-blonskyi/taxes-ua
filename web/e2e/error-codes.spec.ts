@@ -17,7 +17,8 @@ test("a rejected request carries a code and a code for each rejected field", asy
 
 test("a taken client name is worded from its code, not from the api's English", async ({ page, request }) => {
   const name = `Error codes ${Date.now()}`;
-  expect((await request.post(clients, { data: { name } })).ok()).toBe(true);
+  const body = { name, address: null, country: null, vatId: null, email: null, defaultCurrency: null, notes: null };
+  expect((await request.post(clients, { data: body })).ok()).toBe(true);
 
   await page.goto("/settings?tab=clients");
   await page.getByRole("button", { name: uk.settings.clients.add }).click();
