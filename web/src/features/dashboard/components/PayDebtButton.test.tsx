@@ -93,6 +93,46 @@ describe("PayDebtButton", () => {
     expect(api.requestsTo("GET /api/payment-details")).toHaveLength(3);
   });
 
+  it("says the code is updating, never unavailable, while the amount's request is in flight", async () => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const api = stubFetch({
+      "GET /api/payment-details": async (request) => {
+        if (request.query.amountKop) await held;
+
+        return paymentDetails(request);
+      },
+    });
+    const { user } = renderApp(<PayDebtButton debt={debt} />);
+    const unavailable = "Ці реквізити не вміщуються в формат QR-коду НБУ. Скористайтеся кнопками копіювання.";
+
+    await user.click(screen.getByRole("button", { name: "Сплатити" }));
+
+    expect(await screen.findByText("Оновлюємо QR-код…")).toBeVisible();
+    await waitFor(() => expect(api.requestsTo("GET /api/payment-details")).toHaveLength(2));
+    expect(screen.getByText("Оновлюємо QR-код…")).toBeVisible();
+    expect(screen.queryByText(unavailable)).not.toBeInTheDocument();
+
+    release();
+
+    expect(await screen.findByRole("img", { name: "QR-код для оплати" })).toBeVisible();
+    expect(screen.queryByText(unavailable)).not.toBeInTheDocument();
+  });
+
+  it("says the details do not fit the QR format when the api answers for the amount without one", async () => {
+    stubFetch({
+      "GET /api/payment-details": (request) => ({ ...paymentDetails(request), qrContent: null }),
+    });
+    const { user } = renderApp(<PayDebtButton debt={debt} />);
+
+    await user.click(screen.getByRole("button", { name: "Сплатити" }));
+
+    expect(
+      await screen.findByText("Ці реквізити не вміщуються в формат QR-коду НБУ. Скористайтеся кнопками копіювання."),
+    ).toBeVisible();
+    expect(screen.queryByText("Оновлюємо QR-код…")).not.toBeInTheDocument();
+  });
+
   it("shows the missing details without asking for a code", async () => {
     const api = stubFetch({
       "GET /api/payment-details": {

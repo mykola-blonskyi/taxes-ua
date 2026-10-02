@@ -15,6 +15,7 @@ function detailsFor(overrides: Partial<Details> = {}): Details {
     missing: [],
     qrContent: "https://qr.bank.gov.ua/abc",
     amountKop: 123_456,
+    qrPending: false,
     ...overrides,
   };
 }
@@ -150,7 +151,14 @@ describe("PayPanel", () => {
       expect(screen.getByText("Введіть суму більше нуля, наприклад 1234,56.")).toBeVisible();
     });
 
-    it("explains a missing code when the server sent none", () => {
+    it("says it is updating, not unavailable, while the amount's request is pending", () => {
+      renderApp(panel({ details: detailsFor({ qrContent: null, amountKop: null, qrPending: true }) }));
+
+      expect(screen.getByText("Оновлюємо QR-код…")).toBeVisible();
+      expect(screen.queryByText(/не вміщуються в формат QR-коду НБУ/)).not.toBeInTheDocument();
+    });
+
+    it("explains a missing code when the server answered with none", () => {
       renderApp(panel({ details: detailsFor({ qrContent: null, amountKop: null }) }));
 
       expect(screen.getByText("Ці реквізити не вміщуються в формат QR-коду НБУ. Скористайтеся кнопками копіювання.")).toBeVisible();
