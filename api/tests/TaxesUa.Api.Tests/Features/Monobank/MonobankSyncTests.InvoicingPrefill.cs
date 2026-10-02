@@ -148,7 +148,10 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-prefill-rejected", ("prefill-rejected-fop", 980));
         await using var app = Create(At(2095, 6, 12, 10), bank);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-prefill-rejected");
+        // Connect waits for the sync the save queues, and with it for any unfinished sync an earlier test
+        // left for this owner. One that ran after the revoke would get a 403 from its statement call, reject
+        // the token itself, and the prefill would say "not connected" instead of asking to connect again.
+        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-prefill-rejected");
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
         bank.Revoke("token-prefill-rejected");
 
