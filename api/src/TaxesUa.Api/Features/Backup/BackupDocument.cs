@@ -355,8 +355,8 @@ internal sealed record BackupDocument(
         }
     }
 
-    // A version 15 file predates the DPS status (#172): the app assumed group 3 from registration and
-    // nothing was confirmed or ticked, which is what the migration gives a stored owner too. It also
+    // A version 15 file predates the DPS status (#172): the app assumed group 3 from registration, which a
+    // null group3Since says, and nothing was confirmed or ticked, as the migration leaves a stored owner. It also
     // predates the move off the wrong Prorated default, and cannot tell that default from a deliberate
     // choice, so its Prorated is read as FullMonth, as the migration did for stored owners (ADR-018
     // amendment). A version 16 file is written after that move, so its Prorated is the owner's choice.
@@ -370,7 +370,7 @@ internal sealed record BackupDocument(
                 settings["esvRegistrationMonthPolicy"] = nameof(EsvRegistrationMonthPolicy.FullMonth);
             }
 
-            settings["group3Since"] = settings["fopRegistrationDate"]?.DeepClone();
+            settings["group3Since"] = null;
             settings["group3Confirmation"] = null;
             settings["dpsFopRegistered"] = false;
             settings["dpsEsvRegistered"] = false;
@@ -417,7 +417,7 @@ internal sealed record BackupDocument(
         if (Settings is { } settings)
         {
             Merge("settings", SettingsEndpoints.Validate(settings.ToRequest()));
-            Merge("settings", DpsStatusEndpoints.Validate(settings.ToDpsStatusRequest(), settings.FopRegistrationDate));
+            Merge("settings", DpsStatusEndpoints.Validate(settings.ToDpsStatusRequest(), settings.FopRegistrationDate, today));
         }
 
         if (InvoicingDetails is { } invoicing)

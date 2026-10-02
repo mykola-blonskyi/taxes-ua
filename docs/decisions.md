@@ -1179,15 +1179,19 @@ domain finding 1 and UX High 4, #172).
 **A start date apart from registration.** `Settings.Group3Since` is the registration date, or the
 first day of a later quarter, the only two starts the Tax Code allows. The api refuses any other date,
 so the engine never sees a group 3 start in the middle of a quarter after the registration date. Null
-means the registration date. The migration gives every existing owner their registration date, so
-nothing changes for them until they act.
+means the registration date, and the registration date itself is stored as null, so a corrected
+registration date never leaves a stale start behind. The migration backfills nothing: every existing
+owner has null, which is what the app assumed until now.
 
 **The time before it is not computed, except ESV.** The engine's group 3 start is the later of the
 two dates. A quarter that ends before it gets no single tax and no military levy, and income dated
 before it is left out of group 3 income. This reuses the "outside group 3" path of the limit crossing
 (Rule 4): single tax and levy payments naming such a quarter stay out of the ledger, and the
 declaration skips it. ESV does not depend on the tax system, so such a quarter still accrues it from
-the registration date, and its months go on the year's annex 1 with the last group 3 declaration. The engine
+the registration date. Those months are reported on the ESV annex of the general system's annual
+property and income declaration (Tax Code 298.1.2, 298.1.4), not on the group 3 annex 1, so the group 3
+annex and line 21 cover only the group 3 months, from the group 3 start. The app does not build the
+general system's declaration. The engine
 reports the stretch from registration to the start, with the income received in it, as one figure per
 year rather than one warning per operation. The interface states it once.
 

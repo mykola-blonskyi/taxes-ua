@@ -413,10 +413,10 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         var upgraded = await owner.GetFromJsonAsync<DpsStatusResponse>("/api/settings/dps-status", Json);
 
         Assert.Equal(
-            (new DateOnly(2031, 1, 1), new Group3ConfirmationDto(new DateOnly(2031, 1, 5), "9123456789"), true, true, false),
+            ((DateOnly?)null, new Group3ConfirmationDto(new DateOnly(2031, 1, 5), "9123456789"), true, true, false),
             (restored!.Group3Since, restored.Confirmation, restored.FopRegistered, restored.EsvRegistered, restored.AccountsRegistered));
         Assert.Equal(
-            (new DateOnly(2031, 1, 1), (Group3ConfirmationDto?)null, false, false, false),
+            ((DateOnly?)null, (Group3ConfirmationDto?)null, false, false, false),
             (upgraded!.Group3Since, upgraded.Confirmation, upgraded.FopRegistered, upgraded.EsvRegistered, upgraded.AccountsRegistered));
         Assert.Equal(new DateOnly(2031, 1, 1), upgraded.Group3Start);
         Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
@@ -858,6 +858,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "group 3 from the middle of a quarter", "settings.group3Since" },
         { "a blank group 3 receipt number", "settings.confirmation.receiptNumber" },
         { "a group 3 receipt before registration", "settings.confirmation.confirmedOn" },
+        { "a group 3 receipt dated after today", "settings.confirmation.confirmedOn" },
         { "country that is not ISO 3166-1", "clients[0].country" },
         { "malformed client email", "clients[0].email" },
         { "no schema version", null },
@@ -1150,7 +1151,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             new SettingsBackup(
                 new DateOnly(2031, 1, 1), PaymentMode.Quarterly, EsvRegistrationMonthPolicy.FullMonth, false, true,
                 true, [DayOfWeek.Saturday, DayOfWeek.Sunday], "uk", "system", "UAH", new YearQuarter(2032, 2),
-                new DateOnly(2031, 1, 1), new Group3ConfirmationBackup(new DateOnly(2031, 1, 5), "9123456789"), true, true, false),
+                null, new Group3ConfirmationBackup(new DateOnly(2031, 1, 5), "9123456789"), true, true, false),
             [
                 new ClientBackup(
                     ClientId, "Acme", "1 Main St, Berlin", "DE", "DE123456789", "ap@acme.example", Currency.EUR, "Net 14"),
@@ -1464,6 +1465,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "a group 3 receipt before registration":
                 file["settings"]!["group3Confirmation"]!["confirmedOn"] = "2030-12-31";
+                break;
+            case "a group 3 receipt dated after today":
+                file["settings"]!["group3Confirmation"]!["confirmedOn"] = "2031-06-02";
                 break;
             case "country that is not ISO 3166-1":
                 file["clients"]![0]!["country"] = "XX";

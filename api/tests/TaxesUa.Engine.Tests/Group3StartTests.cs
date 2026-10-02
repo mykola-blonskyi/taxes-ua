@@ -142,7 +142,7 @@ public class Group3StartTests
     }
 
     [Fact]
-    public void Group3_from_the_next_quarter_accrues_the_registration_months_esv_and_files_it_in_the_q4_annex()
+    public void Group3_from_the_next_quarter_owes_the_registration_months_esv_and_leaves_it_off_the_q4_annex()
     {
         var settings = Settings(Date("2026-09-28"), Date("2026-10-01"));
 
@@ -156,9 +156,15 @@ public class Group3StartTests
         Assert.Equal(new BeforeGroup3(Date("2026-09-28"), Date("2026-09-30"), 500_000), year.Income.BeforeGroup3);
         Assert.Equal(new QuarterIncome(4, 1_000_000, 1_000_000), year.QuarterOf(4).Income);
         var annex = year.EsvAnnex!;
-        Assert.Equal((4, Date("2026-09-28"), Date("2026-12-31")), (annex.Quarter, annex.From, annex.To));
-        Assert.Equal([9, 10, 11, 12], annex.Months.Select(month => month.Month));
-        Assert.Equal(190_234, annex.Months[0].EsvKop);
+        Assert.Equal((4, Date("2026-10-01"), Date("2026-12-31")), (annex.Quarter, annex.From, annex.To));
+        Assert.Equal([10, 11, 12], annex.Months.Select(month => month.Month));
+        Assert.Equal(3 * EsvMonthKop, annex.EsvKop);
+
+        var ledger = Balances.ForYears([new LedgerYear(year, Config)], settings, [], Date("2026-10-19"));
+        var september = ledger.Esv.Obligations.Single(obligation => obligation.Quarter == 3);
+        Assert.Equal((190_234L, 190_234L, ObligationStatus.Due), (september.AccruedKop, september.RemainingKop, september.Status));
+        var reminder = Assert.Single(Due(settings, "2026-10-19 09:00"));
+        Assert.Equal([new ReminderItem.Payment(PaymentKind.Esv, 2026, 3, null, EsvMonthKop)], reminder.Items);
     }
 
     [Fact]

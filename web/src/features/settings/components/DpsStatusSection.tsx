@@ -22,7 +22,7 @@ type FormState = {
   quarterStart: string;
 };
 
-type ErrorKey = "needsRegistration" | "quarterStart" | "receiptRequired" | "receiptTooLong" | "controlChar" | "confirmedBeforeRegistration";
+type ErrorKey = "needsRegistration" | "quarterStart" | "receiptRequired" | "receiptTooLong" | "controlChar" | "confirmedBeforeRegistration" | "confirmedInFuture";
 
 // The api answers in English from a closed set of messages per field; each maps to a translated one and
 // anything unforeseen is shown as it came.
@@ -39,6 +39,7 @@ const errorPatterns: Record<string, readonly (readonly [string, ErrorKey])[]> = 
   "confirmation.confirmedOn": [
     ["requires", "needsRegistration"],
     ["before the registration date", "confirmedBeforeRegistration"],
+    ["in the future", "confirmedInFuture"],
   ],
 };
 

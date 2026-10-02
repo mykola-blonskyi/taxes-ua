@@ -39,7 +39,8 @@ Formula: `AmountUahKop = roundHalfUp(AmountMinor × RateE4 / 10000)`.
 - Military Levy: `MilitaryLevyRateBp` of income (2026: 1%).
 - ESV for oneself: `EsvRateBp` of the monthly minimum wage (2026: 22% × 8,647 = 1,902.34 UAH).
   Paid from the month of FOP registration, regardless of income and of the tax system: a quarter
-  before `Group3Since` (Rule 8) accrues ESV like any other, and its months are on the year's annex 1.
+  before `Group3Since` (Rule 8) accrues ESV like any other. Its months are reported on the ESV annex of
+  the general system's annual property and income declaration, not on the group 3 annex 1 (Rule 15).
 - Registration month: the full minimum (`EsvRegistrationMonthPolicy.FullMonth`, the default), whatever
   the registration day. Law 2464-VI sets the ESV of a FOP on the simplified system at no less than the
   minimum insurance contribution ("сума єдиного внеску не може бути меншою за розмір мінімального
@@ -303,8 +304,11 @@ Registration does not make the FOP a group 3 payer; the DPS register does (Tax C
   quarter, once a year.
 
 The owner records the outcome in `Settings.Group3Since`: the registration date, or the first day of a
-quarter after it. The api refuses any other date, and null means the registration date. Owners who
-existed before #172 were given their registration date, unconfirmed, so nothing they see changed.
+quarter after it. The api refuses any other date. Null means the registration date, and the
+registration date itself is stored as null, so a corrected registration date carries group 3 with it.
+Saving a registration date clears a stored start that is not a quarter start after it, and a
+registration date after the group 3 receipt is refused. Owners who existed before #172 have null,
+unconfirmed, so nothing they see changed.
 
 Between the registration date and `Group3Since` the FOP is on the general system: personal income tax
 at 18% and military levy at 5% of net income, quarterly advances, and an annual property and income
@@ -315,7 +319,8 @@ otherwise treated like a quarter outside group 3 after a limit crossing (Rule 4)
 - A quarter that ends before `Group3Since` has no single tax and no military levy: no obligations,
   advances, reserve or reminders for them, and no group 3 declaration. A single tax or levy payment
   that names it stays out of the ledger (Rule 7). Its ESV is accrued, owed, reminded and paid as
-  usual, and its months go on the year's annex 1 with the last group 3 declaration (Rule 15).
+  usual. Its months are reported on the ESV annex of the general system's annual property and income declaration (Tax Code 298.1.2, 298.1.4), which
+  the app does not build; the group 3 annex 1 and line 21 cover only the group 3 months (Rule 15).
 - An operation dated in the stretch is left out of group 3 income. The exclusion is transitive for a
   linked refund, as above. The limit bar does not count it.
 - The dashboard and the periods screen name the stretch and the income received in it. They say that
@@ -713,9 +718,9 @@ rates are the declared year's `TaxYearConfig` rates, never code. A quarter after
 (Rule 4), in the crossing year or a later one, has no group 3 declaration until the owner is back on
 group 3: no figures are shown, the screen says the FOP must file under the system it moved to, the
 declaration is not ready, and the home screen does not name it as due. A quarter that ends before
-`Group3Since` (Rule 8) is the same: the FOP files under the general system for it. Its ESV months still
-go on annex 1 of the year's last group 3 declaration, whose stretch then starts on the registration
-date; a year with no group 3 quarter has no group 3 declaration to carry them. While group 3 is not
+`Group3Since` (Rule 8) is the same: the FOP files under the general system for it, and its ESV months
+go on that system's annual declaration, not on the group 3 annex 1. The annex's stretch starts on the
+group 3 start, and line 21 counts only the group 3 months. While group 3 is not
 confirmed (Rule 8), the screen warns beside the file and the filed mark that the figures are
 provisional; neither is blocked, and readiness does not count it.
 

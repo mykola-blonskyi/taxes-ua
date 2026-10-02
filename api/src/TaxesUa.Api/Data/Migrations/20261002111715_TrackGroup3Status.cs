@@ -57,11 +57,6 @@ namespace TaxesUa.Api.Data.Migrations
                 type: "date",
                 nullable: true);
 
-            // Until now the app assumed group 3 from registration, so that is what an existing owner has,
-            // unconfirmed.
-            migrationBuilder.Sql(
-                """UPDATE "Settings" SET "Group3Since" = "FopRegistrationDate" WHERE "FopRegistrationDate" IS NOT NULL;""");
-
             migrationBuilder.UpdateData(
                 table: "TaxYearConfigs",
                 keyColumn: "Year",

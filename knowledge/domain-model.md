@@ -37,8 +37,9 @@ Fields:
   Null by default, and then nothing after a crossing is computed. Audited with the rest of the row and
   carried in the backup from schema version 10.
 - `Group3Since: DateOnly?` the day the DPS register has group 3 from (Rule 8): the registration date,
-  or the first day of a later quarter. Null means the registration date. The migration of #172 gave
-  every existing owner their registration date. The engine's `Group3Start` is the later of the two.
+  or the first day of a later quarter. Null means the registration date, which is stored as null; a
+  settings save clears a start that is not a quarter start after the new registration date. The
+  engine's `Group3Start` is the later of the two.
 - `Group3ConfirmedOn: DateOnly?` and `Group3ReceiptNumber: string?` the DPS receipt for the group 3
   application, both set or both null. Group 3 is unconfirmed while they are null, and every figure is
   provisional (Rule 8).
@@ -518,7 +519,7 @@ version 1 to 4 file as having no details on any client, a version 1 to 5 file as
 version 1 to 6 file as having no declaration details and nothing marked filed, a version 1 to 7 file as
 having no receipt linked to an invoice, and a version 1 to 8 file as having no Treasury accounts and
 candidates without a counterparty code, a version 1 to 9 file as having no return to group 3, and a version 1 to 10 file as having no notification channels, and a version 1 to 11 file as having no declaration
-files and no tax office name, a version 1 to 12 file as having no annex on any declaration file, and a version 1 to 13 file as having no reserve jar, and a version 1 to 14 file as having its channels confirmed when they were linked (every channel before email is a Telegram chat), and a version 1 to 15 file as having group 3 from its registration date, unconfirmed, with no ticks; a file of a version this build does not know is refused by its
+files and no tax office name, a version 1 to 12 file as having no annex on any declaration file, and a version 1 to 13 file as having no reserve jar, and a version 1 to 14 file as having its channels confirmed when they were linked (every channel before email is a Telegram chat), and a version 1 to 15 file as having group 3 from its registration date (null), unconfirmed, with no ticks, and its `Prorated` read as `FullMonth`; a file of a version this build does not know is refused by its
 version number rather than by whichever field it added.
 
 A restore replaces the owner's settings, invoicing details, declaration details, filed marks, declaration files, clients, invoices, transactions, payments, candidates, Treasury accounts, the reserve jar and import batches in one

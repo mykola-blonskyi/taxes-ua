@@ -41,6 +41,7 @@ public static class DpsStatusEndpoints
                 DpsStatusRequest request,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -52,7 +53,7 @@ public static class DpsStatusEndpoints
 
                 var settings = await database.Settings.FindAsync([user.Id], cancellationToken);
                 var normalized = Normalize(request);
-                if (Validate(normalized, settings?.FopRegistrationDate) is { } errors)
+                if (Validate(normalized, settings?.FopRegistrationDate, time.TodayInKyiv()) is { } errors)
                 {
                     return Results.ValidationProblem(errors);
                 }
@@ -83,7 +84,7 @@ public static class DpsStatusEndpoints
     };
 
     /// <summary>Validates a request already passed through <see cref="Normalize"/>.</summary>
-    internal static Dictionary<string, string[]>? Validate(DpsStatusRequest request, DateOnly? registrationDate)
+    internal static Dictionary<string, string[]>? Validate(DpsStatusRequest request, DateOnly? registrationDate, DateOnly today)
     {
         var errors = new Dictionary<string, string[]>();
 
@@ -93,7 +94,7 @@ public static class DpsStatusEndpoints
             {
                 errors["group3Since"] = ["group3Since requires fopRegistrationDate in settings."];
             }
-            else if (since != registered && !(since > registered && since.Day == 1 && since.Month % 3 == 1))
+            else if (since != registered && !IsQuarterStartAfter(since, registered))
             {
                 errors["group3Since"] =
                     ["group3Since must be the registration date or the first day of a later quarter."];
@@ -124,14 +125,25 @@ public static class DpsStatusEndpoints
             {
                 errors["confirmation.confirmedOn"] = ["confirmedOn must not be before the registration date."];
             }
+            else if (confirmation.ConfirmedOn > today)
+            {
+                errors["confirmation.confirmedOn"] = ["confirmedOn must not be in the future."];
+            }
         }
 
         return errors.Count == 0 ? null : errors;
     }
 
+    internal static bool IsQuarterStartAfter(DateOnly day, DateOnly registered) =>
+        day > registered && day.Day == 1 && day.Month % 3 == 1;
+
+    /// <summary>
+    /// The registration date is stored as null, which means the same and follows a corrected registration
+    /// date.
+    /// </summary>
     internal static void Apply(Settings settings, DpsStatusRequest request)
     {
-        settings.Group3Since = request.Group3Since;
+        settings.Group3Since = request.Group3Since == settings.FopRegistrationDate ? null : request.Group3Since;
         settings.Group3ConfirmedOn = request.Confirmation?.ConfirmedOn;
         settings.Group3ReceiptNumber = request.Confirmation?.ReceiptNumber;
         settings.DpsFopRegistered = request.FopRegistered;

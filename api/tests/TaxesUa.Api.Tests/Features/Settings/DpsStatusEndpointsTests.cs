@@ -39,7 +39,7 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
     [Fact]
     public async Task Put_then_get_round_trips_the_status_and_the_fop_form_leaves_it_alone()
     {
-        await using var application = At(new DateOnly(2081, 10, 1));
+        await using var application = At(new DateOnly(2081, 10, 2));
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         await SetUp(owner);
 
@@ -49,7 +49,7 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
         await PutSettings(owner, Registered);
 
         var expected = new DpsStatusResponse(
-            Registered,
+            null,
             new Group3ConfirmationDto(new DateOnly(2081, 10, 2), "9123/456"),
             true,
             false,
@@ -85,6 +85,7 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
         { "a receipt number over 64", "confirmation.receiptNumber" },
         { "a receipt number with a control character", "confirmation.receiptNumber" },
         { "a receipt before registration", "confirmation.confirmedOn" },
+        { "a receipt dated after today", "confirmation.confirmedOn" },
     };
 
     [Theory]
@@ -100,6 +101,7 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
             "a receipt number over 64" => Status(null, new Group3ConfirmationDto(Registered, new string('7', 65))),
             "a receipt number with a control character" => Status(null, new Group3ConfirmationDto(Registered, "91\u000723")),
             "a receipt before registration" => Status(null, new Group3ConfirmationDto(new DateOnly(2081, 9, 27), "1")),
+            "a receipt dated after today" => Status(null, new Group3ConfirmationDto(new DateOnly(2081, 10, 2), "1")),
             _ => throw new ArgumentOutOfRangeException(nameof(label), label, null),
         };
         await using var application = At(new DateOnly(2081, 10, 1));
@@ -216,6 +218,76 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
         Assert.Equal(HttpStatusCode.OK, filed.StatusCode);
     }
 
+    [Fact]
+    public async Task A_corrected_registration_date_keeps_group_3_from_it_and_drops_a_start_it_overtakes()
+    {
+        await using var application = At(new DateOnly(2081, 10, 1));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner);
+        Assert.Equal(HttpStatusCode.OK, (await Put(owner, Status(Registered))).StatusCode);
+
+        var earlier = new DateOnly(2081, 9, 20);
+        await PutSettings(owner, earlier);
+        var fromRegistration = await Get(owner);
+
+        Assert.Equal(HttpStatusCode.OK, (await Put(owner, Status(new DateOnly(2081, 10, 1)))).StatusCode);
+        var later = new DateOnly(2081, 10, 5);
+        await PutSettings(owner, later);
+        var overtaken = await Get(owner);
+
+        Assert.Equal(HttpStatusCode.OK, (await Put(owner, Status(NextYear))).StatusCode);
+        await PutSettings(owner, Registered);
+        var kept = await Get(owner);
+
+        Assert.Equal(((DateOnly?)null, (DateOnly?)earlier), (fromRegistration.Group3Since, fromRegistration.Group3Start));
+        Assert.Equal(((DateOnly?)null, (DateOnly?)later), (overtaken.Group3Since, overtaken.Group3Start));
+        Assert.Equal(((DateOnly?)NextYear, (DateOnly?)NextYear), (kept.Group3Since, kept.Group3Start));
+    }
+
+    [Fact]
+    public async Task A_registration_date_after_the_group_3_receipt_is_refused()
+    {
+        await using var application = At(new DateOnly(2081, 10, 2));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await Put(owner, Status(null, new Group3ConfirmationDto(new DateOnly(2081, 10, 1), "1")))).StatusCode);
+
+        var moved = await owner.PutAsJsonAsync("/api/settings", Settings(new DateOnly(2081, 10, 2)), Json);
+        Assert.Equal(HttpStatusCode.OK, (await Put(owner, Status(null))).StatusCode);
+
+        Assert.Equal(HttpStatusCode.BadRequest, moved.StatusCode);
+        using var problem = JsonDocument.Parse(await moved.Content.ReadAsStringAsync());
+        Assert.True(problem.RootElement.GetProperty("errors").TryGetProperty("fopRegistrationDate", out _));
+        Assert.Equal(Registered, (await Get(owner)).FopRegistrationDate);
+    }
+
+    [Fact]
+    public async Task A_backup_taken_after_the_registration_date_moves_restores()
+    {
+        await using var application = At(new DateOnly(2081, 10, 2));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner);
+        // Another test leaves income dated after this test's today, which a restore would refuse.
+        await DeleteTransactions(owner);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await Put(owner, Status(Registered, new Group3ConfirmationDto(new DateOnly(2081, 10, 2), "1")))).StatusCode);
+        await PutSettings(owner, new DateOnly(2081, 9, 20));
+
+        var file = await owner.GetStringAsync("/api/backup");
+        var restored = await owner.PostAsync("/api/restore", new StringContent(file, System.Text.Encoding.UTF8, "application/json"));
+        var status = await Get(owner);
+        await PutSettings(owner, Registered);
+        Assert.Equal(HttpStatusCode.OK, (await Put(owner, Status(null))).StatusCode);
+
+        Assert.True(restored.StatusCode == HttpStatusCode.OK, await restored.Content.ReadAsStringAsync());
+        Assert.Equal(
+            ((DateOnly?)null, (DateOnly?)new DateOnly(2081, 9, 20), new Group3ConfirmationDto(new DateOnly(2081, 10, 2), "1")),
+            (status.Group3Since, status.Group3Start, status.Confirmation));
+    }
+
     private static DpsStatusRequest Status(DateOnly? group3Since, Group3ConfirmationDto? confirmation = null) =>
         new(group3Since, confirmation, false, false, false);
 
@@ -245,9 +317,11 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
         await PutSettings(owner, Registered);
     }
 
-    private static async Task PutSettings(HttpClient owner, DateOnly? registered)
-    {
-        var settings = new SettingsRequest(
+    private static async Task PutSettings(HttpClient owner, DateOnly? registered) =>
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", Settings(registered), Json)).StatusCode);
+
+    private static SettingsRequest Settings(DateOnly? registered) =>
+        new(
             registered,
             PaymentMode.Quarterly,
             EsvRegistrationMonthPolicy.FullMonth,
@@ -258,8 +332,6 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
             "uk",
             "system",
             "UAH");
-        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", settings, Json)).StatusCode);
-    }
 
     private static async Task PostIncome(HttpClient owner, DateOnly valueDate, long amountKop)
     {

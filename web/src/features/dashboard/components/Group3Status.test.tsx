@@ -80,5 +80,6 @@ describe("Group3Status", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/Заявление о выборе 3 группы подайте до 8 \D+ · Осталось 6 дней/);
     expect(screen.getByRole("heading", { name: "До начала 3 группы" })).toBeVisible();
     expect(screen.getByRole("note")).toHaveTextContent("ЕСВ приложение считает");
+    expect(screen.getByRole("note")).toHaveTextContent("отчитываются о нём с декларацией общей системы");
   });
 });

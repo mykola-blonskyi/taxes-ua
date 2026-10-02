@@ -122,9 +122,9 @@ public sealed record LimitCrossing(int Year, int Quarter)
 /// <see cref="InGroup3"/>. <c>LimitCrossing</c> is the crossing that ends group 3
 /// in this year, or else the earlier one that keeps a quarter of this year out of it.
 /// <c>StoppedAtYearEnd</c> is the crossing group 3 is still stopped by after Q4, which the next year
-/// inherits. <c>EsvAnnex</c> is the year's ESV for every accrued month, before group 3 included, as
-/// annex 1 of the year's last group 3 declaration reports it (Rule 15); null when no month of the year
-/// owes ESV or the year has no group 3 declaration to carry it.
+/// inherits. <c>EsvAnnex</c> is the year's ESV for the group 3 months, as annex 1 of the year's last
+/// group 3 declaration reports it (Rule 15); null when no group 3 month of the year owes ESV. The ESV of a
+/// month before group 3 is accrued and owed, but reported with the general system's declaration.
 /// </summary>
 public sealed record YearAccrual(
     int Year,
@@ -316,25 +316,26 @@ public static class Accruals
         EsvMonth[] esvByMonth,
         FopSettingsInput settings)
     {
-        var months = quarters
+        // The months before group 3 owe ESV too, but they go on the general system's annex, not this one
+        // (Tax Code 298.1.4).
+        var group3 = quarters.Where(quarter => quarter.Group3).ToArray();
+        var months = group3
             .SelectMany(quarter => esvByMonth[(3 * quarter.Income.Quarter - 3)..(3 * quarter.Income.Quarter)])
             .Where(month => month.BaseKop > 0)
             .ToArray();
-        if (months.Length == 0
-            || settings.FopRegistrationDate is not { } registrationDate
-            || quarters.LastOrDefault(quarter => quarter.Group3
-                && new DateOnly(year, 3 * quarter.Income.Quarter, 1).AddMonths(1).AddDays(-1) >= registrationDate) is not { } carrier)
+        if (months.Length == 0 || settings.FopRegistrationDate is not { } registrationDate)
         {
             return null;
         }
 
-        var first = quarters[0].Income.Quarter;
-        var last = carrier.Income.Quarter;
+        var first = group3[0].Income.Quarter;
+        var last = group3[^1].Income.Quarter;
         var firstDay = new DateOnly(year, 3 * first - 2, 1);
+        var group3Start = settings.Group3Start ?? registrationDate;
         return new EsvAnnex(
             year,
             last,
-            registrationDate > firstDay ? registrationDate : firstDay,
+            group3Start > firstDay ? group3Start : firstDay,
             new DateOnly(year, 3 * last, 1).AddMonths(1).AddDays(-1),
             months,
             crossing?.Quarter == last);

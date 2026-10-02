@@ -24,6 +24,7 @@ describe("PeriodWarnings", () => {
     const item = screen.getByRole("listitem");
     expect(item).toHaveTextContent(/^З \d.+ по \d.+ ви на загальній системі оподаткування й отримали за цей час 500,00 ₴\./);
     expect(item).toHaveTextContent("ЄСВ застосунок рахує");
+    expect(item).toHaveTextContent("звітують про нього з декларацією загальної системи");
     expect(screen.getByRole("link", { name: "Статус у ДПС" })).toHaveAttribute("href", "/settings?tab=dps");
   });
 
