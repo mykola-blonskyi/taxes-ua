@@ -226,10 +226,10 @@ the 429 and 401 handling, both at the gate and the worker). `BankAccount`, `Impo
 connection are not audited: an account snapshot would put the full IBAN on the History screen.
 
 **Reserve jar.** After each sync run the worker refreshes the balance of the owner's chosen jar (#102,
-ADR-021) with `client-info`, read by `MonobankJarReader` through the same `MonobankClient` and a
+ADR-021) with `client-info`, read by `MonobankClientInfoReader` through the same `MonobankClient` and a
 `client-info` slot of `MonobankRateGate`. The reader takes the slot only when it is free and reuses its
-last answer for the 60-second interval, so a sync run, the owner's refresh and the jar list never make a
-second call within a minute; the dashboard reads the stored row and never calls the bank.
+last answer for the 60-second interval, so a sync run, the owner's refresh, the jar list and the invoicing
+prefill never make a second call within a minute; the dashboard reads the stored row and never calls the bank.
 
 ### web layers
 

@@ -28,14 +28,14 @@ internal abstract record JarOutcome
 }
 
 /// <summary>
-/// Reads the owner's jars through <see cref="MonobankJarReader"/> and keeps the one chosen for taxes.
+/// Reads the owner's jars through <see cref="MonobankClientInfoReader"/> and keeps the one chosen for taxes.
 /// Only a UAH jar is offered, so the stored balance needs no conversion. The token is decrypted here and
 /// goes no further than the reader; it is never logged and never part of an outcome.
 /// </summary>
 internal sealed class ReserveJarService(
     AppDbContext database,
     TokenEncryptor encryptor,
-    MonobankJarReader reader,
+    MonobankClientInfoReader reader,
     MonobankClient client,
     ILogger<ReserveJarService> logger)
 {
@@ -158,11 +158,11 @@ internal sealed class ReserveJarService(
 
         return await reader.ReadAsync(client, ownerId, token, cancellationToken) switch
         {
-            JarsRead.Found found => new JarOutcome.Listed(Offered(found.Jars), found.At),
-            JarsRead.Waiting waiting => new JarOutcome.Waiting(waiting.RetryAfter),
-            JarsRead.InvalidToken => new JarOutcome.InvalidToken(),
-            JarsRead.Unavailable unavailable => new JarOutcome.Unavailable(unavailable.Reason),
-            _ => throw new InvalidOperationException($"Unhandled {nameof(JarsRead)}."),
+            ClientInfoRead.Found found => new JarOutcome.Listed(Offered(found.Info.Jars), found.At),
+            ClientInfoRead.Waiting waiting => new JarOutcome.Waiting(waiting.RetryAfter),
+            ClientInfoRead.InvalidToken => new JarOutcome.InvalidToken(),
+            ClientInfoRead.Unavailable unavailable => new JarOutcome.Unavailable(unavailable.Reason),
+            _ => throw new InvalidOperationException($"Unhandled {nameof(ClientInfoRead)}."),
         };
     }
 

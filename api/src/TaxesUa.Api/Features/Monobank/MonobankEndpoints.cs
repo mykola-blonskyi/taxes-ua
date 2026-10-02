@@ -47,7 +47,7 @@ public static class MonobankEndpoints
                 MonobankSyncQueue queue,
                 MonobankWebhooks webhooks,
                 MonobankClient client,
-                MonobankJarReader jars,
+                MonobankClientInfoReader jars,
                 MonobankRateGate gate,
                 TimeProvider time,
                 HttpContext http,
@@ -75,7 +75,7 @@ public static class MonobankEndpoints
                 var result = await client.GetClientInfoAsync(request.Token, cancellationToken);
                 // The check above is not gated (the token must be validated now), so whatever it returned,
                 // the next gated read starts a full interval after it.
-                gate.Mark(user.Id, MonobankJarReader.Method);
+                gate.Mark(user.Id, MonobankClientInfoReader.Method);
                 switch (result)
                 {
                     case ClientInfoResult.InvalidToken:
@@ -178,7 +178,7 @@ public static class MonobankEndpoints
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 MonobankWebhooks webhooks,
-                MonobankJarReader jars,
+                MonobankClientInfoReader jars,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {

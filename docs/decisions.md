@@ -996,9 +996,10 @@ balance would also each cost a call if they did not share an answer.
 
 ### Decision
 
-`MonobankJarReader` is the one way the jars are read: `MonobankClient.GetClientInfoAsync` behind the gate's
-`client-info` slot, taken with the new `TryTakeTurn`, which succeeds only when the slot is free. It keeps
-its last answer in memory per owner for one gate interval and serves it to any read inside it. A token
+`MonobankClientInfoReader` is the one way `client-info` is read, for the jars and for the invoicing
+prefill's name: `MonobankClient.GetClientInfoAsync` behind the gate's `client-info` slot, taken with the
+new `TryTakeTurn`, which succeeds only when the slot is free. It keeps its last whole answer (name and
+jars) in memory per owner for one gate interval and serves it to any read inside it. A token
 save, which validates the token with `client-info` outside the gate, marks the slot used whatever the
 answer and, when the token is good, hands the reader its answer. The save is the one call that is not
 gated: it must check the token now, so if a gated read took the slot in the minute before it, the bank
@@ -1015,8 +1016,8 @@ disconnecting monobank leaves it.
 
 ### Alternatives Considered
 
-Waiting for the slot with `WaitTurnAsync`, as the invoicing prefill once did (it now takes the slot only
-when free and answers `429`, like the jar refresh). It holds a request or the shared
+Waiting for the slot with `WaitTurnAsync`, as the invoicing prefill once did (it now reads through the
+reader and answers `429` when the slot is spent and no answer is held, like the jar refresh). It holds a request or the shared
 worker for a minute whenever another call came just before, and the jar read follows every sync run.
 
 Storing every jar from every `client-info`. The picker would need no bank call, but the owner's other
@@ -1024,9 +1025,10 @@ savings, names and balances would sit in the database and the backup for no use.
 
 ### Consequences
 
-A refresh within a minute of another `client-info` call, including the invoicing prefill, which does not
-share its answer (and itself answers `429` in that minute), gets a `429` or the earlier balance, and the screen shows the time of the balance either
-way. A balance is at most a sync run old plus whatever the slot skipped. The answer lives in process memory,
+A refresh within a minute of another `client-info` call gets the earlier balance, or a `429` when the slot
+was spent without an answer to keep (a refused token save), and the screen shows the time of the balance
+either way. The invoicing prefill shares the same answer, so a prefill right after connecting monobank
+needs no bank call. A balance is at most a sync run old plus whatever the slot skipped. The answer lives in process memory,
 so it needs the single api instance the queue and the gate already need.
 
 ---

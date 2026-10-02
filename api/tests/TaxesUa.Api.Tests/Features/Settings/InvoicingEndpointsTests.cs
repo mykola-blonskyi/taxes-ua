@@ -284,8 +284,7 @@ public sealed class InvoicingEndpointsTests(ApiFixture fixture) : IClassFixture<
             ("black", "black", 980, "UA000000000000000000000000001"),
             ("fop-pln", "fop", 985, "UA000000000000000000000000002"));
         var stub = StubMonobankHandler.ForToken("prefill-token", clientInfo);
-        // A fake clock, because the token save spends the client-info slot and the prefill answers 429 until a
-        // minute has passed.
+        // A fake clock, so the prefill is read inside the minute the token save's answer covers.
         var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2095, 7, 1, 10, 0, 0, TimeSpan.Zero));
         await using var application = fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
         {
@@ -297,7 +296,6 @@ public sealed class InvoicingEndpointsTests(ApiFixture fixture) : IClassFixture<
         Assert.Equal(
             HttpStatusCode.OK,
             (await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "prefill-token" })).StatusCode);
-        clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
 
         var response = await owner.PostAsync($"{Url}/prefill-from-monobank", null);
 

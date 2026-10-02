@@ -77,7 +77,7 @@ public sealed partial class MonobankSyncTests
     }
 
     [Fact]
-    public async Task A_slot_another_call_spent_makes_a_refresh_ask_to_wait_instead_of_calling_the_bank()
+    public async Task A_refresh_within_a_minute_of_the_invoicing_prefill_shares_its_answer()
     {
         var bank = new FakeBank();
         bank.Connect("token-jar-wait", ("jar-wait-fop", 980));
@@ -88,15 +88,15 @@ public sealed partial class MonobankSyncTests
         await ForgetJar(owner);
         await Choose(owner, TaxesJar);
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
-        // The invoicing prefill reads client-info on the same gate slot, and keeps nothing for a later read.
+        bank.Jars("token-jar-wait", (TaxesJar, "На податки", 980, 15_000_00));
         var prefill = await owner.PostAsync("/api/settings/invoicing/prefill-from-monobank", null);
         Assert.Equal(HttpStatusCode.OK, prefill.StatusCode);
         var spent = bank.ClientInfoCalls(app.Handler).Length;
 
         var response = await Refresh(owner);
 
-        Assert.Equal(HttpStatusCode.TooManyRequests, response.StatusCode);
-        Assert.Equal(MonobankRateGate.Interval, response.Headers.RetryAfter!.Delta);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(15_000_00, (await response.Content.ReadFromJsonAsync<ReserveJarResponse>(Json))!.BalanceKop);
         Assert.Equal(spent, bank.ClientInfoCalls(app.Handler).Length);
 
         await ForgetJar(owner);

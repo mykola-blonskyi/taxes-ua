@@ -268,8 +268,8 @@ code is ever stored. A refresh updates the title, balance and time of the row it
 that was changed, cleared or restored meanwhile; a failed or skipped refresh leaves the row as it was.
 
 The jars are read by one path: `client-info` through `MonobankClient` and the rate gate's `client-info`
-slot. `MonobankJarReader` holds the last answer in memory for one gate interval, so listing the jars,
-choosing one and refreshing take one bank call between them; the answer is never stored and never
+slot. `MonobankClientInfoReader` holds the last whole answer (name and jars) in memory for one gate interval, so
+listing the jars, choosing one, refreshing and the invoicing prefill take one bank call between them; the answer is never stored and never
 holds the token. The row is returned only by the owner's own endpoints, which are the Settings
 section, the refresh button and the dashboard's reserve card; none of them returns the token.
 
