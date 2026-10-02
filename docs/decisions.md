@@ -683,6 +683,13 @@ validator's errors instead. The writer is a pure function of the declaration fig
 the fill date, so golden files pin its output byte for byte. The last file per quarter and type is
 stored with its generation time and travels in the backup as the record of what was prepared.
 
+The file is built only for a quarter whose last day has passed in Kyiv (#163, Rule 15). The rule is
+pure and lives in the engine (`Declaration.FileAvailable`, given `today`); the api takes today from
+`TimeProvider` and answers 409 with the closed reason `QuarterNotEnded` and `availableFrom`. A file
+generated before the quarter ended is stale: left out of the quarter's file list and refused on
+download with 409 `GeneratedBeforeQuarterEnded`, even after the quarter ends, but kept in the table and
+the backup.
+
 ### Alternatives Considered
 
 Signing and sending from the app through the DPS gateway. It needs the owner's key on the server and a

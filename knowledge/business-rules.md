@@ -676,6 +676,14 @@ February, 4,000,000.00 in May, 1,500,000.00 in August and 1,000,000.00 in Septem
 | 14.1 / 14 | 165,895.10 |
 | 23 | 105,000.00 |
 
+A declaration file, and annex 1 with it, is built only once the quarter's last day has passed in
+Kyiv: from the next day, and from 1 January for Q4 (#163). Before that the screen shows the figures as a
+preview, the download is disabled with the date it opens, and the api answers 409 to a request for the
+file. A file generated before that day, by Kyiv date, is stale: its figures were incomplete, and
+filing it would be wrong. It is never listed or served, even after the quarter ends: its download answers
+409 (`GeneratedBeforeQuarterEnded`) and the owner generates the file again. The stored row stays, so a
+backup and its restore are unchanged.
+
 A quarter that ends before the registration date (Rule 8) has no declaration. In a first year
 registered in May, Q1 has none, Q2's line 13 is zero, and income before registration is not in line
 06.

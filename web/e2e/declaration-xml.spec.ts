@@ -1,10 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import uk from "../messages/uk.json";
+import { dashboard } from "./support/api";
 import { seedDeclarationReady, seller, taxOffice } from "./support/seed";
+import { endedFirstQuarterYear } from "./support/years";
 
 test("the declaration XML downloads under the DPS file name and parses as form F0103309", async ({ page, request }) => {
-  const { year } = await seedDeclarationReady(request);
+  // The file is built only once the quarter has ended, so from January to March this is last year's.
+  const { today } = await dashboard(request);
+  const year = endedFirstQuarterYear(today);
+  await seedDeclarationReady(request, year);
   // The first quarter has no annex 1, so the download is the one declaration file whenever the suite runs.
   const quarter = 1;
 

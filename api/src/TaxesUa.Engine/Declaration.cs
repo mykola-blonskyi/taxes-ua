@@ -55,6 +55,21 @@ public sealed record DeclarationFigures(
 public static class Declaration
 {
     /// <summary>
+    /// The first day a quarter's declaration file can be built (Rule 15): the day after the quarter's
+    /// last day, since the figures are incomplete until then. Q4 opens on 1 January of the next year.
+    /// </summary>
+    public static DateOnly FileAvailableFrom(int year, int quarter)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(quarter, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(quarter, 4);
+        return new DateOnly(year, 3 * quarter, 1).AddMonths(1);
+    }
+
+    /// <summary>Whether the file can be built on <paramref name="today"/>, a Kyiv date.</summary>
+    public static bool FileAvailable(int year, int quarter, DateOnly today) =>
+        today >= FileAvailableFrom(year, quarter);
+
+    /// <summary>
     /// A quarter after a limit crossing is outside group 3 (Rule 4) until the owner is back on it, and
     /// has no group 3 declaration, so asking for one is a caller error.
     /// </summary>

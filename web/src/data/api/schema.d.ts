@@ -2321,6 +2321,15 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
             };
         };
         put?: never;
@@ -2373,6 +2382,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
                 };
             };
         };
@@ -5507,6 +5525,9 @@ export interface components {
             readiness: components["schemas"]["DeclarationReadinessResponse"];
             filed: null | components["schemas"]["DeclarationFilingResponse"];
             files: components["schemas"]["DeclarationFileResponse"][];
+            fileAvailable: boolean;
+            /** Format: date */
+            fileAvailableFrom: string;
         };
         /** @enum {string} */
         DeclarationType: "Reporting" | "NewReporting" | "Clarifying";

@@ -63,6 +63,11 @@ public static class DeclarationsEndpoints
                     return problem;
                 }
 
+                if (QuarterNotEnded(year, quarter, time.TodayInKyiv()) is { } notEnded)
+                {
+                    return notEnded;
+                }
+
                 if (!declaration!.Response.Readiness.Ready || declaration.Figures is not { } figures)
                 {
                     return Results.Problem(
@@ -131,12 +136,14 @@ public static class DeclarationsEndpoints
                 DeclarationType type,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
-                DownloadAsync(year, quarter, type, file => (file.FileName, file.Content), users, database, http, cancellationToken))
+                DownloadAsync(year, quarter, type, file => (file.FileName, file.Content), users, database, time, http, cancellationToken))
             .Produces<byte[]>(StatusCodes.Status200OK, "application/xml")
             .Produces(StatusCodes.Status401Unauthorized)
-            .Produces(StatusCodes.Status404NotFound);
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
 
         declarations.MapGet("/files/{type}/annex", (
                 int year,
@@ -144,12 +151,14 @@ public static class DeclarationsEndpoints
                 DeclarationType type,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
-                DownloadAsync(year, quarter, type, file => (file.AnnexFileName, file.AnnexContent), users, database, http, cancellationToken))
+                DownloadAsync(year, quarter, type, file => (file.AnnexFileName, file.AnnexContent), users, database, time, http, cancellationToken))
             .Produces<byte[]>(StatusCodes.Status200OK, "application/xml")
             .Produces(StatusCodes.Status401Unauthorized)
-            .Produces(StatusCodes.Status404NotFound);
+            .Produces(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict);
 
         declarations.MapPut("/filing", async (
                 int year,
@@ -236,6 +245,7 @@ public static class DeclarationsEndpoints
         Func<DeclarationFile, (string? FileName, byte[]? Content)> pick,
         UserManager<ApplicationUser> users,
         AppDbContext database,
+        TimeProvider time,
         HttpContext http,
         CancellationToken cancellationToken)
     {
@@ -259,6 +269,20 @@ public static class DeclarationsEndpoints
             return Results.NotFound();
         }
 
+        // Checked after the lookup: a year no row can hold is a 404, not an out-of-range date.
+        if (QuarterNotEnded(year, quarter, time.TodayInKyiv()) is { } notEnded)
+        {
+            return notEnded;
+        }
+
+        if (IsStale(file.GeneratedAt, year, quarter))
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: $"The file for quarter {quarter} of {year} was generated before the quarter ended, so its figures are incomplete. Generate it again.",
+                extensions: new Dictionary<string, object?> { ["reason"] = "GeneratedBeforeQuarterEnded" });
+        }
+
         var disposition = new ContentDispositionHeaderValue("attachment");
         disposition.SetHttpFileName(fileName);
         http.Response.Headers.ContentDisposition = disposition.ToString();
@@ -266,6 +290,35 @@ public static class DeclarationsEndpoints
 
         return Results.File(content, "application/xml");
     }
+
+    /// <summary>
+    /// The 409 for a quarter whose last day has not passed in Kyiv, or null once it has. <c>reason</c> is
+    /// a closed code and <c>availableFrom</c> the first day the file can be built.
+    /// </summary>
+    private static IResult? QuarterNotEnded(int year, int quarter, DateOnly today)
+    {
+        if (Declaration.FileAvailable(year, quarter, today))
+        {
+            return null;
+        }
+
+        var from = Declaration.FileAvailableFrom(year, quarter);
+        return Results.Problem(
+            statusCode: StatusCodes.Status409Conflict,
+            title: $"Quarter {quarter} of {year} has not ended, so its declaration file can be built from {from:yyyy-MM-dd}.",
+            extensions: new Dictionary<string, object?>
+            {
+                ["reason"] = "QuarterNotEnded",
+                ["availableFrom"] = from.ToString("yyyy-MM-dd"),
+            });
+    }
+
+    /// <summary>
+    /// A file generated before its quarter's last day had passed in Kyiv holds incomplete figures (Rule 15),
+    /// so it is never listed or served, even after the quarter ends.
+    /// </summary>
+    private static bool IsStale(DateTimeOffset generatedAt, int year, int quarter) =>
+        !Declaration.FileAvailable(year, quarter, generatedAt.KyivDate());
 
     /// <summary>The rules a filed mark meets that need no stored row, shared with the restore.</summary>
     internal static Dictionary<string, string[]>? ValidateFiling(int year, int quarter, DateOnly filedOn, DateOnly today)
@@ -309,6 +362,7 @@ public static class DeclarationsEndpoints
             return (null, problem);
         }
 
+        var today = time.TodayInKyiv();
         var viewed = loaded!.Viewed;
         var config = viewed.Config.ToEngineInput();
         var settings = viewed.Settings.ToEngineInput();
@@ -330,7 +384,7 @@ public static class DeclarationsEndpoints
         var details = await database.DeclarationDetails.AsNoTracking()
             .FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken);
         var ledger = loaded.ViewedIsInLedger
-            ? await loaded.PaymentLedgerAsync(database, userId, time.TodayInKyiv(), cancellationToken)
+            ? await loaded.PaymentLedgerAsync(database, userId, today, cancellationToken)
             : null;
         var filing = await database.DeclarationFilings.AsNoTracking()
             .FirstOrDefaultAsync(
@@ -341,7 +395,9 @@ public static class DeclarationsEndpoints
             .OrderBy(row => row.Type)
             .Select(row => new DeclarationFileResponse(row.Type, row.FileName, row.AnnexFileName, row.GeneratedAt))
             .ToArrayAsync(cancellationToken);
+        files = [.. files.Where(file => !IsStale(file.GeneratedAt, year, quarter))];
 
+        var fileAvailable = Declaration.FileAvailable(year, quarter, today);
         var figures = inGroup3 ? Declaration.ForQuarter(viewed.Accrual, quarter) : null;
         var deadlines = DeadlineCalendar.ForQuarter(year, quarter, config, settings);
         var response = new DeclarationResponse(
@@ -365,7 +421,9 @@ public static class DeclarationsEndpoints
                 !inGroup3,
                 ledger),
             filing is null ? null : ToFiling(filing, incomeKop),
-            files);
+            fileAvailable ? files : [],
+            fileAvailable,
+            Declaration.FileAvailableFrom(year, quarter));
         return (new QuarterDeclaration(response, figures, invoicing, details), null);
     }
 
@@ -430,7 +488,9 @@ public static class DeclarationsEndpoints
 /// <summary>
 /// One quarter's declaration (Rule 15). <c>Figures</c> is null for a quarter after the one named by
 /// <c>LimitCrossing</c>: group 3 ended there (Rule 4), so the quarter has no group 3 declaration. The
-/// rates are the year's, for the lines' labels.
+/// rates are the year's, for the lines' labels. The figures of a quarter still running are a preview:
+/// <c>FileAvailable</c> is false until <c>FileAvailableFrom</c>, and no file is built or downloaded. <c>Files</c>
+/// leaves out a file generated before that date: it is stale and must be generated again.
 /// </summary>
 internal sealed record DeclarationResponse(
     int Year,
@@ -444,7 +504,9 @@ internal sealed record DeclarationResponse(
     int MilitaryLevyRateBp,
     DeclarationReadinessResponse Readiness,
     DeclarationFilingResponse? Filed,
-    DeclarationFileResponse[] Files);
+    DeclarationFileResponse[] Files,
+    bool FileAvailable,
+    DateOnly FileAvailableFrom);
 
 /// <summary>
 /// The form's group 3 lines, as <see cref="DeclarationFigures"/> names them: 06, 07, 08, 09, 11, 12,

@@ -25,11 +25,12 @@ export async function quarterIncome(owner: APIRequestContext, year: number, quar
   return periods.quarters.find((candidate) => candidate.quarter === quarter)?.incomeKop ?? 0;
 }
 
-// Makes the owner a registered FOP with a tax year for the current year, whatever state earlier tests
-// left. It only ever raises the state to that floor, so any test can call it first.
-export async function seedRegisteredOwner(owner: APIRequestContext) {
+// Makes the owner a registered FOP with a tax year for `targetYear` (the current year by default),
+// whatever state earlier tests left. It only ever raises the state to that floor, so any test can call it
+// first. The clone-to endpoint copies in either direction, so a missing year is cloned from the latest one.
+export async function seedRegisteredOwner(owner: APIRequestContext, targetYear?: number) {
   const { today } = await dashboard(owner);
-  const year = Number(today.slice(0, 4));
+  const year = targetYear ?? Number(today.slice(0, 4));
 
   const taxYears = await json<{ year: number }[]>(await owner.get("/api/tax-years"));
   if (!taxYears.some((taxYear) => taxYear.year === year)) {
