@@ -794,6 +794,8 @@ Date: 2026-09-30
 
 Status: Accepted
 
+(Amended by ADR-025: the Cabinet has no XML import, so the two files are for M.E.Doc and other software, and the owner enters the declaration and the annex in the Cabinet by hand.)
+
 ### Context
 
 #112 adds annex 1 to the declaration (form F0133109): the ESV for oneself, month by month, with its base,

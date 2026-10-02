@@ -44,12 +44,12 @@ internal sealed record CabinetField(
     int Month = 0,
     int Column = 0)
 {
-    /// <summary>What the owner types: the XML text, except a date, which the Cabinet takes as dd.MM.yyyy.</summary>
+    /// <summary>What the owner types: the XML text, except a date, which the Cabinet takes as dd.MM.yyyy, and a text the XML normalises (a modifier apostrophe, a line break) so the view equals the file.</summary>
     public string? Entry => Kind switch
     {
         CabinetKind.Mark => null,
         CabinetKind.Date when Value is { Length: 8 } => $"{Value[..2]}.{Value[2..4]}.{Value[4..]}",
-        _ => Value,
+        _ => Value is null ? null : DpsXml.Text(Value),
     };
 }
 

@@ -159,6 +159,28 @@ public sealed class DeclarationFilesEndpointsTests(ApiFixture fixture) : IClassF
     }
 
     [Fact]
+    public async Task The_cabinet_view_normalises_a_text_the_way_the_xml_does()
+    {
+        const int year = 2077;
+        await using var application = At(new DateOnly(year, 4, 20));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year);
+        // The details endpoint refuses a line break, so a row that holds one came in some other way.
+        await using (var scope = application.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().DeclarationDetails
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.Address, "вул. З\u02BCїзду,\n1"));
+        }
+
+        await Generate(owner, year, 1, DeclarationType.Reporting);
+        var cabinet = (await Get(owner, year, 1)).Cabinet;
+        var declaration = Windows1251.GetString(await owner.GetByteArrayAsync($"/api/declarations/{year}/1/files/Reporting"));
+
+        Assert.Equal("вул. З'їзду, 1", cabinet.Single(field => field.Element == "HLOC").Value);
+        AssertCabinetMatchesXml(cabinet, declaration, null);
+    }
+
+    [Fact]
     public async Task The_cabinet_view_leaves_the_header_out_until_the_details_are_complete()
     {
         const int year = 2079;

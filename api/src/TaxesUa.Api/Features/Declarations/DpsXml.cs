@@ -290,7 +290,7 @@ internal static partial class DpsXml
 
     // The modifier apostrophe is how Ukrainian names are often typed and has no windows-1251 byte;
     // line breaks would otherwise depend on the platform's newline.
-    private static string Text(string value) => value
+    internal static string Text(string value) => value
         .Replace('ʼ', '\'')
         .Replace('\r', ' ')
         .Replace('\n', ' ')

@@ -4,7 +4,7 @@ import { SquareCheck } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import type { CabinetField, DeclarationResponse } from "@/data/declarations/useDeclarations";
 import { formatDateOnly } from "@/shared/lib/dates";
-import { CopyField } from "@/shared/ui/copy-field";
+import { CopyChip, CopyField } from "@/shared/ui/copy-field";
 import { ProvisionalNote } from "./ProvisionalNote";
 
 type Rate = "singleTax" | "excess" | "militaryLevy";
@@ -42,15 +42,19 @@ export function FillInCabinet({ declaration }: { declaration: DeclarationRespons
   };
   const period = t("periodName", { quarter });
   const hasAnnex = cabinet.some((field) => field.part === "Annex");
+  const ready = declaration.readiness.ready;
+  const monthName = (month: number) => {
+    const name = new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2000, month - 1, 1)));
+
+    return name.charAt(0).toLocaleUpperCase(locale) + name.slice(1);
+  };
 
   function labelOf(field: CabinetField): string {
     const { element, line } = field;
     const month = Number(field.month);
     if (month > 0) {
-      const name = new Intl.DateTimeFormat(locale, { month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2000, month - 1, 1)));
-
       return t("fields.monthCell", {
-        month: name.charAt(0).toLocaleUpperCase(locale) + name.slice(1),
+        month: monthName(month),
         column: t(`fields.column${Number(field.column)}` as "fields.column2"),
       });
     }
@@ -90,15 +94,51 @@ export function FillInCabinet({ declaration }: { declaration: DeclarationRespons
       );
     }
 
-    return field.value === null ? null : (
+    if (field.value === null) {
+      return null;
+    }
+
+    return (
       <li key={key} className="min-w-0">
-        <CopyField
+        {ready ? <CopyField
           label={labelOf(field)}
           value={field.value}
           copyLabel={copyLabelOf(field)}
           copiedLabel={t("copied")}
           failedLabel={t("copyFailed")}
-        />
+        /> : (
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">{labelOf(field)}</span>
+            <span className="text-sm font-medium wrap-anywhere">{field.value}</span>
+          </div>
+        )}
+      </li>
+    );
+  }
+
+  function renderMonth(month: number, cells: CabinetField[]) {
+    return (
+      <li key={`month-${month}`} className="flex min-w-0 flex-col gap-1">
+        <span className="text-xs text-muted-foreground">{monthName(month)}</span>
+        <div className="grid grid-cols-3 gap-2">
+          {cells.map((cell) =>
+            ready ? (
+              <CopyChip
+                key={cell.element}
+                label={t(`fields.short${Number(cell.column)}` as "fields.short2")}
+                value={cell.value ?? ""}
+                copyLabel={t("copy", { field: labelOf(cell) })}
+                copiedLabel={t("copied")}
+                failedLabel={t("copyFailed")}
+              />
+            ) : (
+              <div key={cell.element} className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-xs text-muted-foreground">{t(`fields.short${Number(cell.column)}` as "fields.short2")}</span>
+                <span className="text-sm font-medium wrap-anywhere">{cell.value}</span>
+              </div>
+            ),
+          )}
+        </div>
       </li>
     );
   }
@@ -109,7 +149,18 @@ export function FillInCabinet({ declaration }: { declaration: DeclarationRespons
     return fields.length === 0 ? null : (
       <div key={part} className="flex min-w-0 flex-col gap-2">
         <h4 className="text-sm font-medium">{title}</h4>
-        <ul className="flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-3">{fields.map(renderField)}</ul>
+        <ul className="flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-3">
+          {fields.map((field) => {
+            const month = Number(field.month);
+            if (month === 0) {
+              return renderField(field);
+            }
+
+            return Number(field.column) === 2
+              ? renderMonth(month, fields.filter((cell) => Number(cell.month) === month))
+              : null;
+          })}
+        </ul>
       </div>
     );
   };
@@ -148,6 +199,9 @@ export function FillInCabinet({ declaration }: { declaration: DeclarationRespons
       ) : (
         <>
           {declaration.readiness.group3Confirmed ? null : <ProvisionalNote text={tProvisional("cabinet")} />}
+          {ready ? null : (
+            <p className="break-words rounded-lg border bg-card p-3 text-sm">{t("notFinal")}</p>
+          )}
           {declaration.fileAvailable ? null : (
             <p className="break-words rounded-lg border bg-card p-3 text-sm">
               {t("notEnded", { date: formatDateOnly(declaration.fileAvailableFrom, locale) })}
@@ -172,12 +226,13 @@ export function FillInCabinet({ declaration }: { declaration: DeclarationRespons
           {cabinet.some((field) => field.part === "Header") ? null : (
             <p className="text-xs text-muted-foreground">{t("headerMissing")}</p>
           )}
-          {section("Header", t("sections.header"))}
           {section("Period", t("sections.period"))}
+          {section("Header", t("sections.header"))}
           {section("Declaration", t("sections.lines"))}
-          {emptyLines.length > 0 ? (
-            <p className="text-sm text-muted-foreground">{t("empty", { count: emptyLines.length, lines: emptyLines.join(", ") })}</p>
-          ) : null}
+          <p className="text-sm text-muted-foreground">
+            {emptyLines.length > 0 ? `${t("empty", { count: emptyLines.length, lines: emptyLines.join(", ") })} ` : null}
+            {t("othersEmpty")}
+          </p>
           {section("Annex", t("sections.annex"))}
         </>
       )}

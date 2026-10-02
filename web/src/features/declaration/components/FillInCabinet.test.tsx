@@ -58,8 +58,8 @@ const annex: CabinetField[] = [
   field("R09G4", "190234.00", "Annex", "Amount", { line: "9" }),
 ];
 
-function declaration(overrides: { cabinet?: CabinetField[]; confirmed?: boolean; fileAvailable?: boolean } = {}) {
-  const { cabinet = [...period, ...header, ...lines], confirmed = true, fileAvailable = true } = overrides;
+function declaration(overrides: { cabinet?: CabinetField[]; confirmed?: boolean; fileAvailable?: boolean; ready?: boolean } = {}) {
+  const { cabinet = [...period, ...header, ...lines], confirmed = true, fileAvailable = true, ready = true } = overrides;
 
   return {
     year: 2026,
@@ -69,12 +69,10 @@ function declaration(overrides: { cabinet?: CabinetField[]; confirmed?: boolean;
     singleTaxRateBp: 500,
     excessRateBp: 1500,
     militaryLevyRateBp: 100,
-    readiness: { group3Confirmed: confirmed },
+    readiness: { group3Confirmed: confirmed, ready },
     fileAvailable,
     fileAvailableFrom: "2026-04-01",
-    cabinet: [...cabinet].sort(
-      (a, b) => ["Header", "Period", "Declaration", "Annex"].indexOf(a.part) - ["Header", "Period", "Declaration", "Annex"].indexOf(b.part),
-    ),
+    cabinet,
   } as unknown as DeclarationResponse;
 }
 
@@ -110,7 +108,7 @@ describe("FillInCabinet", () => {
   it("tells the owner to leave the empty lines empty and gives them no button", () => {
     renderApp(<FillInCabinet declaration={declaration()} />);
 
-    expect(screen.getByText("Рядки 07, 09, 21 залишіть порожніми.")).toBeVisible();
+    expect(screen.getByText(/Рядки 07, 09, 21 залишіть порожніми\. Інші рядки, яких немає в списку, залишіть порожніми\./)).toBeVisible();
     expect(screen.queryByRole("button", { name: "Копіювати: Рядок 07" })).not.toBeInTheDocument();
   });
 
@@ -120,6 +118,46 @@ describe("FillInCabinet", () => {
     expect(screen.getByText(/«Введення звітності» → «Створити»/)).toBeVisible();
     expect(screen.getByText(/Електронний кабінет не імпортує XML/)).toBeVisible();
     expect(screen.queryByText(/Імпортувати XML з пристрою/)).not.toBeInTheDocument();
+  });
+
+  it("says the figures are not final and gives no copy buttons while the declaration is not ready", () => {
+    renderApp(<FillInCabinet declaration={declaration({ ready: false, cabinet: [...period, ...header, ...lines, ...annex] })} />);
+
+    expect(screen.getByText(/Цифри ще не остаточні й можуть змінитися/)).toBeVisible();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    expect(screen.getAllByText("123456.78").length).toBeGreaterThan(0);
+  });
+
+  it("says so in Russian while not ready", () => {
+    renderApp(<FillInCabinet declaration={declaration({ ready: false })} />, { locale: "ru" });
+
+    expect(screen.getByText(/Цифры ещё не окончательные и могут измениться/)).toBeVisible();
+    expect(screen.queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("gives every copy button its own accessible name, in both languages", () => {
+    for (const locale of ["uk", "ru"] as const) {
+      const { unmount } = renderApp(<FillInCabinet declaration={declaration({ cabinet: [...period, ...header, ...lines, ...annex] })} />, { locale });
+      const names = screen.getAllByRole("button").map((button) => button.getAttribute("aria-label"));
+
+      expect(names.length).toBeGreaterThan(20);
+      expect(new Set(names).size).toBe(names.length);
+      unmount();
+    }
+  });
+
+  it("lists the period before the header, as the form does", () => {
+    renderApp(<FillInCabinet declaration={declaration()} />);
+
+    const headings = screen.getAllByRole("heading", { level: 4 }).map((heading) => heading.textContent);
+    expect(headings.indexOf("Звітний період")).toBeLessThan(headings.indexOf("Шапка"));
+  });
+
+  it("shows one row per month with three buttons", () => {
+    renderApp(<FillInCabinet declaration={declaration({ cabinet: [...period, ...header, ...lines, ...annex] })} />);
+
+    expect(screen.getByText("Січень")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: /^Копіювати: Січень: / })).toHaveLength(3);
   });
 
   it("hides the annex when the quarter has none", () => {
@@ -186,7 +224,7 @@ describe("FillInCabinet", () => {
       expect(screen.getByRole("region", { name: "Заполните в Электронном кабинете" })).toBeVisible();
       expect(screen.getByText(/Электронный кабинет не импортирует XML/)).toBeVisible();
       expect(screen.getByText(/^06\. Обсяг доходу, що оподатковується за ставкою 5\s%$/)).toBeVisible();
-      expect(screen.getByText("Строки 07, 09, 21 оставьте пустыми.")).toBeVisible();
+      expect(screen.getByText(/Строки 07, 09, 21 оставьте пустыми\. Другие строки, которых нет в списке, оставьте пустыми\./)).toBeVisible();
       expect(screen.getByText("Отметьте: период «I квартал»")).toBeVisible();
 
       await user.click(screen.getByRole("button", { name: "Копировать: Строка 11" }));
