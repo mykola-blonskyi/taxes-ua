@@ -1,5 +1,12 @@
 services:
   web:
+    restart: unless-stopped
+    mem_limit: 384m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
     build:
       context: ./web
       args:
@@ -17,6 +24,13 @@ services:
       retries: 3
 
   api:
+    restart: unless-stopped
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
     build: ./api
     # As PID 1 the runtime's abort on an unhandled exception is ignored, so a startup guard that
     # throws leaves the container up and unhealthy instead of exiting. An init process fixes that.
@@ -40,16 +54,21 @@ services:
       Smtp__Password: ${SMTP_PASSWORD:-}
       Smtp__From: ${SMTP_FROM:-}
       App__PublicUrl: ${APP_PUBLIC_URL:-}
+      Migrations__DumpDirectory: /var/lib/taxes-ua/dumps
     volumes:
       - dataprotection-keys:/var/lib/taxes-ua/keys
+      - migration-dumps:/var/lib/taxes-ua/dumps
     expose:
       - "8080"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/health"]
       interval: 30s
       timeout: 5s
-      start_period: 20s
+      # The pre-migration dump and the migration run before the api listens; a slow one must not fail
+      # the deploy.
+      start_period: 300s
       retries: 3
 
 volumes:
   dataprotection-keys:
+  migration-dumps:

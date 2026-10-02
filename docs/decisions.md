@@ -1430,3 +1430,66 @@ stale or unreadable-token incident is held back while any followed account is qu
 recovery under way (accounts recover one at a time and move the oldest cursor) does not re-key it; if an
 account is still stale once the queue empties it is alerted under its own key. `RejectedAt` is set only
 while null, so a repeat 401 cannot re-key a rejection. An alert can arrive at any hour.
+
+---
+
+## ADR-027. Dump the database before a migration runs, and make CI wait for the new release
+
+Date: 2026-10-02
+
+Status: Accepted
+
+### Context
+
+The audit (Reliability H1, M1, M3) found that every green push to `main` deploys itself and that `api` runs
+`MigrateAsync` on start. Migrations only move forward, so a bad one could be undone only from the daily
+instance-wide `pg_dumpall` (up to 24 hours of loss, and every other project restored with it) or from a
+`pg_dump` the owner was supposed to take by hand. The deploy job passed on the webhook's HTTP 200, so an
+unhealthy release went unnoticed. Compose set no memory limit, log rotation or restart policy on a 7.7 GB VPS
+shared with about six other projects.
+
+### Decision
+
+1. **Dump at startup, in `api`.** Before `MigrateAsync`, `MigrationDump.MigrateAsync` asks EF for the pending
+   migrations. With none, it does nothing. With any, it runs `pg_dump --format=custom` of the app database into
+   `Migrations__DumpDirectory` (the `migration-dumps` volume), writing `<name>.partial` and renaming it only
+   when the file is non-empty. The name is `taxes_ua-pre-migrate-<UTC time>-from-<last applied>-to-<last
+   pending>.dump`. It keeps the newest 10 (`Migrations__DumpKeep`). If a dump with the same from/to already
+   exists (a restart loop), no new one is taken, so a loop cannot prune the older dumps.
+2. **A failed dump stops the migration.** The dump error is logged as critical and rethrown, so the process
+   exits (`init: true`) with the database still on the old schema. The site is down until the dump works or a
+   fix is deployed; that is the price of never migrating without a way back. An unset
+   `Migrations__DumpDirectory` (a local run, the tests) logs a warning and migrates without a dump;
+   `deploy/check-compose.sh` asserts the production compose sets it.
+3. **No new secret.** `pg_dump` reads the host, database, user and password from the connection string `api`
+   already has, passed as `PG*` variables and not on a command line. The image installs `postgresql-client-18`
+   from the PostgreSQL apt repository, because `pg_dump` must be at least the server's major version and
+   Debian's is older. When the shared instance moves to a newer major, bump the number in `api/Dockerfile`.
+   `deploy/smoke-test.sh` runs the real dump against a PostgreSQL 18 container.
+4. **The release is in `/api/health`.** `api` reads Coolify's injected `SOURCE_COMMIT` (or `App:Release`) and `/api/health` returns it as `release`
+   (`unknown` when unset). The compose file must not mention `SOURCE_COMMIT`: Coolify turns a mention into an
+   empty user variable, which stops it injecting the commit. After the webhook, the
+   deploy job polls `https://taxes.blonskyi.dev/api/health` every 15 seconds for 15 minutes and passes only
+   when `status` is `ok` and `release` matches the commit being deployed (either one a prefix of the other, and the release at least 7 characters).
+   Health alone would pass on the old release still answering.
+5. **Compose.** Both services get `restart: unless-stopped`, `mem_limit` (512 MB `api`, 384 MB `web`) and
+   `json-file` logging with `max-size: 10m`, `max-file: 5`. The deploy job joins the `deploy-coolify`
+   concurrency group without cancelling a run in progress.
+
+### Alternatives considered
+
+A separate compose init service for the dump: it needs its own image, the database credentials a second time,
+and a way to know whether a migration is pending, which only the app can tell. A Coolify pre-deploy command:
+it runs outside the repository and cannot see pending migrations either. Dumping on every start: it fills the
+volume with identical files on each restart. A CI check that fails when `Data/Migrations/` changed: it
+leaves the dump to the owner's memory, which is the failure being fixed. Streaming the dump to MinIO: it needs a
+key in the compose environment and shares the VPS disk anyway.
+
+### Consequences
+
+The dump volume lives on the VPS disk. It protects against a bad migration, not against losing the server
+(section 8 of `docs/deploy.md` covers that). Rolling back to an old image does not undo a migration, so a
+rollback of a release with a migration restores the matching dump (see "Rollback"). The workflow-level `ci`
+concurrency still cancels an older run on `main` when a newer push arrives, including its deploy job while it
+polls; Coolify keeps deploying, and the newer run reports the result. A run for commit A whose webhook builds a
+newer `main` never sees A in `/api/health` and fails at the timeout, although the newer release is up.
