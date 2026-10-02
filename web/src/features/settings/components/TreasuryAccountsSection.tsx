@@ -15,6 +15,11 @@ import { parseIbanProblem } from "@/shared/lib/ibanProblem";
 import { Button } from "@/shared/ui/button";
 import { TextField } from "@/shared/ui/fields";
 import { errorKey } from "./treasuryErrors";
+import { TreasuryValidUntil } from "./TreasuryValidUntil";
+
+function normalizeIban(value: string): string {
+  return value.replace(/\s/g, "").toUpperCase();
+}
 
 type FormState = { iban: string; recipientName: string; recipientCode: string };
 
@@ -119,6 +124,7 @@ function AccountCard({ account }: { account: TreasuryAccount }) {
               {t("missing", { fields: account.missing.map((field) => t(field as "recipientName" | "recipientCode").toLowerCase()).join(", ") })}
             </p>
           ) : null}
+          <TreasuryValidUntil account={account} />
           {actionFailed && !account.notice ? <p className="text-sm text-destructive">{t("actionFailed")}</p> : null}
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
@@ -166,7 +172,9 @@ function AccountEditor({ account, onClose }: { account: TreasuryAccount; onClose
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    save.mutate({ kind: account.kind, body: form }, { onSuccess: onClose });
+    // The end belongs to the IBAN: it is kept only when the IBAN typed is the one in use (Rule 16).
+    const validUntil = normalizeIban(form.iban) === account.iban ? account.validUntil : null;
+    save.mutate({ kind: account.kind, body: { ...form, validUntil } }, { onSuccess: onClose });
   }
 
   return (

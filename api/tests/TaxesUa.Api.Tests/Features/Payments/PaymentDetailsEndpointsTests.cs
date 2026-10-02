@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
@@ -274,6 +275,119 @@ public sealed class PaymentDetailsEndpointsTests(ApiFixture fixture) : IClassFix
         Assert.Equal("ГУ ДПС у м.Києві", (await Details(owner, QuarterQuery)).Recipient!.Name);
     }
 
+    // The Q4 2026 levy is due 2027-02-19 (40 days after the quarter for the declaration, 10 more for the
+    // payment). The panel pays today, so an account ending 2026-12-31 is judged on today: valid, with a
+    // warning, until that day, and expired after it.
+    private const string Q4Levy = "kind=MilitaryLevy&periodYear=2026&periodQuarter=4&amountKop=123456";
+
+    private const string Q3Levy = "kind=MilitaryLevy&periodYear=2026&periodQuarter=3&amountKop=123456";
+
+    [Fact]
+    public async Task A_q4_levy_paid_in_december_into_an_account_ending_in_december_is_shown_with_a_warning()
+    {
+        await using var app = AppOn(new DateOnly(2026, 12, 1));
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await PutManual(owner, PaymentKind.MilitaryLevy, "ГУ ДПС у м.Києві", "43141912", new DateOnly(2026, 12, 31));
+
+        var q4 = await Details(owner, Q4Levy);
+
+        Assert.Equal(
+            (new DateOnly(2026, 12, 31), PaymentAccountExpiryState.ExpiresBeforeDue),
+            (q4.Expiry!.ValidUntil, q4.Expiry.State));
+        Assert.Equal(Iban, q4.Recipient!.Iban);
+        Assert.NotNull(q4.QrContent);
+    }
+
+    [Fact]
+    public async Task A_q4_levy_paid_in_february_2027_against_an_account_ending_2026_12_31_is_expired_with_no_recipient_or_qr()
+    {
+        await using var app = AppOn(new DateOnly(2027, 2, 10));
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await PutManual(owner, PaymentKind.MilitaryLevy, "ГУ ДПС у м.Києві", "43141912", new DateOnly(2026, 12, 31));
+
+        var q4 = await Details(owner, Q4Levy);
+
+        Assert.Equal(
+            (new DateOnly(2026, 12, 31), PaymentAccountExpiryState.Expired),
+            (q4.Expiry!.ValidUntil, q4.Expiry.State));
+        Assert.Null(q4.Recipient);
+        Assert.Null(q4.QrContent);
+        Assert.Empty(q4.Missing);
+        Assert.Equal("101 військовий збір за IV квартал 2026 року", q4.Purpose);
+    }
+
+    [Fact]
+    public async Task An_overdue_payment_made_after_the_end_is_expired_and_one_due_and_made_before_it_is_not_flagged()
+    {
+        await using var inTime = AppOn(new DateOnly(2026, 12, 1));
+        using var owner = await SignInEmpty(inTime, ApiFixture.AllowedEmail);
+        await PutManual(owner, PaymentKind.MilitaryLevy, "ГУ ДПС у м.Києві", "43141912", new DateOnly(2026, 12, 31));
+
+        var q3 = await Details(owner, Q3Levy);
+
+        Assert.Null(q3.Expiry);
+        Assert.Equal(Iban, q3.Recipient!.Iban);
+        Assert.NotNull(q3.QrContent);
+
+        await using var late = AppOn(new DateOnly(2027, 1, 10));
+        using var lateOwner = await ApiFixture.SignIn(late, ApiFixture.AllowedEmail);
+        var overdue = await Details(lateOwner, Q3Levy);
+
+        Assert.Equal(PaymentAccountExpiryState.Expired, overdue.Expiry!.State);
+        Assert.Null(overdue.Recipient);
+        Assert.Null(overdue.QrContent);
+    }
+
+    [Fact]
+    public async Task On_the_last_day_of_an_account_it_is_still_valid()
+    {
+        await using var app = AppOn(new DateOnly(2026, 12, 31));
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await PutManual(owner, PaymentKind.MilitaryLevy, "ГУ ДПС у м.Києві", "43141912", new DateOnly(2026, 12, 31));
+
+        var details = await Details(owner, Q4Levy);
+
+        Assert.Equal(PaymentAccountExpiryState.ExpiresBeforeDue, details.Expiry!.State);
+        Assert.NotNull(details.Recipient);
+    }
+
+    [Fact]
+    public async Task An_account_with_no_end_is_never_flagged_and_a_learned_one_ends_when_the_owner_says()
+    {
+        await using var app = AppOn(new DateOnly(2027, 1, 10));
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await SeedLearned(ApiFixture.AllowedEmail, PaymentKind.MilitaryLevy, "ГУК Київ", "37993783");
+
+        Assert.Null((await Details(owner, Q4Levy)).Expiry);
+
+        var ended = await owner.PutAsJsonAsync(
+            "/api/settings/treasury-accounts/MilitaryLevy/valid-until",
+            new TreasuryAccountValidUntilRequest(new DateOnly(2026, 12, 31)),
+            Json);
+        Assert.Equal(HttpStatusCode.OK, ended.StatusCode);
+        Assert.Equal(PaymentAccountExpiryState.Expired, (await Details(owner, Q4Levy)).Expiry!.State);
+
+        await owner.PutAsJsonAsync(
+            "/api/settings/treasury-accounts/MilitaryLevy/valid-until", new TreasuryAccountValidUntilRequest(null), Json);
+        Assert.Null((await Details(owner, Q4Levy)).Expiry);
+    }
+
+    [Fact]
+    public async Task An_end_is_judged_per_kind_so_an_account_of_another_kind_is_unaffected()
+    {
+        await using var app = AppOn(new DateOnly(2027, 1, 10));
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await PutManual(owner, PaymentKind.MilitaryLevy, "ГУ ДПС у м.Києві", "43141912", new DateOnly(2026, 12, 31));
+        await PutManual(owner, PaymentKind.Esv, "ГУ ДПС у м.Києві", "43141912");
+
+        Assert.NotNull((await Details(owner, Q4Levy)).Expiry);
+        Assert.Null((await Details(owner, "kind=Esv&periodYear=2026&periodQuarter=4&amountKop=100")).Expiry);
+    }
+
+    private Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> AppOn(DateOnly today) =>
+        fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
+            services.AddSingleton<TimeProvider>(new Features.Fx.FakeTime(new DateTimeOffset(today, new TimeOnly(10, 0), TimeSpan.Zero)))));
+
     private async Task<HttpClient> SignInEmpty(Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program> app, string email)
     {
         var client = await ApiFixture.SignIn(app, email);
@@ -311,10 +425,10 @@ public sealed class PaymentDetailsEndpointsTests(ApiFixture fixture) : IClassFix
         }
     }
 
-    private static async Task PutManual(HttpClient client, PaymentKind kind, string name, string code)
+    private static async Task PutManual(HttpClient client, PaymentKind kind, string name, string code, DateOnly? validUntil = null)
     {
         var response = await client.PutAsJsonAsync(
-            $"/api/settings/treasury-accounts/{kind}", new TreasuryAccountRequest(Iban, name, code), Json);
+            $"/api/settings/treasury-accounts/{kind}", new TreasuryAccountRequest(Iban, name, code, validUntil), Json);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 

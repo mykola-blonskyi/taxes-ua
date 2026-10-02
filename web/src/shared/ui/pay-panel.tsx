@@ -4,7 +4,8 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Maximize2Icon, XIcon } from "lucide-react";
 import { Dialog } from "radix-ui";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { formatNumericDate } from "@/shared/lib/dates";
 import { formatPlainAmount, parseHryvnia } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
 import { CopyField } from "@/shared/ui/copy-field";
@@ -32,6 +33,9 @@ type PayDetails = {
   // The request for the amount's QR has not answered yet, so a null qrContent does not mean "cannot be encoded".
   qrPending: boolean;
   amountKop: number | string | null;
+  // Today is after the account's end (Expired: no details, no copy buttons, no QR), or the account ends
+  // before the due date but still works today (ExpiresBeforeDue: a note above the details).
+  expiry?: { validUntil: string; state: "ExpiresBeforeDue" | "Expired" } | null;
 };
 
 export function PayPanel({
@@ -146,6 +150,10 @@ function Details({
   const t = useTranslations("pay");
   const { recipient, missing } = details;
 
+  if (details.expiry?.state === "Expired") {
+    return <ExpiredAccount validUntil={details.expiry.validUntil} />;
+  }
+
   if (missing.length > 0 || recipient === null) {
     return (
       <div className="flex flex-col gap-2 rounded-lg border bg-muted p-3">
@@ -167,6 +175,7 @@ function Details({
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
+      {details.expiry ? <ExpiresBeforeDue validUntil={details.expiry.validUntil} /> : null}
       <CopyField {...copyProps(t("recipientName"))} value={recipient.name} />
       <CopyField {...copyProps(t("recipientCode"))} value={recipient.code} />
       <CopyField {...copyProps(t("iban"))} value={recipient.iban} />
@@ -178,6 +187,34 @@ function Details({
       <CopyField {...copyProps(t("purpose"))} value={details.purpose} />
       <QrBlock details={details} amountKop={amountKop} />
     </div>
+  );
+}
+
+function ExpiredAccount({ validUntil }: { validUntil: string }) {
+  const t = useTranslations("pay");
+  const locale = useLocale();
+
+  return (
+    <div role="status" className="flex flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
+      <p className="text-sm font-medium">{t("expiredText", { validUntil: formatNumericDate(validUntil, locale) })}</p>
+      <Link
+        href="/settings?tab=treasury"
+        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+      >
+        {t("expiredSettingsLink")}
+      </Link>
+    </div>
+  );
+}
+
+function ExpiresBeforeDue({ validUntil }: { validUntil: string }) {
+  const t = useTranslations("pay");
+  const locale = useLocale();
+
+  return (
+    <p role="status" className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-sm">
+      {t("expiresBeforeDue", { validUntil: formatNumericDate(validUntil, locale) })}
+    </p>
   );
 }
 

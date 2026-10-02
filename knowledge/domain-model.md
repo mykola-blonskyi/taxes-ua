@@ -422,6 +422,14 @@ made it so and the owner has not dismissed it (needs both a Manual and a Learned
 the Manual one when present, else the Learned one; the API reports it with its source
 (`None | Learned | Manual`) and the recipient details it lacks.
 
+Validity (#173, Rule 16): each account may carry an end, `ManualValidUntil?` and `LearnedValidUntil?`, a
+`DateOnly`, the last day it can receive a payment. An end needs its account (a Manual end needs the Manual
+account, a Learned end the Learned IBAN). The Manual end is entered with the Manual account or set later; the
+Learned end is only ever set by the owner and belongs to the Learned IBAN, so it goes when another IBAN becomes
+the Learned account and stays when the same IBAN is learned again. Reverting to Learned drops the Manual end.
+The API reports the end of the account in use as `ValidUntil`. Entering a Manual account without an end keeps
+the end only for the same IBAN (its own, or the Learned account's), else none.
+
 Relationships: belongs to `User`. Written by confirming a `BudgetPaymentCandidate`, by deleting or retyping its
 payment, by a sync that fills its candidate's code, and by the settings screen.
 
@@ -512,14 +520,14 @@ clients' details (#90); version 6 added the invoices (#92); version 7 added the 
 the filed marks (#110); version 8 added the receipts' `InvoiceId` (#93); version 9 added the Treasury
 accounts and the candidates' `CounterEdrpou` (#98); version 10 added the settings' `BackOnGroup3From` (#118); version 11 added the notification channels (#106); version 12 added the declaration files and the
 declaration details' `TaxOfficeName` (#111); version 13 added the declaration files' annex (#112); version 14 added the reserve jar (#102); version 15 added the notification channels' `ConfirmedAt` (#107); version 16 added the settings'
-group 3 status: `Group3Since`, the confirmation and the checklist ticks (#172). A version 1 file still restores, read as having none of
+group 3 status: `Group3Since`, the confirmation and the checklist ticks (#172); version 17 added the Treasury accounts' `ManualValidUntil` and `LearnedValidUntil` (#173). A version 1 file still restores, read as having none of
 them and every transaction `Confirmed`, a version 2 file as having no candidates and every payment typed by
 the owner, a version 1 to 3 file as having no invoicing details, so the owner's are cleared like the rest, a
 version 1 to 4 file as having no details on any client, a version 1 to 5 file as having no invoices, a
 version 1 to 6 file as having no declaration details and nothing marked filed, a version 1 to 7 file as
 having no receipt linked to an invoice, and a version 1 to 8 file as having no Treasury accounts and
 candidates without a counterparty code, a version 1 to 9 file as having no return to group 3, and a version 1 to 10 file as having no notification channels, and a version 1 to 11 file as having no declaration
-files and no tax office name, a version 1 to 12 file as having no annex on any declaration file, and a version 1 to 13 file as having no reserve jar, and a version 1 to 14 file as having its channels confirmed when they were linked (every channel before email is a Telegram chat), and a version 1 to 15 file as having group 3 from its registration date (null), unconfirmed, with no ticks, and its `Prorated` read as `FullMonth`; a file of a version this build does not know is refused by its
+files and no tax office name, a version 1 to 12 file as having no annex on any declaration file, and a version 1 to 13 file as having no reserve jar, and a version 1 to 14 file as having its channels confirmed when they were linked (every channel before email is a Telegram chat), and a version 1 to 15 file as having group 3 from its registration date (null), unconfirmed, with no ticks, and its `Prorated` read as `FullMonth`, and a version 1 to 16 file as having no end on any Treasury account; a file of a version this build does not know is refused by its
 version number rather than by whichever field it added.
 
 A restore replaces the owner's settings, invoicing details, declaration details, filed marks, declaration files, clients, invoices, transactions, payments, candidates, Treasury accounts, the reserve jar and import batches in one

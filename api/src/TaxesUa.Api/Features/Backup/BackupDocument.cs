@@ -47,9 +47,9 @@ internal sealed record BackupDocument(
     // 12 added declarationFiles and the declaration details' taxOfficeName (#111); 13 added the declaration
     // files' annexFileName and annexContent (#112); 14 added reserveJar (#102); 15 added the notification
     // channels' confirmedAt, which email needs because an address waits for its link (#107); 16 added the
-    // settings' group3Since, group3Confirmation and the three DPS registration ticks (#172). An older file is
-    // upgraded to this shape one version at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 16;
+    // settings' group3Since, group3Confirmation and the three DPS registration ticks (#172); 17 added the
+    // treasury accounts' manualValidUntil and learnedValidUntil (#173). An older file is upgraded to this shape one version at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 17;
 
     private const int MaxExternalIdLength = 200;
 
@@ -171,6 +171,11 @@ internal sealed record BackupDocument(
         if (version <= 15)
         {
             UpgradeFromVersion15(root);
+        }
+
+        if (version <= 16)
+        {
+            UpgradeFromVersion16(root);
         }
     }
 
@@ -362,7 +367,7 @@ internal sealed record BackupDocument(
     // amendment). A version 16 file is written after that move, so its Prorated is the owner's choice.
     private static void UpgradeFromVersion15(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 16;
         if (root["settings"] is JsonObject settings)
         {
             if (settings["esvRegistrationMonthPolicy"]?.ToString() == nameof(EsvRegistrationMonthPolicy.Prorated))
@@ -375,6 +380,20 @@ internal sealed record BackupDocument(
             settings["dpsFopRegistered"] = false;
             settings["dpsEsvRegistered"] = false;
             settings["dpsAccountsRegistered"] = false;
+        }
+    }
+
+    // A version 16 file predates the end of a Treasury account: none had one.
+    private static void UpgradeFromVersion16(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        if (root["treasuryAccounts"] is JsonArray accounts)
+        {
+            foreach (var account in accounts.OfType<JsonObject>())
+            {
+                account["manualValidUntil"] = null;
+                account["learnedValidUntil"] = null;
+            }
         }
     }
 
@@ -688,12 +707,14 @@ internal sealed record TreasuryAccountBackup(
     string? ManualRecipientName,
     string? ManualRecipientCode,
     DateTimeOffset? ManualUpdatedAt,
+    DateOnly? ManualValidUntil,
     string? LearnedIban,
     string? LearnedRecipientName,
     string? LearnedRecipientCode,
     string? LearnedExternalId,
     DateOnly? LearnedPaidOn,
     DateTimeOffset? LearnedAt,
+    DateOnly? LearnedValidUntil,
     DateTimeOffset? NoticeAt)
 {
     public static TreasuryAccountBackup From(TreasuryAccount row) => new(
@@ -702,12 +723,14 @@ internal sealed record TreasuryAccountBackup(
         row.ManualRecipientName,
         row.ManualRecipientCode,
         row.ManualUpdatedAt,
+        row.ManualValidUntil,
         row.LearnedIban,
         row.LearnedRecipientName,
         row.LearnedRecipientCode,
         row.LearnedExternalId,
         row.LearnedPaidOn,
         row.LearnedAt,
+        row.LearnedValidUntil,
         row.NoticeAt);
 
     // The column limits and check constraints of TreasuryAccountConfiguration, and the rules manual entry
@@ -725,9 +748,24 @@ internal sealed record TreasuryAccountBackup(
             return ("manualIban", "The manual account needs an IBAN, name, code and time together.");
         }
 
+        if (ManualIban is null && ManualValidUntil is not null)
+        {
+            return ("manualValidUntil", "manualValidUntil needs a manual account.");
+        }
+
+        if (LearnedIban is null && LearnedValidUntil is not null)
+        {
+            return ("learnedValidUntil", "learnedValidUntil needs a learned account.");
+        }
+
+        if (TreasuryAccountsEndpoints.ValidUntilProblem(LearnedValidUntil) is { } learnedEndProblem)
+        {
+            return ("learnedValidUntil", learnedEndProblem);
+        }
+
         if (ManualIban is not null)
         {
-            var request = new TreasuryAccountRequest(ManualIban, ManualRecipientName!, ManualRecipientCode!);
+            var request = new TreasuryAccountRequest(ManualIban, ManualRecipientName!, ManualRecipientCode!, ManualValidUntil);
             if (TreasuryAccountsEndpoints.Normalize(request) != request
                 || TreasuryAccountsEndpoints.Validate(request) is not null)
             {
@@ -784,12 +822,14 @@ internal sealed record TreasuryAccountBackup(
         ManualRecipientName = ManualRecipientName,
         ManualRecipientCode = ManualRecipientCode,
         ManualUpdatedAt = ManualUpdatedAt?.ToUniversalTime(),
+        ManualValidUntil = ManualValidUntil,
         LearnedIban = LearnedIban,
         LearnedRecipientName = LearnedRecipientName,
         LearnedRecipientCode = LearnedRecipientCode,
         LearnedExternalId = LearnedExternalId,
         LearnedPaidOn = LearnedPaidOn,
         LearnedAt = LearnedAt?.ToUniversalTime(),
+        LearnedValidUntil = LearnedValidUntil,
         NoticeAt = NoticeAt?.ToUniversalTime(),
     };
 }

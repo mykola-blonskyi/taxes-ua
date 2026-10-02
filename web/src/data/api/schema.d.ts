@@ -3889,6 +3889,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/treasury-accounts/{kind}/valid-until": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: components["schemas"]["PaymentKind"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TreasuryAccountValidUntilRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TreasuryAccountResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/treasury-accounts/{kind}/notice/dismiss": {
         parameters: {
             query?: never;
@@ -6174,6 +6247,13 @@ export interface components {
         PasskeyCredentialSubmission: {
             credentialJson: null | string;
         };
+        PaymentAccountExpiryResponse: {
+            /** Format: date */
+            validUntil: string;
+            state: components["schemas"]["PaymentAccountExpiryState"];
+        };
+        /** @enum {string} */
+        PaymentAccountExpiryState: "ExpiresBeforeDue" | "Expired";
         PaymentCandidateBackup: {
             /** Format: uuid */
             id: string;
@@ -6231,6 +6311,7 @@ export interface components {
             recipient: null | components["schemas"]["PaymentRecipientResponse"];
             missing: string[];
             qrContent: null | string;
+            expiry: null | components["schemas"]["PaymentAccountExpiryResponse"];
         };
         /** @enum {string} */
         PaymentKind: "SingleTax" | "MilitaryLevy" | "Esv";
@@ -6693,6 +6774,8 @@ export interface components {
             manualRecipientCode: null | string;
             /** Format: date-time */
             manualUpdatedAt: null | string;
+            /** Format: date */
+            manualValidUntil: null | string;
             learnedIban: null | string;
             learnedRecipientName: null | string;
             learnedRecipientCode: null | string;
@@ -6701,6 +6784,8 @@ export interface components {
             learnedPaidOn: null | string;
             /** Format: date-time */
             learnedAt: null | string;
+            /** Format: date */
+            learnedValidUntil: null | string;
             /** Format: date-time */
             noticeAt: null | string;
         };
@@ -6718,6 +6803,8 @@ export interface components {
             iban: string;
             recipientName: string;
             recipientCode: string;
+            /** Format: date */
+            validUntil?: null | string;
         };
         TreasuryAccountResponse: {
             kind: components["schemas"]["PaymentKind"];
@@ -6727,6 +6814,8 @@ export interface components {
             recipientCode: null | string;
             /** Format: date-time */
             updatedAt: null | string;
+            /** Format: date */
+            validUntil: null | string;
             learned: null | components["schemas"]["TreasuryAccountLearned"];
             hasLearned: boolean;
             missing: string[];
@@ -6734,6 +6823,10 @@ export interface components {
         };
         /** @enum {string} */
         TreasuryAccountSource: "None" | "Learned" | "Manual";
+        TreasuryAccountValidUntilRequest: {
+            /** Format: date */
+            validUntil: null | string;
+        };
         UnpaidResponse: {
             /** Format: int64 */
             singleTaxKop: number | string;

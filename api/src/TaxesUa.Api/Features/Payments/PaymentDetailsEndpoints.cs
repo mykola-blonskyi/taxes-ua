@@ -19,6 +19,7 @@ public static class PaymentDetailsEndpoints
                 long? amountKop,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -34,7 +35,8 @@ public static class PaymentDetailsEndpoints
                 }
 
                 var quarterOfPeriod = periodQuarter ?? (periodMonth!.Value + 2) / 3;
-                if (await NotOfferedAsync(database, user.Id, kind, periodYear, quarterOfPeriod, cancellationToken) is { } reason)
+                var (viewed, reason) = await LoadOfferedAsync(database, user.Id, kind, periodYear, quarterOfPeriod, cancellationToken);
+                if (reason is not null)
                 {
                     return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: reason);
                 }
@@ -57,6 +59,18 @@ public static class PaymentDetailsEndpoints
                     ? PaymentPurpose.ForQuarter(kind, periodYear, quarter)
                     : PaymentPurpose.ForMonth(kind, periodYear, periodMonth!.Value);
 
+                // The panel is used to pay now, so an account is judged on today: past its end it is withheld
+                // (no details, no copy buttons, no QR); still valid but ending before the due date it is shown
+                // with a warning (Rule 16).
+                var expiry = row is not null && TreasuryAccountsEndpoints.ValidUntilOf(row) is { } validUntil && missing.Length == 0
+                    ? ExpiryOf(viewed!, kind, periodYear, quarterOfPeriod, validUntil, time.TodayInKyiv())
+                    : null;
+                if (expiry is { State: PaymentAccountExpiryState.Expired })
+                {
+                    return Results.Ok(new PaymentDetailsResponse(
+                        kind, periodYear, periodQuarter, periodMonth, amountKop, purpose, null, [], null, expiry));
+                }
+
                 var complete = missing.Length == 0;
                 return Results.Ok(new PaymentDetailsResponse(
                     kind,
@@ -67,7 +81,8 @@ public static class PaymentDetailsEndpoints
                     purpose,
                     complete ? new PaymentRecipientResponse(iban!, name!, code!, source) : null,
                     missing,
-                    complete && amountKop is { } amount ? NbuQr.Content(name!, iban!, code!, amount, purpose) : null));
+                    complete && amountKop is { } amount ? NbuQr.Content(name!, iban!, code!, amount, purpose) : null,
+                    expiry));
             })
             .WithTags("Payments")
             .RequireAuthorization()
@@ -79,18 +94,33 @@ public static class PaymentDetailsEndpoints
         return routes;
     }
 
-    private static async Task<string?> NotOfferedAsync(
+    private static async Task<(YearAccruals? Viewed, string? Reason)> LoadOfferedAsync(
         AppDbContext database, string userId, PaymentKind kind, int year, int quarter, CancellationToken cancellationToken)
     {
         var loaded = await YearAccruals.LoadAsync(database, userId, year, cancellationToken);
         if (loaded is null)
         {
-            return $"There is no tax configuration for {year}, so the app does not offer to pay its periods.";
+            return (null, $"There is no tax configuration for {year}, so the app does not offer to pay its periods.");
         }
 
         return loaded.Viewed.Accrual.Accrues(kind, quarter)
-            ? null
-            : $"Quarter {quarter} of {year} has no {kind} accrual outside group 3, so the app does not offer to pay it.";
+            ? (loaded.Viewed, null)
+            : (null, $"Quarter {quarter} of {year} has no {kind} accrual outside group 3, so the app does not offer to pay it.");
+    }
+
+    private static PaymentAccountExpiryResponse? ExpiryOf(
+        YearAccruals viewed, PaymentKind kind, int year, int quarter, DateOnly validUntil, DateOnly today)
+    {
+        if (today > validUntil)
+        {
+            return new PaymentAccountExpiryResponse(validUntil, PaymentAccountExpiryState.Expired);
+        }
+
+        // A month counts as its quarter (Rule 16).
+        var deadlines = DeadlineCalendar.ForQuarter(year, quarter, viewed.Config.ToEngineInput(), viewed.Settings.ToEngineInput());
+        var due = kind == PaymentKind.Esv ? deadlines.Esv.Due : deadlines.TaxPayment.Due;
+
+        return due > validUntil ? new PaymentAccountExpiryResponse(validUntil, PaymentAccountExpiryState.ExpiresBeforeDue) : null;
     }
 
     private static Dictionary<string, string[]>? Validate(
@@ -144,6 +174,19 @@ internal sealed record PaymentDetailsResponse(
     string Purpose,
     PaymentRecipientResponse? Recipient,
     string[] Missing,
-    string? QrContent);
+    string? QrContent,
+    PaymentAccountExpiryResponse? Expiry);
+
+/// <summary>
+/// The account in use ends on <c>ValidUntil</c>. <c>Expired</c>: today is after it, so the response carries no
+/// recipient and no QR. <c>ExpiresBeforeDue</c>: it is still valid today but ends before the period's due date.
+/// </summary>
+internal sealed record PaymentAccountExpiryResponse(DateOnly ValidUntil, PaymentAccountExpiryState State);
+
+internal enum PaymentAccountExpiryState
+{
+    ExpiresBeforeDue,
+    Expired,
+}
 
 internal sealed record PaymentRecipientResponse(string Iban, string Name, string Code, TreasuryAccountSource Source);

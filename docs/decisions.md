@@ -606,6 +606,25 @@ leading `101` as the payment type are unverified until the owner scans one (#100
 buttons are the path that works regardless, and one flag in the panel hides the QR for Treasury accounts
 if the scan shows banks refuse it.
 
+### Amendment, 2026-10-02: a Treasury account can end (#173)
+
+The panel shows the account in use, and the bank sync learns it from a payment, so nothing told the app that an
+account stops working. The military-levy accounts used since 2026-07-01 are temporary: they are set for 1 July
+to 31 December 2026 (Law 4908-IX), and the Q4 2026 levy is paid by 2027-02-19. The audit of 2026-10-02 found
+the panel would offer the old account for that payment.
+
+Each stored account (the Manual one and the Learned one) gets an optional `ValidUntil`, the last day it can
+receive a payment, and belongs to its IBAN. The panel is used to pay now, so the details endpoint judges the
+account on today in Kyiv: after the end it answers `expiry: Expired` with no recipient and no QR, so the panel
+can only point to settings; on or before the end, with the due date after it, it answers `ExpiresBeforeDue` and
+still gives the details with a note. Judging on the due date was tried first and rejected: it hid a working
+account in December from an owner who meant to pay then. The end is never guessed: a learned account has none
+until the owner sets one, because the app cannot tell a temporary account from a permanent one, and what applies
+from 2027-01-01 is not published. Rejected: hiding a levy account by a hardcoded year, which would break the day
+the Treasury publishes a longer-lived account, and warning only, which still lets the owner copy a closed
+account. The cost is that the owner must
+set the end once; settings offers 2026-12-31 for the levy in one tap. A backup carries both ends (schema 17).
+
 ---
 
 ## ADR-015. Read Telegram by long polling, not a webhook

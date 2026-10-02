@@ -11,7 +11,9 @@ namespace TaxesUa.Api.Features.Payments;
 /// owner's own entry and the Learned details are the recipient of the latest operation the owner confirmed
 /// for the kind; Manual, when present, is the account in use. Both are kept so that reverting to Learned
 /// needs no second confirmation. <see cref="NoticeAt"/> is set while a confirmation went to another IBAN
-/// than the Manual account and the owner has not dismissed the notice.
+/// than the Manual account and the owner has not dismissed the notice. Each account may end on a date
+/// (<see cref="ManualValidUntil"/>, <see cref="LearnedValidUntil"/>), the last day it can receive a payment
+/// (Rule 16); the Learned end belongs to the Learned IBAN and goes when another IBAN replaces it.
 /// </summary>
 internal sealed class TreasuryAccount
 {
@@ -29,6 +31,8 @@ internal sealed class TreasuryAccount
 
     public DateTimeOffset? ManualUpdatedAt { get; set; }
 
+    public DateOnly? ManualValidUntil { get; set; }
+
     public string? LearnedIban { get; set; }
 
     public string? LearnedRecipientName { get; set; }
@@ -40,6 +44,8 @@ internal sealed class TreasuryAccount
     public DateOnly? LearnedPaidOn { get; set; }
 
     public DateTimeOffset? LearnedAt { get; set; }
+
+    public DateOnly? LearnedValidUntil { get; set; }
 
     public DateTimeOffset? NoticeAt { get; set; }
 
@@ -74,13 +80,15 @@ internal sealed class TreasuryAccountConfiguration : IEntityTypeConfiguration<Tr
                 "CK_TreasuryAccounts_Manual",
                 "(\"ManualIban\" IS NULL) = (\"ManualRecipientName\" IS NULL) "
                 + "AND (\"ManualIban\" IS NULL) = (\"ManualRecipientCode\" IS NULL) "
-                + "AND (\"ManualIban\" IS NULL) = (\"ManualUpdatedAt\" IS NULL)");
+                + "AND (\"ManualIban\" IS NULL) = (\"ManualUpdatedAt\" IS NULL) "
+                + "AND (\"ManualIban\" IS NOT NULL OR \"ManualValidUntil\" IS NULL)");
             table.HasCheckConstraint(
                 "CK_TreasuryAccounts_Learned",
                 "(\"LearnedIban\" IS NULL) = (\"LearnedExternalId\" IS NULL) "
                 + "AND (\"LearnedIban\" IS NULL) = (\"LearnedPaidOn\" IS NULL) "
                 + "AND (\"LearnedIban\" IS NULL) = (\"LearnedAt\" IS NULL) "
-                + "AND (\"LearnedIban\" IS NOT NULL OR (\"LearnedRecipientName\" IS NULL AND \"LearnedRecipientCode\" IS NULL))");
+                + "AND (\"LearnedIban\" IS NOT NULL OR (\"LearnedRecipientName\" IS NULL AND \"LearnedRecipientCode\" IS NULL "
+                + "AND \"LearnedValidUntil\" IS NULL))");
             table.HasCheckConstraint(
                 "CK_TreasuryAccounts_Notice",
                 "\"NoticeAt\" IS NULL OR (\"ManualIban\" IS NOT NULL AND \"LearnedIban\" IS NOT NULL)");

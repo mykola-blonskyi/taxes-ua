@@ -174,6 +174,76 @@ public sealed partial class MonobankSyncTests
     }
 
     [Fact]
+    public async Task The_end_the_owner_gave_a_learned_account_survives_its_own_iban_and_goes_when_another_replaces_it()
+    {
+        const int year = 2097;
+        var bank = new FakeBank();
+        bank.Connect("token-tre-end", ("tre-end-uah", 980));
+        bank.Put("tre-end-uah", new Operation("op-end-1", At(year, 3, 2, 9), -100_00, 980,
+            Comment: "ВЗ", CounterIban: OtherTreasuryIban, CounterName: "ГУК у м.Києві", CounterEdrpou: "37993783"));
+        bank.Put("tre-end-uah", new Operation("op-end-2", At(year, 3, 3, 9), -200_00, 980,
+            Comment: "ВЗ", CounterIban: OtherTreasuryIban));
+        bank.Put("tre-end-uah", new Operation("op-end-3", At(year, 3, 4, 9), -300_00, 980,
+            Comment: "ВЗ", CounterIban: ThirdTreasuryIban, CounterName: "ГУК Інше", CounterEdrpou: "37993784"));
+        await using var app = Create(At(year, 3, 12, 10), bank);
+        await ForgetPayments(app, _ownerEmail);
+        using var owner = await Connect(app, _ownerEmail, "token-tre-end");
+        var end = new DateOnly(year - 1, 12, 31);
+
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            (await owner.PutAsJsonAsync("/api/settings/treasury-accounts/MilitaryLevy/valid-until", new TreasuryAccountValidUntilRequest(end), Json)).StatusCode);
+        await ConfirmByAmount(owner, year, 100_00, PaymentKind.MilitaryLevy);
+        Assert.Null((await TreasuryAccount(owner, PaymentKind.MilitaryLevy)).ValidUntil);
+        var ended = await owner.PutAsJsonAsync("/api/settings/treasury-accounts/MilitaryLevy/valid-until", new TreasuryAccountValidUntilRequest(end), Json);
+        Assert.Equal(HttpStatusCode.OK, ended.StatusCode);
+        Assert.Equal(end, (await TreasuryAccount(owner, PaymentKind.MilitaryLevy)).ValidUntil);
+
+        await ConfirmByAmount(owner, year, 200_00, PaymentKind.MilitaryLevy);
+        Assert.Equal(end, (await TreasuryAccount(owner, PaymentKind.MilitaryLevy)).ValidUntil);
+
+        await ConfirmByAmount(owner, year, 300_00, PaymentKind.MilitaryLevy);
+        var replaced = await TreasuryAccount(owner, PaymentKind.MilitaryLevy);
+        Assert.Equal((ThirdTreasuryIban, null), (replaced.Iban, replaced.ValidUntil));
+    }
+
+    [Fact]
+    public async Task Relearning_the_same_iban_after_a_payment_is_deleted_keeps_the_end_and_another_iban_drops_it()
+    {
+        const int year = 2099;
+        var bank = new FakeBank();
+        bank.Connect("token-tre-keep", ("tre-keep-uah", 980));
+        bank.Put("tre-keep-uah", new Operation("op-keep-a", At(year, 3, 1, 9), -100_00, 980,
+            Comment: "ВЗ", CounterIban: OtherTreasuryIban, CounterName: "ГУК А", CounterEdrpou: "37993783"));
+        bank.Put("tre-keep-uah", new Operation("op-keep-b", At(year, 3, 2, 9), -200_00, 980,
+            Comment: "ВЗ", CounterIban: OtherTreasuryIban, CounterName: "ГУК А", CounterEdrpou: "37993783"));
+        bank.Put("tre-keep-uah", new Operation("op-keep-c", At(year, 3, 3, 9), -300_00, 980,
+            Comment: "ВЗ", CounterIban: ThirdTreasuryIban, CounterName: "ГУК Б", CounterEdrpou: "37993784"));
+        await using var app = Create(At(year, 3, 5, 10), bank);
+        await ForgetPayments(app, _ownerEmail);
+        using var owner = await Connect(app, _ownerEmail, "token-tre-keep");
+        var end = new DateOnly(year - 1, 12, 31);
+        await ConfirmByAmount(owner, year, 100_00, PaymentKind.MilitaryLevy);
+        await ConfirmByAmount(owner, year, 200_00, PaymentKind.MilitaryLevy);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await owner.PutAsJsonAsync("/api/settings/treasury-accounts/MilitaryLevy/valid-until", new TreasuryAccountValidUntilRequest(end), Json)).StatusCode);
+        var payments = (await Payments(owner, year)).ToDictionary(payment => payment.AmountKop);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/payments/{payments[200_00].Id}")).StatusCode);
+
+        var relearned = await TreasuryAccount(owner, PaymentKind.MilitaryLevy);
+        Assert.Equal(("op-keep-a", OtherTreasuryIban, end), (relearned.Learned!.OperationId, relearned.Iban, relearned.ValidUntil));
+
+        await ConfirmByAmount(owner, year, 300_00, PaymentKind.MilitaryLevy);
+        payments = (await Payments(owner, year)).ToDictionary(payment => payment.AmountKop);
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/payments/{payments[300_00].Id}")).StatusCode);
+
+        var back = await TreasuryAccount(owner, PaymentKind.MilitaryLevy);
+        Assert.Equal((OtherTreasuryIban, null), (back.Iban, back.ValidUntil));
+    }
+
+    [Fact]
     public async Task Deleting_or_retyping_the_payment_an_account_learned_from_relearns_it_from_the_latest_confirmation_left()
     {
         const int year = 2094;

@@ -35,6 +35,22 @@ export function useSaveTreasuryAccount() {
   });
 }
 
+export function useSetTreasuryValidUntil() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ kind, validUntil }: { kind: TreasuryKind; validUntil: string | null }) => {
+      const { data } = await api.PUT("/api/settings/treasury-accounts/{kind}/valid-until", {
+        params: { path: { kind } },
+        body: { validUntil },
+      });
+
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: treasuryAccountsQueryKey }),
+  });
+}
+
 export function useRevertTreasuryAccount() {
   const queryClient = useQueryClient();
 

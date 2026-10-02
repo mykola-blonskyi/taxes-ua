@@ -33,6 +33,7 @@ function paymentDetails(request: { query: Record<string, string> }): PaymentDeta
     recipient,
     missing: [],
     qrContent: amountKop === null ? null : `https://qr.bank.gov.ua/${amountKop}`,
+    expiry: null,
   };
 }
 
@@ -55,6 +56,26 @@ describe("PayDebtButton", () => {
       { kind: "SingleTax", periodYear: "2026", periodQuarter: "2" },
       { kind: "SingleTax", periodYear: "2026", periodQuarter: "2", amountKop: "123456" },
     ]);
+  });
+
+  it("shows the expired state, and never asks for a QR, when the account ended before the payment", async () => {
+    const api = stubFetch({
+      "GET /api/payment-details": (request): PaymentDetails => ({
+        ...paymentDetails(request),
+        recipient: null,
+        qrContent: null,
+        expiry: { validUntil: "2026-12-31", state: "Expired" },
+      }),
+    });
+    const { user } = renderApp(<PayDebtButton debt={debt} />);
+
+    await user.click(screen.getByRole("button", { name: "Сплатити" }));
+
+    expect(await screen.findByText("Рахунок діяв до 31.12.2026. Введіть новий рахунок з Електронного кабінету.")).toBeVisible();
+    expect(screen.queryByRole("img", { name: "QR-код для оплати" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Копіювати/ })).not.toBeInTheDocument();
+    await act(() => new Promise((resolve) => setTimeout(resolve, 500)));
+    expect(api.requestsTo("GET /api/payment-details")).toHaveLength(1);
   });
 
   it("keeps the old code off the screen while a typed amount is awaited, then asks once for it", async () => {
