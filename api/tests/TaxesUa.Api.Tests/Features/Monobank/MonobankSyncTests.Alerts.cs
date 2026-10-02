@@ -16,7 +16,7 @@ using TaxesUa.Api.Tests.Features.Notifications;
 namespace TaxesUa.Api.Tests.Features.Monobank;
 
 // A sync that stops is told to the owner once per incident (Rule 17). The sender is driven by hand, so
-// each pass is one the test names; the real worker is off, the sync workers are on.
+// each pass is one the test names; the real worker is off, the sync worker is on.
 public sealed partial class MonobankSyncTests
 {
     private const string StaleText =
@@ -399,8 +399,10 @@ public sealed partial class MonobankSyncTests
         Assert.Null(await Health(owner));
     }
 
-    // The sync workers run; the reminder worker and the Telegram poller do not, so the test decides when
-    // alerts are sent and when the bot is polled.
+    // The sync worker runs; the reminder worker, the Telegram poller and the nightly sync do not, so the test
+    // decides when alerts are sent, when the bot is polled and when a sync starts. A clock moved past 03:00
+    // would otherwise queue a nightly sync on another thread, and a stale alert is held back while one is in
+    // flight (ADR-026), so the pass that should alert could find it queued or not.
     private SyncApp CreateAlerting(DateTimeOffset now, FakeBank bank, StubTelegramHandler telegram)
     {
         var clock = new FakeTimeProvider(now);
@@ -418,7 +420,7 @@ public sealed partial class MonobankSyncTests
                 foreach (var worker in services
                     .Where(descriptor => descriptor.ServiceType == typeof(IHostedService)
                         && descriptor.ImplementationType is { } type
-                        && (type == typeof(ReminderWorker) || type == typeof(TelegramPollWorker)))
+                        && (type == typeof(ReminderWorker) || type == typeof(TelegramPollWorker) || type == typeof(MonobankNightlySync)))
                     .ToArray())
                 {
                     services.Remove(worker);
