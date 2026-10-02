@@ -31,8 +31,11 @@ test("income added on the transactions screen shows on the dashboard and the per
   await page.goto("/");
   const burden = page.getByRole("heading", { name: uk.dashboard.burden.title }).locator("..");
   await expect(burden).toBeVisible();
-  // The detail line ends with the year's income, after the tax it accrued.
-  await expect.poll(async () => digits(await burden.innerText())).toMatch(new RegExp(`${incomeBefore + added}$`));
+  // The detail line reads "<tax> ... <marker> <income>"; compare only the income figure.
+  const marker = uk.dashboard.burden.detail.split("{tax}")[1].split("{income}")[0];
+  await expect
+    .poll(async () => digits((await burden.getByText(marker).innerText()).split(marker)[1]))
+    .toBe(String(incomeBefore + added));
 
   await page.goto("/periods");
   const quarters = page.getByRole("heading", { name: uk.periods.quartersTitle }).locator("..");

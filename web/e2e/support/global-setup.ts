@@ -44,10 +44,15 @@ export default async function globalSetup(config: FullConfig) {
     await compose(project, ["up", "--detach", "--build", "--wait", "--wait-timeout", "300"], env);
 
     const context = await request.newContext({ baseURL });
-    await signIn(context, ownerEmail);
+    const signedIn = await signIn(context, ownerEmail);
+    if (!signedIn.ok() || (await context.get("/api/auth/me")).status() !== 200) {
+      throw new Error(`Development sign-in failed: the seam ended at ${signedIn.status()}`);
+    }
     await context.storageState({ path: storageState as string });
     await context.dispose();
   } catch (error) {
+    // The stack is about to be removed, so this is the only record of why it did not come up.
+    await compose(project, ["logs", "--no-color", "api", "web"], env).catch(() => undefined);
     await teardown();
     throw error;
   }
