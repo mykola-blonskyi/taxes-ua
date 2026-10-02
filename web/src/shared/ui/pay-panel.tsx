@@ -188,14 +188,15 @@ function QrBlock({ details, amountKop }: { details: PayDetails; amountKop: numbe
   if (!qrForTreasuryAccounts) {
     return <p className="text-sm text-muted-foreground">{t("qrTreasuryOff")}</p>;
   }
-  if (details.qrContent === null && details.qrPending) {
+  // Without an amount nothing was asked for, so a null qrContent is not a failure to encode.
+  if (amountKop === null || (details.qrContent === null && details.qrPending)) {
     return <p className="text-sm text-muted-foreground">{t("qrUpdating")}</p>;
   }
   if (details.qrContent === null || encodeNbuQr(details.qrContent) === null) {
     return <p className="text-sm text-muted-foreground">{t("qrUnavailable")}</p>;
   }
   // keepPreviousData keeps the old amount's details on screen while the new ones load.
-  if (amountKop === null || details.amountKop === null || Number(details.amountKop) !== amountKop) {
+  if (details.amountKop === null || Number(details.amountKop) !== amountKop) {
     return <p className="text-sm text-muted-foreground">{t("qrUpdating")}</p>;
   }
 

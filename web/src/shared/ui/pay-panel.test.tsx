@@ -158,6 +158,22 @@ describe("PayPanel", () => {
       expect(screen.queryByText(/не вміщуються в формат QR-коду НБУ/)).not.toBeInTheDocument();
     });
 
+    it("does not call the details unavailable when no amount is typed and there is no code", () => {
+      renderApp(panel({ initialAmountKop: null, details: detailsFor({ qrContent: null, amountKop: null }) }));
+
+      expect(screen.queryByText(/не вміщуються в формат QR-коду НБУ/)).not.toBeInTheDocument();
+      expect(screen.getByText("Введіть суму більше нуля, наприклад 1234,56.")).toBeVisible();
+    });
+
+    it("says in Russian that the code is updating, not unavailable, while the request is pending", () => {
+      renderApp(panel({ details: detailsFor({ qrContent: null, amountKop: null, qrPending: true }) }), {
+        locale: "ru",
+      });
+
+      expect(screen.getByText("Обновляем QR-код…")).toBeVisible();
+      expect(screen.queryByText(/не помещаются в формат QR-кода НБУ/)).not.toBeInTheDocument();
+    });
+
     it("explains a missing code when the server answered with none", () => {
       renderApp(panel({ details: detailsFor({ qrContent: null, amountKop: null }) }));
 
