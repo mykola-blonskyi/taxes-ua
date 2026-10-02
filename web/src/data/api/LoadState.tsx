@@ -30,6 +30,7 @@ export function LoadState({
   loading,
   failed,
   quiet = false,
+  resetKey,
 }: {
   query: QueryStatus | QueryStatus[];
   loading?: string;
@@ -37,9 +38,13 @@ export function LoadState({
   // For a side query a screen works without: shows nothing while it loads or waits for the network, and
   // the failure with its retry only if it fails. Render it always, not only on error, so a retry keeps it.
   quiet?: boolean;
+  // What the query is about (a year, a filter). When it changes the screen is asking for something new, so an
+  // earlier failure is forgotten and the load reads as loading, not as a retry.
+  resetKey?: string | number;
 }) {
   const apiText = useApiErrorText();
   const [retrying, setRetrying] = useState(false);
+  const [seenKey, setSeenKey] = useState(resetKey);
   // Once this instance has shown a failure it keeps showing it until a refetch succeeds and the screen
   // unmounts it. The refetch's promise can settle a render before the query leaves pending, and falling
   // back to the loading line in that gap would swap the button for a new element and drop focus.
@@ -47,6 +52,12 @@ export function LoadState({
   const queries = Array.isArray(query) ? query : [query];
   const broken = queries.filter((q) => q.isError);
   const [firstBroken] = broken;
+
+  if (seenKey !== resetKey) {
+    setSeenKey(resetKey);
+    setSawFailure(false);
+    setRetrying(false);
+  }
 
   if (broken.length > 0 && !sawFailure) {
     setSawFailure(true);

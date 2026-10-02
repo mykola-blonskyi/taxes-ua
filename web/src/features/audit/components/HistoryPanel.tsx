@@ -21,7 +21,7 @@ export function HistoryPanel({ entity, id }: { entity?: AuditedEntity; id?: stri
   const { data } = query;
 
   if (query.isLoading || query.isError) {
-    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} resetKey={`${entity}-${id}`} />;
   }
 
   if (!data || data.length === 0) {

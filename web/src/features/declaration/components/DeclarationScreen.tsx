@@ -47,7 +47,7 @@ export function DeclarationScreen({ year, quarter }: { year?: string; quarter?: 
       ) : query.isLoading || error ? (
         // One mount for loading and failure: a retry resets the query to pending, and a second mount would
         // drop keyboard focus from the retry button.
-        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />
+        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} resetKey={`${period.year}-${period.quarter}`} />
       ) : null}
 
       {data ? <Declaration declaration={data} period={period} today={today} /> : null}

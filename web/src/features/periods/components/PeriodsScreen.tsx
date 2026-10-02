@@ -71,7 +71,7 @@ export function PeriodsScreen() {
       </div>
 
       {periodsLoading || isError ? (
-        <LoadState query={periodsQuery} loading={t("loading")} failed={t("loadFailed")} />
+        <LoadState query={periodsQuery} resetKey={year} loading={t("loading")} failed={t("loadFailed")} />
       ) : null}
 
       {!periodsLoading && !isError && periods ? (

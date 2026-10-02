@@ -58,7 +58,7 @@ export function InvoiceList({ onOpen, onNew }: { onOpen: (id: string) => void; o
       </div>
 
       {query.isLoading || query.isError ? (
-        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />
+        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} resetKey={`${status}-${year}`} />
       ) : null}
 
       {data && data.length === 0 ? <p className="text-sm text-muted-foreground">{t("empty")}</p> : null}

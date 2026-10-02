@@ -94,6 +94,29 @@ describe.each(locales)("LoadState in $locale", ({ locale, loading, offline, retr
   });
 });
 
+describe("LoadState resetKey", () => {
+  const failedQuery = query({ isError: true, error: new ApiError(500) });
+  const loadingQuery = query({ isLoading: true, isFetching: true });
+
+  it("reads a new load after an earlier failure as loading, not as a retry, when the key changes", () => {
+    const { rerender } = renderApp(<LoadState query={failedQuery} resetKey={2026} failed="Failed." />);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
+    rerender(<LoadState query={loadingQuery} resetKey={2025} failed="Failed." />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Завантаження…");
+    expect(screen.queryByRole("button", { name: "Повторюємо…" })).not.toBeInTheDocument();
+  });
+
+  it("keeps showing the failure as a retry under the same key", () => {
+    const { rerender } = renderApp(<LoadState query={failedQuery} resetKey={2026} failed="Failed." />);
+
+    rerender(<LoadState query={loadingQuery} resetKey={2026} failed="Failed." />);
+
+    expect(screen.getByRole("button", { name: "Повторюємо…" })).toBeInTheDocument();
+  });
+});
+
 describe("LoadState quiet", () => {
   it("shows nothing while a side query loads or waits for the network", () => {
     const { container, rerender } = renderApp(<LoadState quiet query={query({ isLoading: true })} failed="Failed." />);

@@ -82,7 +82,7 @@ export function PaymentsScreen() {
       </div>
 
       {payments.isLoading || periods.isLoading || payments.isError || periods.isError ? (
-        <LoadState query={[payments, periods]} loading={t("loading")} failed={t("loadFailed")} />
+        <LoadState query={[payments, periods]} resetKey={year} loading={t("loading")} failed={t("loadFailed")} />
       ) : null}
 
       {periods.data?.balances ? <BalancesPanel year={year} balances={periods.data.balances} /> : null}

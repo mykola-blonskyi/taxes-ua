@@ -58,7 +58,7 @@ export function TransactionsScreen() {
       </div>
 
       {query.isLoading || query.isError ? (
-        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />
+        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} resetKey={year} />
       ) : null}
 
       {data ? (

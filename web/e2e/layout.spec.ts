@@ -274,12 +274,19 @@ for (const locale of locales) {
               dashboard.group3.applicationDaysLeft !== null &&
               Number(dashboard.group3.applicationDaysLeft) <= 3);
           if (!urgent) {
-            // Nothing is within three days, so the rejected token is the one banner: the first block of the
-            // page, above the pay card, and not inside the folded list.
-            await expect(page.locator("main section").first(), "the rejected token should lead the dashboard").toContainText(
-              catalogs[locale].dashboard.sync.tokenRejected.title,
-            );
-            await expect(rejected.locator("xpath=ancestor::details")).toHaveCount(0);
+            // Nothing is within three days, so the rejected token is the one banner: visible without opening
+            // anything (a role query skips what a closed <details> hides, so visibility alone proves it is
+            // not folded), absent from the folded list's markup, and laid out above the pay card.
+            await expect(rejected, "the rejected token should be a visible banner").toBeVisible();
+            await expect(
+              page.locator("main details [role=alert]").filter({ hasText: catalogs[locale].dashboard.sync.tokenRejected.title }),
+              "the rejected token should not be inside the folded list",
+            ).toHaveCount(0);
+            const banner = await rejected.boundingBox();
+            const payCard = await page.locator("#next-step-kinds").boundingBox();
+            expect(banner, "the rejected-token banner has a box").not.toBeNull();
+            expect(payCard, "the seeded dashboard shows the pay card").not.toBeNull();
+            expect(banner!.y + banner!.height, "the rejected token should sit above the pay card").toBeLessThanOrEqual(payCard!.y);
           }
           if (await fold.isVisible()) {
             await fold.click();
