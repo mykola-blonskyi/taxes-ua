@@ -959,6 +959,13 @@ name and a random port, and removes it with its volumes afterwards. Telegram and
 stubs. The suite runs on one worker against one database, so each test seeds its own data and asserts on the
 change it made rather than on absolute totals. A failed CI run uploads the report and traces.
 
+#153 adds the core owner flows: the pay panel with its QR, the declaration XML, the invoice PDF, the
+unavailable notification channels and the language switch. Each seeds its data through the API
+(`web/e2e/support/seed.ts`) and checks a download by its content: the XML by its DPS file name and its
+parsed form code, the PDF by its header, trailer and the number and seller in its information dictionary.
+The stack starts with the bot token and SMTP settings blanked, whatever the developer's shell holds. The
+suite uses hryvnia amounts only, so it needs no NBU rates and never reaches the real NBU.
+
 ---
 
 ## ADR-021. Read the reserve jar through the rate gate without ever waiting for it

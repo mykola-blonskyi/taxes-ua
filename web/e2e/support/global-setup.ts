@@ -32,6 +32,15 @@ export default async function globalSetup(config: FullConfig) {
     ALLOWED_EMAILS: ownerEmail,
     TELEGRAM_BASE_URL: `http://host.docker.internal:${telegram.port}`,
     MONOBANK_BASE_URL: `http://host.docker.internal:${monobank.port}`,
+    // The stack starts without a bot token or SMTP settings whatever the developer's shell holds, so the
+    // notification channels are unavailable and nothing real can be reached through them.
+    TELEGRAM_BOT_TOKEN: "",
+    SMTP_HOST: "",
+    SMTP_PORT: "",
+    SMTP_TLS: "",
+    SMTP_USER: "",
+    SMTP_PASSWORD: "",
+    SMTP_FROM: "",
   };
 
   const teardown = async () => {

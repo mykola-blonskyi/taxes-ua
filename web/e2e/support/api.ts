@@ -8,7 +8,7 @@ export async function signIn(context: APIRequestContext, email: string) {
   return context.get(`/api/auth/login/development?email=${encodeURIComponent(email)}&returnUrl=%2F`);
 }
 
-async function json<T>(response: APIResponse): Promise<T> {
+export async function json<T>(response: APIResponse): Promise<T> {
   expect(response.ok(), `${response.url()} answered ${response.status()}`).toBe(true);
   return (await response.json()) as T;
 }
