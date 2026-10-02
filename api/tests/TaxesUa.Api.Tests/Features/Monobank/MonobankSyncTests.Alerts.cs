@@ -10,6 +10,7 @@ using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Notifications;
+using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Api.Tests.Features.Notifications;
 
 namespace TaxesUa.Api.Tests.Features.Monobank;
@@ -19,7 +20,7 @@ namespace TaxesUa.Api.Tests.Features.Monobank;
 public sealed partial class MonobankSyncTests
 {
     private const string StaleText =
-        "Monobank: синхронізація не працює, остання успішна {0}.\n"
+        "Monobank: синхронізація не працює, оновлень немає з {0}.\n"
         + "Доходи в застосунку можуть бути неповними. Перевірте підключення monobank.";
 
     private const string RejectedText =
@@ -70,6 +71,172 @@ public sealed partial class MonobankSyncTests
 
         Assert.Equal([string.Format(StaleText, "01.03.2061"), string.Format(StaleText, "05.03.2061")], Alerts(telegram));
         Assert.Equal(2, (await Incidents(app)).Select(claim => claim.Incident).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task A_backfill_that_stalls_is_stale_and_alerts_once()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-alert-stall", ("alert-stall-uah", 980));
+        var telegram = new StubTelegramHandler();
+        await using var app = CreateAlerting(At(2071, 3, 1, 10), bank, telegram);
+        using var owner = await Connect(app, _ownerEmail, "token-alert-stall");
+        await LinkTelegram(app, owner, telegram);
+        var begun = app.Clock.GetUtcNow();
+        await Backfill(app, "alert-stall-uah");
+
+        bank.StatementsFail = true;
+        app.Clock.Advance(TimeSpan.FromDays(2));
+        await SendAlerts(app);
+        Assert.Empty(Alerts(telegram));
+        Assert.Equal("Healthy", (await Health(owner))!["state"]!.GetValue<string>());
+
+        app.Clock.Advance(TimeSpan.FromDays(2));
+        await SendAlerts(app);
+        await SendAlerts(app);
+
+        var health = (await Health(owner))!;
+        Assert.Equal("Stale", health["state"]!.GetValue<string>());
+        Assert.Equal(begun, health["lastSyncedAt"]!.GetValue<DateTimeOffset>());
+        Assert.Equal([string.Format(StaleText, "01.03.2071")], Alerts(telegram));
+        Assert.StartsWith("SyncStale:", Assert.Single(await Incidents(app)).Incident, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_backfill_that_keeps_making_progress_never_alerts()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-alert-progress", ("alert-progress-uah", 980));
+        var telegram = new StubTelegramHandler();
+        await using var app = CreateAlerting(At(2072, 3, 1, 10), bank, telegram);
+        using var owner = await Connect(app, _ownerEmail, "token-alert-progress");
+        await LinkTelegram(app, owner, telegram);
+        await Backfill(app, "alert-progress-uah");
+
+        bank.StatementsFail = true;
+        for (var step = 0; step < 4; step++)
+        {
+            app.Clock.Advance(TimeSpan.FromDays(2));
+            await AddBatch(app, "alert-progress-uah");
+            await SendAlerts(app);
+        }
+
+        // Eight days since the first window, two since the latest.
+        Assert.Empty(Alerts(telegram));
+        Assert.Equal("Healthy", (await Health(owner))!["state"]!.GetValue<string>());
+        Assert.Empty(await Incidents(app));
+
+        app.Clock.Advance(TimeSpan.FromDays(4));
+        await SendAlerts(app);
+        Assert.Equal("Stale", (await Health(owner))!["state"]!.GetValue<string>());
+        Assert.Single(Alerts(telegram));
+    }
+
+    [Fact]
+    public async Task A_restored_backfill_is_not_stale_until_three_days_after_the_restore()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-alert-restore", ("alert-restore-uah", 980));
+        var telegram = new StubTelegramHandler();
+        await using var app = CreateAlerting(At(2074, 3, 1, 10), bank, telegram);
+        using var owner = await Connect(app, _ownerEmail, "token-alert-restore");
+        await LinkTelegram(app, owner, telegram);
+        var backup = await owner.GetStringAsync("/api/backup");
+
+        bank.StatementsFail = true;
+        app.Clock.Advance(TimeSpan.FromDays(10));
+        var restored = await owner.PostAsync("/api/restore", new StringContent(backup, System.Text.Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+        await Drain(app, owner);
+
+        await SendAlerts(app);
+        Assert.Equal("Healthy", (await Health(owner))!["state"]!.GetValue<string>());
+        app.Clock.Advance(TimeSpan.FromDays(2));
+        await SendAlerts(app);
+        Assert.Empty(Alerts(telegram));
+
+        app.Clock.Advance(TimeSpan.FromDays(2));
+        await SendAlerts(app);
+        Assert.Equal("Stale", (await Health(owner))!["state"]!.GetValue<string>());
+        Assert.Equal([string.Format(StaleText, "11.03.2074")], Alerts(telegram));
+    }
+
+    [Fact]
+    public async Task A_backfill_followed_again_after_ten_days_is_not_stale_until_three_days_later()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-alert-refollow", ("alert-refollow-uah", 980));
+        var telegram = new StubTelegramHandler();
+        await using var app = CreateAlerting(At(2075, 3, 1, 10), bank, telegram);
+        using var owner = await Connect(app, _ownerEmail, "token-alert-refollow");
+        await LinkTelegram(app, owner, telegram);
+        await Backfill(app, "alert-refollow-uah");
+
+        bank.StatementsFail = true;
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/monobank/accounts", new { followedExternalIds = Array.Empty<string>() })).StatusCode);
+        app.Clock.Advance(TimeSpan.FromDays(10));
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/monobank/accounts", new { followedExternalIds = new[] { "alert-refollow-uah" } })).StatusCode);
+        await Drain(app, owner);
+
+        await SendAlerts(app);
+        app.Clock.Advance(TimeSpan.FromDays(2));
+        await SendAlerts(app);
+        Assert.Empty(Alerts(telegram));
+        Assert.Equal("Healthy", (await Health(owner))!["state"]!.GetValue<string>());
+
+        app.Clock.Advance(TimeSpan.FromDays(2));
+        await SendAlerts(app);
+        Assert.Equal("Stale", (await Health(owner))!["state"]!.GetValue<string>());
+        Assert.Equal([string.Format(StaleText, "11.03.2075")], Alerts(telegram));
+    }
+
+    [Fact]
+    public async Task A_backfill_with_no_batch_is_judged_from_its_start()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-alert-nobatch", ("alert-nobatch-uah", 980));
+        var telegram = new StubTelegramHandler();
+        await using var app = CreateAlerting(At(2076, 3, 1, 10), bank, telegram);
+        using var owner = await Connect(app, _ownerEmail, "token-alert-nobatch");
+        await LinkTelegram(app, owner, telegram);
+        await Backfill(app, "alert-nobatch-uah");
+        await using (var scope = app.Factory.Services.CreateAsyncScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await database.ImportBatches.Where(row => database.BankAccounts
+                .Any(account => account.Id == row.BankAccountId && account.ExternalId == "alert-nobatch-uah")).ExecuteDeleteAsync();
+            await database.BankAccounts.Where(row => row.ExternalId == "alert-nobatch-uah")
+                .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.BackfillStartedAt, app.Clock.GetUtcNow()));
+        }
+
+        bank.StatementsFail = true;
+        app.Clock.Advance(TimeSpan.FromDays(2));
+        await SendAlerts(app);
+        Assert.Empty(Alerts(telegram));
+
+        app.Clock.Advance(TimeSpan.FromDays(2));
+        await SendAlerts(app);
+        Assert.Equal("Stale", (await Health(owner))!["state"]!.GetValue<string>());
+        Assert.Equal([string.Format(StaleText, "01.03.2076")], Alerts(telegram));
+    }
+
+    [Fact]
+    public async Task A_completed_account_is_judged_by_its_cursor_and_not_by_a_recent_batch()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-alert-done", ("alert-done-uah", 980));
+        var telegram = new StubTelegramHandler();
+        await using var app = CreateAlerting(At(2073, 3, 1, 10), bank, telegram);
+        using var owner = await Connect(app, _ownerEmail, "token-alert-done");
+        await LinkTelegram(app, owner, telegram);
+        var now = app.Clock.GetUtcNow();
+        await SetCursors(app, ("alert-done-uah", now.AddDays(-5)));
+        await AddBatch(app, "alert-done-uah");
+
+        await SendAlerts(app);
+
+        Assert.Equal("Stale", (await Health(owner))!["state"]!.GetValue<string>());
+        Assert.Single(Alerts(telegram));
     }
 
     [Fact]
@@ -291,6 +458,38 @@ public sealed partial class MonobankSyncTests
         return await database.SentReminders.AsNoTracking()
             .Where(row => owner.Contains(row.UserId) && row.Incident != string.Empty)
             .ToListAsync();
+    }
+
+    // Puts the account back to still backfilling, its only progress the window the connection just imported.
+    private static async Task Backfill(SyncApp app, string externalId)
+    {
+        await using var scope = app.Factory.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await database.BankAccounts
+            .Where(row => row.ExternalId == externalId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.HistoryImportedAt, (DateTimeOffset?)null));
+        var account = await database.BankAccounts.AsNoTracking().SingleAsync(row => row.ExternalId == externalId);
+        await database.ImportBatches
+            .Where(row => row.BankAccountId == account.Id)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(row => row.CreatedAt, app.Clock.GetUtcNow()));
+    }
+
+    private static async Task AddBatch(SyncApp app, string externalId)
+    {
+        await using var scope = app.Factory.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var account = await database.BankAccounts.AsNoTracking().SingleAsync(row => row.ExternalId == externalId);
+        database.ImportBatches.Add(new ImportBatch
+        {
+            Id = Guid.NewGuid(),
+            UserId = account.UserId,
+            Source = ImportSource.Monobank,
+            BankAccountId = account.Id,
+            From = app.Clock.GetUtcNow().AddDays(-30),
+            To = app.Clock.GetUtcNow(),
+            CreatedAt = app.Clock.GetUtcNow(),
+        });
+        await database.SaveChangesAsync();
     }
 
     private async Task SetCursors(SyncApp app, params (string ExternalId, DateTimeOffset At)[] cursors)

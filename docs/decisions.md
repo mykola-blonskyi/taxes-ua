@@ -1423,8 +1423,9 @@ fact; a constant is easier to test and to change in one place.
 ### Consequences
 
 One migration adds the column and swaps the unique index for two filtered ones. The dashboard response
-gains a nullable `sync`. Accounts still backfilling are not judged by age, so a backfill that stalls
-without a token error shows as healthy until it finishes; the failure still shows on the settings tab. A
+gains a nullable `sync`. An account still backfilling is judged by its last progress, its latest
+import batch (#199), or by `BackfillStartedAt` (added, followed again or reset by a restore), whichever is later, against the same 3 days, so a
+backfill that keeps failing without a token error goes stale and alerts once like any other incident. A
 stale or unreadable-token incident is held back while any followed account is queued or syncing, so a
 recovery under way (accounts recover one at a time and move the oldest cursor) does not re-key it; if an
 account is still stale once the queue empties it is alerted under its own key. `RejectedAt` is set only

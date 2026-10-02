@@ -3,7 +3,7 @@ import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import ru from "../messages/ru.json";
 import uk from "../messages/uk.json";
-import { seedScreensWithContent } from "./support/layout-seed";
+import { removeMonobankToken, seedRejectedMonobankToken, seedScreensWithContent } from "./support/layout-seed";
 
 // Every screen at phone width, in both languages. A page that scrolls sideways, loses its disclaimer or
 // renders the wrong language fails here, and the failure names the route, the language and the element.
@@ -216,6 +216,18 @@ test.beforeAll(async ({ playwright }, testInfo) => {
     seededText["/transactions"] = [longClientName];
     seededText["/payments"] = [paymentNote];
     seededText["/invoices"] = [longForeignClientName];
+    // The dashboard sync card is measured in a problem state, not only as the quiet line.
+    await seedRejectedMonobankToken(owner);
+  } finally {
+    await owner.dispose();
+  }
+});
+
+test.afterAll(async ({ playwright }, testInfo) => {
+  const { baseURL, storageState } = testInfo.project.use;
+  const owner = await playwright.request.newContext({ baseURL, storageState });
+  try {
+    await removeMonobankToken(owner);
   } finally {
     await owner.dispose();
   }
@@ -245,6 +257,12 @@ for (const locale of locales) {
         // A tabbed route opens nine panels, each waiting for its data.
         test.setTimeout(60_000);
         await open(page, route, locale);
+        if (route === "/") {
+          await expect(
+            page.getByRole("alert").filter({ hasText: catalogs[locale].dashboard.sync.tokenRejected.title }),
+            "the dashboard should show the rejected-token card",
+          ).toBeVisible();
+        }
         const problems = await inspect(page, route, locale, "");
 
         // Each tab is a state of the route, and a panel behind a tab the first render never shows can

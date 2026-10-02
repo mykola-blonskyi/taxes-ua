@@ -48,6 +48,11 @@ internal sealed class BankAccount
     // imported, however old the cursor grows between syncs; a restore clears it with the cursor.
     public DateTimeOffset? HistoryImportedAt { get; set; }
 
+    // When the account last began its backfill: added, followed again, or reset by a restore. Sync health
+    // judges a backfill from this or its latest import batch, whichever is later, so a restart has its
+    // own grace period. Not part of the backup format; a restore stamps it with the restore time.
+    public DateTimeOffset BackfillStartedAt { get; set; }
+
     // The last sync that failed for a reason other than a rejected token, kept until a window of this
     // account imports again. Both set or both null.
     public DateTimeOffset? LastFailedAt { get; set; }

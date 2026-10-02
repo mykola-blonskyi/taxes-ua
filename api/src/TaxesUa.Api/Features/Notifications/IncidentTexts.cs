@@ -17,9 +17,9 @@ internal static class IncidentTexts
         var (subject, advice) = incident.Kind switch
         {
             IncidentKind.SyncStale => russian
-                ? ($"Monobank: синхронизация не работает, последняя успешная {since}.",
+                ? ($"Monobank: синхронизация не работает, обновлений нет с {since}.",
                     "Доходы в приложении могут быть неполными. Проверьте подключение monobank.")
-                : ($"Monobank: синхронізація не працює, остання успішна {since}.",
+                : ($"Monobank: синхронізація не працює, оновлень немає з {since}.",
                     "Доходи в застосунку можуть бути неповними. Перевірте підключення monobank."),
             IncidentKind.TokenRejected => russian
                 ? ("Monobank отклонил токен, синхронизация остановлена.",

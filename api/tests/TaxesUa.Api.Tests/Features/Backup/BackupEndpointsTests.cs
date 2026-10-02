@@ -1061,6 +1061,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         [
             nameof(BankAccount.SyncedThrough),
             nameof(BankAccount.HistoryImportedAt),
+            nameof(BankAccount.BackfillStartedAt),
             nameof(BankAccount.LastFailedAt),
             nameof(BankAccount.LastFailure),
         ];

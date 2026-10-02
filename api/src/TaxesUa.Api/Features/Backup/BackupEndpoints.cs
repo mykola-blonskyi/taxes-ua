@@ -253,7 +253,7 @@ public static class BackupEndpoints
         await database.DeclarationFiles.Where(row => row.UserId == userId).ExecuteDeleteAsync(cancellationToken);
 
         var id = await IdMappingAsync(database, document, cancellationToken);
-        var accountId = await MatchBankAccountsAsync(database, userId, document.BankAccounts, cancellationToken);
+        var accountId = await MatchBankAccountsAsync(database, userId, document.BankAccounts, time.GetUtcNow(), cancellationToken);
         if (document.Settings is { } settings)
         {
             database.Settings.Add(settings.ToEntity(userId));
@@ -372,7 +372,8 @@ public static class BackupEndpoints
     // holds (same bank and external id) maps to that row; any other is inserted, under a
     // fresh id if the file's id is taken.
     private static async Task<Func<Guid, Guid>> MatchBankAccountsAsync(
-        AppDbContext database, string userId, BankAccountBackup[] accounts, CancellationToken cancellationToken)
+        AppDbContext database, string userId, BankAccountBackup[] accounts, DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
         var owned = await database.BankAccounts
             .Where(row => row.UserId == userId)
@@ -384,6 +385,7 @@ public static class BackupEndpoints
         {
             row.SyncedThrough = null;
             row.HistoryImportedAt = null;
+            row.BackfillStartedAt = now;
             row.LastFailedAt = null;
             row.LastFailure = null;
         }
@@ -401,6 +403,7 @@ public static class BackupEndpoints
             if (existing is null)
             {
                 existing = account.ToEntity(userId, taken.Contains(account.Id) ? Guid.NewGuid() : account.Id);
+                existing.BackfillStartedAt = now;
                 database.BankAccounts.Add(existing);
             }
 

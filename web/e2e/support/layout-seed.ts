@@ -109,3 +109,24 @@ export async function seedScreensWithContent(owner: APIRequestContext) {
 
   return { longClientName, longForeignClientName, paymentNote };
 }
+
+// Stops the owner's sync with a rejected token, so the dashboard shows its warning card and the layout check
+// measures that state. The stack's monobank stub accepts any token for client-info and refuses every statement.
+export async function seedRejectedMonobankToken(owner: APIRequestContext) {
+  const connected = await owner.put("/api/monobank/connection", { data: { token: "layout-rejected-token" } });
+  expect(connected.ok(), `connecting answered ${connected.status()}: ${await connected.text()}`).toBe(true);
+  expect((await owner.put("/api/monobank/accounts", { data: { followedExternalIds: ["layout-fop"] } })).ok()).toBe(true);
+
+  await expect
+    .poll(async () => ((await (await owner.get("/api/dashboard")).json()) as { sync: { state: string } | null }).sync?.state, {
+      message: "the sync did not stop on the rejected token",
+      // The api's rate gate holds the statement slot for a minute after the connection check.
+      timeout: 75_000,
+    })
+    .toBe("TokenRejected");
+}
+
+// Removes the token again, so the specs after the layout check see an owner with no bank connection.
+export async function removeMonobankToken(owner: APIRequestContext) {
+  expect((await owner.delete("/api/monobank/connection")).ok()).toBe(true);
+}

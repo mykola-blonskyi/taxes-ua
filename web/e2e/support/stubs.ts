@@ -5,12 +5,17 @@ export type Stub = { port: number; requests: string[]; close: () => Promise<void
 
 // A stand-in for an external service the api would otherwise call. It answers every request with the
 // given JSON and records "METHOD path", so a test can assert what the api asked for.
-export async function startStub(body: object | ((url: URL) => object)): Promise<Stub> {
+export async function startStub(
+  body: object | ((url: URL) => object),
+  status: (url: URL) => number = () => 200,
+): Promise<Stub> {
   const requests: string[] = [];
   const server = createServer((request, response) => {
     requests.push(`${request.method} ${request.url}`);
     response.setHeader("content-type", "application/json");
-    const answer = typeof body === "function" ? body(new URL(request.url ?? "/", "http://stub")) : body;
+    const url = new URL(request.url ?? "/", "http://stub");
+    response.statusCode = status(url);
+    const answer = typeof body === "function" ? body(url) : body;
     response.end(JSON.stringify(answer));
   });
   // The api runs in a container and reaches the host through host.docker.internal, so loopback is not enough.
@@ -38,4 +43,19 @@ export function startNbuStub() {
       },
     ];
   });
+}
+
+// The monobank personal API as the layout check needs it: one FOP account behind any token, and a bank that
+// refuses the token on every statement call, so the owner's sync is stopped with a rejected token.
+export function startMonobankStub() {
+  const clientInfo = {
+    clientId: "layout-client",
+    name: "Layout Owner",
+    accounts: [{ id: "layout-fop", type: "fop", currencyCode: 980, iban: "UA000000000000000000000000000" }],
+    jars: [],
+  };
+  return startStub(
+    (url) => (url.pathname.endsWith("/personal/client-info") ? clientInfo : []),
+    (url) => (url.pathname.includes("/personal/statement/") ? 401 : 200),
+  );
 }
