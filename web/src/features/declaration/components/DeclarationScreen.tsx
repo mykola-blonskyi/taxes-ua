@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import { ApiError } from "@/data/api/client";
 import { useDeclaration, type DeclarationResponse } from "@/data/declarations/useDeclarations";
 import { declarationHref } from "@/shared/constants/navigation";
@@ -21,7 +22,8 @@ export function DeclarationScreen({ year, quarter }: { year?: string; quarter?: 
   const period = periodFrom(year, quarter, today);
   const previous = shiftQuarter(period, -1);
   const next = shiftQuarter(period, 1);
-  const { data, isLoading, error } = useDeclaration(period.year, period.quarter);
+  const query = useDeclaration(period.year, period.quarter);
+  const { data, error } = query;
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
@@ -35,7 +37,6 @@ export function DeclarationScreen({ year, quarter }: { year?: string; quarter?: 
         </nav>
       </div>
 
-      {isLoading ? <p className="text-sm text-muted-foreground">{t("loading")}</p> : null}
       {error instanceof ApiError && error.status === 404 ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground">{t("unavailable")}</p>
@@ -43,8 +44,10 @@ export function DeclarationScreen({ year, quarter }: { year?: string; quarter?: 
             {t("unavailableCta")}
           </Link>
         </div>
-      ) : error ? (
-        <p className="text-sm text-destructive">{t("loadFailed")}</p>
+      ) : query.isLoading || error ? (
+        // One mount for loading and failure: a retry resets the query to pending, and a second mount would
+        // drop keyboard focus from the retry button.
+        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} resetKey={`${period.year}-${period.quarter}`} />
       ) : null}
 
       {data ? <Declaration declaration={data} period={period} today={today} /> : null}

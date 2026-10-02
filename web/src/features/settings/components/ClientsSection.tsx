@@ -15,6 +15,7 @@ import {
 } from "@/data/clients/useClients";
 import { currencies } from "@/data/fx/useFxRate";
 import { Button } from "@/shared/ui/button";
+import { LoadState } from "@/data/api/LoadState";
 import { SelectField, TextAreaField, TextField } from "@/shared/ui/fields";
 
 type FormState = {
@@ -65,15 +66,12 @@ function toRequest(form: FormState): ClientRequest {
 
 export function ClientsSection() {
   const t = useTranslations("settings.clients");
-  const { data, isLoading, isError } = useClients();
+  const query = useClients();
+  const { data } = query;
   const [editing, setEditing] = useState<string | "new" | null>(null);
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError || !data) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (query.isError || !data) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   return (

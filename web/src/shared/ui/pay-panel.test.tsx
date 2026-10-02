@@ -31,6 +31,7 @@ function panel(props: Partial<Props> = {}) {
       details={detailsFor()}
       loading={false}
       failed={false}
+      onRetry={() => undefined}
       notComputed={false}
       {...props}
     />
@@ -304,6 +305,18 @@ describe("PayPanel", () => {
       renderApp(panel({ details: undefined, failed: true }));
 
       expect(screen.getByText("Не вдалося завантажити реквізити.")).toBeVisible();
+    });
+
+    it.each([
+      ["uk", "Спробувати ще раз"],
+      ["ru", "Повторить"],
+    ] as const)("offers a retry in %s that asks for the details again", async (locale, label) => {
+      const onRetry = vi.fn();
+      const { user } = renderApp(panel({ details: undefined, failed: true, onRetry }), { locale });
+
+      await user.click(screen.getByRole("button", { name: label }));
+
+      expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
     it("says the period is not one the app computes", () => {

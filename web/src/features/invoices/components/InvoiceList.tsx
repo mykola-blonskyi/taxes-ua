@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import { useInvoices, type InvoiceStatus } from "@/data/invoices/useInvoices";
 import { currentYearInKyiv, formatDateOnly } from "@/shared/lib/dates";
 import { formatAmount } from "@/shared/lib/money";
@@ -16,10 +17,11 @@ export function InvoiceList({ onOpen, onNew }: { onOpen: (id: string) => void; o
   const locale = useLocale();
   const [status, setStatus] = useState("");
   const [year, setYear] = useState("");
-  const { data, isLoading, isError } = useInvoices({
+  const query = useInvoices({
     status: status === "" ? undefined : (status as InvoiceStatus),
     year: year === "" ? undefined : Number(year),
   });
+  const { data } = query;
 
   const thisYear = currentYearInKyiv();
   const years = Array.from({ length: 7 }, (_, index) => thisYear + 1 - index);
@@ -55,8 +57,9 @@ export function InvoiceList({ onOpen, onNew }: { onOpen: (id: string) => void; o
         />
       </div>
 
-      {isLoading ? <p className="text-sm text-muted-foreground">{t("loading")}</p> : null}
-      {isError ? <p className="text-sm text-destructive">{t("loadFailed")}</p> : null}
+      {query.isLoading || query.isError ? (
+        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} resetKey={`${status}-${year}`} />
+      ) : null}
 
       {data && data.length === 0 ? <p className="text-sm text-muted-foreground">{t("empty")}</p> : null}
 
