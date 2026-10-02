@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { InvoicesScreen } from "@/features/invoices";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("invoices");
+
+  return { title: t("title") };
+}
 
 export default async function InvoicesPage() {
   const t = await getTranslations("invoices");
