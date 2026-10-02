@@ -136,13 +136,13 @@ describe("ReserveCard", () => {
     });
 
     it.each([
-      [429, undefined, "monobank дозволяє один запит на хвилину. Спробуйте за хвилину."],
-      [409, "monobank rejected the token; replace it first.", "monobank відхилив токен, підключіть знову."],
-      [409, "No such jar", "monobank не підключено або такої скарбнички вже немає. Оберіть її ще раз."],
-      [502, undefined, "monobank зараз недоступний."],
+      [429, "monobank_rate_limited", "monobank дозволяє один запит на хвилину. Спробуйте за хвилину."],
+      [409, "monobank_token_rejected", "monobank відхилив токен, підключіть знову."],
+      [409, "reserve_jar_not_offered", "monobank не підключено або такої скарбнички вже немає. Оберіть її ще раз."],
+      [502, "monobank_unavailable", "monobank зараз недоступний."],
       [500, undefined, "Не вдалося виконати запит."],
-    ])("explains a failed refresh with status %i", async (status, title, message) => {
-      stubFetch({ [refresh]: reply(status, { title: title ?? "Failed" }) });
+    ])("explains a failed refresh with status %i", async (status, code, message) => {
+      stubFetch({ [refresh]: reply(status, { title: "Failed", code }) });
       const { user } = renderCard(reserve(covering));
 
       await user.click(screen.getByRole("button", { name: "Оновити баланс" }));
@@ -164,7 +164,7 @@ describe("ReserveCard", () => {
     });
 
     it("shows a surplus, a stale balance and the rejected token in Russian", async () => {
-      stubFetch({ [refresh]: reply(409, { title: "monobank rejected the token; replace it first." }) });
+      stubFetch({ [refresh]: reply(409, { code: "monobank_token_rejected" }) });
       const { user } = renderCard(reserve({ ...covering, surplusKop: 15_000, stale: true }), "ru");
 
       expect(screen.getByText("Хватает с запасом 150,00 ₴.")).toBeVisible();

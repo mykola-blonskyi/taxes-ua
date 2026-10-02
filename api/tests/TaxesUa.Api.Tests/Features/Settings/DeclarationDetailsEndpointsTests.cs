@@ -142,8 +142,7 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var errors = problem.RootElement.GetProperty("errors");
-        Assert.True(errors.TryGetProperty(field, out _), $"no error under {field}: {errors}");
+        ProblemAssert.Rejects(problem.RootElement, field);
         Assert.Equal(before, await owner.GetStringAsync(Url));
     }
 

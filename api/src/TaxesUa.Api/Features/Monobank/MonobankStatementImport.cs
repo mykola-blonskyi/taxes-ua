@@ -350,7 +350,7 @@ internal sealed class MonobankStatementImport(
             case RecordTransactionResult.Invalid invalid:
                 logger.LogWarning(
                     "monobank operation {OperationId} was not recorded, it breaks {Fields}.",
-                    item.Id, string.Join(", ", invalid.Errors.Keys));
+                    item.Id, string.Join(", ", invalid.Errors.Fields));
                 return Outcome.Skipped;
             case RecordTransactionResult.RateUnavailable:
                 logger.LogWarning("monobank operation {OperationId} waits for its NBU rate.", item.Id);

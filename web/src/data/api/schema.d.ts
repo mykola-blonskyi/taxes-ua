@@ -74,7 +74,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -90,7 +90,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -142,7 +142,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -158,7 +158,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Unsupported Media Type */
@@ -167,7 +167,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -296,7 +296,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -340,7 +340,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Forbidden */
@@ -349,7 +349,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -358,7 +358,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -479,7 +479,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -525,7 +525,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -534,7 +534,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -543,7 +543,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -624,7 +624,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -633,7 +633,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Forbidden */
@@ -642,7 +642,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Internal Server Error */
@@ -651,7 +651,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -724,7 +724,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -805,7 +805,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -897,7 +897,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Unsupported Media Type */
@@ -906,7 +906,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -982,7 +982,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Too Many Requests */
@@ -991,7 +991,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Bad Gateway */
@@ -1000,7 +1000,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1078,7 +1078,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -1136,7 +1136,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1171,7 +1171,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -1187,7 +1187,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -1196,7 +1196,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1233,7 +1233,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -1242,7 +1242,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1294,7 +1294,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1340,7 +1340,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -1356,7 +1356,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -1365,7 +1365,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1415,7 +1415,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -1431,7 +1431,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -1440,7 +1440,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1491,7 +1491,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1547,7 +1547,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -1556,7 +1556,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1595,7 +1595,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1645,7 +1645,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1698,7 +1698,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -1815,7 +1815,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -1896,7 +1896,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -1997,7 +1997,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -2032,7 +2032,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -2093,7 +2093,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -2140,7 +2140,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -2156,7 +2156,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -2165,7 +2165,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -2216,7 +2216,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -2270,7 +2270,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -2330,7 +2330,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -2339,7 +2339,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Unprocessable Entity */
@@ -2348,7 +2348,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
             };
@@ -2408,7 +2408,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -2470,7 +2470,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -2522,7 +2522,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -2538,7 +2538,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -2610,7 +2610,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -2651,7 +2651,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -2667,7 +2667,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -2716,7 +2716,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -2732,7 +2732,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Bad Gateway */
@@ -2741,7 +2741,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -2778,7 +2778,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -2787,7 +2787,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -2843,7 +2843,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -2852,7 +2852,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -3010,7 +3010,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3066,7 +3066,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3082,7 +3082,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -3119,7 +3119,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -3128,7 +3128,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -3171,7 +3171,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3224,7 +3224,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3277,7 +3277,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3331,7 +3331,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3347,7 +3347,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -3393,7 +3393,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3434,7 +3434,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3490,7 +3490,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3506,7 +3506,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -3543,7 +3543,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -3634,7 +3634,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3650,7 +3650,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -3659,7 +3659,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -3710,7 +3710,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Conflict */
@@ -3719,7 +3719,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -3810,7 +3810,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3878,7 +3878,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -3927,7 +3927,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3950,7 +3950,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4083,7 +4083,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4099,7 +4099,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Unsupported Media Type */
@@ -4108,7 +4108,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4157,7 +4157,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4190,7 +4190,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4206,7 +4206,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Service Unavailable */
@@ -4215,7 +4215,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4287,7 +4287,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4303,7 +4303,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4355,7 +4355,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Service Unavailable */
@@ -4364,7 +4364,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4437,7 +4437,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4453,7 +4453,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Too Many Requests */
@@ -4462,7 +4462,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Bad Gateway */
@@ -4471,7 +4471,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4545,7 +4545,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Too Many Requests */
@@ -4554,7 +4554,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Bad Gateway */
@@ -4563,7 +4563,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4616,7 +4616,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Too Many Requests */
@@ -4625,7 +4625,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Bad Gateway */
@@ -4634,7 +4634,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4727,7 +4727,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Service Unavailable */
@@ -4736,7 +4736,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4790,7 +4790,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4866,7 +4866,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Bad Gateway */
@@ -4875,7 +4875,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Service Unavailable */
@@ -4884,7 +4884,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4938,7 +4938,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -4971,7 +4971,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4987,7 +4987,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Service Unavailable */
@@ -4996,7 +4996,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -5071,7 +5071,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Bad Gateway */
@@ -5080,7 +5080,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Service Unavailable */
@@ -5089,7 +5089,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -5137,7 +5137,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -5153,7 +5153,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -5204,7 +5204,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Bad Gateway */
@@ -5213,7 +5213,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
                 /** @description Service Unavailable */
@@ -5222,7 +5222,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
                     };
                 };
             };
@@ -5512,6 +5512,15 @@ export interface components {
             /** Format: int32 */
             receiptCount: number | string;
         };
+        CodedProblemDetails: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number | string;
+            detail?: null | string;
+            instance?: null | string;
+            code: string;
+        };
         ConfirmCandidateRequest: {
             kind: components["schemas"]["PaymentKind"];
             /** Format: int32 */
@@ -5746,6 +5755,21 @@ export interface components {
         };
         /** @enum {string} */
         EsvRegistrationMonthPolicy: "FullMonth" | "Prorated";
+        FieldProblemDetails: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number | string;
+            detail?: null | string;
+            instance?: null | string;
+            errors?: {
+                [key: string]: string[];
+            };
+            errorCodes?: {
+                [key: string]: string[];
+            };
+            code: string;
+        };
         FollowedAccountsRequest: {
             followedExternalIds: string[];
         };
@@ -5777,17 +5801,6 @@ export interface components {
             /** Format: int32 */
             applicationDaysLeft: null | number | string;
             beforeGroup3: null | components["schemas"]["BeforeGroup3Response"];
-        };
-        HttpValidationProblemDetails: {
-            type?: null | string;
-            title?: null | string;
-            /** Format: int32 */
-            status?: null | number | string;
-            detail?: null | string;
-            instance?: null | string;
-            errors?: {
-                [key: string]: string[];
-            };
         };
         ImportBatchBackup: {
             /** Format: uuid */
@@ -6410,14 +6423,6 @@ export interface components {
             /** Format: int32 */
             missingTaxYear: null | number | string;
             beforeGroup3: null | components["schemas"]["BeforeGroup3Response"];
-        };
-        ProblemDetails: {
-            type?: null | string;
-            title?: null | string;
-            /** Format: int32 */
-            status?: null | number | string;
-            detail?: null | string;
-            instance?: null | string;
         };
         QuarterDeadlines: {
             esv: components["schemas"]["Deadline"];

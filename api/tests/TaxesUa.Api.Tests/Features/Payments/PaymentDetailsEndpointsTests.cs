@@ -202,7 +202,7 @@ public sealed class PaymentDetailsEndpointsTests(ApiFixture fixture) : IClassFix
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
-        Assert.Contains(rejectedField, problem.GetProperty("errors").EnumerateObject().Select(property => property.Name));
+        ProblemAssert.Rejects(problem, rejectedField);
     }
 
     [Fact]

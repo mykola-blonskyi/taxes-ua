@@ -89,7 +89,7 @@ public static class InvoicesEndpoints
             })
             .Produces<InvoiceResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         invoices.MapPost("", async (
                 InvoiceRequest request,
@@ -102,7 +102,7 @@ public static class InvoicesEndpoints
                 var normalized = request.Normalized();
                 if (InvoiceRules.Validate(normalized) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -133,7 +133,7 @@ public static class InvoicesEndpoints
                 return Results.Created($"/api/invoices/{invoice.Id}", await ResponseAsync(database, invoice, time, cancellationToken));
             })
             .Produces<InvoiceResponse>(StatusCodes.Status201Created)
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         invoices.MapPut("/{id:guid}", async (
@@ -148,7 +148,7 @@ public static class InvoicesEndpoints
                 var normalized = request.Normalized();
                 if (InvoiceRules.Validate(normalized) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -167,7 +167,7 @@ public static class InvoicesEndpoints
 
                 if (invoice.Status != InvoiceStatus.Draft)
                 {
-                    return Frozen(invoice, "edited");
+                    return Frozen(invoice, ProblemCodes.InvoiceNotEditable, "edited");
                 }
 
                 var client = await database.Clients
@@ -184,10 +184,10 @@ public static class InvoicesEndpoints
                 return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
             })
             .Produces<InvoiceResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         invoices.MapDelete("/{id:guid}", async (
                 Guid id,
@@ -212,7 +212,7 @@ public static class InvoicesEndpoints
 
                 if (invoice.Status != InvoiceStatus.Draft)
                 {
-                    return Frozen(invoice, "deleted");
+                    return Frozen(invoice, ProblemCodes.InvoiceNotDeletable, "deleted");
                 }
 
                 database.Invoices.Remove(invoice);
@@ -223,8 +223,8 @@ public static class InvoicesEndpoints
             })
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         invoices.MapPost("/{id:guid}/duplicate", async (
                 Guid id,
@@ -271,7 +271,7 @@ public static class InvoicesEndpoints
             })
             .Produces<InvoiceResponse>(StatusCodes.Status201Created)
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         invoices.MapPost("/{id:guid}/issue", async (
                 Guid id,
@@ -302,9 +302,10 @@ public static class InvoicesEndpoints
                     case InvoiceStatus.Issued:
                         return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
                     case InvoiceStatus.Cancelled:
-                        return Results.Problem(
-                            statusCode: StatusCodes.Status409Conflict,
-                            title: $"Invoice {invoice.Number} is cancelled and cannot be issued again. Duplicate it instead.");
+                        return Problems.Create(
+                            StatusCodes.Status409Conflict,
+                            ProblemCodes.InvoiceCancelled,
+                            $"Invoice {invoice.Number} is cancelled and cannot be issued again. Duplicate it instead.");
                 }
 
                 var details = await database.InvoicingDetails.AsNoTracking()
@@ -314,7 +315,10 @@ public static class InvoicesEndpoints
                 var missing = InvoiceRules.Completeness(invoice, details, payment, invoice.Client!);
                 if (missing.Count > 0)
                 {
-                    return Results.ValidationProblem(missing, title: "The invoice cannot be issued until the details below are filled in.");
+                    return Problems.Validation(
+                        missing,
+                        "The invoice cannot be issued until the details below are filled in.",
+                        code: ProblemCodes.InvoiceIncomplete);
                 }
 
                 var year = invoice.IssueDate.Year;
@@ -336,10 +340,10 @@ public static class InvoicesEndpoints
                 return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
             })
             .Produces<InvoiceResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         invoices.MapPost("/{id:guid}/cancel", async (
                 Guid id,
@@ -353,7 +357,7 @@ public static class InvoicesEndpoints
                 var reason = request.Reason?.Trim() ?? string.Empty;
                 if (InvoiceRules.CancelReasonError(reason) is { } error)
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["reason"] = [error] });
+                    return Problems.Validation("reason", error.Code, error.Message);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -373,9 +377,10 @@ public static class InvoicesEndpoints
                 switch (invoice.Status)
                 {
                     case InvoiceStatus.Draft:
-                        return Results.Problem(
-                            statusCode: StatusCodes.Status409Conflict,
-                            title: "A draft has no number to account for. Delete it instead.");
+                        return Problems.Create(
+                            StatusCodes.Status409Conflict,
+                            ProblemCodes.DraftHasNoNumber,
+                            "A draft has no number to account for. Delete it instead.");
                     case InvoiceStatus.Cancelled:
                         return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
                 }
@@ -383,9 +388,10 @@ public static class InvoicesEndpoints
                 // A link always points at an issued invoice, so the receipts leave before the invoice goes.
                 if (await database.Transactions.AnyAsync(row => row.InvoiceId == invoice.Id, cancellationToken))
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: $"Invoice {invoice.Number} has receipts linked. Unlink them before cancelling it.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.InvoiceHasReceipts,
+                        $"Invoice {invoice.Number} has receipts linked. Unlink them before cancelling it.");
                 }
 
                 var now = time.GetUtcNow();
@@ -399,10 +405,10 @@ public static class InvoicesEndpoints
                 return Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
             })
             .Produces<InvoiceResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         invoices.MapGet("/{id:guid}/pdf", async (
                 Guid id,
@@ -448,7 +454,7 @@ public static class InvoicesEndpoints
             })
             .Produces<byte[]>(StatusCodes.Status200OK, "application/pdf")
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         invoices.MapPost("/{id:guid}/receipts/{receiptId:guid}", async (
                 Guid id,
@@ -485,7 +491,7 @@ public static class InvoicesEndpoints
                     var linked = await InvoicePayments.ReceiptsAsync(database, user.Id, [invoice.Id], cancellationToken);
                     if (InvoicePayments.LinkConflict(invoice, receipt, InvoicePayments.PaidMinor(linked[invoice.Id])) is { } conflict)
                     {
-                        return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: conflict);
+                        return Problems.Create(StatusCodes.Status409Conflict, conflict.Code, conflict.Message);
                     }
 
                     // Linking is the owner's word on what the money is, so it reviews an imported receipt
@@ -504,8 +510,8 @@ public static class InvoicesEndpoints
             })
             .Produces<InvoiceResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         invoices.MapDelete("/{id:guid}/receipts/{receiptId:guid}", async (
                 Guid id,
@@ -551,7 +557,7 @@ public static class InvoicesEndpoints
             })
             .Produces<InvoiceResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         // Newest first: unlinked and in the invoice's currency, whatever its client, since a client may pay
         // through an intermediary; the picker warns when the payer is not the invoice's client.
@@ -599,7 +605,7 @@ public static class InvoicesEndpoints
             })
             .Produces<ReceiptOption[]>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         // Closest due date first: issued, not paid and in the receipt's currency, whatever the client, since a
         // client may pay through an intermediary; the screen warns when the payer is not the invoice's client.
@@ -648,7 +654,7 @@ public static class InvoicesEndpoints
             })
             .Produces<InvoiceSummary[]>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         // Only the review queue: a suggestion is for a receipt the owner has not yet settled, and
         // confirming the receipt unlinked is what dismisses it for good.
@@ -741,23 +747,26 @@ public static class InvoicesEndpoints
         database.InvoicingPaymentDetails.AsNoTracking()
             .FirstOrDefaultAsync(row => row.UserId == userId && row.Currency == currency, cancellationToken);
 
-    private static IResult Missing(Guid id) => Results.Problem(
-        statusCode: StatusCodes.Status404NotFound,
-        title: $"No invoice exists with id {id}.");
+    private static IResult Missing(Guid id) => Problems.Create(
+        StatusCodes.Status404NotFound,
+        ProblemCodes.InvoiceNotFound,
+        $"No invoice exists with id {id}.");
 
-    private static IResult UnknownClient() => Results.ValidationProblem(
-        new Dictionary<string, string[]> { ["clientId"] = ["clientId must be one of your clients."] });
+    private static IResult UnknownClient() =>
+        Problems.Validation("clientId", ProblemCodes.UnknownClient, "clientId must be one of your clients.");
 
-    private static IResult Frozen(Invoice invoice, string verb) => Results.Problem(
-        statusCode: StatusCodes.Status409Conflict,
-        title: $"Invoice {invoice.Number} is {invoice.Status.ToString().ToLowerInvariant()} and cannot be {verb}."
+    private static IResult Frozen(Invoice invoice, string code, string verb) => Problems.Create(
+        StatusCodes.Status409Conflict,
+        code,
+        $"Invoice {invoice.Number} is {invoice.Status.ToString().ToLowerInvariant()} and cannot be {verb}."
             + (invoice.Status == InvoiceStatus.Issued ? " Cancel it with a reason, or duplicate it as a new draft." : string.Empty));
 
     private static string ClientName(Invoice invoice) => invoice.Snapshot?.Buyer.Name ?? invoice.Client?.Name ?? string.Empty;
 
-    private static IResult MissingReceipt(Guid id) => Results.Problem(
-        statusCode: StatusCodes.Status404NotFound,
-        title: $"No transaction exists with id {id}.");
+    private static IResult MissingReceipt(Guid id) => Problems.Create(
+        StatusCodes.Status404NotFound,
+        ProblemCodes.TransactionNotFound,
+        $"No transaction exists with id {id}.");
 
     private static async Task<InvoiceResponse> ResponseAsync(
         AppDbContext database, Invoice invoice, TimeProvider time, CancellationToken cancellationToken)

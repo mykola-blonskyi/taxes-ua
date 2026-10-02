@@ -39,7 +39,7 @@ public static class DeclarationsEndpoints
             })
             .Produces<DeclarationResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         declarations.MapPost("/files", async (
                 int year,
@@ -70,9 +70,10 @@ public static class DeclarationsEndpoints
 
                 if (!declaration!.Response.Readiness.Ready || declaration.Figures is not { } figures)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: $"The declaration for quarter {quarter} of {year} is not ready, so it has no file.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.DeclarationNotReady,
+                        $"The declaration for quarter {quarter} of {year} is not ready, so it has no file.");
                 }
 
                 // Ready means no detail is missing, so both rows and every value the header reads exist.
@@ -93,10 +94,13 @@ public static class DeclarationsEndpoints
 
                 if (errors.Length > 0)
                 {
-                    return Results.ValidationProblem(
-                        new Dictionary<string, string[]> { ["file"] = errors },
-                        statusCode: StatusCodes.Status422UnprocessableEntity,
-                        title: "The declaration's data cannot produce files that pass the F0103309 and F0133109 schemas.");
+                    var schemaErrors = new FieldErrors();
+                    schemaErrors.SetAll("file", [.. errors.Select(error => new Issue(ProblemCodes.DeclarationSchemaInvalid, error))]);
+
+                    return Problems.Validation(
+                        schemaErrors,
+                        "The declaration's data cannot produce files that pass the F0103309 and F0133109 schemas.",
+                        StatusCodes.Status422UnprocessableEntity);
                 }
 
                 var file = await database.DeclarationFiles.FindAsync([user.Id, year, quarter, request.Type], cancellationToken);
@@ -117,9 +121,9 @@ public static class DeclarationsEndpoints
             })
             .Produces<DeclarationFileResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesValidationProblem(StatusCodes.Status422UnprocessableEntity);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict)
+            .ProducesFieldProblem(StatusCodes.Status422UnprocessableEntity);
 
         declarations.MapGet("/files/{type}", (
                 int year,
@@ -134,7 +138,7 @@ public static class DeclarationsEndpoints
             .Produces<byte[]>(StatusCodes.Status200OK, "application/xml")
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         declarations.MapGet("/files/{type}/annex", (
                 int year,
@@ -149,7 +153,7 @@ public static class DeclarationsEndpoints
             .Produces<byte[]>(StatusCodes.Status200OK, "application/xml")
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         declarations.MapPut("/filing", async (
                 int year,
@@ -175,7 +179,7 @@ public static class DeclarationsEndpoints
 
                 if (ValidateFiling(year, quarter, request.FiledOn, time.TodayInKyiv()) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var now = time.GetUtcNow();
@@ -196,9 +200,9 @@ public static class DeclarationsEndpoints
                 return Results.Ok(ToFiling(filing, incomeKop));
             })
             .Produces<DeclarationFilingResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         declarations.MapDelete("/filing", async (
                 int year,
@@ -268,10 +272,10 @@ public static class DeclarationsEndpoints
 
         if (IsStale(file.GeneratedAt, year, quarter))
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status409Conflict,
-                title: $"The file for quarter {quarter} of {year} was generated before the quarter ended, so its figures are incomplete. Generate it again.",
-                extensions: new Dictionary<string, object?> { ["reason"] = "GeneratedBeforeQuarterEnded" });
+            return Problems.Create(
+                StatusCodes.Status409Conflict,
+                ProblemCodes.FileGeneratedBeforeQuarterEnd,
+                $"The file for quarter {quarter} of {year} was generated before the quarter ended, so its figures are incomplete. Generate it again.");
         }
 
         var disposition = new ContentDispositionHeaderValue("attachment");
@@ -283,8 +287,8 @@ public static class DeclarationsEndpoints
     }
 
     /// <summary>
-    /// The 409 for a quarter whose last day has not passed in Kyiv, or null once it has. <c>reason</c> is
-    /// a closed code and <c>availableFrom</c> the first day the file can be built.
+    /// The 409 for a quarter whose last day has not passed in Kyiv, or null once it has. The
+    /// <c>availableFrom</c> extension is the first day the file can be built.
     /// </summary>
     private static IResult? QuarterNotEnded(int year, int quarter, DateOnly today)
     {
@@ -294,14 +298,11 @@ public static class DeclarationsEndpoints
         }
 
         var from = Declaration.FileAvailableFrom(year, quarter);
-        return Results.Problem(
-            statusCode: StatusCodes.Status409Conflict,
-            title: $"Quarter {quarter} of {year} has not ended, so its declaration file can be built from {from:yyyy-MM-dd}.",
-            extensions: new Dictionary<string, object?>
-            {
-                ["reason"] = "QuarterNotEnded",
-                ["availableFrom"] = from.ToString("yyyy-MM-dd"),
-            });
+        return Problems.Create(
+            StatusCodes.Status409Conflict,
+            ProblemCodes.QuarterNotEnded,
+            $"Quarter {quarter} of {year} has not ended, so its declaration file can be built from {from:yyyy-MM-dd}.",
+            extensions: new Dictionary<string, object?> { ["availableFrom"] = from.ToString("yyyy-MM-dd") });
     }
 
     /// <summary>
@@ -312,27 +313,30 @@ public static class DeclarationsEndpoints
         !Declaration.FileAvailable(year, quarter, generatedAt.KyivDate());
 
     /// <summary>The rules a filed mark meets that need no stored row, shared with the restore.</summary>
-    internal static Dictionary<string, string[]>? ValidateFiling(int year, int quarter, DateOnly filedOn, DateOnly today)
+    internal static FieldErrors? ValidateFiling(int year, int quarter, DateOnly filedOn, DateOnly today)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
         if (year is < 1 or > 9998)
         {
-            errors["year"] = ["year must be 1 to 9998."];
+            errors.Set("year", ProblemCodes.InvalidValue, "year must be 1 to 9998.");
         }
         else if (quarter is < 1 or > 4)
         {
-            errors["quarter"] = ["quarter must be 1 to 4."];
+            errors.Set("quarter", ProblemCodes.InvalidValue, "quarter must be 1 to 4.");
         }
         else if (filedOn <= QuarterEnd(year, quarter))
         {
-            errors["filedOn"] = [$"filedOn must be after the quarter's end, {QuarterEnd(year, quarter):yyyy-MM-dd}."];
+            errors.Set(
+                "filedOn",
+                ProblemCodes.FiledBeforeQuarterEnd,
+                $"filedOn must be after the quarter's end, {QuarterEnd(year, quarter):yyyy-MM-dd}.");
         }
         else if (filedOn > today)
         {
-            errors["filedOn"] = ["filedOn must not be later than today."];
+            errors.Set("filedOn", ProblemCodes.DateInFuture, "filedOn must not be later than today.");
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
     /// <summary>
@@ -472,15 +476,17 @@ public static class DeclarationsEndpoints
     {
         if (loaded is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: $"No tax year configuration exists for {year}.");
+            return Problems.Create(
+                StatusCodes.Status404NotFound,
+                ProblemCodes.TaxYearNotFound,
+                $"No tax year configuration exists for {year}.");
         }
 
         return loaded.Viewed.Settings.FopRegistrationDate is { } registered && QuarterEnd(year, quarter) < registered
-            ? Results.Problem(
-                statusCode: StatusCodes.Status404NotFound,
-                title: $"Quarter {quarter} of {year} ends before the FOP registration date, so it has no declaration.")
+            ? Problems.Create(
+                StatusCodes.Status404NotFound,
+                ProblemCodes.QuarterBeforeRegistration,
+                $"Quarter {quarter} of {year} ends before the FOP registration date, so it has no declaration.")
             : null;
     }
 

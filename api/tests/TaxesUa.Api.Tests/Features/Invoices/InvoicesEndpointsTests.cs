@@ -178,6 +178,9 @@ public sealed class InvoicesEndpointsTests(ApiFixture fixture) : IClassFixture<A
         Assert.Contains("dueDate", errors.Keys);
         Assert.Contains("lines[0].descriptionEn", errors.Keys);
         Assert.Contains("lines[0].quantityThousandths", errors.Keys);
+        Assert.Equal(["due_date_before_issue_date"], errors["dueDate"]);
+        Assert.Equal(["control_character"], errors["lines[0].descriptionEn"]);
+        Assert.Equal(["quantity_out_of_range"], errors["lines[0].quantityThousandths"]);
 
         var unknown = await owner.PostAsJsonAsync("/api/invoices", Request(Guid.NewGuid(), new DateOnly(2045, 5, 1)), Json);
         Assert.Contains("clientId", (await Errors(unknown)).Keys);
@@ -204,7 +207,8 @@ public sealed class InvoicesEndpointsTests(ApiFixture fixture) : IClassFixture<A
                 "invoicing.sellerNameUk", "lines[0].descriptionUk",
             },
             errors.Keys.Order());
-        Assert.Equal("Payment details for USD are missing.", errors["invoicing.paymentDetails.USD"].Single());
+        Assert.Equal("payment_details_missing", errors["invoicing.paymentDetails.USD"].Single());
+        Assert.Equal("detail_missing", errors["invoicing.rnokpp"].Single());
         var after = await owner.GetFromJsonAsync<InvoiceResponse>($"/api/invoices/{draft.Id}", Json);
         Assert.Equal(InvoiceStatus.Draft, after!.Status);
         Assert.Null(after.Number);
@@ -539,10 +543,11 @@ public sealed class InvoicesEndpointsTests(ApiFixture fixture) : IClassFixture<A
         return InvoicePdfTests.Text(pdf);
     }
 
+    // The code of each rejected field, which is what the web reads (ADR-028).
     private static async Task<Dictionary<string, string[]>> Errors(HttpResponseMessage response)
     {
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        return problem.RootElement.GetProperty("errors").Deserialize<Dictionary<string, string[]>>()!;
+        return problem.RootElement.GetProperty("errorCodes").Deserialize<Dictionary<string, string[]>>()!;
     }
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useInvoicingDetails,
   useSaveInvoicingDetails,
@@ -11,14 +12,12 @@ import {
   type MonobankPrefillResponse,
 } from "@/data/invoicing/useInvoicing";
 import { useMonobankConnection } from "@/data/monobank/useMonobank";
-import { parseIbanProblem } from "@/shared/lib/ibanProblem";
 import { Button } from "@/shared/ui/button";
 import { TextAreaField, TextField } from "@/shared/ui/fields";
 import { InvoicingMonobankPrefill } from "./InvoicingMonobankPrefill";
 import { InvoicingSignature } from "./InvoicingSignature";
 import {
   currencies,
-  errorKey,
   sentCurrencies,
   toFormState,
   toRequest,
@@ -49,27 +48,17 @@ export function InvoicingForm() {
 function InvoicingFormBody({ details }: { details: InvoicingDetailsResponse }) {
   const t = useTranslations("settings");
   const tInvoicing = useTranslations("settings.invoicing");
+  const apiText = useApiErrorText();
   const save = useSaveInvoicingDetails();
   const connection = useMonobankConnection();
   const [form, setForm] = useState<FormState>(() => toFormState(details));
 
   const failure = save.error instanceof ApiError ? save.error : null;
-  const rejected = Object.keys(failure?.errors ?? {}).length > 0;
+  const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
   const sent = sentCurrencies(form);
 
   function fieldErrors(key: string): string[] | undefined {
-    return failure?.errors[key]?.map((message) => translateError(key.split(".").at(-1) ?? key, message));
-  }
-
-  function translateError(field: string, message: string): string {
-    const iban = field === "iban" ? parseIbanProblem(message) : null;
-    if (iban && iban.key !== "ibanBank") {
-      return iban.key === "ibanLength" ? tInvoicing("errors.ibanLength", { count: iban.count }) : tInvoicing(`errors.${iban.key}`);
-    }
-
-    const key = errorKey(field, message);
-
-    return key === null ? message : tInvoicing(`errors.${key}`);
+    return failure?.fieldCodes[key]?.map(apiText.ofCode);
   }
 
   function paymentErrors(currency: Currency, field: keyof PaymentForm): string[] | undefined {
@@ -276,7 +265,7 @@ function InvoicingFormBody({ details }: { details: InvoicingDetailsResponse }) {
       <InvoicingSignature details={details} />
 
       {failure && !rejected ? (
-        <p className="text-sm text-destructive">{`${t("saveFailed")} ${failure.message}`}</p>
+        <p className="text-sm text-destructive">{apiText.withReason(t("saveFailed"), failure)}</p>
       ) : null}
       {save.isSuccess ? <p className="text-sm text-muted-foreground">{tInvoicing("saved")}</p> : null}
 

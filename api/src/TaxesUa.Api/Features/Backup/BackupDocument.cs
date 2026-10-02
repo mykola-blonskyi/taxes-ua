@@ -179,10 +179,12 @@ internal sealed record BackupDocument(
         }
     }
 
-    public static string? ExternalIdError(string externalId) => externalId switch
+    public static Issue? ExternalIdError(string externalId) => externalId switch
     {
-        { Length: 0 or > MaxExternalIdLength } => $"externalId must be 1 to {MaxExternalIdLength} characters.",
-        _ when TextRules.HasDisallowedControlChar(externalId) => "externalId must not contain a control character.",
+        { Length: 0 or > MaxExternalIdLength } =>
+            new Issue(ProblemCodes.TooLong, $"externalId must be 1 to {MaxExternalIdLength} characters."),
+        _ when TextRules.HasDisallowedControlChar(externalId) =>
+            new Issue(ProblemCodes.ControlCharacter, "externalId must not contain a control character."),
         _ => null,
     };
 
@@ -402,7 +404,7 @@ internal sealed record BackupDocument(
     /// endpoints run. The refund links need the receipts' stored state, so
     /// <see cref="TransactionsEndpoints.ValidateLinksAsync"/> checks them after the rows are written.
     /// </summary>
-    public Dictionary<string, string[]>? Validate(DateOnly today, DateTimeOffset now)
+    public FieldErrors? Validate(DateOnly today, DateTimeOffset now)
     {
         // RespectNullableAnnotations checks members, not array elements.
         if (Array.Exists(Clients, row => row is null)
@@ -417,19 +419,22 @@ internal sealed record BackupDocument(
             || Array.Exists(TreasuryAccounts, row => row is null)
             || Array.Exists(NotificationChannels, row => row is null))
         {
-            return new()
-            {
-                ["file"] = ["clients, transactions, budgetPayments, bankAccounts, importBatches, budgetPaymentCandidates, invoices, declarationFilings, declarationFiles, treasuryAccounts and notificationChannels must not contain null."],
-            };
+            var nulls = new FieldErrors();
+            nulls.Set(
+                "file",
+                ProblemCodes.NullItem,
+                "clients, transactions, budgetPayments, bankAccounts, importBatches, budgetPaymentCandidates, invoices, declarationFilings, declarationFiles, treasuryAccounts and notificationChannels must not contain null.");
+
+            return nulls;
         }
 
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
 
-        void Merge(string prefix, Dictionary<string, string[]>? found)
+        void Merge(string prefix, FieldErrors? found)
         {
-            foreach (var (key, messages) in found ?? [])
+            if (found is not null)
             {
-                errors[$"{prefix}.{key}"] = messages;
+                errors.Merge(prefix, found);
             }
         }
 
@@ -449,9 +454,9 @@ internal sealed record BackupDocument(
             Merge("declarationDetails", DeclarationDetailsEndpoints.Validate(declaration.ToRequest()));
         }
 
-        if (ReserveJar?.Error(now) is var (jarKey, jarMessage))
+        if (ReserveJar?.Error(now) is var (jarKey, jarIssue))
         {
-            errors[$"reserveJar.{jarKey}"] = [jarMessage];
+            errors.Set($"reserveJar.{jarKey}", jarIssue);
         }
 
         var filedQuarters = new HashSet<(int, int)>();
@@ -461,7 +466,10 @@ internal sealed record BackupDocument(
             Merge($"declarationFilings[{i}]", DeclarationsEndpoints.ValidateFiling(filing.Year, filing.Quarter, filing.FiledOn, today));
             if (!filedQuarters.Add((filing.Year, filing.Quarter)))
             {
-                errors[$"declarationFilings[{i}].quarter"] = ["A quarter is marked filed at most once."];
+                errors.Set(
+                    $"declarationFilings[{i}].quarter",
+                    ProblemCodes.DuplicateValue,
+                    "A quarter is marked filed at most once.");
             }
         }
 
@@ -469,13 +477,16 @@ internal sealed record BackupDocument(
         for (var i = 0; i < DeclarationFiles.Length; i++)
         {
             var file = DeclarationFiles[i];
-            if (file.Error() is var (fileKey, fileMessage))
+            if (file.Error() is var (fileKey, fileIssue))
             {
-                errors[$"declarationFiles[{i}].{fileKey}"] = [fileMessage];
+                errors.Set($"declarationFiles[{i}].{fileKey}", fileIssue);
             }
             else if (!preparedFiles.Add((file.Year, file.Quarter, file.Type)))
             {
-                errors[$"declarationFiles[{i}].type"] = ["A quarter keeps at most one file per declaration type."];
+                errors.Set(
+                    $"declarationFiles[{i}].type",
+                    ProblemCodes.DuplicateValue,
+                    "A quarter keeps at most one file per declaration type.");
             }
         }
 
@@ -488,13 +499,19 @@ internal sealed record BackupDocument(
             var name = normalized.Name;
             if (client.Id == Guid.Empty || !clientNames.TryAdd(client.Id, name))
             {
-                errors[$"clients[{i}].id"] = ["id must be a non-empty id no other client has."];
+                errors.Set(
+                    $"clients[{i}].id",
+                    ProblemCodes.IdNotUnique,
+                    "id must be a non-empty id no other client has.");
             }
 
             Merge($"clients[{i}]", ClientRules.Validate(normalized));
             if (name.Length > 0 && !seenNames.Add(name))
             {
-                errors[$"clients[{i}].name"] = ["name must differ from every other client's."];
+                errors.Set(
+                    $"clients[{i}].name",
+                    ProblemCodes.DuplicateValue,
+                    "name must differ from every other client's.");
             }
         }
 
@@ -506,7 +523,10 @@ internal sealed record BackupDocument(
             var invoice = Invoices[i];
             if (invoice.Id == Guid.Empty || !invoiceIds.Add(invoice.Id))
             {
-                errors[$"invoices[{i}].id"] = ["id must be a non-empty id no other invoice has."];
+                errors.Set(
+                    $"invoices[{i}].id",
+                    ProblemCodes.IdNotUnique,
+                    "id must be a non-empty id no other invoice has.");
             }
             else
             {
@@ -515,13 +535,19 @@ internal sealed record BackupDocument(
 
             if (!clientNames.ContainsKey(invoice.ClientId))
             {
-                errors[$"invoices[{i}].clientId"] = ["clientId must be the id of one of the clients."];
+                errors.Set(
+                    $"invoices[{i}].clientId",
+                    ProblemCodes.UnknownReference,
+                    "clientId must be the id of one of the clients.");
             }
 
             Merge($"invoices[{i}]", invoice.Validate());
             if (invoice is { NumberYear: { } year, NumberSequence: { } sequence } && !invoiceNumbers.Add((year, sequence)))
             {
-                errors[$"invoices[{i}].numberSequence"] = ["The invoice number must differ from every other invoice's."];
+                errors.Set(
+                    $"invoices[{i}].numberSequence",
+                    ProblemCodes.DuplicateValue,
+                    "The invoice number must differ from every other invoice's.");
             }
         }
 
@@ -532,16 +558,22 @@ internal sealed record BackupDocument(
             var account = BankAccounts[i];
             if (account.Id == Guid.Empty || !accountIds.Add(account.Id))
             {
-                errors[$"bankAccounts[{i}].id"] = ["id must be a non-empty id no other bank account has."];
+                errors.Set(
+                    $"bankAccounts[{i}].id",
+                    ProblemCodes.IdNotUnique,
+                    "id must be a non-empty id no other bank account has.");
             }
 
-            if (account.Error() is var (key, message))
+            if (account.Error() is var (key, issue))
             {
-                errors[$"bankAccounts[{i}].{key}"] = [message];
+                errors.Set($"bankAccounts[{i}].{key}", issue);
             }
             else if (!accountKeys.Add((account.Bank, account.ExternalId)))
             {
-                errors[$"bankAccounts[{i}].externalId"] = ["externalId must differ from every other account's of the same bank."];
+                errors.Set(
+                    $"bankAccounts[{i}].externalId",
+                    ProblemCodes.DuplicateValue,
+                    "externalId must differ from every other account's of the same bank.");
             }
         }
 
@@ -551,16 +583,25 @@ internal sealed record BackupDocument(
             var batch = ImportBatches[i];
             if (batch.Id == Guid.Empty || !batchAccounts.TryAdd(batch.Id, batch.BankAccountId))
             {
-                errors[$"importBatches[{i}].id"] = ["id must be a non-empty id no other import batch has."];
+                errors.Set(
+                    $"importBatches[{i}].id",
+                    ProblemCodes.IdNotUnique,
+                    "id must be a non-empty id no other import batch has.");
             }
 
             if (!accountIds.Contains(batch.BankAccountId))
             {
-                errors[$"importBatches[{i}].bankAccountId"] = ["bankAccountId must be the id of one of the bank accounts."];
+                errors.Set(
+                    $"importBatches[{i}].bankAccountId",
+                    ProblemCodes.UnknownReference,
+                    "bankAccountId must be the id of one of the bank accounts.");
             }
             else if (batch.ImportedCount < 0 || batch.SkippedCount < 0 || batch.From > batch.To)
             {
-                errors[$"importBatches[{i}].importedCount"] = ["An import batch has a window from before to and counts of zero or more."];
+                errors.Set(
+                    $"importBatches[{i}].importedCount",
+                    ProblemCodes.InvalidValue,
+                    "An import batch has a window from before to and counts of zero or more.");
             }
         }
 
@@ -577,49 +618,60 @@ internal sealed record BackupDocument(
             var at = $"transactions[{i}]";
             if (transaction.Id == Guid.Empty || !seenTransactionIds.Add(transaction.Id))
             {
-                errors[$"{at}.id"] = ["id must be a non-empty id no other transaction has."];
+                errors.Set($"{at}.id", ProblemCodes.IdNotUnique, "id must be a non-empty id no other transaction has.");
             }
 
             string? clientName = null;
             if (transaction.ClientId is { } clientId && !clientNames.TryGetValue(clientId, out clientName))
             {
-                errors[$"{at}.clientId"] = ["clientId must be the id of one of the clients."];
+                errors.Set(
+                    $"{at}.clientId",
+                    ProblemCodes.UnknownReference,
+                    "clientId must be the id of one of the clients.");
             }
 
             if (transaction.RefundsTransactionId is { } receiptId && !transactionIds.Contains(receiptId))
             {
-                errors[$"{at}.refundsTransactionId"] =
-                    ["refundsTransactionId must be the id of one of the transactions."];
+                errors.Set(
+                    $"{at}.refundsTransactionId",
+                    ProblemCodes.UnknownReference,
+                    "refundsTransactionId must be the id of one of the transactions.");
             }
             else if (transaction.RefundsTransactionId is { } linkedId && !receiptIds.Contains(linkedId))
             {
                 // ValidateLinksAsync says the same after the insert, but two refunds linking each other
                 // are a cycle EF cannot order, so the insert itself would fail first.
-                errors[$"{at}.refundsTransactionId"] = ["refundsTransactionId must be the id of an Income transaction."];
+                errors.Set(
+                    $"{at}.refundsTransactionId",
+                    ProblemCodes.UnknownReference,
+                    "refundsTransactionId must be the id of an Income transaction.");
             }
 
             if (transaction.InvoiceError(invoicesById) is { } invoiceError)
             {
-                errors[$"{at}.invoiceId"] = [invoiceError];
+                errors.Set($"{at}.invoiceId", invoiceError);
             }
 
-            if (transaction.ImportError(accountIds, batchAccounts) is var (importKey, importMessage))
+            if (transaction.ImportError(accountIds, batchAccounts) is var (importKey, importIssue))
             {
-                errors[$"{at}.{importKey}"] = [importMessage];
+                errors.Set($"{at}.{importKey}", importIssue);
             }
             else if (transaction is { BankAccountId: { } accountId, ExternalId: { } externalId }
                 && !externalIds.Add((accountId, externalId)))
             {
-                errors[$"{at}.externalId"] = ["externalId must differ from every other transaction's of the same bank account."];
+                errors.Set(
+                    $"{at}.externalId",
+                    ProblemCodes.DuplicateValue,
+                    "externalId must differ from every other transaction's of the same bank account.");
             }
 
             var request = transaction.ToRequest(clientName);
             var requestErrors = TransactionsEndpoints.Validate(request, TransactionsEndpoints.Normalize(request), today);
             Merge(at, requestErrors);
 
-            if (requestErrors is null && transaction.RateError() is var (key, message))
+            if (requestErrors is null && transaction.RateError() is var (key, issue))
             {
-                errors[$"{at}.{key}"] = [message];
+                errors.Set($"{at}.{key}", issue);
             }
         }
 
@@ -630,17 +682,23 @@ internal sealed record BackupDocument(
             var payment = BudgetPayments[i];
             if (payment.Id == Guid.Empty || !seenPaymentIds.Add(payment.Id))
             {
-                errors[$"budgetPayments[{i}].id"] = ["id must be a non-empty id no other payment has."];
+                errors.Set(
+                    $"budgetPayments[{i}].id",
+                    ProblemCodes.IdNotUnique,
+                    "id must be a non-empty id no other payment has.");
             }
 
-            if (payment.OperationError(accountIds) is var (key, message))
+            if (payment.OperationError(accountIds) is var (key, issue))
             {
-                errors[$"budgetPayments[{i}].{key}"] = [message];
+                errors.Set($"budgetPayments[{i}].{key}", issue);
             }
             else if (payment is { BankAccountId: { } accountId, ExternalId: { } externalId }
                 && !paymentOperations.Add((accountId, externalId)))
             {
-                errors[$"budgetPayments[{i}].externalId"] = ["externalId must differ from every other payment's of the same bank account."];
+                errors.Set(
+                    $"budgetPayments[{i}].externalId",
+                    ProblemCodes.DuplicateValue,
+                    "externalId must differ from every other payment's of the same bank account.");
             }
 
             Merge($"budgetPayments[{i}]", PaymentsEndpoints.Validate(payment.ToRequest()));
@@ -653,16 +711,22 @@ internal sealed record BackupDocument(
             var candidate = BudgetPaymentCandidates[i];
             if (candidate.Id == Guid.Empty || !seenCandidateIds.Add(candidate.Id))
             {
-                errors[$"budgetPaymentCandidates[{i}].id"] = ["id must be a non-empty id no other candidate has."];
+                errors.Set(
+                    $"budgetPaymentCandidates[{i}].id",
+                    ProblemCodes.IdNotUnique,
+                    "id must be a non-empty id no other candidate has.");
             }
 
-            if (candidate.Error(accountIds) is var (key, message))
+            if (candidate.Error(accountIds) is var (key, issue))
             {
-                errors[$"budgetPaymentCandidates[{i}].{key}"] = [message];
+                errors.Set($"budgetPaymentCandidates[{i}].{key}", issue);
             }
             else if (!candidateOperations.Add((candidate.BankAccountId, candidate.ExternalId)))
             {
-                errors[$"budgetPaymentCandidates[{i}].externalId"] = ["externalId must differ from every other candidate's of the same bank account."];
+                errors.Set(
+                    $"budgetPaymentCandidates[{i}].externalId",
+                    ProblemCodes.DuplicateValue,
+                    "externalId must differ from every other candidate's of the same bank account.");
             }
         }
 
@@ -672,12 +736,15 @@ internal sealed record BackupDocument(
             var account = TreasuryAccounts[i];
             if (!treasuryKinds.Add(account.Kind))
             {
-                errors[$"treasuryAccounts[{i}].kind"] = ["kind must differ from every other Treasury account's."];
+                errors.Set(
+                    $"treasuryAccounts[{i}].kind",
+                    ProblemCodes.DuplicateValue,
+                    "kind must differ from every other Treasury account's.");
             }
 
-            if (account.Error() is var (accountKey, accountMessage))
+            if (account.Error() is var (accountKey, accountIssue))
             {
-                errors[$"treasuryAccounts[{i}].{accountKey}"] = [accountMessage];
+                errors.Set($"treasuryAccounts[{i}].{accountKey}", accountIssue);
             }
         }
 
@@ -687,16 +754,19 @@ internal sealed record BackupDocument(
             var channel = NotificationChannels[i];
             if (!channelKinds.Add(channel.Kind))
             {
-                errors[$"notificationChannels[{i}].kind"] = ["kind must differ from every other channel's."];
+                errors.Set(
+                    $"notificationChannels[{i}].kind",
+                    ProblemCodes.DuplicateValue,
+                    "kind must differ from every other channel's.");
             }
 
-            if (channel.Error() is var (channelKey, channelMessage))
+            if (channel.Error() is var (channelKey, channelIssue))
             {
-                errors[$"notificationChannels[{i}].{channelKey}"] = [channelMessage];
+                errors.Set($"notificationChannels[{i}].{channelKey}", channelIssue);
             }
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 }
 
@@ -735,27 +805,27 @@ internal sealed record TreasuryAccountBackup(
 
     // The column limits and check constraints of TreasuryAccountConfiguration, and the rules manual entry
     // and learning apply, so a restored account is one the endpoints could have produced.
-    public (string Key, string Message)? Error()
+    public (string Key, Issue Issue)? Error()
     {
         if (!Enum.IsDefined(Kind))
         {
-            return ("kind", "kind must be SingleTax, MilitaryLevy or Esv.");
+            return ("kind", new Issue(ProblemCodes.InvalidValue, "kind must be SingleTax, MilitaryLevy or Esv."));
         }
 
         var manual = new object?[] { ManualIban, ManualRecipientName, ManualRecipientCode, ManualUpdatedAt };
         if (manual.Any(value => value is null) && manual.Any(value => value is not null))
         {
-            return ("manualIban", "The manual account needs an IBAN, name, code and time together.");
+            return ("manualIban", new Issue(ProblemCodes.InconsistentFields, "The manual account needs an IBAN, name, code and time together."));
         }
 
         if (ManualIban is null && ManualValidUntil is not null)
         {
-            return ("manualValidUntil", "manualValidUntil needs a manual account.");
+            return ("manualValidUntil", new Issue(ProblemCodes.InconsistentFields, "manualValidUntil needs a manual account."));
         }
 
         if (LearnedIban is null && LearnedValidUntil is not null)
         {
-            return ("learnedValidUntil", "learnedValidUntil needs a learned account.");
+            return ("learnedValidUntil", new Issue(ProblemCodes.InconsistentFields, "learnedValidUntil needs a learned account."));
         }
 
         if (TreasuryAccountsEndpoints.ValidUntilProblem(LearnedValidUntil) is { } learnedEndProblem)
@@ -769,47 +839,47 @@ internal sealed record TreasuryAccountBackup(
             if (TreasuryAccountsEndpoints.Normalize(request) != request
                 || TreasuryAccountsEndpoints.Validate(request) is not null)
             {
-                return ("manualIban", "The manual account must be a valid Treasury account in capitals without spaces, with a trimmed name and an 8-digit code.");
+                return ("manualIban", new Issue(ProblemCodes.InvalidValue, "The manual account must be a valid Treasury account in capitals without spaces, with a trimmed name and an 8-digit code."));
             }
         }
 
         var learned = new object?[] { LearnedIban, LearnedExternalId, LearnedPaidOn, LearnedAt };
         if (learned.Any(value => value is null) && learned.Any(value => value is not null))
         {
-            return ("learnedIban", "The learned account needs an IBAN, operation, date and time together.");
+            return ("learnedIban", new Issue(ProblemCodes.InconsistentFields, "The learned account needs an IBAN, operation, date and time together."));
         }
 
         if (LearnedIban is not null)
         {
             if (!TreasuryPayment.IsTreasury(LearnedIban) || TreasuryPayment.Normalize(LearnedIban) != LearnedIban)
             {
-                return ("learnedIban", "learnedIban must be a Treasury IBAN in capitals without spaces.");
+                return ("learnedIban", new Issue(ProblemCodes.InvalidValue, "learnedIban must be a Treasury IBAN in capitals without spaces."));
             }
 
             if (BackupDocument.ExternalIdError(LearnedExternalId!) is { } externalError)
             {
-                return ("learnedExternalId", externalError.Replace("externalId", "learnedExternalId", StringComparison.Ordinal));
+                return ("learnedExternalId", externalError with { Message = externalError.Message.Replace("externalId", "learnedExternalId", StringComparison.Ordinal) });
             }
 
             if (LearnedRecipientName is { Length: > TransactionsEndpoints.MaxClientNameLength }
                 || (LearnedRecipientName is not null && TextRules.HasDisallowedControlChar(LearnedRecipientName)))
             {
-                return ("learnedRecipientName", "learnedRecipientName must be short text without a control character.");
+                return ("learnedRecipientName", new Issue(ProblemCodes.ControlCharacter, "learnedRecipientName must be short text without a control character."));
             }
 
             if (LearnedRecipientCode is not null
                 && (LearnedRecipientCode.Length != TreasuryAccountsEndpoints.RecipientCodeLength || !LearnedRecipientCode.All(char.IsAsciiDigit)))
             {
-                return ("learnedRecipientCode", "learnedRecipientCode must be 8 digits.");
+                return ("learnedRecipientCode", new Issue(ProblemCodes.InvalidValue, "learnedRecipientCode must be 8 digits."));
             }
         }
         else if (LearnedRecipientName is not null || LearnedRecipientCode is not null)
         {
-            return ("learnedIban", "Learned recipient details need a learned IBAN.");
+            return ("learnedIban", new Issue(ProblemCodes.InconsistentFields, "Learned recipient details need a learned IBAN."));
         }
 
         return NoticeAt is not null && (ManualIban is null || LearnedIban is null)
-            ? ("noticeAt", "A notice needs both a manual and a learned account.")
+            ? ("noticeAt", new Issue(ProblemCodes.InconsistentFields, "A notice needs both a manual and a learned account."))
             : null;
     }
 
@@ -992,33 +1062,33 @@ internal sealed record TransactionBackup(
         row.UpdatedAt);
 
     // An imported row names its account and its bank operation together; a typed row names neither.
-    public (string Key, string Message)? ImportError(
+    public (string Key, Issue Issue)? ImportError(
         IReadOnlySet<Guid> accountIds, IReadOnlyDictionary<Guid, Guid> batchAccounts) => this switch
     {
         { BankAccountId: null, ExternalId: not null } or { BankAccountId: not null, ExternalId: null } =>
-            ("externalId", "bankAccountId and externalId are set together or not at all."),
+            ("externalId", new Issue(ProblemCodes.InconsistentFields, "bankAccountId and externalId are set together or not at all.")),
         // A dismissed row is a deleted import kept so a sync does not record it again; it counts nowhere,
         // so a refund link it held would slip past every refund check.
         { ReviewStatus: ReviewStatus.Dismissed, ExternalId: null } =>
-            ("reviewStatus", "reviewStatus must not be Dismissed on a transaction without an externalId."),
+            ("reviewStatus", new Issue(ProblemCodes.InconsistentFields, "reviewStatus must not be Dismissed on a transaction without an externalId.")),
         { ReviewStatus: ReviewStatus.Dismissed, RefundsTransactionId: not null } =>
-            ("refundsTransactionId", "refundsTransactionId must be null on a dismissed transaction."),
+            ("refundsTransactionId", new Issue(ProblemCodes.InconsistentFields, "refundsTransactionId must be null on a dismissed transaction.")),
         { BankAccountId: { } accountId } when !accountIds.Contains(accountId) =>
-            ("bankAccountId", "bankAccountId must be the id of one of the bank accounts."),
+            ("bankAccountId", new Issue(ProblemCodes.UnknownReference, "bankAccountId must be the id of one of the bank accounts.")),
         { ExternalId: { } externalId } when BackupDocument.ExternalIdError(externalId) is { } error => ("externalId", error),
         { Counterparty: { Length: > TransactionsEndpoints.MaxClientNameLength } } =>
-            ("counterparty", $"counterparty must not exceed {TransactionsEndpoints.MaxClientNameLength} characters."),
+            ("counterparty", new Issue(ProblemCodes.TooLong, $"counterparty must not exceed {TransactionsEndpoints.MaxClientNameLength} characters.")),
         { Counterparty: { } counterparty } when TextRules.HasDisallowedControlChar(counterparty) =>
-            ("counterparty", "counterparty must not contain a control character."),
+            ("counterparty", new Issue(ProblemCodes.ControlCharacter, "counterparty must not contain a control character.")),
         { ImportBatchId: { } batchId } when !batchAccounts.TryGetValue(batchId, out var batchAccount)
             || batchAccount != BankAccountId =>
-            ("importBatchId", "importBatchId must be the id of an import batch of the same bank account."),
+            ("importBatchId", new Issue(ProblemCodes.UnknownReference, "importBatchId must be the id of an import batch of the same bank account.")),
         _ => null,
     };
 
     // What linking leaves on a receipt (Rule 14): a confirmed Income row in the currency of an issued
     // invoice, carrying its number. Linking confirms an imported receipt, and dismissing one unlinks it.
-    public string? InvoiceError(IReadOnlyDictionary<Guid, InvoiceBackup> invoices)
+    public Issue? InvoiceError(IReadOnlyDictionary<Guid, InvoiceBackup> invoices)
     {
         if (InvoiceId is not { } invoiceId)
         {
@@ -1027,7 +1097,7 @@ internal sealed record TransactionBackup(
 
         if (!invoices.TryGetValue(invoiceId, out var invoice))
         {
-            return "invoiceId must be the id of one of the invoices.";
+            return new Issue(ProblemCodes.UnknownReference, "invoiceId must be the id of one of the invoices.");
         }
 
         var number = invoice is { NumberYear: { } year, NumberSequence: { } sequence }
@@ -1037,10 +1107,15 @@ internal sealed record TransactionBackup(
         return this switch
         {
             _ when Kind != TransactionKind.Income || ReviewStatus != ReviewStatus.Confirmed =>
-                "invoiceId is set only on a confirmed Income transaction.",
-            _ when invoice.Status != InvoiceStatus.Issued => "invoiceId must be the id of an issued invoice.",
-            _ when Currency != invoice.Currency => $"A receipt paying a {invoice.Currency} invoice must be in {invoice.Currency}.",
-            _ when InvoiceNumber?.Trim() != number => "invoiceNumber must be the number of the invoice the receipt pays.",
+                new Issue(ProblemCodes.InconsistentFields, "invoiceId is set only on a confirmed Income transaction."),
+            _ when invoice.Status != InvoiceStatus.Issued =>
+                new Issue(ProblemCodes.InconsistentFields, "invoiceId must be the id of an issued invoice."),
+            _ when Currency != invoice.Currency =>
+                new Issue(
+                    ProblemCodes.CurrencyMismatch,
+                    $"A receipt paying a {invoice.Currency} invoice must be in {invoice.Currency}."),
+            _ when InvoiceNumber?.Trim() != number =>
+                new Issue(ProblemCodes.InconsistentFields, "invoiceNumber must be the number of the invoice the receipt pays."),
             _ => null,
         };
     }
@@ -1061,23 +1136,23 @@ internal sealed record TransactionBackup(
 
     // The endpoints never ask for these, since they derive the rate fields themselves (Rule 2); a file
     // hands them over, so they are checked against the combinations the endpoints can produce.
-    public (string Key, string Message)? RateError() => this switch
+    public (string Key, Issue Issue)? RateError() => this switch
     {
         { Currency: Currency.UAH } when RateE4 != Money.RateScale || RateDate is not null || RateSource is not null =>
-            ("rateE4", $"A UAH transaction has rateE4 {Money.RateScale}, no rateDate and no rateSource."),
+            ("rateE4", new Issue(ProblemCodes.InvalidValue, $"A UAH transaction has rateE4 {Money.RateScale}, no rateDate and no rateSource.")),
         { Currency: not Currency.UAH, RateSource: null } =>
-            ("rateSource", "A foreign-currency transaction needs a rateSource."),
+            ("rateSource", new Issue(ProblemCodes.InconsistentFields, "A foreign-currency transaction needs a rateSource.")),
         { RateSource: Fx.RateSource.Nbu, RateDate: null } =>
-            ("rateDate", "An NBU rate needs the rateDate NBU published it for."),
+            ("rateDate", new Issue(ProblemCodes.InvalidValue, "An NBU rate needs the rateDate NBU published it for.")),
         { RateSource: Fx.RateSource.Nbu, RateDate: { } rateDate } when rateDate > ValueDate
             || rateDate.Year < TransactionsEndpoints.MinYear =>
-            ("rateDate", "An NBU rateDate must be on or before valueDate."),
+            ("rateDate", new Issue(ProblemCodes.InvalidValue, "An NBU rateDate must be on or before valueDate.")),
         { RateSource: Fx.RateSource.Manual, RateDate: not null } =>
-            ("rateDate", "A manual rate has no rateDate."),
+            ("rateDate", new Issue(ProblemCodes.InvalidValue, "A manual rate has no rateDate.")),
         _ when TransactionsEndpoints.ExceedsUahBound(AmountMinor, RateE4) =>
-            ("amountMinor", "amountMinor at this rate exceeds the largest hryvnia amount."),
+            ("amountMinor", new Issue(ProblemCodes.InvalidValue, "amountMinor at this rate exceeds the largest hryvnia amount.")),
         _ when AmountUahKop != Money.ToUahKop(AmountMinor, RateE4) =>
-            ("amountUahKop", $"amountUahKop must be {Money.ToUahKop(AmountMinor, RateE4)}, amountMinor at rateE4."),
+            ("amountUahKop", new Issue(ProblemCodes.InvalidValue, $"amountUahKop must be {Money.ToUahKop(AmountMinor, RateE4)}, amountMinor at rateE4.")),
         _ => null,
     };
 
@@ -1144,12 +1219,12 @@ internal sealed record BudgetPaymentBackup(
         row.CreatedAt,
         row.UpdatedAt);
 
-    public (string Key, string Message)? OperationError(IReadOnlySet<Guid> accountIds) => this switch
+    public (string Key, Issue Issue)? OperationError(IReadOnlySet<Guid> accountIds) => this switch
     {
         { BankAccountId: null, ExternalId: not null } or { BankAccountId: not null, ExternalId: null } =>
-            ("externalId", "bankAccountId and externalId are set together or not at all."),
+            ("externalId", new Issue(ProblemCodes.InconsistentFields, "bankAccountId and externalId are set together or not at all.")),
         { BankAccountId: { } accountId } when !accountIds.Contains(accountId) =>
-            ("bankAccountId", "bankAccountId must be the id of one of the bank accounts."),
+            ("bankAccountId", new Issue(ProblemCodes.UnknownReference, "bankAccountId must be the id of one of the bank accounts.")),
         { ExternalId: { } externalId } when BackupDocument.ExternalIdError(externalId) is { } error => ("externalId", error),
         _ => null,
     };
@@ -1204,26 +1279,26 @@ internal sealed record PaymentCandidateBackup(
 
     // The column limits and check constraints of BudgetPaymentCandidateConfiguration, and the IBAN form
     // the sync stores, so the next candidate to the same account still finds what the owner confirmed.
-    public (string Key, string Message)? Error(IReadOnlySet<Guid> accountIds) => this switch
+    public (string Key, Issue Issue)? Error(IReadOnlySet<Guid> accountIds) => this switch
     {
         _ when !accountIds.Contains(BankAccountId) =>
-            ("bankAccountId", "bankAccountId must be the id of one of the bank accounts."),
+            ("bankAccountId", new Issue(ProblemCodes.UnknownReference, "bankAccountId must be the id of one of the bank accounts.")),
         _ when BackupDocument.ExternalIdError(ExternalId) is { } error => ("externalId", error),
-        { AmountKop: <= 0 } => ("amountKop", "amountKop must be positive."),
+        { AmountKop: <= 0 } => ("amountKop", new Issue(ProblemCodes.NotPositive, "amountKop must be positive.")),
         _ when !TreasuryPayment.IsTreasury(CounterIban) || TreasuryPayment.Normalize(CounterIban) != CounterIban =>
-            ("counterIban", "counterIban must be a Treasury IBAN in capitals without spaces."),
+            ("counterIban", new Issue(ProblemCodes.InvalidValue, "counterIban must be a Treasury IBAN in capitals without spaces.")),
         { CounterName.Length: > TransactionsEndpoints.MaxClientNameLength } =>
-            ("counterName", $"counterName must not exceed {TransactionsEndpoints.MaxClientNameLength} characters."),
+            ("counterName", new Issue(ProblemCodes.TooLong, $"counterName must not exceed {TransactionsEndpoints.MaxClientNameLength} characters.")),
         { CounterEdrpou.Length: > TreasuryAccountsEndpoints.MaxEdrpouLength } =>
-            ("counterEdrpou", $"counterEdrpou must not exceed {TreasuryAccountsEndpoints.MaxEdrpouLength} characters."),
+            ("counterEdrpou", new Issue(ProblemCodes.TooLong, $"counterEdrpou must not exceed {TreasuryAccountsEndpoints.MaxEdrpouLength} characters.")),
         _ when CounterEdrpou is not null && TextRules.HasDisallowedControlChar(CounterEdrpou) =>
-            ("counterEdrpou", "counterEdrpou must not contain a control character."),
+            ("counterEdrpou", new Issue(ProblemCodes.ControlCharacter, "counterEdrpou must not contain a control character.")),
         { Purpose.Length: > TransactionsEndpoints.MaxDescriptionLength } =>
-            ("purpose", $"purpose must not exceed {TransactionsEndpoints.MaxDescriptionLength} characters."),
+            ("purpose", new Issue(ProblemCodes.TooLong, $"purpose must not exceed {TransactionsEndpoints.MaxDescriptionLength} characters.")),
         _ when new[] { CounterName, Purpose }.Any(text => text is not null && TextRules.HasDisallowedControlChar(text)) =>
-            ("purpose", "counterName and purpose must not contain a control character."),
+            ("purpose", new Issue(ProblemCodes.ControlCharacter, "counterName and purpose must not contain a control character.")),
         { Status: CandidateStatus.Confirmed, ConfirmedKind: null } or { Status: not CandidateStatus.Confirmed, ConfirmedKind: not null } =>
-            ("confirmedKind", "confirmedKind is set exactly when status is Confirmed."),
+            ("confirmedKind", new Issue(ProblemCodes.InconsistentFields, "confirmedKind is set exactly when status is Confirmed.")),
         _ => null,
     };
 
@@ -1272,15 +1347,15 @@ internal sealed record BankAccountBackup(
         row.CreatedAt);
 
     // The column limits of BankAccountConfiguration, and #75's rule that only a FOP account is followed.
-    public (string Key, string Message)? Error() => this switch
+    public (string Key, Issue Issue)? Error() => this switch
     {
-        { ExternalId: { Length: 0 or > 200 } } => ("externalId", "externalId must be 1 to 200 characters."),
-        { Name.Length: > 200 } => ("name", "name must not exceed 200 characters."),
-        { Iban.Length: > 34 } => ("iban", "iban must not exceed 34 characters."),
-        { AccountType.Length: > 50 } => ("accountType", "accountType must not exceed 50 characters."),
+        { ExternalId: { Length: 0 or > 200 } } => ("externalId", new Issue(ProblemCodes.TooLong, "externalId must be 1 to 200 characters.")),
+        { Name.Length: > 200 } => ("name", new Issue(ProblemCodes.TooLong, "name must not exceed 200 characters.")),
+        { Iban.Length: > 34 } => ("iban", new Issue(ProblemCodes.TooLong, "iban must not exceed 34 characters.")),
+        { AccountType.Length: > 50 } => ("accountType", new Issue(ProblemCodes.TooLong, "accountType must not exceed 50 characters.")),
         _ when new[] { ExternalId, Name, Iban, AccountType }.Any(TextRules.HasDisallowedControlChar) =>
-            ("externalId", "A bank account's text must not contain a control character."),
-        { IsActive: true, IsFop: false } => ("isActive", "Only a FOP account can be followed."),
+            ("externalId", new Issue(ProblemCodes.ControlCharacter, "A bank account's text must not contain a control character.")),
+        { IsActive: true, IsFop: false } => ("isActive", new Issue(ProblemCodes.InconsistentFields, "Only a FOP account can be followed.")),
         _ => null,
     };
 
@@ -1393,20 +1468,23 @@ internal sealed record InvoicingDetailsBackup(
         PaymentDetails));
 
     // The endpoint's own rules, plus the image: it travels as text, so it is decoded and checked again.
-    public Dictionary<string, string[]>? Validate()
+    public FieldErrors? Validate()
     {
         if (Array.Exists(PaymentDetails, row => row is null))
         {
-            return new() { ["paymentDetails"] = ["paymentDetails must not contain null."] };
+            var nulls = new FieldErrors();
+            nulls.Set("paymentDetails", ProblemCodes.NullItem, "paymentDetails must not contain null.");
+
+            return nulls;
         }
 
-        var errors = InvoicingEndpoints.Validate(ToRequest()) ?? [];
+        var errors = InvoicingEndpoints.Validate(ToRequest()) ?? new FieldErrors();
         if (SignatureError(SignatureImage, SignatureContentType) is { } error)
         {
-            errors["signatureImage"] = [error];
+            errors.Set("signatureImage", error);
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
     public (InvoicingDetails Details, InvoicingPaymentDetails[] Payments) ToEntities(string userId)
@@ -1438,11 +1516,11 @@ internal sealed record InvoicingDetailsBackup(
     }
 
     /// <summary>The image rule the signature upload enforces, for an image that travelled as base64.</summary>
-    internal static string? SignatureError(string? base64, string? contentType)
+    internal static Issue? SignatureError(string? base64, string? contentType)
     {
         if ((base64 is null) != (contentType is null))
         {
-            return "signatureImage and signatureContentType are set together or not at all.";
+            return new Issue(ProblemCodes.InconsistentFields, "signatureImage and signatureContentType are set together or not at all.");
         }
 
         if (base64 is null)
@@ -1452,7 +1530,7 @@ internal sealed record InvoicingDetailsBackup(
 
         return DecodeSignature(base64) is { } image
             ? InvoicingEndpoints.SignatureError(image, contentType!)
-            : "signatureImage must be base64.";
+            : new Issue(ProblemCodes.SignatureNotAnImage, "signatureImage must be base64.");
     }
 }
 
@@ -1500,11 +1578,14 @@ internal sealed record InvoiceBackup(
         invoice.UpdatedAt);
 
     /// <summary>The draft rules on the lines and dates, and the rules each status sets for the rest.</summary>
-    public Dictionary<string, string[]>? Validate()
+    public FieldErrors? Validate()
     {
         if (Array.Exists(Lines, line => line is null))
         {
-            return new() { ["lines"] = ["lines must not contain null."] };
+            var nulls = new FieldErrors();
+            nulls.Set("lines", ProblemCodes.NullItem, "lines must not contain null.");
+
+            return nulls;
         }
 
         var request = new InvoiceRequest(
@@ -1514,43 +1595,55 @@ internal sealed record InvoiceBackup(
             Currency,
             [.. Lines.Select(line => new InvoiceLineRequest(
                 line.DescriptionEn, line.DescriptionUk, line.Unit, line.QuantityThousandths, line.RateMinor))]);
-        var errors = InvoiceRules.Validate(request.Normalized()) ?? [];
+        var errors = InvoiceRules.Validate(request.Normalized()) ?? new FieldErrors();
 
         var numbered = NumberYear is not null || NumberSequence is not null;
         switch (Status)
         {
             case InvoiceStatus.Draft when numbered || Snapshot is not null || SignatureImage is not null
                 || CancelReason is not null || IssuedAt is not null || CancelledAt is not null:
-                errors["status"] = ["A draft has no number, snapshot, signature, cancel reason or issue and cancel times."];
+                errors.Set(
+                    "status",
+                    ProblemCodes.InconsistentFields,
+                    "A draft has no number, snapshot, signature, cancel reason or issue and cancel times.");
                 break;
             case InvoiceStatus.Issued or InvoiceStatus.Cancelled when NumberYear != IssueDate.Year
                 || NumberSequence is not > 0 || Snapshot is null || IssuedAt is null:
-                errors["status"] = ["An issued invoice has a number of its issue date's year, a snapshot and an issue time."];
+                errors.Set(
+                    "status",
+                    ProblemCodes.InconsistentFields,
+                    "An issued invoice has a number of its issue date's year, a snapshot and an issue time.");
                 break;
             case InvoiceStatus.Issued when CancelReason is not null || CancelledAt is not null:
-                errors["cancelReason"] = ["Only a cancelled invoice has a cancel reason."];
+                errors.Set(
+                    "cancelReason",
+                    ProblemCodes.InconsistentFields,
+                    "Only a cancelled invoice has a cancel reason.");
                 break;
             case InvoiceStatus.Cancelled when CancelledAt is null || InvoiceRules.CancelReasonError(CancelReason?.Trim() ?? string.Empty) is not null:
-                errors["cancelReason"] = [InvoiceRules.CancelReasonError(CancelReason?.Trim() ?? string.Empty) ?? "A cancelled invoice has a cancel time."];
+                errors.Set(
+                    "cancelReason",
+                    InvoiceRules.CancelReasonError(CancelReason?.Trim() ?? string.Empty)
+                    ?? new Issue(ProblemCodes.InconsistentFields, "A cancelled invoice has a cancel time."));
                 break;
         }
 
         if (!Enum.IsDefined(Status))
         {
-            errors["status"] = ["status must be Draft, Issued or Cancelled."];
+            errors.Set("status", ProblemCodes.InvalidValue, "status must be Draft, Issued or Cancelled.");
         }
 
         if (Snapshot is not null && SnapshotTexts(Snapshot).Any(text => text is not null && TextRules.HasDisallowedControlChar(text)))
         {
-            errors["snapshot"] = ["The snapshot must not contain a control character."];
+            errors.Set("snapshot", ProblemCodes.ControlCharacter, "The snapshot must not contain a control character.");
         }
 
         if (InvoicingDetailsBackup.SignatureError(SignatureImage, SignatureContentType) is { } signatureError)
         {
-            errors["signatureImage"] = [signatureError];
+            errors.Set("signatureImage", signatureError);
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
     public Invoice ToEntity(string userId, Func<Guid, Guid> id)
@@ -1674,25 +1767,25 @@ internal sealed record DeclarationFileBackup(
     public static DeclarationFileBackup From(DeclarationFile file) => new(
         file.Year, file.Quarter, file.Type, file.FileName, file.Content, file.AnnexFileName, file.AnnexContent, file.GeneratedAt);
 
-    public (string Key, string Message)? Error() => this switch
+    public (string Key, Issue Issue)? Error() => this switch
     {
-        { Year: < 1 or > 9998 } => ("year", "year must be 1 to 9998."),
-        { Quarter: < 1 or > 4 } => ("quarter", "quarter must be 1 to 4."),
-        { FileName.Length: 0 or > MaxFileNameLength } => ("fileName", $"fileName must be 1 to {MaxFileNameLength} characters."),
-        _ when TextRules.HasDisallowedControlChar(FileName) => ("fileName", "fileName must not contain a control character."),
-        _ when !FileName.EndsWith(".xml", StringComparison.Ordinal) => ("fileName", "fileName must end with .xml."),
-        { Content.Length: 0 or > MaxContentBytes } => ("content", $"content must be 1 to {MaxContentBytes} bytes."),
+        { Year: < 1 or > 9998 } => ("year", new Issue(ProblemCodes.OutOfRange, "year must be 1 to 9998.")),
+        { Quarter: < 1 or > 4 } => ("quarter", new Issue(ProblemCodes.OutOfRange, "quarter must be 1 to 4.")),
+        { FileName.Length: 0 or > MaxFileNameLength } => ("fileName", new Issue(ProblemCodes.TooLong, $"fileName must be 1 to {MaxFileNameLength} characters.")),
+        _ when TextRules.HasDisallowedControlChar(FileName) => ("fileName", new Issue(ProblemCodes.ControlCharacter, "fileName must not contain a control character.")),
+        _ when !FileName.EndsWith(".xml", StringComparison.Ordinal) => ("fileName", new Issue(ProblemCodes.InvalidValue, "fileName must end with .xml.")),
+        { Content.Length: 0 or > MaxContentBytes } => ("content", new Issue(ProblemCodes.TooLong, $"content must be 1 to {MaxContentBytes} bytes.")),
         _ => AnnexError(),
     };
 
-    private (string Key, string Message)? AnnexError() => (AnnexFileName, AnnexContent) switch
+    private (string Key, Issue Issue)? AnnexError() => (AnnexFileName, AnnexContent) switch
     {
         (null, null) => null,
-        (null, _) or (_, null) => ("annexFileName", "annexFileName and annexContent must both be set or both be null."),
-        ({ Length: 0 or > MaxFileNameLength }, _) => ("annexFileName", $"annexFileName must be 1 to {MaxFileNameLength} characters."),
-        (var name, _) when TextRules.HasDisallowedControlChar(name) => ("annexFileName", "annexFileName must not contain a control character."),
-        (var name, _) when !name.EndsWith(".xml", StringComparison.Ordinal) => ("annexFileName", "annexFileName must end with .xml."),
-        (_, { Length: 0 or > MaxContentBytes }) => ("annexContent", $"annexContent must be 1 to {MaxContentBytes} bytes."),
+        (null, _) or (_, null) => ("annexFileName", new Issue(ProblemCodes.InconsistentFields, "annexFileName and annexContent must both be set or both be null.")),
+        ({ Length: 0 or > MaxFileNameLength }, _) => ("annexFileName", new Issue(ProblemCodes.TooLong, $"annexFileName must be 1 to {MaxFileNameLength} characters.")),
+        (var name, _) when TextRules.HasDisallowedControlChar(name) => ("annexFileName", new Issue(ProblemCodes.ControlCharacter, "annexFileName must not contain a control character.")),
+        (var name, _) when !name.EndsWith(".xml", StringComparison.Ordinal) => ("annexFileName", new Issue(ProblemCodes.InvalidValue, "annexFileName must end with .xml.")),
+        (_, { Length: 0 or > MaxContentBytes }) => ("annexContent", new Issue(ProblemCodes.TooLong, $"annexContent must be 1 to {MaxContentBytes} bytes.")),
         _ => null,
     };
 

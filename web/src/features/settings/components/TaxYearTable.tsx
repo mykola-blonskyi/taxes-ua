@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useCloneTaxYear,
   useSaveTaxYear,
@@ -143,6 +144,7 @@ export function TaxYearTable() {
 
 function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
   const t = useTranslations("settings");
+  const apiText = useApiErrorText();
   const tYears = useTranslations("settings.taxYears");
   const locale = useLocale();
   const year = Number(taxYear.year);
@@ -154,7 +156,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
   const [form, setForm] = useState<FormState>(() => toFormState(taxYear));
 
   const saveFailure = saveTaxYear.error instanceof ApiError ? saveTaxYear.error : null;
-  const fieldErrors = saveFailure?.errors;
+  const fieldErrors = apiText.fieldTexts(saveFailure);
   const actionFailure = [verifyTaxYear.error, cloneTaxYear.error].find(
     (error) => error instanceof ApiError,
   );
@@ -372,11 +374,11 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           <Button asChild variant="outline" size="sm">
             <Link href={`/history?entity=TaxYearConfig&id=${year}`}>{tYears("history")}</Link>
           </Button>
-          {saveFailure && Object.keys(saveFailure.errors).length === 0 ? (
-            <p className="text-xs text-destructive">{`${t("saveFailed")} ${saveFailure.message}`}</p>
+          {saveFailure && Object.keys(saveFailure.fieldCodes).length === 0 ? (
+            <p className="text-xs text-destructive">{apiText.withReason(t("saveFailed"), saveFailure)}</p>
           ) : null}
           {actionFailure ? (
-            <p className="text-xs text-destructive">{`${t("saveFailed")} ${actionFailure.message}`}</p>
+            <p className="text-xs text-destructive">{apiText.withReason(t("saveFailed"), actionFailure)}</p>
           ) : null}
         </div>
       </td>

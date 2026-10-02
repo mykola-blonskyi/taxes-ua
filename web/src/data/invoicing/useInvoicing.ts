@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "@/data/api/client";
+import { api, readProblem } from "@/data/api/client";
 import type { components } from "@/data/api/schema";
 import { declarationDetailsQueryKey } from "@/data/declarations/useDeclarations";
 import { periodsQueryKey } from "@/data/periods/usePeriods";
@@ -60,9 +60,7 @@ export function useUploadSignature() {
       });
 
       if (!response.ok) {
-        const problem = (await response.json().catch(() => null)) as { title?: string } | null;
-
-        throw new ApiError(response.status, problem?.title);
+        throw await readProblem(response);
       }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: invoicingQueryKey }),

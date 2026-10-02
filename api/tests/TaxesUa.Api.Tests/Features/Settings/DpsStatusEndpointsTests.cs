@@ -113,7 +113,7 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
 
         Assert.True(response.StatusCode == HttpStatusCode.BadRequest, label);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.True(problem.RootElement.GetProperty("errors").TryGetProperty(errorKey, out _), $"{label}: no error under {errorKey}");
+        ProblemAssert.Rejects(problem.RootElement, errorKey);
         Assert.Equal(new DpsStatusResponse(null, null, false, false, false, Registered, Registered, Deadline), await Get(owner));
     }
 
@@ -127,9 +127,8 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var errors = problem.RootElement.GetProperty("errors");
-        Assert.True(errors.TryGetProperty("group3Since", out _));
-        Assert.True(errors.TryGetProperty("confirmation.confirmedOn", out _));
+        ProblemAssert.FieldIs(problem.RootElement, "group3Since", "registration_date_required");
+        ProblemAssert.FieldIs(problem.RootElement, "confirmation.confirmedOn", "registration_date_required");
         Assert.Equal(new DpsStatusResponse(null, null, false, false, false, null, null, null), await Get(owner));
     }
 
@@ -259,7 +258,7 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
 
         Assert.Equal(HttpStatusCode.BadRequest, moved.StatusCode);
         using var problem = JsonDocument.Parse(await moved.Content.ReadAsStringAsync());
-        Assert.True(problem.RootElement.GetProperty("errors").TryGetProperty("fopRegistrationDate", out _));
+        ProblemAssert.FieldIs(problem.RootElement, "fopRegistrationDate", "registration_date_after_group3_receipt");
         Assert.Equal(Registered, (await Get(owner)).FopRegistrationDate);
     }
 

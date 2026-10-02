@@ -72,15 +72,22 @@ internal static class InvoicePayments
     /// Why <paramref name="receipt"/> cannot pay <paramref name="invoice"/>, or null when it can. Both
     /// already belong to the owner; a receipt already paying this invoice is the caller's no-op.
     /// </summary>
-    public static string? LinkConflict(Invoice invoice, Transaction receipt, long paidMinor) => (invoice, receipt) switch
+    public static Issue? LinkConflict(Invoice invoice, Transaction receipt, long paidMinor) => (invoice, receipt) switch
     {
-        (_, { Kind: not TransactionKind.Income }) => "Only a receipt (Income) can pay an invoice.",
-        (_, { InvoiceId: not null }) => "The receipt already pays another invoice. Unlink it there first.",
-        ({ Status: InvoiceStatus.Draft }, _) => "A draft cannot be paid. Issue it first.",
-        ({ Status: InvoiceStatus.Cancelled }, _) => $"Invoice {invoice.Number} is cancelled and cannot be paid.",
+        (_, { Kind: not TransactionKind.Income }) =>
+            new Issue(ProblemCodes.OnlyReceiptsPay, "Only a receipt (Income) can pay an invoice."),
+        (_, { InvoiceId: not null }) =>
+            new Issue(ProblemCodes.ReceiptAlreadyLinked, "The receipt already pays another invoice. Unlink it there first."),
+        ({ Status: InvoiceStatus.Draft }, _) =>
+            new Issue(ProblemCodes.InvoiceIsDraft, "A draft cannot be paid. Issue it first."),
+        ({ Status: InvoiceStatus.Cancelled }, _) =>
+            new Issue(ProblemCodes.InvoiceCancelled, $"Invoice {invoice.Number} is cancelled and cannot be paid."),
         _ when receipt.Currency != invoice.Currency =>
-            $"Invoice {invoice.Number} is in {invoice.Currency}; a {receipt.Currency} receipt cannot pay it.",
-        _ when paidMinor >= invoice.TotalMinor => $"Invoice {invoice.Number} is already paid.",
+            new Issue(
+                ProblemCodes.CurrencyMismatch,
+                $"Invoice {invoice.Number} is in {invoice.Currency}; a {receipt.Currency} receipt cannot pay it."),
+        _ when paidMinor >= invoice.TotalMinor =>
+            new Issue(ProblemCodes.InvoiceAlreadyPaid, $"Invoice {invoice.Number} is already paid."),
         _ => null,
     };
 }

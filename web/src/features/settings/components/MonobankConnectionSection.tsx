@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useDisconnectMonobank,
   useMonobankConnection,
@@ -43,6 +44,7 @@ function MonobankConnectionBody({
   connection: MonobankConnectionResponse;
 }) {
   const t = useTranslations("settings.monobank");
+  const apiText = useApiErrorText();
   const locale = useLocale();
   const saveToken = useSaveMonobankToken();
   const saveAccounts = useSaveFollowedMonobankAccounts();
@@ -52,12 +54,7 @@ function MonobankConnectionBody({
   const [editingToken, setEditingToken] = useState(!connection.connected);
 
   const tokenFailure = saveToken.error instanceof ApiError ? saveToken.error : null;
-  // The one server field error an owner routinely meets, so the only one this app translates.
-  const tokenErrorKeys: Record<string, string> = {
-    "Token is required.": t("tokenRequired"),
-    "monobank rejected this token.": t("tokenInvalid"),
-  };
-  const tokenErrors = tokenFailure?.errors.token?.map((message) => tokenErrorKeys[message] ?? message);
+  const tokenErrors = tokenFailure?.fieldCodes.token?.map(apiText.ofCode);
   const accountsFailure = saveAccounts.error instanceof ApiError ? saveAccounts.error : null;
   const disconnectFailure = disconnect.error instanceof ApiError ? disconnect.error : null;
   const syncFailure = sync.error instanceof ApiError ? sync.error : null;
@@ -130,7 +127,7 @@ function MonobankConnectionBody({
         </p>
       ) : null}
 
-      {disconnectFailure ? <p className="text-sm text-destructive">{`${t("disconnectFailed")} ${disconnectFailure.message}`}</p> : null}
+      {disconnectFailure ? <p className="text-sm text-destructive">{apiText.withReason(t("disconnectFailed"), disconnectFailure)}</p> : null}
 
       {editingToken ? (
         <form className="flex flex-col gap-2" onSubmit={submitToken}>
@@ -186,9 +183,9 @@ function MonobankConnectionBody({
 
       {connection.webhook && !tokenRejected ? <WebhookStatus webhook={connection.webhook} /> : null}
 
-      {syncFailure ? <p className="text-sm text-destructive">{`${t("syncFailed")} ${syncFailure.message}`}</p> : null}
+      {syncFailure ? <p className="text-sm text-destructive">{apiText.withReason(t("syncFailed"), syncFailure)}</p> : null}
 
-      {accountsFailure ? <p className="text-sm text-destructive">{`${t("accountsSaveFailed")} ${accountsFailure.message}`}</p> : null}
+      {accountsFailure ? <p className="text-sm text-destructive">{apiText.withReason(t("accountsSaveFailed"), accountsFailure)}</p> : null}
 
       {connection.accounts.length > 0 ? (
         <div className="flex flex-col gap-3">

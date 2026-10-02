@@ -15,7 +15,7 @@ const choices: JarChoice[] = [
   { id: "jar-2", title: "Відпустка", balanceKop: 90_000 },
 ];
 
-const rejected = "monobank rejected the token; replace it first.";
+const rejected = "monobank_token_rejected";
 
 function renderSection(canRead: boolean, locale: "uk" | "ru" = "uk") {
   return renderApp(<ReserveJarSection canRead={canRead} />, { locale });
@@ -107,7 +107,7 @@ describe("ReserveJarSection", () => {
   });
 
   it("keeps the remove button when the bank rejected the token and says to connect again", async () => {
-    stubFetch({ [stored]: { jar }, [refresh]: reply(409, { title: rejected }) });
+    stubFetch({ [stored]: { jar }, [refresh]: reply(409, { code: rejected }) });
     const { user } = renderSection(true);
 
     await user.click(await screen.findByRole("button", { name: "Оновити баланс" }));
@@ -117,7 +117,7 @@ describe("ReserveJarSection", () => {
   });
 
   it("gives the rejected token its own message when listing jars, apart from a missing jar", async () => {
-    stubFetch({ [stored]: { jar: null }, [jars]: reply(409, { title: rejected }) });
+    stubFetch({ [stored]: { jar: null }, [jars]: reply(409, { code: rejected }) });
     const { user } = renderSection(true);
 
     await user.click(await screen.findByRole("button", { name: "Показати мої скарбнички" }));
@@ -127,7 +127,7 @@ describe("ReserveJarSection", () => {
   });
 
   it("asks to choose again when the jar is gone, and to wait when the bank limits calls", async () => {
-    stubFetch({ [stored]: { jar }, [refresh]: reply(409, { title: "No such jar" }) });
+    stubFetch({ [stored]: { jar }, [refresh]: reply(409, { code: "reserve_jar_not_offered" }) });
     const { user } = renderSection(true);
 
     await user.click(await screen.findByRole("button", { name: "Оновити баланс" }));
@@ -136,7 +136,7 @@ describe("ReserveJarSection", () => {
   });
 
   it("asks to wait a minute after a 429", async () => {
-    stubFetch({ [stored]: { jar: null }, [jars]: reply(429, { title: "Too many" }, { "retry-after": "60" }) });
+    stubFetch({ [stored]: { jar: null }, [jars]: reply(429, { code: "monobank_rate_limited" }, { "retry-after": "60" }) });
     const { user } = renderSection(true);
 
     await user.click(await screen.findByRole("button", { name: "Показати мої скарбнички" }));
@@ -145,7 +145,7 @@ describe("ReserveJarSection", () => {
   });
 
   it("shows the stored jar and the rejected token in Russian", async () => {
-    stubFetch({ [stored]: { jar }, [refresh]: reply(409, { title: rejected }) });
+    stubFetch({ [stored]: { jar }, [refresh]: reply(409, { code: rejected }) });
     const { user } = renderSection(true, "ru");
 
     expect(await screen.findByText("Податки: 400,00 ₴")).toBeVisible();

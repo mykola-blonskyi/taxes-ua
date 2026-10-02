@@ -67,9 +67,10 @@ public static class NotificationsEndpoints
                 var identity = await client.GetMeAsync(cancellationToken);
                 if (!identity.IsOk)
                 {
-                    return Results.Problem(
-                        title: "Telegram is temporarily unavailable.",
-                        statusCode: StatusCodes.Status502BadGateway);
+                    return Problems.Create(
+                        StatusCodes.Status502BadGateway,
+                        ProblemCodes.TelegramUnavailable,
+                        "Telegram is temporarily unavailable.");
                 }
 
                 var (code, expiresAt) = await linking.IssueAsync(user.Id, cancellationToken);
@@ -79,8 +80,8 @@ public static class NotificationsEndpoints
             })
             .Produces<TelegramConnectResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status502BadGateway)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway)
+            .ProducesCodedProblem(StatusCodes.Status503ServiceUnavailable);
 
         notifications.MapPut("/channels/telegram", (
                 ChannelToggleRequest request,
@@ -93,7 +94,7 @@ public static class NotificationsEndpoints
             ToggleAsync(request, NotificationChannelKind.Telegram, users, database, bot, email, http, cancellationToken))
             .Produces<NotificationChannelResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         notifications.MapPost("/channels/telegram/test", async (
                 UserManager<ApplicationUser> users,
@@ -123,9 +124,9 @@ public static class NotificationsEndpoints
             })
             .Produces<NotificationChannelResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status502BadGateway)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict)
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway)
+            .ProducesCodedProblem(StatusCodes.Status503ServiceUnavailable);
 
         notifications.MapDelete("/channels/telegram", (
                 UserManager<ApplicationUser> users,
@@ -168,10 +169,8 @@ public static class NotificationsEndpoints
 
                 if (!EmailTexts.TryNormalize(request.Address, out var address))
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        ["address"] = ["Enter an email address such as name@example.com."],
-                    });
+                    return Problems.Validation(
+                        "address", ProblemCodes.EmailInvalid, "Enter an email address such as name@example.com.");
                 }
 
                 var channel = await FindAsync(database, user.Id, NotificationChannelKind.Email, cancellationToken);
@@ -199,10 +198,10 @@ public static class NotificationsEndpoints
                     user.Id, database, bot, email, delivery, confirmation, link, cancellationToken);
             })
             .Produces<NotificationChannelResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status502BadGateway)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway)
+            .ProducesCodedProblem(StatusCodes.Status503ServiceUnavailable);
 
         notifications.MapPost("/channels/email/resend", async (
                 UserManager<ApplicationUser> users,
@@ -229,7 +228,10 @@ public static class NotificationsEndpoints
                 var channel = await FindAsync(database, user.Id, NotificationChannelKind.Email, cancellationToken);
                 if (channel is not { ConfirmedAt: null })
                 {
-                    return Results.Problem(title: "There is no address waiting for confirmation.", statusCode: StatusCodes.Status409Conflict);
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.NoAddressPending,
+                        "There is no address waiting for confirmation.");
                 }
 
                 return await SendConfirmationAsync(
@@ -237,9 +239,9 @@ public static class NotificationsEndpoints
             })
             .Produces<NotificationChannelResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status502BadGateway)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict)
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway)
+            .ProducesCodedProblem(StatusCodes.Status503ServiceUnavailable);
 
         // The link opens settings, which asks for this call under the owner's own session: a link that
         // changes state when merely fetched would be confirmed by a mail scanner, and one that works
@@ -264,10 +266,10 @@ public static class NotificationsEndpoints
                 var (check, address) = confirmation.Read(request.Token ?? string.Empty, user.Id);
                 if (check == ConfirmationCheck.Invalid)
                 {
-                    return Results.Problem(
-                        title: "This confirmation link is not valid.",
-                        statusCode: StatusCodes.Status400BadRequest,
-                        type: "https://taxes-ua/problems/email-link-invalid");
+                    return Problems.Create(
+                        StatusCodes.Status400BadRequest,
+                        ProblemCodes.EmailLinkInvalid,
+                        "This confirmation link is not valid.");
                 }
 
                 var channel = await FindAsync(database, user.Id, NotificationChannelKind.Email, cancellationToken);
@@ -282,10 +284,10 @@ public static class NotificationsEndpoints
                     || channel is null
                     || !string.Equals(channel.Address, address, StringComparison.OrdinalIgnoreCase))
                 {
-                    return Results.Problem(
-                        title: "This confirmation link has expired or the address has since been changed.",
-                        statusCode: StatusCodes.Status410Gone,
-                        type: "https://taxes-ua/problems/email-link-expired");
+                    return Problems.Create(
+                        StatusCodes.Status410Gone,
+                        ProblemCodes.EmailLinkExpired,
+                        "This confirmation link has expired or the address has since been changed.");
                 }
 
                 channel.ConfirmedAt = time.GetUtcNow();
@@ -298,8 +300,8 @@ public static class NotificationsEndpoints
             })
             .Produces<NotificationChannelResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status410Gone);
+            .ProducesCodedProblem(StatusCodes.Status400BadRequest)
+            .ProducesCodedProblem(StatusCodes.Status410Gone);
 
         notifications.MapPut("/channels/email", (
                 ChannelToggleRequest request,
@@ -312,7 +314,7 @@ public static class NotificationsEndpoints
             ToggleAsync(request, NotificationChannelKind.Email, users, database, bot, email, http, cancellationToken))
             .Produces<NotificationChannelResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         notifications.MapPost("/channels/email/test", async (
                 UserManager<ApplicationUser> users,
@@ -343,9 +345,9 @@ public static class NotificationsEndpoints
             })
             .Produces<NotificationChannelResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status502BadGateway)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict)
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway)
+            .ProducesCodedProblem(StatusCodes.Status503ServiceUnavailable);
 
         notifications.MapDelete("/channels/email", (
                 UserManager<ApplicationUser> users,
@@ -400,12 +402,18 @@ public static class NotificationsEndpoints
         var channel = await FindAsync(database, user.Id, kind, cancellationToken);
         if (channel is null)
         {
-            return Results.Problem(title: $"Connect {kind} first.", statusCode: StatusCodes.Status409Conflict);
+            return Problems.Create(
+                StatusCodes.Status409Conflict,
+                ProblemCodes.ChannelNotConnected,
+                $"Connect {kind} first.");
         }
 
         if (request.Enabled && channel.ConfirmedAt is null)
         {
-            return Results.Problem(title: "Confirm the address first.", statusCode: StatusCodes.Status409Conflict);
+            return Problems.Create(
+                StatusCodes.Status409Conflict,
+                ProblemCodes.ChannelNotConfirmed,
+                "Confirm the address first.");
         }
 
         channel.Enabled = request.Enabled;
@@ -466,29 +474,36 @@ public static class NotificationsEndpoints
             case DeliveryOutcome.Sent:
                 return Results.Ok(await LoadAsync(database, bot, email, kind, userId, cancellationToken));
             case DeliveryOutcome.NotLinked:
-                return Results.Problem(title: $"Connect {kind} first.", statusCode: StatusCodes.Status409Conflict);
+                return Problems.Create(
+                    StatusCodes.Status409Conflict,
+                    ProblemCodes.ChannelNotConnected,
+                    $"Connect {kind} first.");
             case DeliveryOutcome.NotConfirmed:
-                return Results.Problem(title: "Confirm the address first.", statusCode: StatusCodes.Status409Conflict);
+                return Problems.Create(
+                    StatusCodes.Status409Conflict,
+                    ProblemCodes.ChannelNotConfirmed,
+                    "Confirm the address first.");
             default:
                 // The failure is on the channel; settings reads it from there.
-                return Results.Problem(
-                    title: $"{service} did not accept the message.",
-                    detail: result.Failure?.ToString(),
-                    statusCode: StatusCodes.Status502BadGateway);
+                return Problems.Create(
+                    StatusCodes.Status502BadGateway,
+                    ProblemCodes.ChannelDeliveryFailed,
+                    $"{service} did not accept the message.",
+                    detail: result.Failure?.ToString());
         }
     }
 
-    private static IResult TelegramNotConfigured() => Results.Problem(
-        title: "Telegram is not configured.",
-        detail: "TELEGRAM_BOT_TOKEN is not set on this deployment.",
-        statusCode: StatusCodes.Status503ServiceUnavailable,
-        type: "https://taxes-ua/problems/telegram-not-configured");
+    private static IResult TelegramNotConfigured() => Problems.Create(
+        StatusCodes.Status503ServiceUnavailable,
+        ProblemCodes.TelegramNotConfigured,
+        "Telegram is not configured.",
+        detail: "TELEGRAM_BOT_TOKEN is not set on this deployment.");
 
-    private static IResult EmailNotConfigured() => Results.Problem(
-        title: "Email is not configured.",
-        detail: "The SMTP settings (SMTP_HOST, SMTP_FROM and the rest) are not set, or are invalid, on this deployment.",
-        statusCode: StatusCodes.Status503ServiceUnavailable,
-        type: "https://taxes-ua/problems/email-not-configured");
+    private static IResult EmailNotConfigured() => Problems.Create(
+        StatusCodes.Status503ServiceUnavailable,
+        ProblemCodes.EmailNotConfigured,
+        "Email is not configured.",
+        detail: "The SMTP settings (SMTP_HOST, SMTP_FROM and the rest) are not set, or are invalid, on this deployment.");
 
     private static Task<NotificationChannel?> FindAsync(
         AppDbContext database, string userId, NotificationChannelKind kind, CancellationToken cancellationToken) =>

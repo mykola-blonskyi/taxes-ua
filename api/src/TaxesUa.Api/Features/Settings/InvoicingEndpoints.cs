@@ -73,16 +73,13 @@ public static partial class InvoicingEndpoints
                 // JSON null binds into the array, and the backup path refuses it the same way.
                 if (Array.Exists(request.PaymentDetails, row => row is null))
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        ["paymentDetails"] = ["paymentDetails must not contain null."],
-                    });
+                    return Problems.Validation("paymentDetails", ProblemCodes.NullItem, "paymentDetails must not contain null.");
                 }
 
                 var normalized = Normalize(request);
                 if (Validate(normalized) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -113,7 +110,7 @@ public static partial class InvoicingEndpoints
                 return Results.Ok(ToResponse(details, saved));
             })
             .Produces<InvoicingDetailsResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         invoicing.MapGet("/signature", async (
@@ -156,9 +153,10 @@ public static partial class InvoicingEndpoints
                 var contentType = http.Request.ContentType?.Split(';')[0].Trim().ToLowerInvariant();
                 if (contentType is null || !SignatureTypes.Contains(contentType))
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status415UnsupportedMediaType,
-                        title: "A signature is a PNG or JPEG image.");
+                    return Problems.Create(
+                        StatusCodes.Status415UnsupportedMediaType,
+                        ProblemCodes.SignatureTypeUnsupported,
+                        "A signature is a PNG or JPEG image.");
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -170,14 +168,15 @@ public static partial class InvoicingEndpoints
                 var body = await ReadBoundedAsync(http.Request.Body, cancellationToken);
                 if (body is null)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status413PayloadTooLarge,
-                        title: $"A signature image must not exceed {MaxSignatureBytes / 1024} KB.");
+                    return Problems.Create(
+                        StatusCodes.Status413PayloadTooLarge,
+                        ProblemCodes.SignatureTooLarge,
+                        $"A signature image must not exceed {MaxSignatureBytes / 1024} KB.");
                 }
 
                 if (SignatureError(body, contentType) is { } error)
                 {
-                    return Results.Problem(statusCode: StatusCodes.Status415UnsupportedMediaType, title: error);
+                    return Problems.Create(StatusCodes.Status415UnsupportedMediaType, error.Code, error.Message);
                 }
 
                 var details = await database.InvoicingDetails.FindAsync([user.Id], cancellationToken);
@@ -197,8 +196,8 @@ public static partial class InvoicingEndpoints
             .Accepts<byte[]>("image/png", "image/jpeg")
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
-            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+            .ProducesCodedProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesCodedProblem(StatusCodes.Status415UnsupportedMediaType);
 
         invoicing.MapDelete("/signature", async (
                 UserManager<ApplicationUser> users,
@@ -247,9 +246,10 @@ public static partial class InvoicingEndpoints
                     .FirstOrDefaultAsync(row => row.UserId == user.Id, cancellationToken);
                 if (connection is null || connection.RejectedAt is not null || !encryptor.IsConfigured)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: "monobank is not connected.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.MonobankNotConnected,
+                        "monobank is not connected.");
                 }
 
                 string token;
@@ -259,9 +259,10 @@ public static partial class InvoicingEndpoints
                 }
                 catch (CryptographicException)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: "The stored monobank token cannot be read. Connect monobank again.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.MonobankTokenUnreadable,
+                        "The stored monobank token cannot be read. Connect monobank again.");
                 }
 
                 // The accounts are the stored rows; only the name needs the bank. The reader shares its answer
@@ -272,24 +273,27 @@ public static partial class InvoicingEndpoints
                 {
                     var seconds = (int)Math.Ceiling(waiting.RetryAfter.TotalSeconds);
                     http.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status429TooManyRequests,
-                        title: "monobank allows one request a minute.",
+                    return Problems.Create(
+                        StatusCodes.Status429TooManyRequests,
+                        ProblemCodes.MonobankRateLimited,
+                        "monobank allows one request a minute.",
                         detail: $"Try again in {seconds} seconds.");
                 }
 
                 if (read is ClientInfoRead.InvalidToken)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: "monobank rejected the token. Connect monobank again.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.MonobankTokenRejected,
+                        "monobank rejected the token. Connect monobank again.");
                 }
 
                 if (read is not ClientInfoRead.Found found)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status502BadGateway,
-                        title: "monobank could not be reached for the name.");
+                    return Problems.Create(
+                        StatusCodes.Status502BadGateway,
+                        ProblemCodes.MonobankUnavailable,
+                        "monobank could not be reached for the name.");
                 }
 
                 var accounts = await database.BankAccounts.AsNoTracking()
@@ -322,9 +326,9 @@ public static partial class InvoicingEndpoints
             })
             .Produces<MonobankPrefillResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests)
-            .ProducesProblem(StatusCodes.Status502BadGateway);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict)
+            .ProducesCodedProblem(StatusCodes.Status429TooManyRequests)
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway);
 
         return routes;
     }
@@ -346,19 +350,19 @@ public static partial class InvoicingEndpoints
     };
 
     /// <summary>Validates a request already passed through <see cref="Normalize(InvoicingDetailsRequest)"/>.</summary>
-    internal static Dictionary<string, string[]>? Validate(InvoicingDetailsRequest request)
+    internal static FieldErrors? Validate(InvoicingDetailsRequest request)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
 
         void Text(string key, string value, int max, bool multiline = false)
         {
             if (value.Length > max)
             {
-                errors[key] = [$"{key} must not exceed {max} characters."];
+                errors.Set(key, ProblemCodes.TooLong, $"{key} must not exceed {max} characters.");
             }
             else if (multiline ? TextRules.HasDisallowedControlChar(value) : value.Any(char.IsControl))
             {
-                errors[key] = [$"{key} must not contain a control character."];
+                errors.Set(key, ProblemCodes.ControlCharacter, $"{key} must not contain a control character.");
             }
         }
 
@@ -366,7 +370,10 @@ public static partial class InvoicingEndpoints
         {
             if (value.Length == 0)
             {
-                errors[key] = [$"{key} is required. Reset it to the default to restore the wording."];
+                errors.Set(
+                    key,
+                    ProblemCodes.Required,
+                    $"{key} is required. Reset it to the default to restore the wording.");
             }
             else
             {
@@ -380,7 +387,7 @@ public static partial class InvoicingEndpoints
         Text("addressEn", request.AddressEn, MaxAddressLength, multiline: true);
         if (request.Rnokpp.Length > 0 && !RnokppPattern().IsMatch(request.Rnokpp))
         {
-            errors["rnokpp"] = ["rnokpp must be 10 digits."];
+            errors.Set("rnokpp", ProblemCodes.RnokppInvalid, "rnokpp must be 10 digits.");
         }
 
         Clause("acceptanceClauseEn", request.AcceptanceClauseEn);
@@ -397,17 +404,20 @@ public static partial class InvoicingEndpoints
 
             if (request.PaymentDetails.Take(i).Any(other => other.Currency == payment.Currency))
             {
-                errors[$"{at}.currency"] = ["currency must not repeat: one set of payment details per currency."];
+                errors.Set(
+                    $"{at}.currency",
+                    ProblemCodes.CurrencyDuplicate,
+                    "currency must not repeat: one set of payment details per currency.");
             }
 
             if (IbanProblem(payment.Iban) is { } ibanProblem)
             {
-                errors[$"{at}.iban"] = [ibanProblem];
+                errors.Set($"{at}.iban", ibanProblem);
             }
 
             if (payment.BeneficiaryBank.Length == 0)
             {
-                errors[$"{at}.beneficiaryBank"] = ["beneficiaryBank is required."];
+                errors.Set($"{at}.beneficiaryBank", ProblemCodes.Required, "beneficiaryBank is required.");
             }
             else
             {
@@ -416,7 +426,7 @@ public static partial class InvoicingEndpoints
 
             if (!SwiftPattern().IsMatch(payment.Swift))
             {
-                errors[$"{at}.swift"] = ["swift must be 8 or 11 letters and digits."];
+                errors.Set($"{at}.swift", ProblemCodes.SwiftInvalid, "swift must be 8 or 11 letters and digits.");
             }
 
             Text($"{at}.intermediaryBank", payment.IntermediaryBank, MaxBankFieldLength);
@@ -424,7 +434,7 @@ public static partial class InvoicingEndpoints
             Text($"{at}.intermediaryAccount", payment.IntermediaryAccount, MaxBankFieldLength);
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
     internal const int UkrainianIbanLength = 29;
@@ -433,28 +443,28 @@ public static partial class InvoicingEndpoints
     /// Why <paramref name="iban"/>, already stripped of spaces and upper-cased, is not a Ukrainian IBAN, or null
     /// when it is. Checked in the order an owner fixes them, so a 19-character account copied from a table is
     /// told its length, not that its checksum fails. With <paramref name="bankId"/>, the bank id at positions
-    /// 5 to 10 must be that one. The web maps these closed messages to translated ones, keeping the count.
+    /// 5 to 10 must be that one. The code names which check failed; the web translates by it.
     /// </summary>
-    internal static string? IbanProblem(string iban, string? bankId = null)
+    internal static Issue? IbanProblem(string iban, string? bankId = null)
     {
         if (iban.Length != UkrainianIbanLength)
         {
-            return $"iban has {iban.Length} characters, {UkrainianIbanLength} expected.";
+            return new Issue(ProblemCodes.IbanLength, $"iban has {iban.Length} characters, {UkrainianIbanLength} expected.");
         }
 
         if (!iban.StartsWith("UA", StringComparison.Ordinal))
         {
-            return "iban must start with UA.";
+            return new Issue(ProblemCodes.IbanPrefix, "iban must start with UA.");
         }
 
         if (!IbanPattern().IsMatch(iban))
         {
-            return "iban may contain only digits and capital letters.";
+            return new Issue(ProblemCodes.IbanCharacters, "iban may contain only digits and capital letters.");
         }
 
         if (bankId is not null && !iban.AsSpan(4, bankId.Length).SequenceEqual(bankId))
         {
-            return $"iban bank id must be {bankId}.";
+            return new Issue(ProblemCodes.IbanBankId, $"iban bank id must be {bankId}.");
         }
 
         // ISO 13616: move the first four characters to the end and read letters as 10 to 35; the
@@ -466,29 +476,31 @@ public static partial class InvoicingEndpoints
             remainder = (remainder * (value < 10 ? 10 : 100) + value) % 97;
         }
 
-        return remainder == 1 ? null : "iban checksum is wrong.";
+        return remainder == 1 ? null : new Issue(ProblemCodes.IbanChecksum, "iban checksum is wrong.");
     }
 
-    internal static string? SignatureError(byte[] image, string contentType)
+    internal static Issue? SignatureError(byte[] image, string contentType)
     {
         if (image.Length == 0)
         {
-            return "The signature image is empty.";
+            return new Issue(ProblemCodes.SignatureEmpty, "The signature image is empty.");
         }
 
         if (image.Length > MaxSignatureBytes)
         {
-            return $"A signature image must not exceed {MaxSignatureBytes / 1024} KB.";
+            return new Issue(ProblemCodes.SignatureTooLarge, $"A signature image must not exceed {MaxSignatureBytes / 1024} KB.");
         }
 
         if (!SignatureTypes.Contains(contentType))
         {
-            return "A signature is a PNG or JPEG image.";
+            return new Issue(ProblemCodes.SignatureTypeUnsupported, "A signature is a PNG or JPEG image.");
         }
 
         var magic = contentType == "image/png" ? PngMagic : JpegMagic;
 
-        return image.AsSpan().StartsWith(magic) ? null : $"The file is not a {contentType[6..].ToUpperInvariant()} image.";
+        return image.AsSpan().StartsWith(magic)
+            ? null
+            : new Issue(ProblemCodes.SignatureNotAnImage, $"The file is not a {contentType[6..].ToUpperInvariant()} image.");
     }
 
     internal static void Apply(InvoicingDetails details, InvoicingDetailsRequest request)

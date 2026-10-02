@@ -43,7 +43,6 @@ export function XmlFile({ declaration, period }: { declaration: DeclarationRespo
   const type = chosen ?? declaration.filed?.type ?? "Reporting";
   const canPrepare = declaration.fileAvailable && declaration.readiness.ready && declaration.figures !== null;
   const failure = generate.error instanceof ApiError ? generate.error : null;
-  const fileErrors = failure?.status === 422 ? (failure.errors.file ?? []) : [];
 
   function prepare() {
     generate.mutate(type, {
@@ -101,13 +100,6 @@ export function XmlFile({ declaration, period }: { declaration: DeclarationRespo
       {generate.isError ? (
         <div className="flex min-w-0 flex-col gap-2 text-sm text-destructive" role="alert">
           <p>{failure?.status === 409 ? t("conflict") : failure?.status === 422 ? t("invalid") : t("failed")}</p>
-          {fileErrors.length > 0 ? (
-            <ul className="list-disc break-words pl-5 text-xs text-muted-foreground">
-              {fileErrors.map((message) => (
-                <li key={message}>{message}</li>
-              ))}
-            </ul>
-          ) : null}
         </div>
       ) : null}
 

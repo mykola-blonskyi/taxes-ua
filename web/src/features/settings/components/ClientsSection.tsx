@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useClients,
   useCreateClient,
@@ -128,6 +129,7 @@ function ClientSummary({ client, onEdit }: { client: ClientResponse; onEdit: () 
 
 function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: () => void }) {
   const t = useTranslations("settings.clients");
+  const apiText = useApiErrorText();
   const tCurrencies = useTranslations("transactions.currencies");
   const locale = useLocale();
   const createClient = useCreateClient();
@@ -140,12 +142,8 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
   const saveError = createClient.error ?? updateClient.error;
   const saveFailure = saveError instanceof ApiError ? saveError : undefined;
   const deleteFailure = deleteClient.error instanceof ApiError ? deleteClient.error : null;
-  const fieldErrors = saveFailure?.errors;
-  const rejectedFields = Object.keys(fieldErrors ?? {}).length > 0;
-  const nameErrorKeys: Record<string, string> = {
-    "A client with this name already exists.": t("nameTaken"),
-  };
-  const nameErrors = fieldErrors?.name?.map((message) => nameErrorKeys[message] ?? message);
+  const fieldErrors = apiText.fieldTexts(saveFailure);
+  const rejectedFields = Object.keys(fieldErrors).length > 0;
   const countryName = countryDisplayName(form.country, locale);
   const canDelete = client !== undefined && client.receiptCount === 0;
 
@@ -171,7 +169,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
         </p>
       ) : saveError ? (
         <p className="text-sm text-destructive">
-          {saveFailure ? `${t("saveFailed")} ${saveFailure.message}` : t("saveFailedGeneric")}
+          {saveFailure ? apiText.withReason(t("saveFailed"), saveFailure) : t("saveFailedGeneric")}
         </p>
       ) : null}
 
@@ -181,7 +179,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
         autoComplete="off"
         value={form.name}
         onChange={(value) => update("name", value)}
-        errors={nameErrors}
+        errors={fieldErrors.name}
       />
       <TextAreaField
         rows={3}
@@ -190,7 +188,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
         autoComplete="off"
         value={form.address}
         onChange={(value) => update("address", value)}
-        errors={fieldErrors?.address}
+        errors={fieldErrors.address}
       />
       <TextField
         id="client-country"
@@ -200,7 +198,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
         maxLength={2}
         value={form.country}
         onChange={(value) => update("country", value.toUpperCase())}
-        errors={fieldErrors?.country}
+        errors={fieldErrors.country}
       />
       <TextField
         id="client-vat-id"
@@ -208,7 +206,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
         autoComplete="off"
         value={form.vatId}
         onChange={(value) => update("vatId", value)}
-        errors={fieldErrors?.vatId}
+        errors={fieldErrors.vatId}
       />
       <TextField
         id="client-email"
@@ -217,7 +215,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
         autoComplete="off"
         value={form.email}
         onChange={(value) => update("email", value)}
-        errors={fieldErrors?.email}
+        errors={fieldErrors.email}
       />
       <SelectField
         id="client-default-currency"
@@ -228,7 +226,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
           { value: "", label: t("noDefaultCurrency") },
           ...currencies.map((currency) => ({ value: currency, label: tCurrencies(currency) })),
         ]}
-        errors={fieldErrors?.defaultCurrency}
+        errors={fieldErrors.defaultCurrency}
       />
       <TextAreaField
         rows={3}
@@ -236,7 +234,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
         label={t("notes")}
         value={form.notes}
         onChange={(value) => update("notes", value)}
-        errors={fieldErrors?.notes}
+        errors={fieldErrors.notes}
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -294,7 +292,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
                 ? t("deleteFailedGeneric")
                 : deleteFailure.status === 409
                   ? t("deleteBlocked")
-                  : `${t("deleteFailed")} ${deleteFailure.message}`}
+                  : apiText.withReason(t("deleteFailed"), deleteFailure)}
             </p>
           ) : null}
         </div>

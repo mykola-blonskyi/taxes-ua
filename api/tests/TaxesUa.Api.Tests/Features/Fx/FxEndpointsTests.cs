@@ -85,7 +85,7 @@ public sealed class FxEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixt
 
         var response = await client.GetAsync($"/api/fx?currency=USD&date={date}");
 
-        await AssertBadGateway(response, "unavailable");
+        await AssertBadGateway(response, "fx_service_unavailable");
         Assert.Single(nbu.Requests);
     }
 
@@ -104,7 +104,7 @@ public sealed class FxEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixt
 
         var response = await client.GetAsync($"/api/fx?currency=USD&date={date}");
 
-        await AssertBadGateway(response, "unavailable");
+        await AssertBadGateway(response, "fx_service_unavailable");
         Assert.Single(nbu.Requests);
     }
 
@@ -117,7 +117,7 @@ public sealed class FxEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixt
 
         var response = await client.GetAsync("/api/fx?currency=USD&date=2031-04-10");
 
-        await AssertBadGateway(response, "unavailable");
+        await AssertBadGateway(response, "fx_service_unavailable");
     }
 
     [Fact]
@@ -129,7 +129,7 @@ public sealed class FxEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixt
 
         var response = await client.GetAsync("/api/fx?currency=EUR&date=2031-07-20");
 
-        await AssertBadGateway(response, "no EUR rate for the 7 days up to 2031-07-20");
+        await AssertBadGateway(response, "fx_rate_not_published");
         Assert.Equal(7, nbu.Requests.Count);
     }
 
@@ -172,7 +172,7 @@ public sealed class FxEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixt
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.True(document.RootElement.GetProperty("errors").TryGetProperty(key, out _));
+        ProblemAssert.Rejects(document.RootElement, key);
         Assert.Empty(nbu.Requests);
     }
 
@@ -186,11 +186,11 @@ public sealed class FxEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixt
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    private static async Task AssertBadGateway(HttpResponseMessage response, string titleFragment)
+    private static async Task AssertBadGateway(HttpResponseMessage response, string code)
     {
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.Contains(titleFragment, document.RootElement.GetProperty("title").GetString());
+        Assert.Equal(code, document.RootElement.GetProperty("code").GetString());
     }
 }

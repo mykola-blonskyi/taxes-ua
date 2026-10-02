@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TreasuryAccount } from "@/data/treasury/useTreasuryAccounts";
-import { renderApp, screen, stubFetch, waitFor, within } from "@/test/harness";
+import { renderApp, reply, screen, stubFetch, waitFor, within } from "@/test/harness";
 import { TreasuryAccountsSection } from "./TreasuryAccountsSection";
 
 const list = "GET /api/settings/treasury-accounts" as const;
@@ -74,5 +74,26 @@ describe("TreasuryAccountsSection editor", () => {
 
     await waitFor(() => expect(api.requestsTo(save)).toHaveLength(1));
     expect(api.requestsTo(save)[0]?.body).toMatchObject({ iban: otherIban, validUntil: null });
+  });
+
+  it("words a rejected IBAN and recipient by their codes under the right field", async () => {
+    const levy = account({ source: "Manual", recipientCode: "37993783", missing: [] });
+    stubFetch({
+      [list]: [levy, ...others()],
+      [save]: reply(400, {
+        code: "validation_failed",
+        errors: { iban: ["iban bank id must be 899998."], recipientName: ["recipientName is required."] },
+        errorCodes: { iban: ["iban_bank_id"], recipientName: ["required"] },
+      }),
+    });
+    const view = renderApp(<TreasuryAccountsSection />);
+    const card = (await screen.findByRole("heading", { name: "Військовий збір" })).closest("li")!;
+    await view.user.click(within(card).getByRole("button", { name: "Виправити" }));
+
+    await view.user.click(screen.getByRole("button", { name: "Зберегти" }));
+
+    expect(await screen.findByText("Код банку в цьому IBAN не підходить. Для рахунку казначейства він 899998.")).toBeVisible();
+    expect(screen.getByText("Заповніть це поле.")).toBeVisible();
+    expect(screen.queryByText(/bank id must be/)).not.toBeInTheDocument();
   });
 });

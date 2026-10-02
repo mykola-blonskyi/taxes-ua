@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { recordedPeriodOf, useDashboard, type DashboardResponse } from "@/data/dashboard/useDashboard";
 import {
   paymentKinds,
@@ -147,6 +148,7 @@ function CandidateCard({
   onNotice: (notice: ConfirmedNotice) => void;
 }) {
   const t = useTranslations("payments.candidates");
+  const apiText = useApiErrorText();
   const tPayments = useTranslations("payments");
   const locale = useLocale();
   const confirmCandidate = useConfirmCandidate();
@@ -321,7 +323,7 @@ function CandidateCard({
             ? t("stale")
             : failure.status === 400
               ? t("invalid")
-              : `${t("failed")} ${failure.message}`}
+              : apiText.withReason(t("failed"), failure)}
         </p>
       ) : null}
     </li>

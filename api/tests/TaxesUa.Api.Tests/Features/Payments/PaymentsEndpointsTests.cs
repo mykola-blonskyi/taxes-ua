@@ -506,7 +506,7 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
     private static async Task AssertErrorKey(HttpResponseMessage response, string key)
     {
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.True(problem.RootElement.GetProperty("errors").TryGetProperty(key, out _), $"no error under {key}");
+        ProblemAssert.Rejects(problem.RootElement, key);
     }
 
     private static async Task<HttpClient> SignIn(ApiFixture fixture, string email)

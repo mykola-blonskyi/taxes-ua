@@ -99,7 +99,7 @@ public sealed class TreasuryAccountsEndpointsTests(ApiFixture fixture) : IClassF
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
-        Assert.Contains(rejectedField, problem.GetProperty("errors").EnumerateObject().Select(property => property.Name));
+        ProblemAssert.Rejects(problem, rejectedField);
         Assert.Equal(TreasuryAccountSource.None, (await Accounts(owner)).Single(row => row.Kind == PaymentKind.SingleTax).Source);
     }
 
@@ -199,14 +199,14 @@ public sealed class TreasuryAccountsEndpointsTests(ApiFixture fixture) : IClassF
     }
 
     [Theory]
-    [InlineData("UA23060070000082704", "iban has 19 characters, 29 expected.")]
-    [InlineData("UA2306 0070 0000 8270 4", "iban has 19 characters, 29 expected.")]
-    [InlineData("", "iban has 0 characters, 29 expected.")]
-    [InlineData("PL358999980333159998000026011", "iban must start with UA.")]
-    [InlineData("UA35899998033315999800002601!", "iban may contain only digits and capital letters.")]
-    [InlineData(ShopIban, "iban bank id must be 899998.")]
-    [InlineData("UA018999980333159998000026011", "iban checksum is wrong.")]
-    public async Task A_rejected_account_says_what_is_wrong_with_it(string iban, string message)
+    [InlineData("UA23060070000082704", "iban_length")]
+    [InlineData("UA2306 0070 0000 8270 4", "iban_length")]
+    [InlineData("", "iban_length")]
+    [InlineData("PL358999980333159998000026011", "iban_prefix")]
+    [InlineData("UA35899998033315999800002601!", "iban_characters")]
+    [InlineData(ShopIban, "iban_bank_id")]
+    [InlineData("UA018999980333159998000026011", "iban_checksum")]
+    public async Task A_rejected_account_says_what_is_wrong_with_it(string iban, string code)
     {
         await using var app = fixture.CreateApplication(_ => { });
         using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
@@ -214,8 +214,8 @@ public sealed class TreasuryAccountsEndpointsTests(ApiFixture fixture) : IClassF
         var response = await owner.PutAsJsonAsync("/api/settings/treasury-accounts/SingleTax", new TreasuryAccountRequest(iban, "ГУК", "37993783"), Json);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
-        Assert.Equal(message, Assert.Single(problem.GetProperty("errors").GetProperty("iban").EnumerateArray()).GetString());
+        var problem = await ProblemAssert.CodeIsAsync(response, "validation_failed");
+        ProblemAssert.FieldIs(problem, "iban", code);
     }
 
     [Fact]

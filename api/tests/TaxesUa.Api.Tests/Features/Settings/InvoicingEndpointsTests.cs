@@ -319,18 +319,18 @@ public sealed class InvoicingEndpointsTests(ApiFixture fixture) : IClassFixture<
     }
 
     [Theory]
-    [InlineData("UA23060070000082704", "iban has 19 characters, 29 expected.")]
-    [InlineData("DE573220010000026007233566001", "iban must start with UA.")]
-    [InlineData("UA573220010000026007233566002", "iban checksum is wrong.")]
-    public async Task A_rejected_iban_says_what_is_wrong_with_it(string iban, string message)
+    [InlineData("UA23060070000082704", "iban_length")]
+    [InlineData("DE573220010000026007233566001", "iban_prefix")]
+    [InlineData("UA573220010000026007233566002", "iban_checksum")]
+    public async Task A_rejected_iban_says_what_is_wrong_with_it(string iban, string code)
     {
         using var owner = await SignIn(ApiFixture.AllowedEmail);
 
         var response = await owner.PutAsJsonAsync(Url, Valid() with { PaymentDetails = [Payment(Currency.USD) with { Iban = iban }] }, Json);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
-        Assert.Equal(message, Assert.Single(problem.GetProperty("errors").GetProperty("paymentDetails[0].iban").EnumerateArray()).GetString());
+        var problem = await ProblemAssert.CodeIsAsync(response, "validation_failed");
+        ProblemAssert.FieldIs(problem, "paymentDetails[0].iban", code);
     }
 
     [Fact]

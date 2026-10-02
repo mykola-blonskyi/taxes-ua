@@ -61,9 +61,9 @@ internal static class ClientRules
     public const int MaxNotesLength = 2000;
 
     /// <summary>The errors of an already <see cref="ClientRequest.Normalized"/> request, keyed by camelCase field.</summary>
-    public static Dictionary<string, string[]>? Validate(ClientRequest client)
+    public static FieldErrors? Validate(ClientRequest client)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
 
         Text(errors, nameof(ClientRequest.Name), client.Name, MaxNameLength, required: true);
         Text(errors, nameof(ClientRequest.Address), client.Address, MaxAddressLength);
@@ -72,46 +72,59 @@ internal static class ClientRules
 
         if (client.Country is { } country && !Iso3166Alpha2.Contains(country))
         {
-            errors[Field(nameof(ClientRequest.Country))] =
-                ["country must be an ISO 3166-1 alpha-2 code such as UA, US or DE."];
+            errors.Set(
+                Field(nameof(ClientRequest.Country)),
+                ProblemCodes.CountryInvalid,
+                "country must be an ISO 3166-1 alpha-2 code such as UA, US or DE.");
         }
 
         if (client.Email is { } email)
         {
             if (email.Length > MaxEmailLength)
             {
-                errors[Field(nameof(ClientRequest.Email))] = [$"email must not exceed {MaxEmailLength} characters."];
+                errors.Set(
+                    Field(nameof(ClientRequest.Email)),
+                    ProblemCodes.TooLong,
+                    $"email must not exceed {MaxEmailLength} characters.");
             }
             else if (!IsEmail(email))
             {
-                errors[Field(nameof(ClientRequest.Email))] = ["email must be an address such as name@example.com."];
+                errors.Set(
+                    Field(nameof(ClientRequest.Email)),
+                    ProblemCodes.EmailInvalid,
+                    "email must be an address such as name@example.com.");
             }
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
     private static void Text(
-        Dictionary<string, string[]> errors, string member, string? value, int maxLength, bool required = false)
+        FieldErrors errors, string member, string? value, int maxLength, bool required = false)
     {
         var field = Field(member);
         if (string.IsNullOrEmpty(value))
         {
             if (required)
             {
-                errors[field] = [$"{field} must be 1 to {maxLength} characters."];
+                errors.Set(field, ProblemCodes.Required, $"{field} must be 1 to {maxLength} characters.");
             }
         }
         else if (value.Length > maxLength)
         {
-            errors[field] = required
-                ? [$"{field} must be 1 to {maxLength} characters."]
-                : [$"{field} must not exceed {maxLength} characters."];
+            errors.Set(
+                field,
+                ProblemCodes.TooLong,
+                required
+                    ? $"{field} must be 1 to {maxLength} characters."
+                    : $"{field} must not exceed {maxLength} characters.");
         }
         else if (TextRules.HasDisallowedControlChar(value))
         {
-            errors[field] =
-                [$"{field} must not contain a NUL or other control character (tab, line feed and carriage return are allowed)."];
+            errors.Set(
+                field,
+                ProblemCodes.ControlCharacter,
+                $"{field} must not contain a NUL or other control character (tab, line feed and carriage return are allowed).");
         }
     }
 

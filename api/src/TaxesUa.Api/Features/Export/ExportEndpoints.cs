@@ -38,7 +38,10 @@ public static class ExportEndpoints
                 {
                     if (year < TransactionsEndpoints.MinYear || year > TransactionsEndpoints.MaxYear)
                     {
-                        return Results.ValidationProblem(YearOutOfRange());
+                        return Problems.Validation(
+                            "year",
+                            ProblemCodes.YearOutOfRange,
+                            $"year must be between {TransactionsEndpoints.MinYear} and {TransactionsEndpoints.MaxYear}.");
                     }
 
                     var user = await users.GetUserAsync(http.User);
@@ -58,7 +61,7 @@ public static class ExportEndpoints
                         format.Write(exported), format.ContentType, $"transactions-{year}.{format.Extension}");
                 })
                 .Produces<byte[]>(StatusCodes.Status200OK, format.ContentType)
-                .ProducesValidationProblem()
+                .ProducesFieldProblem()
                 .Produces(StatusCodes.Status401Unauthorized);
         }
 
@@ -77,9 +80,4 @@ public static class ExportEndpoints
             .OrderBy(row => row.ValueDate)
             .ThenBy(row => row.CreatedAt)
             .ToListAsync(cancellationToken);
-
-    private static Dictionary<string, string[]> YearOutOfRange() => new()
-    {
-        ["year"] = [$"year must be between {TransactionsEndpoints.MinYear} and {TransactionsEndpoints.MaxYear}."],
-    };
 }

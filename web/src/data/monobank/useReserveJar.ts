@@ -20,8 +20,8 @@ export function jarErrorKind(error: unknown): "wait" | "rejected" | "conflict" |
     return "wait";
   }
 
-  // The api's title for a token monobank refused; the owner has to connect again, not choose again.
-  if (error.status === 409 && error.message === "monobank rejected the token; replace it first.") {
+  // A token monobank refused: the owner has to connect again, not choose again.
+  if (error.code === "monobank_token_rejected") {
     return "rejected";
   }
 

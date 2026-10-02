@@ -109,8 +109,8 @@ export function DraftEditor({
   }
 
   function fail(error: unknown) {
-    if (error instanceof ApiError && Object.keys(error.errors).length > 0) {
-      setErrors(error.errors);
+    if (error instanceof ApiError && Object.keys(error.fieldCodes).length > 0) {
+      setErrors(error.fieldCodes);
     } else if (error instanceof ApiError && error.status === 409) {
       setFailure(tErrors("conflict"));
     } else {
@@ -123,10 +123,7 @@ export function DraftEditor({
     setFailure(null);
     setSaved(false);
 
-    const built = buildRequest(form, {
-      quantity: tErrors("line.quantityThousandths"),
-      rate: tErrors("line.rateMinor"),
-    });
+    const built = buildRequest(form);
 
     if (!built.request) {
       setErrors(built.errors);
@@ -275,7 +272,7 @@ export function DraftEditor({
             <ul className="flex flex-col gap-1">
               {problems.map((problem) => (
                 <li key={problem.key} className="break-words">
-                  {problem.message}
+                  {problem.text}
                   {problem.href ? (
                     <>
                       {" "}

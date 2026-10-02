@@ -54,9 +54,9 @@ public static class ReserveJarEndpoints
             })
             .Produces<JarChoicesResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests)
-            .ProducesProblem(StatusCodes.Status502BadGateway);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict)
+            .ProducesCodedProblem(StatusCodes.Status429TooManyRequests)
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway);
 
         monobank.MapPut("/reserve-jar", async (
                 ChooseReserveJarRequest request,
@@ -68,10 +68,7 @@ public static class ReserveJarEndpoints
             {
                 if (string.IsNullOrWhiteSpace(request.JarId))
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        ["jarId"] = ["jarId is required."],
-                    });
+                    return Problems.Validation("jarId", ProblemCodes.Required, "jarId is required.");
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -83,19 +80,17 @@ public static class ReserveJarEndpoints
                 return await jars.ChooseAsync(user.Id, request.JarId, cancellationToken) switch
                 {
                     JarOutcome.Stored stored => Results.Ok(ReserveJarResponse.Of(stored.Jar, time.GetUtcNow())),
-                    JarOutcome.JarNotOffered => Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        ["jarId"] = ["jarId is not one of your UAH jars."],
-                    }),
+                    JarOutcome.JarNotOffered =>
+                        Problems.Validation("jarId", ProblemCodes.UnknownJar, "jarId is not one of your UAH jars."),
                     var failed => Failure(http, failed),
                 };
             })
             .Produces<ReserveJarResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests)
-            .ProducesProblem(StatusCodes.Status502BadGateway);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict)
+            .ProducesCodedProblem(StatusCodes.Status429TooManyRequests)
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway);
 
         monobank.MapDelete("/reserve-jar", async (
                 UserManager<ApplicationUser> users,
@@ -138,9 +133,9 @@ public static class ReserveJarEndpoints
             })
             .Produces<ReserveJarResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status429TooManyRequests)
-            .ProducesProblem(StatusCodes.Status502BadGateway);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict)
+            .ProducesCodedProblem(StatusCodes.Status429TooManyRequests)
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway);
 
         return routes;
     }
@@ -153,25 +148,37 @@ public static class ReserveJarEndpoints
                 // Whole seconds, rounded up, so a client that waits that long finds the slot free.
                 var seconds = (int)Math.Ceiling(waiting.RetryAfter.TotalSeconds);
                 http.Response.Headers.RetryAfter = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                return Results.Problem(
-                    title: "monobank allows one request a minute.",
-                    detail: $"Try again in {seconds} seconds.",
-                    statusCode: StatusCodes.Status429TooManyRequests);
+                return Problems.Create(
+                    StatusCodes.Status429TooManyRequests,
+                    ProblemCodes.MonobankRateLimited,
+                    "monobank allows one request a minute.",
+                    detail: $"Try again in {seconds} seconds.");
             case JarOutcome.NotConnected:
-                return Results.Problem(title: "monobank is not connected.", statusCode: StatusCodes.Status409Conflict);
+                return Problems.Create(
+                    StatusCodes.Status409Conflict,
+                    ProblemCodes.MonobankNotConnected,
+                    "monobank is not connected.");
             case JarOutcome.NoJarChosen:
-                return Results.Problem(title: "No reserve jar is chosen.", statusCode: StatusCodes.Status409Conflict);
+                return Problems.Create(
+                    StatusCodes.Status409Conflict,
+                    ProblemCodes.NoReserveJar,
+                    "No reserve jar is chosen.");
             case JarOutcome.JarNotOffered:
-                return Results.Problem(
-                    title: "The reserve jar is no longer among your UAH jars.", statusCode: StatusCodes.Status409Conflict);
+                return Problems.Create(
+                    StatusCodes.Status409Conflict,
+                    ProblemCodes.ReserveJarNotOffered,
+                    "The reserve jar is no longer among your UAH jars.");
             case JarOutcome.InvalidToken:
-                return Results.Problem(
-                    title: "monobank rejected the token; replace it first.", statusCode: StatusCodes.Status409Conflict);
+                return Problems.Create(
+                    StatusCodes.Status409Conflict,
+                    ProblemCodes.MonobankTokenRejected,
+                    "monobank rejected the token; replace it first.");
             case JarOutcome.Unavailable unavailable:
-                return Results.Problem(
-                    title: "monobank is temporarily unavailable.",
-                    detail: unavailable.Reason,
-                    statusCode: StatusCodes.Status502BadGateway);
+                return Problems.Create(
+                    StatusCodes.Status502BadGateway,
+                    ProblemCodes.MonobankUnavailable,
+                    "monobank is temporarily unavailable.",
+                    detail: unavailable.Reason);
             default:
                 throw new InvalidOperationException($"Unhandled {nameof(JarOutcome)}.");
         }

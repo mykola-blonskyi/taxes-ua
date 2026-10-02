@@ -1,15 +1,16 @@
 import { useTranslations } from "next-intl";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import type { FieldErrors } from "./form";
 
 // The api keys its rejections by field path (`invoicing.rnokpp`, `lines[1].descriptionEn`), so the
 // message keys are computed from data and next-intl's static key typing cannot check them. Every
-// lookup goes through `has` and falls back to the api's own text.
+// lookup goes through `has` and falls back to the text of the field's error code.
 type DynamicTranslator = {
   (key: string, values?: Record<string, string>): string;
   has(key: string): boolean;
 };
 
-export type IssueProblem = { key: string; message: string; href: "/settings" | null };
+export type IssueProblem = { key: string; text: string; href: "/settings" | null };
 
 const settingsPrefixes = ["invoicing.", "client."] as const;
 
@@ -17,6 +18,7 @@ const linePattern = /^lines\[(\d+)\]\.(\w+)$/;
 
 export function useErrorMessages(errors: FieldErrors) {
   const t = useTranslations("invoices.errors") as unknown as DynamicTranslator;
+  const apiText = useApiErrorText();
 
   function messageKey(key: string): { path: string; values?: Record<string, string> } {
     const line = linePattern.exec(key);
@@ -43,11 +45,11 @@ export function useErrorMessages(errors: FieldErrors) {
   function describe(key: string): string {
     const { path, values } = messageKey(key);
 
-    return t.has(path) ? t(path, values) : (errors[key]?.[0] ?? t("invalid"));
+    return t.has(path) ? t(path, values) : errors[key]?.[0] ? apiText.ofCode(errors[key][0]) : t("invalid");
   }
 
-  // The messages a field shows, localised; a key the api rejected and this UI has no words for keeps
-  // the api's own text.
+  // The messages a field shows, localised; a key the api rejected and this UI has no words for reads as
+  // the text of its error code.
   function forField(key: string): string[] | undefined {
     return errors[key] ? [describe(key)] : undefined;
   }
@@ -57,7 +59,7 @@ export function useErrorMessages(errors: FieldErrors) {
       .filter((key) => settingsPrefixes.some((prefix) => key.startsWith(prefix)) || key === "totalMinor")
       .map((key) => ({
         key,
-        message: describe(key),
+        text: describe(key),
         href: settingsPrefixes.some((prefix) => key.startsWith(prefix)) ? "/settings" : null,
       }));
   }

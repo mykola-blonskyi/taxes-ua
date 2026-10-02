@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useDpsStatus, useSaveDpsStatus, type DpsStatusRequest, type DpsStatusResponse } from "@/data/settings/useDpsStatus";
 import { formatDateOnly, todayInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
@@ -20,27 +21,6 @@ type FormState = {
   accountsRegistered: boolean;
   start: Start;
   quarterStart: string;
-};
-
-type ErrorKey = "needsRegistration" | "quarterStart" | "receiptRequired" | "receiptTooLong" | "controlChar" | "confirmedBeforeRegistration" | "confirmedInFuture";
-
-// The api answers in English from a closed set of messages per field; each maps to a translated one and
-// anything unforeseen is shown as it came.
-const errorPatterns: Record<string, readonly (readonly [string, ErrorKey])[]> = {
-  group3Since: [
-    ["requires", "needsRegistration"],
-    ["first day of a later quarter", "quarterStart"],
-  ],
-  "confirmation.receiptNumber": [
-    ["required", "receiptRequired"],
-    ["exceed", "receiptTooLong"],
-    ["control character", "controlChar"],
-  ],
-  "confirmation.confirmedOn": [
-    ["requires", "needsRegistration"],
-    ["before the registration date", "confirmedBeforeRegistration"],
-    ["in the future", "confirmedInFuture"],
-  ],
 };
 
 type Quarter = { year: number; quarter: number };
@@ -119,6 +99,7 @@ export function DpsStatusSection() {
 function DpsStatusForm({ status }: { status: DpsStatusResponse }) {
   const t = useTranslations("settings");
   const tDps = useTranslations("settings.dps");
+  const apiText = useApiErrorText();
   const locale = useLocale();
   const save = useSaveDpsStatus();
   const [form, setForm] = useState<FormState>(() => toFormState(status));
@@ -127,14 +108,10 @@ function DpsStatusForm({ status }: { status: DpsStatusResponse }) {
   const deadline = status.applicationDeadline;
 
   const failure = save.error instanceof ApiError ? save.error : null;
-  const rejected = Object.keys(failure?.errors ?? {}).length > 0;
+  const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
 
   function fieldErrors(key: string): string[] | undefined {
-    return failure?.errors[key]?.map((message) => {
-      const match = errorPatterns[key]?.find(([pattern]) => message.includes(pattern));
-
-      return match ? tDps(`errors.${match[1]}`) : message;
-    });
+    return failure?.fieldCodes[key]?.map(apiText.ofCode);
   }
 
   const quarterStarts = registered ? quarterStartsAfter(registered, today, status.group3Since) : [];
@@ -291,7 +268,7 @@ function DpsStatusForm({ status }: { status: DpsStatusResponse }) {
         {form.start === "quarter" ? <p className="text-xs text-muted-foreground">{tDps("sinceQuarterHint")}</p> : null}
       </fieldset>
 
-      {failure && !rejected ? <p className="text-sm text-destructive">{`${t("saveFailed")} ${failure.message}`}</p> : null}
+      {failure && !rejected ? <p className="text-sm text-destructive">{apiText.withReason(t("saveFailed"), failure)}</p> : null}
 
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={save.isPending}>

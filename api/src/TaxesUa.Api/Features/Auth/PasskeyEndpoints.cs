@@ -13,24 +13,24 @@ internal static class PasskeyEndpoints
         auth.MapPost("/passkey/register/options", RegisterOptions)
             .RequireAuthorization()
             .Produces<object>(contentType: "application/json")
-            .ProducesProblem(StatusCodes.Status401Unauthorized);
+            .ProducesCodedProblem(StatusCodes.Status401Unauthorized);
 
         auth.MapPost("/passkey/register", Register)
             .RequireAuthorization()
             .Produces(StatusCodes.Status204NoContent)
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status500InternalServerError);
+            .ProducesCodedProblem(StatusCodes.Status400BadRequest)
+            .ProducesCodedProblem(StatusCodes.Status401Unauthorized)
+            .ProducesCodedProblem(StatusCodes.Status500InternalServerError);
 
         auth.MapPost("/passkey/login/options", LoginOptions)
             .Produces<object>(contentType: "application/json");
 
         auth.MapPost("/passkey/login", Login)
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesCodedProblem(StatusCodes.Status400BadRequest)
+            .ProducesCodedProblem(StatusCodes.Status401Unauthorized)
+            .ProducesCodedProblem(StatusCodes.Status403Forbidden)
             .Produces(StatusCodes.Status204NoContent)
-            .ProducesProblem(StatusCodes.Status500InternalServerError);
+            .ProducesCodedProblem(StatusCodes.Status500InternalServerError);
 
         return auth;
     }
@@ -71,31 +71,34 @@ internal static class PasskeyEndpoints
 
         if (string.IsNullOrWhiteSpace(body.CredentialJson))
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "No passkey credential was submitted.");
+            return Problems.Create(
+                StatusCodes.Status400BadRequest,
+                ProblemCodes.PasskeyCredentialMissing,
+                "No passkey credential was submitted.");
         }
 
         if ((await http.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme)).Properties is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "No passkey registration is underway. Start again from /api/auth/passkey/register/options.");
+            return Problems.Create(
+                StatusCodes.Status400BadRequest,
+                ProblemCodes.PasskeyRegistrationNotStarted,
+                "No passkey registration is underway. Start again from /api/auth/passkey/register/options.");
         }
 
         var attestation = await signInManager.PerformPasskeyAttestationAsync(body.CredentialJson);
         if (!attestation.Succeeded)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "The passkey could not be registered.",
+            return Problems.Create(
+                StatusCodes.Status400BadRequest,
+                ProblemCodes.PasskeyRegistrationFailed,
+                "The passkey could not be registered.",
                 detail: attestation.Failure.Message);
         }
 
         var added = await userManager.AddOrUpdatePasskeyAsync(user, attestation.Passkey);
         if (!added.Succeeded)
         {
-            return AuthEndpoints.Failed("The passkey could not be saved.", added);
+            return AuthEndpoints.Failed(ProblemCodes.PasskeySaveFailed, "The passkey could not be saved.", added);
         }
 
         return Results.NoContent();
@@ -116,9 +119,10 @@ internal static class PasskeyEndpoints
     {
         if (string.IsNullOrWhiteSpace(body.CredentialJson))
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "No passkey credential was submitted.");
+            return Problems.Create(
+                StatusCodes.Status400BadRequest,
+                ProblemCodes.PasskeyCredentialMissing,
+                "No passkey credential was submitted.");
         }
 
         // SignInManager throws instead of returning a failure when the ceremony-state cookie is
@@ -126,17 +130,19 @@ internal static class PasskeyEndpoints
         // this path.
         if ((await http.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme)).Properties is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "No passkey sign-in is underway. Start again from /api/auth/passkey/login/options.");
+            return Problems.Create(
+                StatusCodes.Status400BadRequest,
+                ProblemCodes.PasskeySignInNotStarted,
+                "No passkey sign-in is underway. Start again from /api/auth/passkey/login/options.");
         }
 
         var assertion = await signInManager.PerformPasskeyAssertionAsync(body.CredentialJson);
         if (!assertion.Succeeded)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status401Unauthorized,
-                title: "The passkey could not be verified.",
+            return Problems.Create(
+                StatusCodes.Status401Unauthorized,
+                ProblemCodes.PasskeyVerificationFailed,
+                "The passkey could not be verified.",
                 detail: assertion.Failure.Message);
         }
 
@@ -146,15 +152,16 @@ internal static class PasskeyEndpoints
         // passkey outlives its email's removal from the list and this is the last gate left.
         if (!allowlist.Permits(assertion.User.Email))
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status403Forbidden,
-                title: "This account is not allowed to sign in to this application.");
+            return Problems.Create(
+                StatusCodes.Status403Forbidden,
+                ProblemCodes.AccountNotAllowed,
+                "This account is not allowed to sign in to this application.");
         }
 
         var updated = await userManager.AddOrUpdatePasskeyAsync(assertion.User, assertion.Passkey);
         if (!updated.Succeeded)
         {
-            return AuthEndpoints.Failed("The passkey could not be updated.", updated);
+            return AuthEndpoints.Failed(ProblemCodes.PasskeyUpdateFailed, "The passkey could not be updated.", updated);
         }
 
         await signInManager.SignInAsync(assertion.User, isPersistent: true);

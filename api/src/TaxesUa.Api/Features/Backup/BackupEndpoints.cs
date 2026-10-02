@@ -64,9 +64,10 @@ public static class BackupEndpoints
                 // never grants, so a forged form post cannot replace the owner's data.
                 if (!http.Request.HasJsonContentType())
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status415UnsupportedMediaType,
-                        title: "A backup is sent as application/json.");
+                    return Problems.Create(
+                        StatusCodes.Status415UnsupportedMediaType,
+                        ProblemCodes.UnsupportedMediaType,
+                        "A backup is sent as application/json.");
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -78,24 +79,25 @@ public static class BackupEndpoints
                 var body = await ReadBoundedAsync(http.Request.Body, cancellationToken);
                 if (body is null)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status413PayloadTooLarge,
-                        title: $"A backup file must not exceed {MaxRestoreBytes / 1024 / 1024} MB.");
+                    return Problems.Create(
+                        StatusCodes.Status413PayloadTooLarge,
+                        ProblemCodes.PayloadTooLarge,
+                        $"A backup file must not exceed {MaxRestoreBytes / 1024 / 1024} MB.");
                 }
 
                 if (!TryParse(body, json.Value.SerializerOptions, out var document, out var reason))
                 {
-                    return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: reason);
+                    return Problems.Create(StatusCodes.Status400BadRequest, reason.Code, reason.Message);
                 }
 
                 if (document.Validate(time.TodayInKyiv(), time.GetUtcNow()) is { } errors)
                 {
-                    return Results.ValidationProblem(errors, title: "The backup file breaks the rules below.");
+                    return Problems.Validation(errors, "The backup file breaks the rules below.", code: ProblemCodes.BackupInvalid);
                 }
 
-                if (await ReplaceAsync(database, user.Id, document, time, cancellationToken) is { } linkErrors)
+                if (await ReplaceAsync(database, user.Id, document, time, cancellationToken) is { } refusal)
                 {
-                    return Results.ValidationProblem(linkErrors, title: "The backup file breaks the rules below.");
+                    return refusal;
                 }
 
                 // The restore cleared every sync cursor; walking the history again brings back what the file lacks.
@@ -106,10 +108,10 @@ public static class BackupEndpoints
             })
             .Accepts<BackupDocument>("application/json")
             .Produces<RestoreResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
-            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+            .ProducesCodedProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesCodedProblem(StatusCodes.Status415UnsupportedMediaType);
 
         return routes;
     }
@@ -201,10 +203,10 @@ public static class BackupEndpoints
             declarationFiles, treasuryAccounts, notificationChannels, reserveJar);
     }
 
-    // Returns the errors, having rolled everything back, or null once the owner's data is
+    // Returns the refusal, having rolled everything back, or null once the owner's data is
     // replaced. Every statement is scoped to userId, and inserts never overwrite: an id another owner
     // already holds sends the whole file through fresh ids instead.
-    private static async Task<Dictionary<string, string[]>?> ReplaceAsync(
+    private static async Task<IResult?> ReplaceAsync(
         AppDbContext database,
         string userId,
         BackupDocument document,
@@ -222,7 +224,11 @@ public static class BackupEndpoints
         // next issue take it again (Rule 14).
         if (await MissingInvoiceNumbersAsync(database, userId, document, cancellationToken) is { Length: > 0 } missing)
         {
-            return new Dictionary<string, string[]> { ["missingInvoices"] = missing };
+            return Problems.Create(
+                StatusCodes.Status400BadRequest,
+                ProblemCodes.BackupMissingInvoices,
+                "The backup lacks invoices whose numbers are already out in the world.",
+                extensions: new Dictionary<string, object?> { ["missingInvoices"] = missing });
         }
 
         // One statement takes receipts and their refunds together: PostgreSQL checks the RESTRICT link
@@ -292,7 +298,7 @@ public static class BackupEndpoints
             document.BudgetPayments.Length));
         await database.SaveChangesAsync(cancellationToken);
 
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
         for (var i = 0; i < transactions.Length; i++)
         {
             var row = transactions[i];
@@ -305,16 +311,16 @@ public static class BackupEndpoints
             {
                 RefundsTransactionId = row.RefundsTransactionId,
             };
-            foreach (var (key, messages) in
-                     await TransactionsEndpoints.ValidateLinksAsync(database, userId, row, request, cancellationToken) ?? [])
+            if (await TransactionsEndpoints.ValidateLinksAsync(database, userId, row, request, cancellationToken) is { } linked)
             {
-                errors[$"transactions[{i}].{key}"] = messages;
+                errors.Merge($"transactions[{i}]", linked);
             }
         }
 
         if (errors.Count > 0)
         {
-            return errors;
+            return Problems.Validation(
+                errors, "The backup file breaks the rules below.", code: ProblemCodes.BackupInvalid);
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -428,7 +434,7 @@ public static class BackupEndpoints
         byte[] body,
         JsonSerializerOptions options,
         [NotNullWhen(true)] out BackupDocument? document,
-        [NotNullWhen(false)] out string? reason)
+        [NotNullWhen(false)] out Issue? reason)
     {
         document = null;
         try
@@ -440,14 +446,16 @@ public static class BackupEndpoints
                 || version.ValueKind != JsonValueKind.Number
                 || !version.TryGetInt32(out var number))
             {
-                reason = "The file is not a taxes-ua backup: it has no schemaVersion.";
+                reason = new Issue(ProblemCodes.BackupNotABackup, "The file is not a taxes-ua backup: it has no schemaVersion.");
                 return false;
             }
 
             if (number is < 1 or > BackupDocument.CurrentSchemaVersion)
             {
-                reason = $"Backup schemaVersion {number} is not supported. This version restores schemaVersion "
-                    + $"1 to {BackupDocument.CurrentSchemaVersion}.";
+                reason = new Issue(
+                    ProblemCodes.BackupVersionUnsupported,
+                    $"Backup schemaVersion {number} is not supported. This version restores schemaVersion "
+                    + $"1 to {BackupDocument.CurrentSchemaVersion}.");
                 return false;
             }
 
@@ -461,7 +469,7 @@ public static class BackupEndpoints
         }
         catch (JsonException exception)
         {
-            reason = $"The file is not a valid backup. {exception.Message}";
+            reason = new Issue(ProblemCodes.BackupNotValid, $"The file is not a valid backup. {exception.Message}");
             return false;
         }
     }

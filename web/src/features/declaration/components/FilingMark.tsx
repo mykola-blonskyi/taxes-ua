@@ -80,7 +80,7 @@ function MarkForm({ period, today }: { period: Period; today: string }) {
   const [type, setType] = useState<DeclarationType>("Reporting");
 
   const failure = mark.error instanceof ApiError ? mark.error : null;
-  const dateRejected = failure?.errors.filedOn !== undefined;
+  const dateRejected = failure?.fieldCodes.filedOn !== undefined;
 
   return (
     <form

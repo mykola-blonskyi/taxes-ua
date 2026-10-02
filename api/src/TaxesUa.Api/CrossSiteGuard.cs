@@ -13,21 +13,16 @@ namespace TaxesUa.Api;
 /// </summary>
 internal static class CrossSiteGuard
 {
-    public const string ProblemType = "https://taxes-ua/problems/cross-site-request";
-
-    public const string Code = "cross_site_request";
-
     public static IApplicationBuilder UseCrossSiteGuard(this IApplicationBuilder app) =>
         app.Use(async (context, next) =>
         {
             if (IsRefused(context.Request))
             {
-                await Results.Problem(
-                        title: "Cross-site request refused.",
-                        detail: "State-changing requests are accepted only from this app's own pages.",
-                        statusCode: StatusCodes.Status403Forbidden,
-                        type: ProblemType,
-                        extensions: new Dictionary<string, object?> { ["code"] = Code })
+                await Problems.Create(
+                        StatusCodes.Status403Forbidden,
+                        ProblemCodes.CrossSiteRequest,
+                        "Cross-site request refused.",
+                        detail: "State-changing requests are accepted only from this app's own pages.")
                     .ExecuteAsync(context);
                 return;
             }

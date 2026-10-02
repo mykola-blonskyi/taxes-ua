@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   paymentKinds,
   useCreatePayment,
@@ -61,6 +62,7 @@ export function PaymentForm({
 }) {
   const t = useTranslations("payments");
   const tForm = useTranslations("payments.form");
+  const apiText = useApiErrorText();
   const locale = useLocale();
   const createPayment = useCreatePayment();
   const updatePayment = useUpdatePayment();
@@ -70,8 +72,8 @@ export function PaymentForm({
 
   const mutation = editing ? updatePayment : createPayment;
   const failure = mutation.error instanceof ApiError ? mutation.error : null;
-  const fieldErrors = failure?.errors;
-  const rejectedFields = Object.keys(fieldErrors ?? {}).length > 0;
+  const fieldErrors = apiText.fieldTexts(failure);
+  const rejectedFields = Object.keys(fieldErrors).length > 0;
 
   const parsedAmount = parseHryvnia(form.amountText);
   const amountIsInvalid = form.amountText.trim() !== "" && (parsedAmount === null || parsedAmount === 0);
@@ -180,7 +182,7 @@ export function PaymentForm({
       </div>
 
       {failure && !rejectedFields ? (
-        <p className="text-sm text-destructive">{`${tForm("saveFailed")} ${failure.message}`}</p>
+        <p className="text-sm text-destructive">{apiText.withReason(tForm("saveFailed"), failure)}</p>
       ) : null}
 
       <div className="flex gap-2">

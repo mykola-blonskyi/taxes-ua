@@ -27,12 +27,12 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
 
     private static readonly Regex MonthKey = new(@"^([0-9]{4})-(0[1-9]|1[0-2])$", RegexOptions.CultureInvariant);
 
-    public static PrototypeFile? Parse(JsonElement root, DateOnly today, out Dictionary<string, string[]> errors)
+    public static PrototypeFile? Parse(JsonElement root, DateOnly today, out FieldErrors errors)
     {
-        errors = [];
+        errors = new FieldErrors();
         if (root.ValueKind != JsonValueKind.Object)
         {
-            errors["file"] = ["The file must be a JSON object with incomes and mpaid."];
+            errors.Set("file", ProblemCodes.NotAnObject, "The file must be a JSON object with incomes and mpaid.");
             return null;
         }
 
@@ -51,14 +51,20 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
                 case "settings" or "done":
                     break;
                 default:
-                    errors[property.Name] = [$"{property.Name} is not a field of a prototype file ({string.Join(", ", TopLevel)})."];
+                    errors.Set(
+                        property.Name,
+                        ProblemCodes.UnknownField,
+                        $"{property.Name} is not a field of a prototype file ({string.Join(", ", TopLevel)}).");
                     break;
             }
         }
 
         if (incomesElement is null && mpaidElement is null)
         {
-            errors["file"] = ["The file has neither incomes nor mpaid, so it is not a prototype export."];
+            errors.Set(
+                "file",
+                ProblemCodes.NotAPrototypeExport,
+                "The file has neither incomes nor mpaid, so it is not a prototype export.");
         }
 
         var incomes = incomesElement is { } list ? ParseIncomes(list, today, errors) : [];
@@ -67,17 +73,20 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
         return errors.Count == 0 ? new PrototypeFile(incomes, paidMonths) : null;
     }
 
-    private static PrototypeIncome[] ParseIncomes(JsonElement list, DateOnly today, Dictionary<string, string[]> errors)
+    private static PrototypeIncome[] ParseIncomes(JsonElement list, DateOnly today, FieldErrors errors)
     {
         if (list.ValueKind != JsonValueKind.Array)
         {
-            errors["incomes"] = ["incomes must be an array."];
+            errors.Set("incomes", ProblemCodes.NotAnArray, "incomes must be an array.");
             return [];
         }
 
         if (list.GetArrayLength() > MaxIncomes)
         {
-            errors["incomes"] = [$"incomes must not hold more than {MaxIncomes} records."];
+            errors.Set(
+                "incomes",
+                ProblemCodes.TooManyRecords,
+                $"incomes must not hold more than {MaxIncomes} records.");
             return [];
         }
 
@@ -97,11 +106,11 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
     }
 
     private static PrototypeIncome? ParseIncome(
-        JsonElement element, string at, DateOnly today, Dictionary<string, string[]> errors)
+        JsonElement element, string at, DateOnly today, FieldErrors errors)
     {
         if (element.ValueKind != JsonValueKind.Object)
         {
-            errors[at] = ["An income must be an object."];
+            errors.Set(at, ProblemCodes.NotAnObject, "An income must be an object.");
             return null;
         }
 
@@ -111,20 +120,22 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
         {
             if (!IncomeFields.Contains(property.Name, StringComparer.Ordinal))
             {
-                errors[$"{at}.{property.Name}"] =
-                    [$"{property.Name} is not a field of an income ({string.Join(", ", IncomeFields)})."];
+                errors.Set(
+                    $"{at}.{property.Name}",
+                    ProblemCodes.UnknownField,
+                    $"{property.Name} is not a field of an income ({string.Join(", ", IncomeFields)}).");
                 failed = true;
             }
             else if (!fields.TryAdd(property.Name, property.Value))
             {
-                errors[$"{at}.{property.Name}"] = [$"{property.Name} appears twice."];
+                errors.Set($"{at}.{property.Name}", ProblemCodes.DuplicateValue, $"{property.Name} appears twice.");
                 failed = true;
             }
         }
 
-        void Fail(string field, string message)
+        void Fail(string field, string code, string message)
         {
-            errors[$"{at}.{field}"] = [message];
+            errors.Set($"{at}.{field}", code, message);
             failed = true;
         }
 
@@ -132,7 +143,7 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
         if (Text(fields, "date") is not { } dateText
             || !DateOnly.TryParseExact(dateText, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out date))
         {
-            Fail("date", "date must be a YYYY-MM-DD string.");
+            Fail("date", ProblemCodes.InvalidDate, "date must be a YYYY-MM-DD string.");
         }
 
         Currency currency = default;
@@ -140,7 +151,7 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
             || currencyText is not ("UAH" or "USD" or "EUR")
             || !Enum.TryParse(currencyText, out currency))
         {
-            Fail("currency", "currency must be UAH, USD or EUR.");
+            Fail("currency", ProblemCodes.InvalidValue, "currency must be UAH, USD or EUR.");
         }
 
         long amountMinor = 0;
@@ -150,7 +161,7 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
         }
         else
         {
-            Fail("amount", "amount must be a decimal number with at most 2 decimal places.");
+            Fail("amount", ProblemCodes.InvalidAmount, "amount must be a decimal number with at most 2 decimal places.");
         }
 
         // The prototype computes uah in floating point, so it can carry digits past the kopeck: they are
@@ -162,7 +173,7 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
         }
         else
         {
-            Fail("uah", "uah must be a decimal number.");
+            Fail("uah", ProblemCodes.InvalidAmount, "uah must be a decimal number.");
         }
 
         var rateE4 = Money.RateScale;
@@ -174,12 +185,12 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
             }
             else
             {
-                Fail("rate", "rate must be a positive decimal number.");
+                Fail("rate", ProblemCodes.InvalidRate, "rate must be a positive decimal number.");
             }
         }
         else if (currency != Currency.UAH)
         {
-            Fail("rate", "rate is required for a USD or EUR income.");
+            Fail("rate", ProblemCodes.Required, "rate is required for a USD or EUR income.");
         }
 
         var client = OptionalText(fields, "client", Fail);
@@ -192,16 +203,15 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
 
         if (currency == Currency.UAH && rateE4 != Money.RateScale)
         {
-            Fail("rate", "A UAH income has rate 1 or none.");
+            Fail("rate", ProblemCodes.InvalidRate, "A UAH income has rate 1 or none.");
             return null;
         }
 
         var income = new PrototypeIncome(date, amountMinor, currency, rateE4, uahKop, client, invoice, comment);
         var request = income.ToRequest();
-        foreach (var (key, messages) in
-                 TransactionsEndpoints.Validate(request, TransactionsEndpoints.Normalize(request), today) ?? [])
+        if (TransactionsEndpoints.Validate(request, TransactionsEndpoints.Normalize(request), today) is { } invalid)
         {
-            errors[$"{at}.{PrototypeName(key)}"] = messages;
+            errors.Merge(at, invalid, PrototypeName);
             failed = true;
         }
 
@@ -212,7 +222,7 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
 
         if (TransactionsEndpoints.ExceedsUahBound(amountMinor, rateE4))
         {
-            Fail("amount", "amount at this rate exceeds the largest hryvnia amount.");
+            Fail("amount", ProblemCodes.AmountTooLarge, "amount at this rate exceeds the largest hryvnia amount.");
             return null;
         }
 
@@ -221,18 +231,18 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
         var expected = Money.ToUahKop(amountMinor, rateE4);
         if (uahKop != expected)
         {
-            Fail("uah", $"uah is {Hryvnia(uahKop)}, but amount × rate rounds to {Hryvnia(expected)}.");
+            Fail("uah", ProblemCodes.UahMismatch, $"uah is {Hryvnia(uahKop)}, but amount × rate rounds to {Hryvnia(expected)}.");
             return null;
         }
 
         return income;
     }
 
-    private static PaidMonth[] ParsePaidMonths(JsonElement map, DateOnly today, Dictionary<string, string[]> errors)
+    private static PaidMonth[] ParsePaidMonths(JsonElement map, DateOnly today, FieldErrors errors)
     {
         if (map.ValueKind != JsonValueKind.Object)
         {
-            errors["mpaid"] = ["mpaid must be an object of YYYY-MM keys and true or false."];
+            errors.Set("mpaid", ProblemCodes.NotAnObject, "mpaid must be an object of YYYY-MM keys and true or false.");
             return [];
         }
 
@@ -244,19 +254,19 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
             var match = MonthKey.Match(property.Name);
             if (!match.Success)
             {
-                errors[at] = ["An mpaid key must be a YYYY-MM month."];
+                errors.Set(at, ProblemCodes.InvalidMonthKey, "An mpaid key must be a YYYY-MM month.");
                 continue;
             }
 
             if (!seen.Add(property.Name))
             {
-                errors[at] = ["This month appears twice."];
+                errors.Set(at, ProblemCodes.DuplicateValue, "This month appears twice.");
                 continue;
             }
 
             if (property.Value.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
             {
-                errors[at] = ["An mpaid value must be true or false."];
+                errors.Set(at, ProblemCodes.NotBoolean, "An mpaid value must be true or false.");
                 continue;
             }
 
@@ -264,7 +274,10 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
             var month = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
             if (year < TransactionsEndpoints.MinYear || year > TransactionsEndpoints.MaxYear)
             {
-                errors[at] = [$"The year must be between {TransactionsEndpoints.MinYear} and {TransactionsEndpoints.MaxYear}."];
+                errors.Set(
+                    at,
+                    ProblemCodes.YearOutOfRange,
+                    $"The year must be between {TransactionsEndpoints.MinYear} and {TransactionsEndpoints.MaxYear}.");
             }
             else if (property.Value.ValueKind == JsonValueKind.False)
             {
@@ -272,7 +285,7 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
             }
             else if (new DateOnly(year, month, 1) > today)
             {
-                errors[at] = ["A month after the current one cannot have been paid."];
+                errors.Set(at, ProblemCodes.DateInFuture, "A month after the current one cannot have been paid.");
             }
             else
             {
@@ -287,7 +300,7 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
         fields.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     private static string? OptionalText(
-        Dictionary<string, JsonElement> fields, string name, Action<string, string> fail)
+        Dictionary<string, JsonElement> fields, string name, Action<string, string, string> fail)
     {
         if (!fields.TryGetValue(name, out var value) || value.ValueKind == JsonValueKind.Null)
         {
@@ -296,7 +309,7 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
 
         if (value.ValueKind != JsonValueKind.String)
         {
-            fail(name, $"{name} must be a string.");
+            fail(name, ProblemCodes.InvalidValue, $"{name} must be a string.");
             return null;
         }
 

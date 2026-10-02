@@ -74,34 +74,36 @@ internal static class InvoiceRules
         lines.Sum(line => LineAmountMinor(line.QuantityThousandths, line.RateMinor));
 
     /// <summary>The errors of an already <see cref="InvoiceRequest.Normalized"/> draft, keyed by camelCase field.</summary>
-    public static Dictionary<string, string[]>? Validate(InvoiceRequest request)
+    public static FieldErrors? Validate(InvoiceRequest request)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
 
         if (request.ClientId == Guid.Empty)
         {
-            errors["clientId"] = ["clientId is required."];
+            errors.Set("clientId", ProblemCodes.Required, "clientId is required.");
         }
 
         if (request.IssueDate.Year is < TransactionsEndpoints.MinYear or > TransactionsEndpoints.MaxYear)
         {
-            errors["issueDate"] =
-                [$"issueDate must be in {TransactionsEndpoints.MinYear} to {TransactionsEndpoints.MaxYear}."];
+            errors.Set(
+                "issueDate",
+                ProblemCodes.YearOutOfRange,
+                $"issueDate must be in {TransactionsEndpoints.MinYear} to {TransactionsEndpoints.MaxYear}.");
         }
 
         if (request.DueDate < request.IssueDate)
         {
-            errors["dueDate"] = ["dueDate must not be before issueDate."];
+            errors.Set("dueDate", ProblemCodes.DueDateBeforeIssueDate, "dueDate must not be before issueDate.");
         }
 
         if (!Enum.IsDefined(request.Currency))
         {
-            errors["currency"] = ["currency must be UAH, USD or EUR."];
+            errors.Set("currency", ProblemCodes.InvalidValue, "currency must be UAH, USD or EUR.");
         }
 
         if (request.Lines.Length > MaxLines)
         {
-            errors["lines"] = [$"An invoice has at most {MaxLines} lines."];
+            errors.Set("lines", ProblemCodes.TooManyLines, $"An invoice has at most {MaxLines} lines.");
             return errors;
         }
 
@@ -111,7 +113,7 @@ internal static class InvoiceRules
             var at = $"lines[{i}]";
             if (line is null)
             {
-                errors[at] = ["A line must not be null."];
+                errors.Set(at, ProblemCodes.NullItem, "A line must not be null.");
                 continue;
             }
 
@@ -120,37 +122,47 @@ internal static class InvoiceRules
 
             if (!Enum.IsDefined(line.Unit))
             {
-                errors[$"{at}.unit"] = ["unit must be Service, Hour, Day or Month."];
+                errors.Set($"{at}.unit", ProblemCodes.InvalidValue, "unit must be Service, Hour, Day or Month.");
             }
 
             if (line.QuantityThousandths is <= 0 or > MaxQuantityThousandths)
             {
-                errors[$"{at}.quantityThousandths"] =
-                    [$"quantityThousandths must be 1 to {MaxQuantityThousandths}: a quantity above 0 and at most 100 000, in thousandths."];
+                errors.Set(
+                    $"{at}.quantityThousandths",
+                    ProblemCodes.QuantityOutOfRange,
+                    $"quantityThousandths must be 1 to {MaxQuantityThousandths}: a quantity above 0 and at most 100 000, in thousandths.");
             }
             else if (line.RateMinor < 0 || line.RateMinor > MaxAmountMinor)
             {
-                errors[$"{at}.rateMinor"] = [$"rateMinor must be 0 to {MaxAmountMinor}."];
+                errors.Set($"{at}.rateMinor", ProblemCodes.RateOutOfRange, $"rateMinor must be 0 to {MaxAmountMinor}.");
             }
             else if (LineAmountMinor(line.QuantityThousandths, line.RateMinor) > MaxAmountMinor)
             {
-                errors[$"{at}.rateMinor"] = [$"A line's amount must not exceed {MaxAmountMinor} minor units."];
+                errors.Set(
+                    $"{at}.rateMinor",
+                    ProblemCodes.AmountTooLarge,
+                    $"A line's amount must not exceed {MaxAmountMinor} minor units.");
             }
         }
 
         if (errors.Count == 0 && TotalMinor(request.ToLines()) > MaxAmountMinor)
         {
-            errors["lines"] = [$"The total must not exceed {MaxAmountMinor} minor units."];
+            errors.Set(
+                "lines",
+                ProblemCodes.AmountTooLarge,
+                $"The total must not exceed {MaxAmountMinor} minor units.");
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
-    public static string? CancelReasonError(string reason) => reason switch
+    public static Issue? CancelReasonError(string reason) => reason switch
     {
-        { Length: 0 } => "reason is required: say why the invoice is cancelled.",
-        { Length: > MaxCancelReasonLength } => $"reason must not exceed {MaxCancelReasonLength} characters.",
-        _ when TextRules.HasDisallowedControlChar(reason) => "reason must not contain a control character.",
+        { Length: 0 } => new Issue(ProblemCodes.Required, "reason is required: say why the invoice is cancelled."),
+        { Length: > MaxCancelReasonLength } =>
+            new Issue(ProblemCodes.TooLong, $"reason must not exceed {MaxCancelReasonLength} characters."),
+        _ when TextRules.HasDisallowedControlChar(reason) =>
+            new Issue(ProblemCodes.ControlCharacter, "reason must not contain a control character."),
         _ => null,
     };
 
@@ -158,19 +170,19 @@ internal static class InvoiceRules
     /// Everything missing for issuing, keyed by where the owner fixes it: <c>invoicing.*</c> in the
     /// invoicing details, <c>client.*</c> on the client, <c>lines*</c> on the invoice. Empty when complete.
     /// </summary>
-    public static Dictionary<string, string[]> Completeness(
+    public static FieldErrors Completeness(
         Invoice invoice,
         InvoicingDetails details,
         InvoicingPaymentDetails? payment,
         Client client)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
 
         void Required(string key, string? value, string what)
         {
             if (string.IsNullOrWhiteSpace(value))
             {
-                errors[key] = [$"{what} is missing."];
+                errors.Set(key, ProblemCodes.DetailMissing, $"{what} is missing.");
             }
         }
 
@@ -181,8 +193,10 @@ internal static class InvoiceRules
         Required("invoicing.addressEn", details.AddressEn, "Your address in English");
         if (payment is null)
         {
-            errors[$"invoicing.paymentDetails.{invoice.Currency}"] =
-                [$"Payment details for {invoice.Currency} are missing."];
+            errors.Set(
+                $"invoicing.paymentDetails.{invoice.Currency}",
+                ProblemCodes.PaymentDetailsMissing,
+                $"Payment details for {invoice.Currency} are missing.");
         }
 
         Required("client.name", client.Name, "The client's legal name");
@@ -191,7 +205,7 @@ internal static class InvoiceRules
 
         if (invoice.Lines.Length == 0)
         {
-            errors["lines"] = ["The invoice has no lines."];
+            errors.Set("lines", ProblemCodes.NoLines, "The invoice has no lines.");
         }
 
         for (var i = 0; i < invoice.Lines.Length; i++)
@@ -202,7 +216,7 @@ internal static class InvoiceRules
 
         if (invoice.Lines.Length > 0 && invoice.TotalMinor <= 0)
         {
-            errors["totalMinor"] = ["The total must be more than zero."];
+            errors.Set("totalMinor", ProblemCodes.TotalNotPositive, "The total must be more than zero.");
         }
 
         return errors;
@@ -253,15 +267,15 @@ internal static class InvoiceRules
         }
     }
 
-    private static void Description(Dictionary<string, string[]> errors, string key, string value)
+    private static void Description(FieldErrors errors, string key, string value)
     {
         if (value.Length > MaxDescriptionLength)
         {
-            errors[key] = [$"{key} must not exceed {MaxDescriptionLength} characters."];
+            errors.Set(key, ProblemCodes.TooLong, $"{key} must not exceed {MaxDescriptionLength} characters.");
         }
         else if (TextRules.HasDisallowedControlChar(value))
         {
-            errors[key] = [$"{key} must not contain a control character."];
+            errors.Set(key, ProblemCodes.ControlCharacter, $"{key} must not contain a control character.");
         }
     }
 }

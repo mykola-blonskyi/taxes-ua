@@ -34,7 +34,7 @@ public sealed class DeclarationFileQuarterEndTests(ApiFixture fixture) : IClassF
 
         Assert.Equal(HttpStatusCode.Conflict, running.StatusCode);
         using var problem = JsonDocument.Parse(await running.Content.ReadAsStringAsync());
-        Assert.Equal("QuarterNotEnded", problem.RootElement.GetProperty("reason").GetString());
+        Assert.Equal("quarter_not_ended", problem.RootElement.GetProperty("code").GetString());
         Assert.Equal("2090-10-01", problem.RootElement.GetProperty("availableFrom").GetString());
         Assert.Equal(HttpStatusCode.OK, ended.StatusCode);
 
@@ -108,7 +108,7 @@ public sealed class DeclarationFileQuarterEndTests(ApiFixture fixture) : IClassF
         Assert.Empty((await Get(owner, year, 3)).Files);
         Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
         using var problem = JsonDocument.Parse(await stale.Content.ReadAsStringAsync());
-        Assert.Equal("GeneratedBeforeQuarterEnded", problem.RootElement.GetProperty("reason").GetString());
+        Assert.Equal("file_generated_before_quarter_end", problem.RootElement.GetProperty("code").GetString());
         await using (var scope = application.Services.CreateAsyncScope())
         {
             Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<AppDbContext>().DeclarationFiles
