@@ -211,7 +211,8 @@ history, not state: a backup does not carry it and a restore does not replace it
 Every backup schema version from 2 up has a fixture in `api/tests/TaxesUa.Api.Tests/Features/Backup/Fixtures/`
 and `BackupSchemaVersionsTests` restores each. Raising `BackupDocument.CurrentSchemaVersion` fails that suite
 until the new version's fixture exists. `UpgradeFromPreviousReleaseTests` migrates a database from an older
-release's schema, filled with an owner's year, to head and reads the API over it.
+release's schema, filled with an owner's year, to head and reads the API over it. Move its `PreviousRelease` forward, and extend its seed, whenever a release's
+migrations rewrite existing rows. The current version's fixture must also export back unchanged.
 
 A prototype import (`POST /api/import/prototype`) merges rather than replaces, so it takes the
 ordinary path: one `Create` entry per inserted row. It shares the restore's per-owner advisory lock,

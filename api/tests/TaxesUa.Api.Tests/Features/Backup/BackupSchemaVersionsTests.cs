@@ -45,6 +45,38 @@ public sealed class BackupSchemaVersionsTests(ApiFixture fixture) : IClassFixtur
         }
     }
 
+    // The current fixture is the exporter's own output, so an exporter change without a version bump shows here.
+    [Fact]
+    public async Task The_current_fixture_restores_and_exports_back_unchanged()
+    {
+        await using var application = fixture.CreateApplication(
+            StubNbuHandler.ByDate(new Dictionary<string, string>()), Today);
+        using var owner = await ApiFixture.SignIn(application, fixture.NewOwner());
+        var file = Fixture(BackupDocument.CurrentSchemaVersion);
+
+        var response = await owner.PostAsync(
+            "/api/restore", new StringContent(file.ToJsonString(), Encoding.UTF8, "application/json"));
+        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+
+        var backup = JsonNode.Parse(await owner.GetStringAsync("/api/backup"))!;
+        Assert.Equal(WithIdsByPosition(file), WithIdsByPosition(backup));
+    }
+
+    // A restore takes fresh ids when another owner already holds the file's, so ids compare by where they first
+    // appear and the links between rows still have to match.
+    private static string WithIdsByPosition(JsonNode file)
+    {
+        var seen = new Dictionary<string, int>();
+        return System.Text.RegularExpressions.Regex.Replace(
+            file.ToJsonString(),
+            "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            match =>
+            {
+                seen.TryAdd(match.Value, seen.Count);
+                return $"id-{seen[match.Value]}";
+            });
+    }
+
     [Theory]
     [MemberData(nameof(Versions))]
     public async Task A_file_of_each_schema_version_restores_with_its_data_and_the_defaults_of_what_it_predates(int version)

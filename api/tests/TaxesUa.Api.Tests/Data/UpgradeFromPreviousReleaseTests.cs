@@ -14,9 +14,10 @@ namespace TaxesUa.Api.Tests.Data;
 
 // A deploy runs the new migrations over the owner's real rows, which no other test does: they all start from
 // an empty database at head. This one builds the schema as the previous release left it, fills it with an
-// owner's year, migrates to head the way Program.cs does and reads the API over what the migrations kept.
+// owner's year, migrates to head with EF's MigrateAsync (Program.cs's dump-then-migrate path is MigrationDumpTests' job) and reads the API over what the migrations kept.
 public sealed class UpgradeFromPreviousReleaseTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
+    // Move this forward, and extend the seed, whenever a release's migrations rewrite existing rows.
     // The last migration before ChargeFullEsvForRegistrationMonth, TrackGroup3Status and everything after
     // them. Later migrations on main only add to the ones that follow, so this stays a real "older" schema.
     private const string PreviousRelease = "20261001171537_AddEmailChannel";
