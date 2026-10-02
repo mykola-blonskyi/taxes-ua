@@ -330,6 +330,9 @@ public sealed partial class MonobankSyncTests
         await using var app = Create(At(2095, 1, 10, 10), bank);
         await ClearJars(app);
         using var owner = await ConnectAtOnce(app, _ownerEmail, "token-jar-spent");
+        // The connecting sync refreshes the jar after its statement. Still running when the clock moves, it would
+        // take the freed slot and the refresh below would be served its answer, so it finishes before a jar exists.
+        await Quiet(app);
         await Choose(owner, TaxesJar);
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
 
