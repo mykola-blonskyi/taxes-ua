@@ -235,6 +235,22 @@ internal static partial class DpsXml
 
     public static string Date(DateOnly date) => date.ToString("ddMMyyyy", CultureInfo.InvariantCulture);
 
+    /// <summary>The body's fields in list order; a field with no value has no element.</summary>
+    public static void WriteFields(XmlWriter writer, IEnumerable<CabinetField> fields)
+    {
+        foreach (var field in fields.Where(field => field.Value is not null))
+        {
+            if (field.Row > 0)
+            {
+                Row(writer, field.Element, field.Row, field.Value!);
+            }
+            else
+            {
+                Element(writer, field.Element, field.Value!);
+            }
+        }
+    }
+
     public static void Element(XmlWriter writer, string name, string value)
     {
         writer.WriteStartElement(name);

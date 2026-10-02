@@ -797,10 +797,20 @@ it, the mark is flagged as changed since filing, a hint that a clarifying declar
 until the owner marks the quarter again. The home screen names the last ended quarter's declaration
 from the day after the quarter ends through its due date (Rule 5), until it is marked filed.
 
-The declaration file (#111). For a ready quarter with figures the owner downloads the declaration as an
-F0103309 XML file of the chosen type (reporting by default), imports it in the Cabinet ("Імпортувати XML
-з пристрою"), checks it, signs it with a KEP and sends it there; the app never signs or sends (ADR-016).
-A quarter that is not ready, or is outside group 3, gets no file. The file follows the DPS format:
+Filling in the Cabinet (#175, ADR-025). The Electronic Cabinet has no XML import, so the main path is
+manual entry: the declaration screen lists every field of F0103309 in the form's order, and of annex 1
+when the quarter has one, each with its printed line number, the plain value and a copy button. The list
+and the XML are built from one list of fields, so a value cannot differ between them. Amounts are copied as
+digits with a dot and two decimals, as the schema's `DGdecimal2` type requires (`1234.56`, no spaces, no
+sign, a minus for a negative line); a zero line the XML carries is `0.00`; a line the XML leaves out (07 and
+09 unless the limit was crossed in the quarter, 21 outside the annex quarter) is not given a value and the
+screen tells the owner to leave it empty; dates are copied as `dd.mm.yyyy`. The type and period boxes and
+the annex's boxes are ticked, not typed, so they have no copy button. The header fields show only once the
+declaration details are complete. The provisional notes of Rule 8 show here too.
+
+The declaration file (#111) is the secondary path, for M.E.Doc and other software that imports XML. For a
+ready quarter with figures the owner downloads the declaration as an F0103309 XML file of the chosen type
+(reporting by default); the app never signs or sends (ADR-016). A quarter that is not ready, or is outside group 3, gets no file. The file follows the DPS format:
 
 - windows-1251, the lowercase declaration `<?xml version="1.0" encoding="windows-1251"?>`, no whitespace
   between elements, elements in the schema's order;

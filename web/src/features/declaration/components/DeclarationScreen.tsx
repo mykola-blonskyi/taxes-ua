@@ -10,7 +10,7 @@ import { todayInKyiv } from "@/shared/lib/dates";
 import { cn } from "@/shared/lib/utils";
 import { DeadlineDate } from "@/shared/ui/DeadlineDate";
 import { daysBetween, isAfter, lastEndedQuarter, periodFrom, shiftQuarter, type Period } from "../period";
-import { Figures } from "./Figures";
+import { FillInCabinet } from "./FillInCabinet";
 import { FilingMark } from "./FilingMark";
 import { Readiness } from "./Readiness";
 import { XmlFile } from "./XmlFile";
@@ -102,7 +102,7 @@ function Declaration({ declaration, period, today }: { declaration: DeclarationR
         group3Confirmed={declaration.readiness.group3Confirmed}
       />
       <Readiness year={period.year} readiness={declaration.readiness} />
-      <Figures declaration={declaration} />
+      <FillInCabinet declaration={declaration} />
       <XmlFile declaration={declaration} period={period} />
     </>
   );

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Xml.Linq;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -96,6 +97,131 @@ public sealed class DeclarationFilesEndpointsTests(ApiFixture fixture) : IClassF
         Assert.Contains("<R08G1D>01012089</R08G1D><R08G2D>31122089</R08G2D>", annexText);
         Assert.Contains("<R09G2>103764.00</R09G2><R09G4>22828.08</R09G4>", annexText);
         Assert.Equal(2_282_808L, (await Get(owner, year, 4)).Figures!.EsvKop);
+    }
+
+    [Fact]
+    public async Task The_cabinet_view_holds_the_values_and_the_order_of_the_xml_of_the_same_quarter_annex_included()
+    {
+        const int year = 2080;
+        await using var application = At(new DateOnly(year + 1, 2, 2));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year);
+        await PostIncome(owner, new DateOnly(year, 1, 20), 12_345_678);
+        await PostIncome(owner, new DateOnly(year, 11, 5), 10_000_000);
+
+        foreach (var quarter in new[] { 1, 2, 4 })
+        {
+            await Generate(owner, year, quarter, DeclarationType.Reporting);
+            var cabinet = (await Get(owner, year, quarter)).Cabinet;
+            var declaration = Windows1251.GetString(await owner.GetByteArrayAsync($"/api/declarations/{year}/{quarter}/files/Reporting"));
+            var annex = quarter == 4
+                ? Windows1251.GetString(await owner.GetByteArrayAsync($"/api/declarations/{year}/{quarter}/files/Reporting/annex"))
+                : null;
+
+            AssertCabinetMatchesXml(cabinet, declaration, annex);
+            Assert.Equal(annex is not null, cabinet.Any(field => field.Part == CabinetPart.Annex));
+            Assert.DoesNotContain(cabinet, field => field.Part == CabinetPart.None);
+        }
+
+        var annual = (await Get(owner, year, 4)).Cabinet;
+        Assert.Equal("22828.08", annual.Single(field => field.Element == "R021G3").Value);
+        Assert.Equal("22828.08", annual.Single(field => field.Element == "R09G4").Value);
+        Assert.Equal("01.01.2080", annual.Single(field => field.Element == "R08G1D").Value);
+        Assert.Equal("31.12.2080", annual.Single(field => field.Element == "R08G2D").Value);
+        Assert.Equal("22.00", annual.Single(field => field.Element == "R0912G3").Value);
+        Assert.Equal("1902.34", annual.Single(field => field.Element == "R0912G4").Value);
+        var first = (await Get(owner, year, 1)).Cabinet;
+        Assert.Equal("123456.78", first.Single(field => field.Element == "R006G3").Value);
+        Assert.Equal("0.00", first.Single(field => field.Element == "R013G3").Value);
+        Assert.Null(first.Single(field => field.Element == "R007G3").Value);
+        Assert.Null(first.Single(field => field.Element == "R021G3").Value);
+    }
+
+    [Fact]
+    public async Task The_cabinet_view_of_a_crossing_quarter_fills_line_07_and_ticks_the_move_to_other_taxes()
+    {
+        const int year = 2078;
+        await using var application = At(new DateOnly(year, 10, 20));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year, incomeLimitMinWages: 1);
+        await PostIncome(owner, new DateOnly(year, 2, 10), 500_000);
+        await PostIncome(owner, new DateOnly(year, 5, 10), 500_000);
+        await Generate(owner, year, 2, DeclarationType.Reporting);
+
+        var cabinet = (await Get(owner, year, 2)).Cabinet;
+
+        var declaration = Windows1251.GetString(await owner.GetByteArrayAsync($"/api/declarations/{year}/2/files/Reporting"));
+        var annex = Windows1251.GetString(await owner.GetByteArrayAsync($"/api/declarations/{year}/2/files/Reporting/annex"));
+        AssertCabinetMatchesXml(cabinet, declaration, annex);
+        Assert.NotNull(cabinet.Single(field => field.Element == "R007G3").Value);
+        Assert.NotNull(cabinet.Single(field => field.Element == "R009G3").Value);
+        Assert.Equal(CabinetKind.Mark, cabinet.Single(field => field.Element == "H03").Kind);
+    }
+
+    [Fact]
+    public async Task The_cabinet_view_leaves_the_header_out_until_the_details_are_complete()
+    {
+        const int year = 2079;
+        await using var application = At(new DateOnly(year, 4, 20));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year);
+        await PutDetails(owner, CompleteDetails with { Address = "" });
+
+        var declaration = await Get(owner, year, 1);
+
+        Assert.DoesNotContain(declaration.Cabinet, field => field.Part == CabinetPart.Header);
+        Assert.Contains(declaration.Cabinet, field => field.Element == "R006G3");
+        Assert.Contains(declaration.Cabinet, field => field.Element == "HZY");
+    }
+
+    // The view is built from the list the writers read, so this pins that nobody reintroduces a second
+    // source: every field is in the file with the same text and in the same order, or in neither.
+    private static void AssertCabinetMatchesXml(CabinetFieldResponse[] cabinet, string declarationXml, string? annexXml)
+    {
+        var declaration = XDocument.Parse(declarationXml).Root!.Element("DECLARBODY")!;
+        var annex = annexXml is null ? null : XDocument.Parse(annexXml).Root!.Element("DECLARBODY")!;
+        var seen = new List<string>();
+        foreach (var field in cabinet)
+        {
+            var body = field.Element is "HD1" || field.Part != CabinetPart.Annex ? declaration : annex!;
+            var elements = body.Elements(field.Element).ToArray();
+            var element = field.Row > 0 ? elements.SingleOrDefault(e => (string?)e.Attribute("ROWNUM") == field.Row.ToString()) : elements.SingleOrDefault();
+            if (field.Kind == CabinetKind.Mark)
+            {
+                Assert.Equal("1", element?.Value);
+            }
+            else if (field.Value is null)
+            {
+                Assert.Null(element);
+            }
+            else if (field.Kind == CabinetKind.Date)
+            {
+                Assert.Equal(element?.Value, field.Value.Replace(".", string.Empty, StringComparison.Ordinal));
+            }
+            else
+            {
+                Assert.Equal(element?.Value, field.Value);
+            }
+
+            if (element is not null && body == declaration)
+            {
+                seen.Add(field.Row > 0 ? $"{field.Element}#{field.Row}" : field.Element);
+            }
+        }
+
+        var inFile = declaration.Elements()
+            .Select(e => e.Attribute("ROWNUM") is { } row ? $"{e.Name.LocalName}#{row.Value}" : e.Name.LocalName)
+            .Where(seen.Contains);
+        Assert.Equal(seen, inFile);
+
+        // Nothing the file carries as a line is missing from the view.
+        var lines = declaration.Elements().Select(e => e.Name.LocalName).Where(name => name.StartsWith('R') && name.EndsWith("G3", StringComparison.Ordinal));
+        Assert.All(lines, name => Assert.Contains(cabinet, field => field.Element == name));
+        if (annex is not null)
+        {
+            var cells = annex.Elements().Select(e => e.Name.LocalName).Where(name => name.StartsWith("R0", StringComparison.Ordinal));
+            Assert.All(cells, name => Assert.Contains(cabinet, field => field.Element == name));
+        }
     }
 
     [Fact]
