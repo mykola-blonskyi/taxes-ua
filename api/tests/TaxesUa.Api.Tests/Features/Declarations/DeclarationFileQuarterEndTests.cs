@@ -86,6 +86,42 @@ public sealed class DeclarationFileQuarterEndTests(ApiFixture fixture) : IClassF
         Assert.Equal(1, stored);
     }
 
+    [Fact]
+    public async Task A_file_generated_before_the_quarter_ended_stays_stale_after_it_ends_until_generated_again()
+    {
+        const int year = 2093;
+        await using var application = At(new FakeTimeProvider(new DateTimeOffset(year, 10, 5, 9, 0, 0, TimeSpan.Zero)));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year);
+        // The endpoint refuses a running quarter now, so the early file is a stored one moved back in time,
+        // as an older version of the app would have written it.
+        Assert.Equal(HttpStatusCode.OK, (await Post(owner, year, 3)).StatusCode);
+        var early = new DateTimeOffset(year, 9, 20, 9, 0, 0, TimeSpan.Zero);
+        await using (var scope = application.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().DeclarationFiles
+                .Where(row => row.Year == year && row.Quarter == 3)
+                .ExecuteUpdateAsync(set => set.SetProperty(row => row.GeneratedAt, early));
+        }
+
+        var stale = await owner.GetAsync($"/api/declarations/{year}/3/files/Reporting");
+
+        Assert.Empty((await Get(owner, year, 3)).Files);
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        using var problem = JsonDocument.Parse(await stale.Content.ReadAsStringAsync());
+        Assert.Equal("GeneratedBeforeQuarterEnded", problem.RootElement.GetProperty("reason").GetString());
+        await using (var scope = application.Services.CreateAsyncScope())
+        {
+            Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<AppDbContext>().DeclarationFiles
+                .CountAsync(row => row.Year == year && row.Quarter == 3));
+        }
+
+        Assert.Equal(HttpStatusCode.OK, (await Post(owner, year, 3)).StatusCode);
+
+        Assert.Single((await Get(owner, year, 3)).Files);
+        Assert.Equal(HttpStatusCode.OK, (await owner.GetAsync($"/api/declarations/{year}/3/files/Reporting")).StatusCode);
+    }
+
     private WebApplicationFactory<Program> At(FakeTimeProvider clock) =>
         fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
             services.AddSingleton<TimeProvider>(clock)));

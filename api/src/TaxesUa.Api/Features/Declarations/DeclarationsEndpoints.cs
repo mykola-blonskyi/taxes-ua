@@ -275,6 +275,14 @@ public static class DeclarationsEndpoints
             return Results.NotFound();
         }
 
+        if (IsStale(file.GeneratedAt, year, quarter))
+        {
+            return Results.Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: $"The file for quarter {quarter} of {year} was generated before the quarter ended, so its figures are incomplete. Generate it again.",
+                extensions: new Dictionary<string, object?> { ["reason"] = "GeneratedBeforeQuarterEnded" });
+        }
+
         var disposition = new ContentDispositionHeaderValue("attachment");
         disposition.SetHttpFileName(fileName);
         http.Response.Headers.ContentDisposition = disposition.ToString();
@@ -304,6 +312,13 @@ public static class DeclarationsEndpoints
                 ["availableFrom"] = from.ToString("yyyy-MM-dd"),
             });
     }
+
+    /// <summary>
+    /// A file generated before its quarter's last day had passed in Kyiv holds incomplete figures (Rule 15),
+    /// so it is never listed or served, even after the quarter ends.
+    /// </summary>
+    private static bool IsStale(DateTimeOffset generatedAt, int year, int quarter) =>
+        !Declaration.FileAvailable(year, quarter, generatedAt.KyivDate());
 
     /// <summary>The rules a filed mark meets that need no stored row, shared with the restore.</summary>
     internal static Dictionary<string, string[]>? ValidateFiling(int year, int quarter, DateOnly filedOn, DateOnly today)
@@ -380,6 +395,7 @@ public static class DeclarationsEndpoints
             .OrderBy(row => row.Type)
             .Select(row => new DeclarationFileResponse(row.Type, row.FileName, row.AnnexFileName, row.GeneratedAt))
             .ToArrayAsync(cancellationToken);
+        files = [.. files.Where(file => !IsStale(file.GeneratedAt, year, quarter))];
 
         var fileAvailable = Declaration.FileAvailable(year, quarter, today);
         var figures = inGroup3 ? Declaration.ForQuarter(viewed.Accrual, quarter) : null;
@@ -473,8 +489,8 @@ public static class DeclarationsEndpoints
 /// One quarter's declaration (Rule 15). <c>Figures</c> is null for a quarter after the one named by
 /// <c>LimitCrossing</c>: group 3 ended there (Rule 4), so the quarter has no group 3 declaration. The
 /// rates are the year's, for the lines' labels. The figures of a quarter still running are a preview:
-/// <c>FileAvailable</c> is false until <c>FileAvailableFrom</c>, and then <c>Files</c> is empty and no
-/// file is built or downloaded.
+/// <c>FileAvailable</c> is false until <c>FileAvailableFrom</c>, and no file is built or downloaded. <c>Files</c>
+/// leaves out a file generated before that date: it is stale and must be generated again.
 /// </summary>
 internal sealed record DeclarationResponse(
     int Year,

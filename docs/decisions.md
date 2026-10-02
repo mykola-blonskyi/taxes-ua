@@ -685,9 +685,10 @@ stored with its generation time and travels in the backup as the record of what 
 
 The file is built only for a quarter whose last day has passed in Kyiv (#163, Rule 15). The rule is
 pure and lives in the engine (`Declaration.FileAvailable`, given `today`); the api takes today from
-`TimeProvider` and answers 409 with the closed reason `QuarterNotEnded` and `availableFrom`. A file stored
-before that rule for a quarter still running is refused on download and left out of the quarter's file
-list, but kept in the table and the backup.
+`TimeProvider` and answers 409 with the closed reason `QuarterNotEnded` and `availableFrom`. A file
+generated before the quarter ended is stale: left out of the quarter's file list and refused on
+download with 409 `GeneratedBeforeQuarterEnded`, even after the quarter ends, but kept in the table and
+the backup.
 
 ### Alternatives Considered
 
