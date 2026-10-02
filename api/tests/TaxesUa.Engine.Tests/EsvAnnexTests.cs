@@ -38,13 +38,30 @@ public class EsvAnnexTests
         Assert.Equal(year.Quarters.Sum(quarter => quarter.EsvKop), annex.EsvKop);
     }
 
+    [Fact]
+    public void Registering_on_the_28th_of_september_owes_the_full_month_by_default_and_a_tenth_of_it_when_prorated()
+    {
+        var full = Accruals.ForYear(2026, [], Config2026, Settings(Date("2026-09-28")));
+        var prorated = Accruals.ForYear(2026, [], Config2026,
+            Settings(Date("2026-09-28")) with { EsvRegistrationMonthPolicy = EsvRegistrationMonthPolicy.Prorated });
+
+        var september = full.EsvAnnex!.Months[0];
+
+        Assert.Equal((9, MinWageKop, EsvMonthKop), (september.Month, september.BaseKop, september.EsvKop));
+        Assert.Equal(190_234, Q3EsvKop(full));
+        Assert.Equal(760_936, full.EsvAnnex.EsvKop);
+        Assert.Equal((86_470, 19_023), (prorated.EsvAnnex!.Months[0].BaseKop, Q3EsvKop(prorated)));
+        Assert.Equal(171_211, Q3EsvKop(full) - Q3EsvKop(prorated));
+    }
+
     // Base × rate, rounded once each; prorating the month's ESV instead gave 164_869 and 120_482.
     [Theory]
     [InlineData("2026-04-05", 164_870)]
     [InlineData("2026-04-12", 120_481)]
-    public void The_registration_month_esv_is_the_prorated_base_at_the_rate(string registered, long aprilEsvKop)
+    public void Under_the_prorated_policy_the_registration_month_esv_is_the_prorated_base_at_the_rate(string registered, long aprilEsvKop)
     {
-        var year = Accruals.ForYear(2026, [], Config2026, Settings(Date(registered)));
+        var settings = Settings(Date(registered)) with { EsvRegistrationMonthPolicy = EsvRegistrationMonthPolicy.Prorated };
+        var year = Accruals.ForYear(2026, [], Config2026, settings);
 
         var april = year.EsvAnnex!.Months[0];
 
@@ -128,12 +145,14 @@ public class EsvAnnexTests
         ExcessRateBp: 1_500,
         LimitWarnThresholdsPct: [85, 100]);
 
+    private static long Q3EsvKop(YearAccrual year) => year.Quarters.Single(quarter => quarter.Income.Quarter == 3).EsvKop;
+
     private static FopSettingsInput Settings(DateOnly? registrationDate) => new(
         WeekendDays: [DayOfWeek.Saturday, DayOfWeek.Sunday],
         TaxPaymentCountsFromStatutoryDeclarationDate: true,
         ShiftTaxPaymentFromWeekend: true,
         FopRegistrationDate: registrationDate,
-        EsvRegistrationMonthPolicy: EsvRegistrationMonthPolicy.Prorated,
+        EsvRegistrationMonthPolicy: EsvRegistrationMonthPolicy.FullMonth,
         EsvExempt: false);
 
     private static TransactionInput Income(string iso, long amountKop) => new TransactionInput.Income(Date(iso), amountKop);

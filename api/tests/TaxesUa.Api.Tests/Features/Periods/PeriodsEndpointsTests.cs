@@ -218,6 +218,27 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         }
     }
 
+    // The default an owner who never touched the policy gets: the registration month owes the full minimum
+    // (190_234 kop), not the 19_023 its three active days would give.
+    [Fact]
+    public async Task The_default_policy_charges_the_full_month_of_esv_for_a_registration_on_28_september_2026()
+    {
+        using var client = await SignIn();
+        try
+        {
+            await SetRegistrationDate(client, Date("2026-09-28"));
+
+            var periods = await client.GetFromJsonAsync<PeriodsResponse>("/api/periods/2026", Json);
+
+            Assert.Equal(190_234, Assert.Single(periods!.Quarters, quarter => quarter.Quarter == 3).EsvKop);
+            Assert.Equal(3 * 190_234, Assert.Single(periods.Quarters, quarter => quarter.Quarter == 4).EsvKop);
+        }
+        finally
+        {
+            await ResetSettings(client);
+        }
+    }
+
     [Fact]
     public async Task A_verified_year_carries_no_unverified_warning()
     {

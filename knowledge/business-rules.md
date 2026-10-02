@@ -39,13 +39,26 @@ Formula: `AmountUahKop = roundHalfUp(AmountMinor × RateE4 / 10000)`.
 - Military Levy: `MilitaryLevyRateBp` of income (2026: 1%).
 - ESV for oneself: `EsvRateBp` of the monthly minimum wage (2026: 22% × 8,647 = 1,902.34 UAH).
   Paid from the month of FOP registration, regardless of income.
-- Registration month: prorated by active days by default (`EsvRegistrationMonthPolicy.Prorated`),
-  confirmed by the owner. `EsvRegistrationMonthPolicy.FullMonth` stays available as a setting. What is
-  prorated is the base, the minimum wage times active days over the month's days, rounded once; the ESV
-  is the rate on that base, rounded once, so annex 1's column 4 is column 2 times column 3 (Rule 15).
-  This order (base × rate) can differ by 1 kopeck from prorating the month's full ESV instead: with the
-  2026 minimum wage, registration on 5 April gives 1,648.70 UAH (not 1,648.69) and on 12 April
-  1,204.81 UAH (not 1,204.82).
+- Registration month: the full minimum (`EsvRegistrationMonthPolicy.FullMonth`, the default), whatever
+  the registration day. Law 2464-VI sets the ESV of a FOP on the simplified system at no less than the
+  minimum insurance contribution ("сума єдиного внеску не може бути меншою за розмір мінімального
+  страхового внеску", art. 7 part 1 item 3, with the rate in art. 8 and the monthly payment in art. 9)
+  and has no provision that reduces it for a part month. The DPS and the accounting press say the
+  same: a FOP registered on 28 September 2026 owes 1,902.34 UAH for September. Sources:
+  https://zakon.rada.gov.ua/laws/show/2464-17,
+  https://lv.tax.gov.ua/media-ark/news-ark/print-397369.html,
+  https://taxer.ua/uk/kb/splata-esv-dlia-novoho-fop,
+  https://7eminar.ua/news/6368-ci-platit-fop-jesv-jedinii-podatok-ta-viiskovii-zbir-u.
+- Until 2026-10-02 the default was `Prorated`, recorded as confirmed by the owner on 2026-09-27. That
+  rested on the premise that the law allows a part-month minimum, which it does not. A migration moved
+  every owner on `Prorated` to `FullMonth`, and a restore from backup reads `Prorated` as `FullMonth`
+  (ADR-018, amendment of 2026-10-02).
+- `Prorated` stays as a setting the interface labels as not matching the law. It prorates the base,
+  the minimum wage times active days over the month's days, rounded once; the ESV is the rate on that
+  base, rounded once, so annex 1's column 4 is column 2 times column 3 (Rule 15). This order (base ×
+  rate) can differ by 1 kopeck from prorating the month's full ESV instead: with the 2026 minimum wage,
+  registration on 5 April gives 1,648.70 UAH (not 1,648.69) and on 12 April 1,204.81 UAH (not
+  1,204.82).
 - ESV exemption (`Settings.EsvExempt`) zeroes out the ESV accrual.
 
 The declaration is filed cumulatively. Quarter tax = tax on cumulative income minus tax already
@@ -768,7 +781,7 @@ it. The two files are prepared, validated, stored and downloaded together:
   on the simplified system within the year (from 1 January, the registration date or the first day of
   the quarter of a return to group 3, whichever is latest, to the last day of the declaration's
   quarter), R081G1 6 (a FOP on the simplified system, footnote 11), then per group 3 month that owes ESV
-  its base (R09nG2, the minimum wage or its prorated part in the registration month), the year's
+  its base (R09nG2, the minimum wage, or under `Prorated` its prorated part in the registration month), the year's
   `EsvRateBp` as a percentage (R09nG3) and the ESV (R09nG4), months without ESV left out, the totals
   R09G2 and R09G4, and HBOS;
 - a clarifying annex leaves item 10 (the correction of an earlier annex's ESV) empty: the app keeps no

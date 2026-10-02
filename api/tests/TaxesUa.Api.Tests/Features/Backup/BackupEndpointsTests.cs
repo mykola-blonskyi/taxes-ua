@@ -153,6 +153,20 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task A_file_that_says_prorated_restores_as_the_full_month()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var file = Baseline();
+        file["settings"]!["esvRegistrationMonthPolicy"] = "Prorated";
+
+        await Restore(owner, file.ToJsonString());
+
+        var settings = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
+        Assert.Equal(EsvRegistrationMonthPolicy.FullMonth, settings!.EsvRegistrationMonthPolicy);
+    }
+
+    [Fact]
     public async Task A_version_2_file_restores_with_every_payment_typed_by_the_owner()
     {
         await using var application = CreateApplication();
@@ -1013,7 +1027,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", new SettingsRequest(
             new DateOnly(2031, 1, 10),
             PaymentMode.MonthlyAdvance,
-            EsvRegistrationMonthPolicy.Prorated,
+            EsvRegistrationMonthPolicy.FullMonth,
             EsvExempt: false,
             TaxPaymentCountsFromStatutoryDeclarationDate: false,
             ShiftTaxPaymentFromWeekend: true,

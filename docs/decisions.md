@@ -821,6 +821,30 @@ The crossing quarter's declaration now shows line 21 and comes with the annex. A
 item 10 (the correction of the earlier annex's ESV) for the owner to fill in the Cabinet. The owner still
 confirms the pair in the Cabinet by importing it without sending, the acceptance check of #112.
 
+### Amendment, 2026-10-02: the registration month owes the full minimum (#171)
+
+The proration above assumed the owner's decision of 2026-09-27, that the registration month's ESV
+scales by active days. That decision rested on a wrong premise. Law 2464-VI sets the ESV of a FOP on the
+simplified system at no less than the minimum insurance contribution (art. 7 part 1 item 3) and has no
+part-month minimum, and the DPS says the full monthly minimum is due for the month of registration
+(Rule 3 lists the sources). The audit of 2026-10-02 found the owner's Q3 2026 ESV shown as 190.23 UAH
+instead of 1,902.34, with annex 1's September base and line 21 short by the same 1,712.11.
+
+`FullMonth` is now the default. A migration moves every owner on `Prorated` to `FullMonth`, because
+nobody chose `Prorated` against the law knowingly: it was the default or the confirmed reading. Its
+Down does nothing, since a row moved cannot be told from one that was always `FullMonth`.
+
+A backup file of schema version 15 cannot tell the old default from a deliberate choice, so a restore
+reads `Prorated` as `FullMonth`. A restore is then no longer byte for byte for an owner who picks
+`Prorated` after this change; that owner picks it again. Erring this way overstates ESV, never
+understates it.
+
+`Prorated` stays as a setting, labelled in the interface as not matching the law. Removing it was not
+cheap: the backup carries the field, and dropping a value or the field needs a schema version, and every
+caller of the engine's settings input would change. The base × rate order and its 1-kopeck notes above
+still hold for that path. Declaration files already stored keep their bytes; the next one prepared reads
+the new figures.
+
 ---
 
 ## ADR-019. Compute reminders at each run and claim each one in a sent log before sending

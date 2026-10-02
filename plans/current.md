@@ -77,7 +77,8 @@ dependencies). Run `snippets/frontier.sh` for the live frontier instead of readi
   and tax years.
 - **Owner decisions, 2026-09-27.** Eight calls that unblocked the remaining tickets and two new
   ones:
-  - ESV `Prorated` (active-day scaling) becomes the default registration-month policy.
+  - ESV `Prorated` (active-day scaling) becomes the default registration-month policy. Reversed
+    on 2026-10-02 by #171: the law owes the full minimum, see ADR-018's amendment.
   - Payments allocate FIFO, oldest debt first, within a kind (Tax Code art. 87.9).
   - An overpayment or an unpaid balance carries across years, still never across kinds.
   - The Periods "Разом"/"Итого" column is renamed "Нараховано всього"/"Начислено всего": it sums

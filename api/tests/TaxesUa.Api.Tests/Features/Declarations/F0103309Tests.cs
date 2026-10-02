@@ -25,14 +25,11 @@ public sealed partial class F0103309Tests
 
     private const int EsvRateBp = 2_200;
 
-    // 2026 with the minimum wage of 8,647.00 and ESV at 22%. Registered on 10 March 2026 and prorated,
-    // March's base is 22 of its 31 days.
+    // 2026 with the minimum wage of 8,647.00 and ESV at 22%. Registered on 10 March 2026, March owes the
+    // full minimum like every other month.
     private static readonly EsvAnnex FullYear = Annex(new DateOnly(2026, 1, 1), 4, 1, false);
 
-    private static readonly EsvAnnex FirstYear = Annex(new DateOnly(2026, 3, 10), 4, 3, false) with
-    {
-        Months = [new EsvMonth(3, 613_658, EsvRateBp), .. Enumerable.Range(4, 9).Select(month => new EsvMonth(month, MinWageKop, EsvRateBp))],
-    };
+    private static readonly EsvAnnex FirstYear = Annex(new DateOnly(2026, 3, 10), 4, 3, false);
 
     private static readonly EsvAnnex CrossedInQ3 = Annex(new DateOnly(2026, 1, 1), 3, 1, true);
 
@@ -223,15 +220,15 @@ public sealed partial class F0103309Tests
     }
 
     [Fact]
-    public void A_first_year_starts_at_registration_with_the_registration_month_prorated()
+    public void A_first_year_starts_at_registration_with_the_registration_month_at_the_full_minimum()
     {
         var annex = AnnexText("first-year-q4");
 
-        Assert.Contains("<R08G1D>10032026</R08G1D><R08G2D>31122026</R08G2D><R081G1>6</R081G1><R093G2>6136.58</R093G2><R093G3>22.00</R093G3><R093G4>1350.05</R093G4><R094G2>", annex);
+        Assert.Contains("<R08G1D>10032026</R08G1D><R08G2D>31122026</R08G2D><R081G1>6</R081G1><R093G2>8647.00</R093G2><R093G3>22.00</R093G3><R093G4>1902.34</R093G4><R094G2>", annex);
         Assert.DoesNotContain("<R091G2>", annex);
         Assert.DoesNotContain("<R092G2>", annex);
-        Assert.Contains("<R09G2>83959.58</R09G2><R09G4>18471.11</R09G4>", annex);
-        Assert.Contains("<R021G3>18471.11</R021G3>", DeclarationText("first-year-q4"));
+        Assert.Contains("<R09G2>86470.00</R09G2><R09G4>19023.40</R09G4>", annex);
+        Assert.Contains("<R021G3>19023.40</R021G3>", DeclarationText("first-year-q4"));
     }
 
     [Fact]
