@@ -254,7 +254,9 @@ public sealed class BackupSchemaVersionsTests(ApiFixture fixture) : IClassFixtur
     }
 
     // The notification channels, and from version 15 the time each was confirmed (a Telegram chat is confirmed
-    // when it is linked, so a file from before that gets the link time).
+    // when it is linked, so a file from before that gets the link time). A restore brings every channel back
+    // unconfirmed and off (#180), so the owner's export after it holds no confirmation: the v17 fixture is that
+    // export, and it is why its Telegram channel is off.
     private static void Version11(int version, JsonObject backup)
     {
         var channels = backup["notificationChannels"]!.AsArray();
@@ -265,9 +267,9 @@ public sealed class BackupSchemaVersionsTests(ApiFixture fixture) : IClassFixtur
         }
 
         var channel = Assert.Single(channels)!;
-        Assert.Equal(("Telegram", "424242", true), (
+        Assert.Equal(("Telegram", "424242", false), (
             channel["kind"]!.GetValue<string>(), channel["address"]!.GetValue<string>(), channel["enabled"]!.GetValue<bool>()));
-        Assert.Equal(channel["linkedAt"]!.GetValue<DateTimeOffset>(), channel["confirmedAt"]!.GetValue<DateTimeOffset>());
+        Assert.Null(channel["confirmedAt"]);
     }
 
     // The declaration file and the tax office's name.
