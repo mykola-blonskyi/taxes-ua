@@ -24,14 +24,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Each shard takes whole features, and "rest" is the complement of the other three (with the
+          # Each shard takes whole features, and "rest" is the complement of the other four (with the
           # engine tests), so a new feature folder or test class lands in a shard without an edit here.
-          # Sized from per-class trx durations: Monobank ~240 s of test time, Backup+Notifications ~360 s,
-          # Payments+Declarations+Invoices+Settings ~340 s, the rest ~290 s.
+          # Sized from per-class trx durations: Monobank ~240 s of test time, Backup ~190 s, Notifications
+          # ~170 s, Payments+Declarations+Invoices+Settings ~340 s, the rest ~290 s.
           - shard: monobank
             filter: FullyQualifiedName~Api.Tests.Features.Monobank.
-          - shard: backup-notifications
-            filter: FullyQualifiedName~Api.Tests.Features.Backup.|FullyQualifiedName~Api.Tests.Features.Notifications.
+          - shard: backup
+            filter: FullyQualifiedName~Api.Tests.Features.Backup.
+          - shard: notifications
+            filter: FullyQualifiedName~Api.Tests.Features.Notifications.
           - shard: payments-declarations-invoices-settings
             filter: FullyQualifiedName~Api.Tests.Features.Payments.|FullyQualifiedName~Api.Tests.Features.Declarations.|FullyQualifiedName~Api.Tests.Features.Invoices.|FullyQualifiedName~Api.Tests.Features.Settings.
           - shard: rest
