@@ -83,5 +83,7 @@ Single-context. Glossary and rules in `knowledge/`, ADRs in `docs/decisions.md`.
 
 ### Verification
 
-Prove any UI change in a real browser before calling it done: launch the stack, sign in through the
-Development seam, and measure every screen. See `.claude/skills/verify-taxes-ua/SKILL.md`.
+Run `pnpm test` in `web/` (Vitest, a few seconds) before calling any web change done; CI runs it and
+the deploy waits for it. Add or update tests next to the code you change (ADR-020). Then prove any UI
+change in a real browser: launch the stack, sign in through the Development seam, and measure every
+screen. See `.claude/skills/verify-taxes-ua/SKILL.md`.

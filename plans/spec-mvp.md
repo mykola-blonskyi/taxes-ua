@@ -274,6 +274,7 @@ Seams
 
 No new seams are introduced. In the MVP, the frontend is verified by hand against each ticket's
 acceptance criteria on phone and desktop. No direct component tests are written.
+(Superseded by ADR-020: the web has unit, component and end-to-end tests.)
 
 Existing examples: `MoneyTests` in the engine tests set the style for table-driven tests with
 `InlineData`. There are no API tests in the repository yet; the API test project is created in
