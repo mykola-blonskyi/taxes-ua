@@ -1157,3 +1157,72 @@ and an email address comes back unconfirmed and switched off whatever the file s
 about a mailbox (it may be edited, or restored on another server), so the owner sends the link again. A Telegram
 channel keeps its confirmation, since a chat id is only ever linked by pressing Start. The backup upgrade runs 14 to 15 after main's 13 to 14; the migration adds the column and marks every existing
 channel confirmed, since all of them are Telegram chats.
+
+---
+
+## ADR-023. Group 3 starts on its own date, and the app says when that date is unconfirmed
+
+Date: 2026-10-02
+
+Status: Accepted
+
+### Context
+
+The engine taxed everything from `FopRegistrationDate` as group 3. Registration does not make a FOP a
+single tax payer. The DPS register does, after an application (Tax Code 298.1.2, 298.1.4). For this
+owner the group 3 record never appeared after registration on 2026-09-28. Nothing in the app could say
+so, and every figure was shown with the same confidence as a confirmed one (audit of 2026-10-02,
+domain finding 1 and UX High 4, #172).
+
+### Decision
+
+**A start date apart from registration.** `Settings.Group3Since` is the registration date, or the
+first day of a later quarter, the only two starts the Tax Code allows. The api refuses any other date,
+so the engine never sees a group 3 start in the middle of a quarter after the registration date. Null
+means the registration date. The migration gives every existing owner their registration date, so
+nothing changes for them until they act.
+
+**The time before it is not computed, except ESV.** The engine's group 3 start is the later of the
+two dates. A quarter that ends before it gets no single tax and no military levy, and income dated
+before it is left out of group 3 income. This reuses the "outside group 3" path of the limit crossing
+(Rule 4): single tax and levy payments naming such a quarter stay out of the ledger, and the
+declaration skips it. ESV does not depend on the tax system, so such a quarter still accrues it from
+the registration date, and its months go on the year's annex 1 with the last group 3 declaration. The engine
+reports the stretch from registration to the start, with the income received in it, as one figure per
+year rather than one warning per operation. The interface states it once.
+
+**Confirmation is the owner's mark.** The app cannot read the DPS register, so confirmation is a date and
+a receipt number the owner enters from the Cabinet. Until it is set, the dashboard shows a banner
+linking to a manual checklist, and the declaration screen warns beside the file and the filed mark.
+
+**Warn, do not block.** The audit proposed blocking "mark filed" and the declaration file until
+confirmation. We warn instead. The owner can see the register; the app cannot. A block would stop a
+legitimate filing whenever the owner forgets the mark.
+
+**The 10 days are a tax year parameter.** `TaxYearConfig.Group3ApplicationDays` (10) holds the term of
+298.1.2, like the other statutory terms. The registration year's value applies. The dashboard and the
+reminder plan compute the deadline with one engine function, so they cannot disagree.
+
+### Alternatives Considered
+
+Modelling the general system for the stretch before group 3: 18% personal income tax and 5% levy on net
+income, quarterly advances and an annual return. That is a second tax engine with expenses, a different
+declaration and different deadlines. The app names the stretch and the income in it instead, and says
+those taxes are owed.
+
+Dropping ESV for that stretch too, as a quarter after a limit crossing does. ESV is owed from
+registration whatever the system, so leaving it out would understate a real debt.
+
+A free date for "group 3 since". It would allow a start in mid-quarter after registration, which the law
+does not, and the engine would have to split a quarter between two systems.
+
+Keeping the confirmation implicit: assume group 3 while the registration date is set, as before. That
+is what failed for this owner.
+
+### Consequences
+
+The settings row gains the start date, the confirmation (date and receipt, both or neither) and three
+checklist ticks. They are served by their own endpoint, so the FOP settings form, which writes the whole
+settings request, cannot wipe them. The backup goes to schema 16. The reminder kinds gain
+`Group3Application`. An owner who records a later start loses the single tax and levy of the quarters
+before it. That is the intent: those figures were wrong, not provisional.

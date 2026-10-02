@@ -9,6 +9,11 @@ Fizychna osoba-pidpryiemets — a sole proprietor / individual entrepreneur in U
 Simplified taxation system. Rate: 5% of income, no VAT. Expenses are not deductible. Annual
 income limit: 1,167 minimum wages.
 
+### Group 3 start (`Group3Since`)
+The day the DPS register has the FOP as a group 3 payer from: the registration date when the
+application was filed within 10 days of it, otherwise the first day of a later quarter (Rule 8).
+Unconfirmed until the owner enters the DPS receipt.
+
 ### EP (yedynyi podatok)
 Single Tax. In code: `SingleTax`.
 
