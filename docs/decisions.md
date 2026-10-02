@@ -1365,6 +1365,74 @@ form and the labels be corrected if they differ. Whether the Cabinet recalculate
 
 ---
 
+## ADR-026. Alert on a stalled sync or a bad token, once per incident, through the reminder channels
+
+Date: 2026-10-02
+
+Status: Accepted
+
+### Context
+
+A stopped bank sync is recorded (`BankAccount.LastFailure`, `MonobankConnection.RejectedAt`) but shown
+only on the monobank settings tab. The dashboard does not mention it, and the notification channels carry
+only tax reminders. The owner learns of a rejected token or a dead sync by opening a screen they have no
+reason to open, while income, tax, the limit bar and reminder amounts quietly understate (audit of
+2026-10-02, reliability H3 and UX High 3, #174).
+
+### Decision
+
+**Health is derived, not stored.** `SyncHealthCheck` reads the connection and the followed accounts and
+answers one of `Healthy`, `Stale`, `TokenRejected` and `TokenUnreadable` (Rule 18). The dashboard and the
+alert source both call it, so the card and the message cannot disagree. Staleness is 3 days since the
+oldest caught-up cursor, a constant with its reason beside it, because it is an operational limit and not
+a tax parameter (those live only in `TaxYearConfig`). A token problem outranks staleness.
+
+**An incident is a key, and recovery re-arms it by itself.** The key is the kind plus the moment the state
+began: the rejection's time, or the last good sync. The last good sync only ever moves forward when the
+sync recovers, so a second incident gets another key without anything deleting the first claim. This
+avoids a "resolved" write that a crash or a restore could lose, and it needs no state beyond what the sync
+already keeps.
+
+**The existing claim log carries it.** `SentReminder` gains an `Incident` column. A reminder has it empty
+and keeps its unique index, now filtered to empty rows. An incident row has a second unique index on
+(`UserId`, `Incident`, `Channel`), filtered to non-empty rows. The sender's claim, send and give-back
+logic is one method used by both, so an incident inherits ADR-019's guarantees: at most once, a transient
+failure releases the claim, a possible delivery keeps it. `Date`, `Kinds` and `Offset` mean nothing for an
+incident and are filled with the claim day, none and `OnTheDay`. A separate table would repeat the claim
+code, the retry rule and the channel lookup for no gain.
+
+**Sources are pluggable, the sender is not.** `IIncidentSource` returns the incidents open for an owner;
+`ReminderSender` asks every registered source after its reminder pass. The Notifications feature defines
+the interface and the Monobank feature implements it, so Notifications never references Monobank. A failed
+backup (#176) or an expired Treasury account (#173) is a new `IncidentKind`, a text and a source, and no
+change to the sender.
+
+### Alternatives Considered
+
+Store an `Open` and `ResolvedAt` per incident in a new table. It would give a history, but it adds a write
+on every recovery and a way to disagree with the sync's own state.
+
+Repeat the alert daily while open, as the audit proposed. The ticket asks for at most once per incident;
+the dashboard card stays visible, and a daily message about a bad token is noise the owner mutes.
+
+Send only at 09:00 like a deadline. A deadline has a date to anchor to; an incident does not, and a
+rejected token is worth knowing about at once. The runs are 5 minutes apart already.
+
+Put the staleness threshold in settings or `TaxYearConfig`. It is not the owner's choice and not a tax
+fact; a constant is easier to test and to change in one place.
+
+### Consequences
+
+One migration adds the column and swaps the unique index for two filtered ones. The dashboard response
+gains a nullable `sync`. Accounts still backfilling are not judged by age, so a backfill that stalls
+without a token error shows as healthy until it finishes; the failure still shows on the settings tab. A
+stale or unreadable-token incident is held back while any followed account is queued or syncing, so a
+recovery under way (accounts recover one at a time and move the oldest cursor) does not re-key it; if an
+account is still stale once the queue empties it is alerted under its own key. `RejectedAt` is set only
+while null, so a repeat 401 cannot re-key a rejection. An alert can arrive at any hour.
+
+---
+
 ## ADR-027. Dump the database before a migration runs, and make CI wait for the new release
 
 Date: 2026-10-02

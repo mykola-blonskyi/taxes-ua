@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Periods;
+using TaxesUa.Api.Features.Settings;
 using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Features.Notifications;
@@ -12,6 +13,8 @@ namespace TaxesUa.Api.Features.Notifications;
 /// <see cref="SentReminder"/> first. A failure that may pass (Telegram down, a 429, the channel
 /// switched off meanwhile) gives the claim back so a later pass tries again within the window; a
 /// failure that will not pass (blocked, rejected) keeps it, and so does a pass cut off mid-send.
+/// The same pass sends the open <see cref="Incident"/>s of every <see cref="IIncidentSource"/>, each
+/// claimed once per channel under its own key.
 /// </summary>
 internal sealed class ReminderSender(
     IServiceScopeFactory scopes,
@@ -55,6 +58,15 @@ internal sealed class ReminderSender(
             {
                 logger.LogError(exception, "Reminders for owner {UserId} could not be sent.", userId);
             }
+
+            try
+            {
+                await RunIncidentsForOwnerAsync(userId, today, cancellationToken);
+            }
+            catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                logger.LogError(exception, "Incident alerts for owner {UserId} could not be sent.", userId);
+            }
         }
     }
 
@@ -86,13 +98,7 @@ internal sealed class ReminderSender(
             return;
         }
 
-        var enabled = await database.NotificationChannels
-            .Where(row => row.UserId == userId && row.Enabled && row.ConfirmedAt != null)
-            .Select(row => row.Kind)
-            .ToListAsync(cancellationToken);
-        var channels = scope.ServiceProvider.GetServices<IReminderChannel>()
-            .Where(channel => channel.IsAvailable && enabled.Contains(channel.Kind))
-            .ToArray();
+        var channels = await ChannelsOfAsync(scope.ServiceProvider, database, userId, cancellationToken);
 
         foreach (var reminder in reminders)
         {
@@ -102,6 +108,69 @@ internal sealed class ReminderSender(
                 await SendAsync(database, channel, userId, reminder, message, cancellationToken);
             }
         }
+    }
+
+    private async Task RunIncidentsForOwnerAsync(string userId, DateOnly today, CancellationToken cancellationToken)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var incidents = new List<Incident>();
+        foreach (var source in scope.ServiceProvider.GetServices<IIncidentSource>())
+        {
+            incidents.AddRange(await source.OpenAsync(database, userId, cancellationToken));
+        }
+
+        if (incidents.Count == 0)
+        {
+            return;
+        }
+
+        var locale = (await SettingsEndpoints.LoadOrDefaultAsync(database, userId, cancellationToken)).Locale;
+        var channels = await ChannelsOfAsync(scope.ServiceProvider, database, userId, cancellationToken);
+        foreach (var incident in incidents)
+        {
+            var message = IncidentTexts.Render(incident, locale, link.Url);
+            foreach (var channel in channels)
+            {
+                // The claim's unique index is what makes this at most once; the look first only spares a
+                // failed insert on every pass for an incident that was sent long ago.
+                if (await database.SentReminders.AnyAsync(
+                        row => row.UserId == userId && row.Incident == incident.Key && row.Channel == channel.Kind,
+                        cancellationToken))
+                {
+                    continue;
+                }
+
+                var claim = new SentReminder
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    Date = today,
+                    Kinds = ReminderKinds.None,
+                    Offset = ReminderOffset.OnTheDay,
+                    Channel = channel.Kind,
+                    Incident = incident.Key,
+                    ClaimedAt = time.GetUtcNow(),
+                };
+                await ClaimAndSendAsync(database, channel, claim, message, cancellationToken);
+            }
+        }
+    }
+
+    private static async Task<IReminderChannel[]> ChannelsOfAsync(
+        IServiceProvider services, AppDbContext database, string userId, CancellationToken cancellationToken)
+    {
+        var enabled = await database.NotificationChannels
+            .Where(row => row.UserId == userId && row.Enabled && row.ConfirmedAt != null)
+            .Select(row => row.Kind)
+            .ToListAsync(cancellationToken);
+
+        return
+        [
+            .. services.GetServices<IReminderChannel>()
+                .Where(channel => channel.IsAvailable && enabled.Contains(channel.Kind)),
+        ];
     }
 
     private async Task SendAsync(
@@ -116,6 +185,7 @@ internal sealed class ReminderSender(
         // that became owed since is not, and is worth a message of its own.
         var covered = (await database.SentReminders
                 .Where(row => row.UserId == userId
+                    && row.Incident == string.Empty
                     && row.Date == reminder.Date
                     && row.Offset == reminder.Offset
                     && row.Channel == channel.Kind)
@@ -137,6 +207,16 @@ internal sealed class ReminderSender(
             Channel = channel.Kind,
             ClaimedAt = time.GetUtcNow(),
         };
+        await ClaimAndSendAsync(database, channel, claim, message, cancellationToken);
+    }
+
+    private async Task ClaimAndSendAsync(
+        AppDbContext database,
+        IReminderChannel channel,
+        SentReminder claim,
+        ReminderMessage message,
+        CancellationToken cancellationToken)
+    {
         database.SentReminders.Add(claim);
         try
         {
@@ -151,7 +231,7 @@ internal sealed class ReminderSender(
             return;
         }
 
-        var result = await channel.SendAsync(userId, message, cancellationToken);
+        var result = await channel.SendAsync(claim.UserId, message, cancellationToken);
         if (result.Outcome == DeliveryOutcome.Sent)
         {
             claim.DeliveredAt = time.GetUtcNow();
@@ -160,7 +240,7 @@ internal sealed class ReminderSender(
         {
             logger.LogInformation(
                 "A {Channel} reminder for owner {UserId} was not delivered ({Reason}); a later run tries again.",
-                channel.Kind, userId, result.Failure?.ToString() ?? result.Outcome.ToString());
+                channel.Kind, claim.UserId, result.Failure?.ToString() ?? result.Outcome.ToString());
             database.SentReminders.Remove(claim);
         }
         else

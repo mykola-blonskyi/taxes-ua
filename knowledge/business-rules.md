@@ -995,6 +995,8 @@ A message is plain text in the owner's interface language (uk or ru): the date a
 line per item (the kind and period with the amount owed now, the declaration to file, or the group 3 application to file), and a link to
 the app's home screen, where the pay panel is. The runs are 5 minutes apart.
 
+The same channels and sent log carry incident alerts (Rule 18).
+
 Email is a channel like Telegram, through the same sender, the same sent log (the channel is part of the
 claim's key, so one reminder is claimed once for Telegram and once for email) and the same retry rule: three
 retries after the first attempt, then a failure shown on the channel. A test message and a confirmation email
@@ -1009,3 +1011,58 @@ sign-in, a 5xx reply to the sender or the recipient is final and keeps it; a con
 after the message was handed to the server may have delivered it, so it is kept as possibly sent, never
 retried (the rule above). Without valid SMTP settings, or without an address for the link to point at, the
 channel is unavailable and a run sends nothing and claims nothing.
+
+---
+
+## Rule 18. Sync health and incident alerts
+
+The figures the app shows rest on the bank sync (Rule 12). When the sync stops, income goes missing, so
+tax, the limit bar and reminder amounts are understated, and nothing in a plain dashboard says so. The
+app therefore judges the sync's health itself and tells the owner, on the home screen and through the
+channels of Rule 17.
+
+**Health.** An owner who follows at least one monobank FOP account has one of four states, the first that
+applies:
+
+1. `TokenRejected`: the bank answered 401 or 403 to the owner's token (`MonobankConnection.RejectedAt` is
+   set). Every sync stops until a new token is saved.
+2. `TokenUnreadable`: a followed account's last failure is `TokenUnreadable`, so the stored token could not
+   be decrypted (the encryption key was lost or changed).
+3. `Stale`: the last successful sync is older than 3 days. The last successful sync is the oldest
+   `SyncedThrough` among the followed accounts that have finished their first import
+   (`HistoryImportedAt` set); an account still backfilling its history is not judged by age, because its
+   cursor trails by design. The 3 days are a constant (`SyncHealthCheck.StaleAfter`), not a tax
+   parameter: they outlast a missed night and a weekend bank outage, and are short enough to notice well
+   before a deadline.
+4. `Healthy`.
+
+A rejected or unreadable token outranks `Stale`: one cause, one state, one alert. An owner with no
+connection or no followed account has no sync health at all.
+
+**Dashboard.** Under the pay card (and so below the group 3 banner of Rule 8), the home screen shows the
+last successful sync as one quiet line while healthy, and a warning card in the other three states. The
+card names the problem, says the figures may be incomplete and links to the monobank tab of settings,
+where the fix is (a new token, or the sync button). No request goes to the bank to draw it.
+
+**Alerts.** Each unhealthy state is an incident. An incident is sent through every channel the owner
+switched on, at most once per incident and channel, with the same claim log and the same retry rule as a
+reminder (Rule 17): claimed before sending, given back after a failure that proves nothing arrived, kept
+otherwise. Its key is the kind and the moment the state began: the rejection's own time for
+`TokenRejected`, the last good sync for `Stale` and `TokenUnreadable`. A recovery moves the last good sync
+forward, so the next incident has another key and alerts again; nothing needs deleting. While an incident
+stays open it is never repeated. A sync that recovers and stops again, or a token rejected again after
+being replaced, is a new incident. An alert needs no particular hour: unlike a deadline reminder, it is
+sent on the first run that finds the incident, and a run without a switched-on channel claims nothing, so
+connecting a channel later still delivers the incident if it is still open.
+
+Two accounts with different cursors share one `Stale` incident keyed by the oldest. The key moves as
+accounts recover one at a time, so a `Stale` or `TokenUnreadable` incident is not reported while any
+followed account is queued or syncing: a recovery under way is not a new incident. The dashboard still
+shows the state. If one account then stays stale after the queue empties, it is alerted under its own,
+later key. The first rejection of a token also stays: a later 401 does not overwrite `RejectedAt`.
+
+The same mechanism will carry other incidents, such as a backup that failed (#176) and an expired Treasury
+account (#173): a new kind of incident and a source that reports it, not a new sender.
+
+A message is plain text in the owner's language: what stopped, what it means for the figures, and a link to
+the monobank tab of settings.

@@ -61,7 +61,14 @@ internal sealed class SentReminderConfiguration : IEntityTypeConfiguration<SentR
             .HasForeignKey(sent => sent.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasIndex(sent => new { sent.UserId, sent.Date, sent.Kinds, sent.Offset, sent.Channel }).IsUnique();
+        builder.HasIndex(sent => new { sent.UserId, sent.Date, sent.Kinds, sent.Offset, sent.Channel })
+            .IsUnique()
+            .HasFilter("\"Incident\" = ''");
+        builder.HasIndex(sent => new { sent.UserId, sent.Incident, sent.Channel })
+            .IsUnique()
+            .HasFilter("\"Incident\" <> ''");
+
+        builder.Property(sent => sent.Incident).HasMaxLength(64).HasDefaultValue(string.Empty);
 
         builder.Property(sent => sent.Channel).HasConversion<string>().HasMaxLength(20);
     }
