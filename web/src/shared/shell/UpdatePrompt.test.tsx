@@ -74,6 +74,16 @@ describe("UpdatePrompt", () => {
     expect(screen.getByRole("button", { name: "Оновити" })).toBeVisible();
   });
 
+  it("reloads directly when the button is clicked after another tab activated the worker", async () => {
+    const { user } = renderApp(<UpdatePrompt />);
+    act(() => worker.emit("controlling"));
+
+    await user.click(screen.getByRole("button", { name: "Оновити" }));
+
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(worker.messageSkipWaiting).not.toHaveBeenCalled();
+  });
+
   it("stays quiet when the first install takes control of the page", () => {
     renderApp(<UpdatePrompt />);
 

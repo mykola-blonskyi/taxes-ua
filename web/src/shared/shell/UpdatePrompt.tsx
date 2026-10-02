@@ -16,13 +16,18 @@ export function UpdatePrompt() {
   const t = useTranslations("pwa");
   const [available, setAvailable] = useState(false);
   const accepted = useRef(false);
+  // True when another tab already activated the new worker: nothing is waiting, so only a reload helps.
+  const alreadyActive = useRef(false);
 
   useEffect(() => {
     if (!serwist) {
       return;
     }
 
-    const onWaiting = () => setAvailable(true);
+    const onWaiting = () => {
+      alreadyActive.current = false;
+      setAvailable(true);
+    };
     // Fires in this tab once the new worker takes over. Reload only when this tab asked for it; another
     // tab's update leaves this one running old chunks, so it gets the prompt instead.
     // The very first install also takes control of the page (clientsClaim), which is not an update.
@@ -30,6 +35,7 @@ export function UpdatePrompt() {
       if (accepted.current) {
         window.location.reload();
       } else if (event.isUpdate) {
+        alreadyActive.current = true;
         setAvailable(true);
       }
     };
@@ -66,6 +72,10 @@ export function UpdatePrompt() {
       <Button
         size="sm"
         onClick={() => {
+          if (alreadyActive.current) {
+            window.location.reload();
+            return;
+          }
           accepted.current = true;
           serwist?.messageSkipWaiting();
         }}

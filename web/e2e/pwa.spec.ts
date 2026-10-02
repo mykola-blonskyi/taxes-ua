@@ -94,7 +94,11 @@ async function proxyToStack(upstream: string) {
     deploy: () => {
       suffix = `\n// next deploy ${Date.now()}`;
     },
-    close: () => new Promise((resolve) => server.close(resolve)),
+    close: () =>
+      new Promise((resolve) => {
+        server.close(resolve);
+        server.closeAllConnections();
+      }),
   };
 }
 
@@ -123,6 +127,39 @@ test("a new version waits behind a prompt, and the owner's tab reloads only when
     expect(await page.evaluate(() => (window as unknown as { marker?: string }).marker)).toBeUndefined();
     await expect(page.getByRole("heading", { level: 2, name: uk.dashboard.title })).toBeVisible();
     await expect(page.getByText(uk.pwa.updateAvailable)).toHaveCount(0);
+  } finally {
+    await stack.close();
+  }
+});
+
+test("a second tab still reloads after the first tab accepted the update", async ({ page, context, baseURL }) => {
+  const stack = await proxyToStack(baseURL!);
+  try {
+    const marker = () => (window as unknown as { marker?: string }).marker;
+    const second = await context.newPage();
+    await page.goto(`${stack.url}/`);
+    await workerControls(page);
+    await second.goto(`${stack.url}/payments`);
+    await workerControls(second);
+
+    stack.deploy();
+    await page.evaluate(async () => {
+      (window as unknown as { marker: string }).marker = "first";
+      await (await navigator.serviceWorker.ready).update();
+    });
+    await second.evaluate(() => {
+      (window as unknown as { marker: string }).marker = "second";
+    });
+    const promptOf = (target: Page) => target.getByRole("status").filter({ hasText: uk.pwa.updateAvailable });
+    await expect(promptOf(page)).toBeVisible();
+    await expect(promptOf(second)).toBeVisible();
+
+    await Promise.all([page.waitForEvent("load"), promptOf(page).getByRole("button", { name: uk.pwa.reload }).click()]);
+    // The worker is active now, so nothing is waiting: the second tab's button must reload by itself.
+    await Promise.all([second.waitForEvent("load"), promptOf(second).getByRole("button", { name: uk.pwa.reload }).click()]);
+
+    expect(await second.evaluate(marker)).toBeUndefined();
+    await expect(second.getByRole("heading", { level: 2, name: uk.payments.title })).toBeVisible();
   } finally {
     await stack.close();
   }

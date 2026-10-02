@@ -18,7 +18,23 @@ describe("public/offline.html", () => {
     expect(html).toContain(catalog.offline.retry);
   });
 
-  it("carries no tax data and loads nothing from the app", () => {
-    expect(html).not.toMatch(/<script[^>]+src=|<link[^>]+href=|\/api\//);
+  it("works under script-src 'self' and style-src 'self': no inline script, style or handler", () => {
+    expect(html).not.toMatch(/<script(?![^>]*\ssrc=)[^>]*>|<style|\sstyle=|\son[a-z]+=/i);
+    expect([...html.matchAll(/<(?:script|link)[^>]+(?:src|href)="([^"]+)"/g)].map((m) => m[1])).toEqual([
+      "/offline.css",
+      "/offline.js",
+    ]);
+  });
+
+  it("carries no api call", () => {
+    expect(html).not.toContain("/api/");
+    expect(readFileSync(path.join(__dirname, "../../../public/offline.js"), "utf8")).not.toContain("/api/");
+  });
+
+  it("sets the Russian title along with the Russian text", () => {
+    const script = readFileSync(path.join(__dirname, "../../../public/offline.js"), "utf8");
+
+    expect(script).toContain(`${ru.offline.title} · ${ru.app.title}`);
+    expect(html).toContain(`<title>${uk.offline.title} · ${uk.app.title}</title>`);
   });
 });
