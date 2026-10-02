@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { recordedPeriodOf, type KindDebt } from "@/data/dashboard/useDashboard";
-import { useRecordPayments } from "@/data/payments/usePayments";
+import { useRecordPayments, type PaymentKind } from "@/data/payments/usePayments";
 import { formatMoney, formatPlainAmount, parseHryvnia } from "@/shared/lib/money";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
@@ -94,7 +94,9 @@ export function HeroCard({ now, today, busy }: { now: KindDebt[]; today: string;
   );
 }
 
-type Draft = { step: string; paidOn: string; amounts: Record<string, string> };
+// `debts` is what the form records. After a partial failure it is only the debts that were not saved, and
+// `retry` keeps the form open when a refetch has already moved the step on.
+type Draft = { step: string; debts: KindDebt[]; paidOn: string; amounts: Record<string, string>; retry: boolean };
 
 function MarkPaid({
   now,
@@ -109,18 +111,27 @@ function MarkPaid({
 }) {
   const t = useTranslations("dashboard");
   const tKinds = useTranslations("payments.kinds");
+  const locale = useLocale();
   const recordPayments = useRecordPayments();
+  const [outcome, setOutcome] = useState<{ saved: PaymentKind[]; failed: PaymentKind[] } | null>(null);
   const recording = useRef(false);
   const step = now.map(debtKey).join();
   // The draft belongs to the step it was opened for, so a background refetch that changes the step
   // closes it rather than letting it record the new amounts.
   const [draft, setDraft] = useState<Draft | null>(null);
   const disabled = busy || recordPayments.isPending;
-  const open = draft?.step === step ? draft : null;
+  const open = draft && (draft.retry || draft.step === step) ? draft : null;
+  const debts = open?.debts ?? now;
+
+  const kindList = (kinds: PaymentKind[]) =>
+    new Intl.ListFormat(locale, { type: "conjunction" }).format(kinds.map((kind) => tKinds(kind)));
 
   function openDraft() {
+    setOutcome(null);
     setDraft({
       step,
+      debts: now,
+      retry: false,
       paidOn: today,
       amounts: Object.fromEntries(
         now.map((debt) => [debtKey(debt), formatPlainAmount(edited[debtKey(debt)] ?? Number(debt.amountKop))]),
@@ -128,7 +139,7 @@ function MarkPaid({
     });
   }
 
-  const amountsKop = open ? now.map((debt) => parseHryvnia(open.amounts[debtKey(debt)] ?? "")) : [];
+  const amountsKop = open ? debts.map((debt) => parseHryvnia(open.amounts[debtKey(debt)] ?? "")) : [];
   const dateValid = open !== null && /^\d{4}-\d{2}-\d{2}$/.test(open.paidOn) && open.paidOn >= earliestPaidOn && open.paidOn <= today;
   const valid = dateValid && amountsKop.every((amountKop) => amountKop !== null && amountKop > 0);
 
@@ -138,8 +149,9 @@ function MarkPaid({
     }
 
     recording.current = true;
+    setOutcome(null);
     recordPayments.mutate(
-      now.map((debt, index) => ({
+      debts.map((debt, index) => ({
         paidOn: open.paidOn,
         kind: debt.kind,
         amountKop: amountsKop[index]!,
@@ -147,9 +159,17 @@ function MarkPaid({
         note: null,
       })),
       {
+        onSuccess: ({ saved, failed }) => {
+          if (failed.length === 0) {
+            setDraft(null);
+            return;
+          }
+
+          setOutcome({ saved, failed });
+          setDraft({ ...open, debts: debts.filter((debt) => failed.includes(debt.kind)), retry: true });
+        },
         onSettled: () => {
           recording.current = false;
-          setDraft(null);
         },
       },
     );
@@ -165,7 +185,7 @@ function MarkPaid({
             record();
           }}
         >
-          <p className="text-sm">{t("confirmMarkPaid", { count: now.length })}</p>
+          <p className="text-sm">{t("confirmMarkPaid", { count: debts.length })}</p>
           <TextField
             id="mark-paid-date"
             label={t("paidOn")}
@@ -176,11 +196,11 @@ function MarkPaid({
             onChange={(paidOn) => setDraft({ ...open, paidOn })}
             errors={dateValid ? undefined : [t("paidOnInvalid")]}
           />
-          {now.map((debt, index) => (
+          {debts.map((debt, index) => (
             <TextField
               key={debt.kind}
               id={`mark-paid-amount-${debt.kind}`}
-              label={now.length > 1 ? t("paidAmountOf", { kind: tKinds(debt.kind) }) : t("paidAmount")}
+              label={debts.length > 1 ? t("paidAmountOf", { kind: tKinds(debt.kind) }) : t("paidAmount")}
               inputMode="decimal"
               autoComplete="off"
               value={open.amounts[debtKey(debt)] ?? ""}
@@ -192,7 +212,11 @@ function MarkPaid({
             <Button type="submit" disabled={disabled || !valid}>
               {t("confirm")}
             </Button>
-            <Button type="button" variant="outline" onClick={() => setDraft(null)} disabled={recordPayments.isPending}>
+            <Button type="button" variant="outline" onClick={() => {
+                setOutcome(null);
+                setDraft(null);
+              }}
+              disabled={recordPayments.isPending}>
               {t("cancel")}
             </Button>
           </div>
@@ -202,7 +226,13 @@ function MarkPaid({
           {t("markPaid")}
         </Button>
       )}
-      {recordPayments.isError ? <p className="text-sm text-destructive">{t("markPaidFailed")}</p> : null}
+      {outcome ? (
+        <p role="alert" className="text-sm text-destructive">
+          {outcome.saved.length > 0
+            ? t("markPaidPartial", { saved: kindList(outcome.saved), failed: kindList(outcome.failed) })
+            : t("markPaidFailed")}
+        </p>
+      ) : null}
     </div>
   );
 }

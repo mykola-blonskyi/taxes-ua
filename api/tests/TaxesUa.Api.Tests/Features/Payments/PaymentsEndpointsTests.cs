@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
@@ -195,6 +196,25 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         await AssertErrorKey(edited, "paidOn");
         var listed = Assert.Single((await List(client, year)).Items);
         Assert.Equal(today, listed.PaidOn);
+    }
+
+    [Fact]
+    public async Task In_the_evening_utc_today_is_already_tomorrows_date_in_kyiv()
+    {
+        const int year = 2092;
+        // 22:30 UTC in June is 01:30 on the 16th in Kyiv.
+        var instant = new DateTimeOffset(2070, 6, 15, 22, 30, 0, TimeSpan.Zero);
+        await using var application = fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
+            services.AddSingleton<TimeProvider>(new Microsoft.Extensions.Time.Testing.FakeTimeProvider(instant))));
+        using var client = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+
+        var accepted = await Post(client, Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(2070, 6, 16)));
+        var refused = await client.PostAsJsonAsync(
+            "/api/payments", Body(year, PaymentKind.Esv, 100_000, quarter: 1, paidOn: new DateOnly(2070, 6, 17)), Json);
+
+        Assert.Equal(new DateOnly(2070, 6, 16), accepted.PaidOn);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        await AssertErrorKey(refused, "paidOn");
     }
 
     [Fact]

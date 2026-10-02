@@ -154,6 +154,38 @@ describe("HeroCard mark paid", () => {
     expect(await screen.findByText("Не вдалося записати платіж.")).toBeVisible();
   });
 
+  it("names what was saved and what failed, and re-sends only what failed", async () => {
+    let calls = 0;
+    const api = stubFetch({
+      [post]: () => {
+        calls += 1;
+
+        return calls === 2 ? reply(500, { title: "boom" }) : created;
+      },
+    });
+    const { user } = renderCard([singleTax, levy]);
+
+    await user.click(screen.getByRole("button", { name: "Позначити сплаченим" }));
+    await user.click(screen.getByRole("button", { name: "Так, записати" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Записано: Єдиний податок. Не вдалося записати: Військовий збір.",
+    );
+    expect(screen.queryByLabelText("Сума: Єдиний податок, ₴")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Сума, ₴")).toHaveValue("200.00");
+
+    await user.click(screen.getByRole("button", { name: "Так, записати" }));
+
+    await waitFor(() => expect(api.requestsTo(post)).toHaveLength(3));
+    expect(api.requests.map((request) => (request.body as { kind: string }).kind)).toEqual([
+      "SingleTax",
+      "MilitaryLevy",
+      "MilitaryLevy",
+    ]);
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Позначити сплаченим" })).toBeVisible();
+  });
+
   it("closes the form on cancel without recording", async () => {
     const api = stubFetch({});
     const { user } = renderCard([singleTax]);

@@ -23,7 +23,7 @@ test("the owner marks the next step paid on the day and for the sum they actuall
   await expect(page.getByLabel(uk.dashboard.paidOn)).toHaveValue(today);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
 
-  await page.getByLabel(uk.dashboard.paidOn).fill(today.replace(/^(\d{4})/, (y) => String(Number(y) + 1)));
+  await page.getByLabel(uk.dashboard.paidOn).fill(`${year + 1}-01-01`);
   await expect(page.getByText(uk.dashboard.paidOnInvalid)).toBeVisible();
   await expect(page.getByRole("button", { name: uk.dashboard.confirm })).toBeDisabled();
 
