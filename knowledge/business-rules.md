@@ -113,6 +113,10 @@ group 3 balances, and never settles a group 3 obligation (Rule 7). The stop runs
 Q3 crossing with the next quarter, and in both cases every later configured year is outside group 3
 too, whatever its own income. A year missing from the configured run passes the stop on.
 
+A quarter before `Group3Since` (Rule 8) is outside group 3 too, but it is not a crossing: its income is
+under the general system, whose taxes the app does not compute, and it still accrues ESV, which is owed
+from registration whatever the tax system.
+
 Only the owner lifts the stop, with the setting "back on group 3 from" a year and quarter. From that
 quarter on the app computes group 3 again, as a new period: its income, the limit test, the
 cumulative figures and the declaration's lines 13 and 24 start from zero in that quarter, since a
@@ -709,7 +713,9 @@ rates are the declared year's `TaxYearConfig` rates, never code. A quarter after
 (Rule 4), in the crossing year or a later one, has no group 3 declaration until the owner is back on
 group 3: no figures are shown, the screen says the FOP must file under the system it moved to, the
 declaration is not ready, and the home screen does not name it as due. A quarter that ends before
-`Group3Since` (Rule 8) is the same: the FOP files under the general system for it. While group 3 is not
+`Group3Since` (Rule 8) is the same: the FOP files under the general system for it. Its ESV months still
+go on annex 1 of the year's last group 3 declaration, whose stretch then starts on the registration
+date; a year with no group 3 quarter has no group 3 declaration to carry them. While group 3 is not
 confirmed (Rule 8), the screen warns beside the file and the filed mark that the figures are
 provisional; neither is blocked, and readiness does not count it.
 
@@ -918,8 +924,9 @@ What is reminded:
   It is reminded 7 days before, 1 day before and on the date, and never after it. Confirming group 3,
   or recording a later `Group3Since`, drops it.
 
-A quarter outside group 3 after a limit crossing (Rule 4), or before `Group3Since` (Rule 8), has no
-obligations and no declaration, so nothing of it is reminded. Everything due on one date comes in one message, and the single tax and the
+A quarter outside group 3 after a limit crossing (Rule 4) has no obligations and no declaration, so
+nothing of it is reminded. A quarter before `Group3Since` (Rule 8) has no single tax, levy or declaration
+to remind, but its ESV is reminded as usual. Everything due on one date comes in one message, and the single tax and the
 military levy keep an amount each.
 
 The moments are 7 days before, 1 day before and on the date, each at 09:00 in Kyiv, and, for a payment
