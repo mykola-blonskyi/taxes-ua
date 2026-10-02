@@ -17,12 +17,12 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-nohook", ("nohook-uah", 980));
         await using var app = Create(At(2071, 3, 5, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-nohook");
+        using var owner = await Connect(app, _ownerEmail, "token-nohook");
 
         Assert.Equal(new WebhookStatusResponse(WebhookState.Off, null), (await Status(owner)).Webhook);
         Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync("/api/monobank/connection")).StatusCode);
         app.Clock.Advance(TimeSpan.FromMinutes(5));
-        await Task.Delay(100);
+        await Quiet(app);
 
         Assert.Empty(bank.Webhooks);
         Assert.Null((await Status(owner)).Webhook);
@@ -34,7 +34,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-hook", ("hook-uah", 980));
         await using var app = Create(At(2072, 3, 5, 10), bank, publicBaseUrl: PublicBaseUrl);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-hook");
+        using var owner = await Connect(app, _ownerEmail, "token-hook");
         using var monobank = ApiFixture.CreateClient(app.Factory);
 
         Assert.Equal(WebhookState.Registered, (await WebhookSettled(app, owner)).State);
@@ -59,7 +59,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-signal", ("signal-uah", 980));
         await using var app = Create(At(2050, 4, 5, 10), bank, publicBaseUrl: PublicBaseUrl);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-signal");
+        using var owner = await Connect(app, _ownerEmail, "token-signal");
         await WebhookSettled(app, owner);
         using var monobank = ApiFixture.CreateClient(app.Factory);
         var path = RegisteredPath(bank);
@@ -89,7 +89,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-stranger", ("stranger-uah", 980));
         await using var app = Create(At(2074, 5, 5, 10), bank, publicBaseUrl: PublicBaseUrl);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-stranger");
+        using var owner = await Connect(app, _ownerEmail, "token-stranger");
         await WebhookSettled(app, owner);
         using var monobank = ApiFixture.CreateClient(app.Factory);
         var calls = bank.StatementCalls(app.Handler).Length;
@@ -103,7 +103,7 @@ public sealed partial class MonobankSyncTests
 
         Assert.DoesNotContain((await Status(owner)).Accounts, account => account.SyncPending);
         app.Clock.Advance(TimeSpan.FromMinutes(5));
-        await Task.Delay(100);
+        await Quiet(app);
         Assert.Equal(calls, bank.StatementCalls(app.Handler).Length);
     }
 
@@ -113,7 +113,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-flood", ("flood-uah", 980));
         await using var app = Create(At(2075, 6, 5, 10), bank, publicBaseUrl: PublicBaseUrl);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-flood");
+        using var owner = await Connect(app, _ownerEmail, "token-flood");
         await WebhookSettled(app, owner);
         using var monobank = ApiFixture.CreateClient(app.Factory);
         var path = RegisteredPath(bank);
@@ -133,7 +133,7 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-hookfail", ("hookfail-uah", 980));
         bank.Put("hookfail-uah", new Operation("op-hookfail", At(2059, 2, 5, 9), 12_00, 980));
         await using var app = Create(At(2059, 2, 5, 10), bank, publicBaseUrl: PublicBaseUrl);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-hookfail");
+        using var owner = await Connect(app, _ownerEmail, "token-hookfail");
 
         var webhook = await WebhookSettled(app, owner);
         Assert.Equal(WebhookState.Failed, webhook.State);
@@ -150,7 +150,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank { WebhookRejects = true };
         bank.Connect("token-hookreject", ("hookreject-uah", 980));
         await using var app = Create(At(2080, 2, 5, 10), bank, publicBaseUrl: PublicBaseUrl);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-hookreject");
+        using var owner = await Connect(app, _ownerEmail, "token-hookreject");
 
         var webhook = await WebhookSettled(app, owner);
         Assert.Equal(new WebhookStatusResponse(WebhookState.Failed, null), webhook);
@@ -163,7 +163,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-unhook", ("unhook-uah", 980));
         await using var app = Create(At(2077, 7, 5, 10), bank, publicBaseUrl: PublicBaseUrl);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-unhook");
+        using var owner = await Connect(app, _ownerEmail, "token-unhook");
         await WebhookSettled(app, owner);
         using var monobank = ApiFixture.CreateClient(app.Factory);
         var path = RegisteredPath(bank);
@@ -187,15 +187,13 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-nightly", ("nightly-uah", 980));
         await using var app = Create(At(2040, 6, 10, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-nightly");
+        using var owner = await Connect(app, _ownerEmail, "token-nightly");
         bank.Put("nightly-uah", new Operation("op-nightly", At(2040, 6, 10, 12), 77_00, 980));
         var calls = bank.StatementCalls(app.Handler).Length;
 
-        app.Clock.Advance(new DateTimeOffset(2040, 6, 10, 23, 59, 0, TimeSpan.Zero) - app.Clock.GetUtcNow());
-        await Task.Delay(200);
-        Assert.Equal(calls, bank.StatementCalls(app.Handler).Length);
-
-        app.Clock.Advance(TimeSpan.FromMinutes(1));
+        // That the run waits for 03:00 is MonobankNightlySyncTests' NextRun. A sleep before this could only
+        // fail to see an early run, so the last assertion has the call's own time say it did not come early.
+        app.Clock.Advance(new DateTimeOffset(2040, 6, 11, 0, 0, 0, TimeSpan.Zero) - app.Clock.GetUtcNow());
         var steps = 0;
         while ((await List(owner, 2040)).Items.Length == 0)
         {
@@ -218,12 +216,12 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-aged", ("aged-uah", 980));
         await using var app = Create(At(2079, 3, 5, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-aged");
+        using var owner = await Connect(app, _ownerEmail, "token-aged");
         Assert.True((await Status(owner)).Accounts.Single(account => account.ExternalId == "aged-uah").BackfillComplete);
 
         bank.StatementsFail = true;
         app.Clock.Advance(TimeSpan.FromDays(40));
-        using var again = await ApiFixture.SignIn(app.Factory, ApiFixture.AllowedEmail);
+        using var again = await ApiFixture.SignIn(app.Factory, _ownerEmail);
         await DrainUntil(app, again, "aged-uah", account => account.LastFailure is not null && !account.SyncPending);
 
         var account = (await Status(again)).Accounts.Single(row => row.ExternalId == "aged-uah");

@@ -18,11 +18,17 @@ using TaxesUa.Api.Tests.Features.Fx;
 
 namespace TaxesUa.Api.Tests.Features.Monobank;
 
-// The owners are shared by every test in this class, so each test runs in a year of its own, names
-// accounts no other test uses and sets its own registration date; a token save deactivates every
-// account the new client-info omits.
+// Each test has owners of its own (ApiFixture.NewOwner), so an earlier test's unfinished sync, which the
+// next application queues again on start, can only ever be for an owner this test never signs in as. The
+// class still shares one database, so each test also runs in a year of its own and names accounts no
+// other test uses; a token save deactivates every account the new client-info omits.
 public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
+    // Owners no other test shares (see ApiFixture.NewOwner).
+    private readonly string _ownerEmail = fixture.NewOwner();
+
+    private readonly string _otherEmail = fixture.NewOwner();
+
     private static readonly JsonSerializerOptions Json =
         new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
@@ -37,7 +43,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Put("cur-eur", new Operation("op-eur", At(2032, 7, 13, 12), 500_00, 978, CounterName: "Beta GmbH"));
         var nbu = Nbu(("USD", new DateOnly(2032, 7, 12), "41.2345"), ("EUR", new DateOnly(2032, 7, 13), "45.6789"));
         await using var app = Create(At(2032, 7, 15, 10), bank, nbu);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-currencies");
+        using var owner = await Connect(app, _ownerEmail, "token-currencies");
         // A real clock moves between any two reads, which must not cost an extra call for the last second.
         app.Clock.AutoAdvanceAmount = TimeSpan.FromMilliseconds(1);
 
@@ -78,7 +84,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Connect("token-audit", ("audit-uah", 980));
         bank.Put("audit-uah", new Operation("op-audit", At(2033, 3, 3, 9), 2_000_00, 980, CounterName: "Gamma"));
         await using var app = Create(At(2033, 3, 5, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-audit");
+        using var owner = await Connect(app, _ownerEmail, "token-audit");
         var settings = new SettingsRequest(
             new DateOnly(2033, 3, 1), PaymentMode.Quarterly, EsvRegistrationMonthPolicy.FullMonth, false, true, true,
             [DayOfWeek.Saturday, DayOfWeek.Sunday], "uk", "system", "UAH");
@@ -106,7 +112,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Put("repeat-uah", new Operation("op-repeat", At(2034, 5, 1, 9), 300_00, 980, CounterName: "Delta"));
         var clock = At(2034, 5, 10, 10);
         await using var app = Create(clock, bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-repeat");
+        using var owner = await Connect(app, _ownerEmail, "token-repeat");
         var row = Assert.Single((await List(owner, 2034)).Items);
 
         var edit = new TransactionRequest(
@@ -130,7 +136,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Connect("token-hold", ("hold-uah", 980));
         bank.Put("hold-uah", new Operation("op-hold", At(2035, 2, 1, 9), 700_00, 980, Hold: true));
         await using var app = Create(At(2035, 2, 2, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-hold");
+        using var owner = await Connect(app, _ownerEmail, "token-hold");
 
         Assert.Empty((await List(owner, 2035)).Items);
         Assert.Equal((0, 1), Counts(await Status(owner), "hold-uah"));
@@ -151,7 +157,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Put("dates-uah", new Operation("op-debit", At(2036, 7, 21, 9), -50_00, 980));
         bank.Put("dates-pln", new Operation("op-pln", At(2036, 7, 21, 9), 90_00, 985));
         await using var app = Create(At(2036, 7, 25, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-dates");
+        using var owner = await Connect(app, _ownerEmail, "token-dates");
 
 
         var row = Assert.Single((await List(owner, 2036)).Items);
@@ -168,7 +174,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Connect("token-card", ("card-uah", 980));
         bank.Put("card-uah", new Operation("op-card", At(2042, 3, 2, 9), 4_500_000, 978, CounterName: "EU client"));
         await using var app = Create(At(2042, 3, 3, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-card");
+        using var owner = await Connect(app, _ownerEmail, "token-card");
 
 
         var row = Assert.Single((await List(owner, 2042)).Items);
@@ -183,7 +189,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Connect("token-emoji", ("emoji-uah", 980));
         bank.Put("emoji-uah", new Operation("op-emoji", At(2047, 5, 7, 9), 100_00, 980, CounterName: name));
         await using var app = Create(At(2047, 5, 8, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-emoji");
+        using var owner = await Connect(app, _ownerEmail, "token-emoji");
 
 
         Assert.Single((await List(owner, 2047)).Items);
@@ -198,7 +204,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Put("fail-uah", new Operation("op-fail", At(2043, 5, 2, 9), 123_00, 980));
         bank.StatementsFail = true;
         await using var app = Create(At(2043, 5, 3, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-fail");
+        using var owner = await Connect(app, _ownerEmail, "token-fail");
 
         Assert.Empty((await List(owner, 2043)).Items);
         var failed = (await Status(owner)).Accounts.Single(account => account.ExternalId == "fail-uah");
@@ -224,7 +230,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
 
         var now = At(2051, 12, 20, 10);
         await using var app = Create(now, bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-year", new DateOnly(2051, 1, 1));
+        using var owner = await Connect(app, _ownerEmail, "token-year", new DateOnly(2051, 1, 1));
 
         await DrainUntil(app, owner, "year-uah", account => account.BackfillComplete && !account.SyncPending);
 
@@ -254,7 +260,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
 
         var first = Create(At(2052, 9, 20, 10), bank);
         DateTimeOffset reached;
-        using (var owner = await Connect(first, ApiFixture.AllowedEmail, "token-restart", new DateOnly(2052, 1, 1)))
+        using (var owner = await Connect(first, _ownerEmail, "token-restart", new DateOnly(2052, 1, 1)))
         {
             Assert.Equal(HttpStatusCode.Accepted, (await owner.PostAsync("/api/monobank/sync", null)).StatusCode);
             reached = await DrainUntil(first, owner, "restart-uah", account => account.SyncedThrough >= At(2052, 4, 1, 0));
@@ -264,7 +270,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         await first.DisposeAsync();
 
         await using var second = Create(first.Clock.GetUtcNow(), bank);
-        using var again = await ApiFixture.SignIn(second.Factory, ApiFixture.AllowedEmail);
+        using var again = await ApiFixture.SignIn(second.Factory, _ownerEmail);
         await DrainUntil(second, again, "restart-uah", account => account.BackfillComplete && !account.SyncPending);
 
         var items = (await List(again, 2052)).Items;
@@ -286,7 +292,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Put("busy-uah", new Operation("op-busy", At(2053, 6, 2, 9), 55_00, 980));
         bank.RateLimit(2, TimeSpan.FromSeconds(90));
         await using var app = Create(At(2053, 6, 5, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-busy");
+        using var owner = await Connect(app, _ownerEmail, "token-busy");
 
 
         Assert.Equal(55_00, Assert.Single((await List(owner, 2053)).Items).AmountMinor);
@@ -310,7 +316,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         }
 
         await using var app = Create(At(2054, 5, 20, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-revoked", new DateOnly(2054, 1, 1));
+        using var owner = await Connect(app, _ownerEmail, "token-revoked", new DateOnly(2054, 1, 1));
         Assert.Equal(HttpStatusCode.Accepted, (await owner.PostAsync("/api/monobank/sync", null)).StatusCode);
         var cursor = await DrainUntil(app, owner, "revoked-uah", account => account.SyncedThrough is not null);
         bank.Revoke("token-revoked");
@@ -322,7 +328,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         var callsWhileBroken = bank.StatementCalls(app.Handler).Length;
         Assert.Equal(HttpStatusCode.Conflict, (await owner.PostAsync("/api/monobank/sync", null)).StatusCode);
         app.Clock.Advance(TimeSpan.FromMinutes(5));
-        await Task.Delay(100);
+        await Quiet(app);
         Assert.Equal(callsWhileBroken, bank.StatementCalls(app.Handler).Length);
 
         bank.Connect("token-renewed", ("revoked-uah", 980));
@@ -348,7 +354,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         }
 
         await using var app = Create(At(2056, 6, 20, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-swap-old", new DateOnly(2056, 1, 1));
+        using var owner = await Connect(app, _ownerEmail, "token-swap-old", new DateOnly(2056, 1, 1));
         var cursor = await DrainUntil(app, owner, "swap-uah", account => account.SyncedThrough >= At(2056, 3, 1, 0));
 
         bank.Connect("token-swap-new", ("swap-uah", 980));
@@ -376,7 +382,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         }
 
         await using var app = Create(At(2057, 6, 20, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-refollow", new DateOnly(2057, 1, 1));
+        using var owner = await Connect(app, _ownerEmail, "token-refollow", new DateOnly(2057, 1, 1));
         var cursor = await DrainUntil(app, owner, "refollow-uah", account => account.SyncedThrough >= At(2057, 3, 1, 0));
 
         var unfollowed = await owner.PutAsJsonAsync("/api/monobank/accounts", new { followedExternalIds = Array.Empty<string>() });
@@ -405,7 +411,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         }
 
         await using var app = Create(At(2061, 4, 20, 10), bank);
-        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-restore", new DateOnly(2061, 1, 1));
+        using var owner = await Connect(app, _otherEmail, "token-restore", new DateOnly(2061, 1, 1));
         var empty = await owner.GetStringAsync("/api/backup");
         Assert.Equal(HttpStatusCode.Accepted, (await owner.PostAsync("/api/monobank/sync", null)).StatusCode);
         await DrainUntil(app, owner, "restore-uah", account => account.SyncedThrough is not null);
@@ -426,7 +432,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Connect("token-unset", ("unset-uah", 980));
         bank.Put("unset-uah", new Operation("op-january", At(2055, 1, 5, 9), 42_00, 980));
         await using var app = Create(At(2055, 3, 20, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-unset", registeredOn: null);
+        using var owner = await Connect(app, _ownerEmail, "token-unset", registeredOn: null);
 
         var status = await Status(owner);
         Assert.Equal(new BackfillStartResponse(new DateOnly(2055, 1, 1), FromRegistrationDate: false), status.BackfillStart);
@@ -445,7 +451,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Connect("token-follow", ("follow-a", 980), ("follow-b", 980));
         bank.Put("follow-b", new Operation("op-b", At(2037, 4, 1, 9), 100_00, 980));
         await using var app = Create(At(2037, 4, 2, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-follow");
+        using var owner = await Connect(app, _ownerEmail, "token-follow");
         var before = bank.StatementCalls(app.Handler).Length;
         await owner.PutAsJsonAsync("/api/monobank/accounts", new { followedExternalIds = new[] { "follow-a" } });
         app.Clock.Advance(TimeSpan.FromDays(3));
@@ -470,7 +476,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
 
         bank.Put("page-uah", new Operation("op-old-credit", now.AddDays(-20), 900_00, 980));
         await using var app = Create(now, bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-page");
+        using var owner = await Connect(app, _ownerEmail, "token-page");
 
 
         Assert.Equal(900_00, Assert.Single((await List(owner, 2038)).Items).AmountMinor);
@@ -492,7 +498,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         }
 
         await using var app = Create(now, bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-dense");
+        using var owner = await Connect(app, _ownerEmail, "token-dense");
 
 
         Assert.Empty((await List(owner, 2058)).Items);
@@ -511,12 +517,12 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Put("iso-a", new Operation("op-a", At(2039, 8, 1, 9), 111_00, 980));
         bank.Put("iso-b", new Operation("op-b", At(2039, 8, 1, 9), 222_00, 980));
         await using var app = Create(At(2039, 8, 2, 10), bank);
-        using var first = await Connect(app, ApiFixture.AllowedEmail, "token-owner-a");
+        using var first = await Connect(app, _ownerEmail, "token-owner-a");
 
         Assert.Equal(111_00, Assert.Single((await List(first, 2039)).Items).AmountMinor);
         Assert.All(bank.StatementCalls(app.Handler), call => Assert.Contains("/iso-a/", call.Uri.AbsolutePath, StringComparison.Ordinal));
 
-        using var second = await Connect(app, ApiFixture.SecondAllowedEmail, "token-owner-b");
+        using var second = await Connect(app, _otherEmail, "token-owner-b");
         Assert.Equal(222_00, Assert.Single((await List(second, 2039)).Items).AmountMinor);
         Assert.Single((await List(first, 2039)).Items);
     }
@@ -528,7 +534,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         bank.Connect("token-backup-secret", ("backup-usd", 840));
         bank.Put("backup-usd", new Operation("op-backup", At(2060, 9, 3, 9), 250_00, 840, CounterName: "Epsilon"));
         await using var app = Create(At(2060, 9, 5, 10), bank, Nbu(("USD", new DateOnly(2060, 9, 3), "40.0000")));
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-backup-secret");
+        using var owner = await Connect(app, _ownerEmail, "token-backup-secret");
         var imported = Assert.Single((await List(owner, 2060)).Items);
 
         var file = await owner.GetStringAsync("/api/backup");
@@ -570,7 +576,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         using var anonymous = ApiFixture.CreateClient(app.Factory);
         Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsync("/api/monobank/sync", null)).StatusCode);
 
-        using var owner = await ApiFixture.SignIn(app.Factory, ApiFixture.SecondAllowedEmail);
+        using var owner = await ApiFixture.SignIn(app.Factory, _otherEmail);
         await owner.DeleteAsync("/api/monobank/connection");
         Assert.Equal(HttpStatusCode.Conflict, (await owner.PostAsync("/api/monobank/sync", null)).StatusCode);
     }
@@ -629,8 +635,6 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         return owner;
     }
 
-    // Starts from a disconnected owner: an earlier test's token may have been rejected by this test's bank
-    // when the app queued its unfinished syncs on start, and a rejected token's replacement resumes syncing.
     private static async Task<HttpClient> Connect(SyncApp app, string email, string token, DateOnly? registeredOn)
     {
         var owner = await ApiFixture.SignIn(app.Factory, email);
@@ -638,7 +642,6 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
             registeredOn, PaymentMode.Quarterly, EsvRegistrationMonthPolicy.FullMonth, false, true, true,
             [DayOfWeek.Saturday, DayOfWeek.Sunday], "uk", "system", "UAH");
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", settings, Json)).StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync("/api/monobank/connection")).StatusCode);
         var response = await owner.PutAsJsonAsync("/api/monobank/connection", new { token });
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         return owner;
@@ -670,6 +673,23 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
         var response = await owner.PostAsync("/api/monobank/sync", null);
         Assert.True(response.StatusCode == HttpStatusCode.Accepted, await response.Content.ReadAsStringAsync());
         await Drain(app, owner);
+    }
+
+    // For a check that nothing happened: moves the clock on until the sync worker and the webhook registrar
+    // have nothing waiting or running, so the check looks after everything that could have happened rather
+    // than after a sleep. Whatever a request or a timer asked for is queued before the request answers or
+    // the clock moves, so an idle worker has finished it. Bounded in steps, as Drain is.
+    private static async Task Quiet(SyncApp app)
+    {
+        var queue = app.Factory.Services.GetRequiredService<MonobankSyncQueue>();
+        var webhooks = app.Factory.Services.GetRequiredService<MonobankWebhooks>();
+        var steps = 0;
+        while (!queue.IsIdle || !webhooks.IsIdle)
+        {
+            Assert.True(++steps < MaxDrainSteps, "the workers did not go idle");
+            app.Clock.Advance(TimeSpan.FromSeconds(5));
+            await Task.Delay(10);
+        }
     }
 
     private static async Task Drain(SyncApp app, HttpClient owner)

@@ -24,7 +24,7 @@ public sealed partial class MonobankSyncTests
             ("jar-eur", "Euros", 978, 1_00), ("jar-trip", "Подорож", 980, 0));
         await using var app = Create(At(2095, 3, 10, 10), bank);
         await ClearJars(app);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-jar-list");
+        using var owner = await ConnectAtOnce(app, _ownerEmail, "token-jar-list");
         await ForgetJar(owner);
 
         var offered = (await owner.GetFromJsonAsync<JarChoicesResponse>("/api/monobank/jars", Json))!;
@@ -51,7 +51,7 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-jar-gate", (TaxesJar, "На податки", 980, 10_000_00));
         await using var app = Create(At(2095, 4, 10, 10), bank);
         await ClearJars(app);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-jar-gate");
+        using var owner = await ConnectAtOnce(app, _ownerEmail, "token-jar-gate");
         await ForgetJar(owner);
 
         // The token save made the one call; everything in the minute after it is served from its answer.
@@ -84,7 +84,7 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-jar-wait", (TaxesJar, "На податки", 980, 10_000_00));
         await using var app = Create(At(2095, 5, 10, 10), bank);
         await ClearJars(app);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-jar-wait");
+        using var owner = await Connect(app, _ownerEmail, "token-jar-wait");
         await ForgetJar(owner);
         await Choose(owner, TaxesJar);
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
@@ -110,7 +110,7 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-jar-sync", (TaxesJar, "На податки", 980, 10_000_00));
         await using var app = Create(At(2095, 6, 10, 10), bank);
         await ClearJars(app);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-jar-sync");
+        using var owner = await Connect(app, _ownerEmail, "token-jar-sync");
         await ForgetJar(owner);
         await Choose(owner, TaxesJar);
         var before = bank.ClientInfoCalls(app.Handler).Length;
@@ -141,7 +141,7 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-jar-none", ("jar-none-fop", 980));
         await using var app = Create(At(2095, 7, 10, 10), bank);
         await ClearJars(app);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-jar-none");
+        using var owner = await Connect(app, _ownerEmail, "token-jar-none");
         await ForgetJar(owner);
 
         app.Clock.Advance(MonobankRateGate.Interval * 2);
@@ -158,14 +158,14 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-jar-stale", (TaxesJar, "На податки", 980, 10_000_00));
         await using var app = Create(At(2095, 8, 10, 10), bank);
         await ClearJars(app);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-jar-stale");
+        using var owner = await Connect(app, _ownerEmail, "token-jar-stale");
         await ForgetJar(owner);
         // Written straight to the row: moving the fake clock a day would run the nightly sync as well.
         var fetchedAt = app.Clock.GetUtcNow() - TimeSpan.FromHours(23);
-        await StoreJar(app, ApiFixture.AllowedEmail, fetchedAt);
+        await StoreJar(app, _ownerEmail, fetchedAt);
         var fresh = (await StoredJar(owner)).Jar!;
         fetchedAt -= TimeSpan.FromHours(2);
-        await StoreJar(app, ApiFixture.AllowedEmail, fetchedAt);
+        await StoreJar(app, _ownerEmail, fetchedAt);
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
         bank.ClientInfoFails = true;
         var failed = await Refresh(owner);
@@ -190,7 +190,7 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-jar-gone", (TaxesJar, "На податки", 980, 10_000_00));
         await using var app = Create(At(2095, 9, 10, 10), bank);
         await ClearJars(app);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-jar-gone");
+        using var owner = await Connect(app, _ownerEmail, "token-jar-gone");
         await ForgetJar(owner);
         var chosen = await Choose(owner, TaxesJar);
         bank.Jars("token-jar-gone");
@@ -211,7 +211,7 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-jar-nothing", ("jar-nothing-fop", 980));
         await using var app = Create(At(2095, 10, 10, 10), bank);
         await ClearJars(app);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-jar-nothing");
+        using var owner = await Connect(app, _ownerEmail, "token-jar-nothing");
         await ForgetJar(owner);
 
         var noJar = await Refresh(owner);
@@ -232,8 +232,8 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-jar-second", ("jar-second", "Друга скарбничка", 980, 777_00));
         await using var app = Create(At(2095, 11, 10, 10), bank);
         await ClearJars(app);
-        using var first = await Connect(app, ApiFixture.AllowedEmail, "token-jar-first");
-        using var second = await Connect(app, ApiFixture.SecondAllowedEmail, "token-jar-second");
+        using var first = await Connect(app, _ownerEmail, "token-jar-first");
+        using var second = await Connect(app, _otherEmail, "token-jar-second");
         await ForgetJar(first);
         await ForgetJar(second);
         await Choose(first, TaxesJar);
@@ -269,7 +269,7 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-jar-secret", (TaxesJar, "На податки", 980, 10_000_00));
         await using var app = Create(At(2095, 12, 10, 10), bank);
         await ClearJars(app);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-jar-secret");
+        using var owner = await ConnectAtOnce(app, _ownerEmail, "token-jar-secret");
         await ForgetJar(owner);
         using var visitor = ApiFixture.CreateClient(app.Factory);
 
@@ -304,7 +304,7 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-jar-race-b", ("jar-new", "Нова скарбничка", 980, 2_00));
         await using var app = Create(At(2095, 2, 10, 10), bank);
         await ClearJars(app);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-jar-race-a");
+        using var owner = await ConnectAtOnce(app, _ownerEmail, "token-jar-race-a");
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
         bank.HoldClientInfo("token-jar-race-a");
 
@@ -329,7 +329,7 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-jar-spent", (TaxesJar, "На податки", 980, 10_000_00));
         await using var app = Create(At(2095, 1, 10, 10), bank);
         await ClearJars(app);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-jar-spent");
+        using var owner = await ConnectAtOnce(app, _ownerEmail, "token-jar-spent");
         await Choose(owner, TaxesJar);
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
 
@@ -352,7 +352,7 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-jar-double", (TaxesJar, "На податки", 980, 10_000_00), ("jar-trip", "Подорож", 980, 5_00));
         await using var app = Create(At(2095, 3, 20, 10), bank);
         await ClearJars(app);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-jar-double");
+        using var owner = await ConnectAtOnce(app, _ownerEmail, "token-jar-double");
 
         var both = await Task.WhenAll(
             owner.PutAsJsonAsync("/api/monobank/reserve-jar", new { jarId = TaxesJar }, Json),

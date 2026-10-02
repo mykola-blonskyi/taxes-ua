@@ -20,8 +20,8 @@ public sealed partial class MonobankSyncTests
         bank.Put("tre-older-uah", new Operation("op-old-b", At(year, 3, 2, 9), -200_00, 980,
             Comment: "ЄП", CounterIban: OtherTreasuryIban, CounterName: null, CounterEdrpou: null));
         await using var app = Create(At(year, 3, 5, 10), bank);
-        await ForgetPayments(app, ApiFixture.AllowedEmail);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-tre-older");
+        await ForgetPayments(app, _ownerEmail);
+        using var owner = await Connect(app, _ownerEmail, "token-tre-older");
         await ConfirmByAmount(owner, year, 100_00, PaymentKind.SingleTax);
         await ConfirmByAmount(owner, year, 200_00, PaymentKind.SingleTax);
         var account = await TreasuryAccount(owner, PaymentKind.SingleTax);
@@ -45,8 +45,8 @@ public sealed partial class MonobankSyncTests
         bank.Put("tre-late-uah", new Operation("op-late-b", At(year, 3, 2, 9), -200_00, 980,
             Comment: "ЄП", CounterIban: OtherTreasuryIban, CounterName: null, CounterEdrpou: null));
         await using var app = Create(At(year, 3, 5, 10), bank);
-        await ForgetPayments(app, ApiFixture.SecondAllowedEmail);
-        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-tre-late");
+        await ForgetPayments(app, _otherEmail);
+        using var owner = await Connect(app, _otherEmail, "token-tre-late");
         await ConfirmByAmount(owner, year, 100_00, PaymentKind.SingleTax);
         await ConfirmByAmount(owner, year, 200_00, PaymentKind.SingleTax);
         var file = JsonNode.Parse(await owner.GetStringAsync("/api/backup"))!;
@@ -80,8 +80,8 @@ public sealed partial class MonobankSyncTests
         bank.Put("tre-keep-uah", new Operation("op-keep-c", At(year, 3, 4, 9), -300_00, 980,
             Comment: "ЄП", CounterIban: OtherTreasuryIban, CounterName: null, CounterEdrpou: null));
         await using var app = Create(At(year, 3, 6, 10), bank);
-        await ForgetPayments(app, ApiFixture.AllowedEmail);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-tre-keep");
+        await ForgetPayments(app, _ownerEmail);
+        using var owner = await Connect(app, _ownerEmail, "token-tre-keep");
         await ConfirmByAmount(owner, year, 50_00, PaymentKind.SingleTax);
         await ConfirmByAmount(owner, year, 100_00, PaymentKind.SingleTax);
         await ConfirmByAmount(owner, year, 300_00, PaymentKind.SingleTax);

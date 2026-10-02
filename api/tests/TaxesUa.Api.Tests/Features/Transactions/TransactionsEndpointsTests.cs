@@ -2,8 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
@@ -13,8 +16,9 @@ using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
 namespace TaxesUa.Api.Tests.Features.Transactions;
 
 // ApiFixture is an IClassFixture, so this class shares one database. xUnit fixes no order between
-// tests, so every test isolates by year, and only ApiFixture.AllowedEmail's Settings row is ever
-// written, idempotently, with the same FopRegistrationDate every time.
+// tests, so every test isolates by year, or by an owner of its own (ApiFixture.NewOwner); only
+// ApiFixture.AllowedEmail's Settings row is otherwise written, idempotently, with the same
+// FopRegistrationDate every time.
 public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
     private static readonly JsonSerializerOptions Json =
@@ -219,8 +223,11 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     public async Task Year_total_excludes_non_income_and_pre_registration_rows()
     {
         const int year = 2026;
-        using var client = await SignIn(ApiFixture.AllowedEmail);
-        await SetFopRegistrationDate(FopRegistrationDate);
+        // An owner of its own, so the exact total below counts nothing another test wrote.
+        var email = fixture.NewOwner();
+        await using var application = fixture.CreateApplication(_ => { });
+        using var client = await ApiFixture.SignIn(application, email);
+        await SetFopRegistrationDate(FopRegistrationDate, email);
 
         var income = await Create(
             client, kind: TransactionKind.Income, amountMinor: 100_000, valueDate: new DateOnly(year, 4, 1));
@@ -266,12 +273,22 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
         Assert.Equal(beforeRegistration.Id, byId[transitiveRefund.Id].RefundsReceipt?.Id);
     }
 
+    // 01:30 on 18 May in Kyiv, still 17 May in UTC: a clock read in UTC would call 17 May today.
+    private static readonly DateTimeOffset LateEveningInUtc = new(2036, 5, 17, 22, 30, 0, TimeSpan.Zero);
+
+    private static readonly DateOnly TodayInKyiv = new(2036, 5, 18);
+
+    private WebApplicationFactory<Program> ApplicationAtLateEvening() =>
+        fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
+            services.AddSingleton<TimeProvider>(new FakeTimeProvider(LateEveningInUtc))));
+
     [Fact]
     public async Task A_receipt_dated_after_today_in_kyiv_is_rejected()
     {
-        using var client = await SignIn(ApiFixture.AllowedEmail);
-        var tomorrow = TimeProvider.System.TodayInKyiv().AddDays(1);
-        var body = Body(valueDate: tomorrow);
+        var email = fixture.NewOwner();
+        await using var application = ApplicationAtLateEvening();
+        using var client = await ApiFixture.SignIn(application, email);
+        var body = Body(valueDate: TodayInKyiv.AddDays(1));
 
         var response = await client.PostAsJsonAsync("/api/transactions", body, Json);
 
@@ -282,16 +299,20 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     [Fact]
     public async Task A_row_dated_today_in_kyiv_is_accepted()
     {
-        using var client = await SignIn(ApiFixture.AllowedEmail);
+        var email = fixture.NewOwner();
+        await using var application = ApplicationAtLateEvening();
+        using var client = await ApiFixture.SignIn(application, email);
 
-        // Non-income and dated today: this shares the fixture's database with
-        // Year_total_excludes_non_income_and_pre_registration_rows, which asserts an exact income total
-        // for the current calendar year, so this row must never count toward that sum.
-        await Create(
+        var created = await Create(
             client,
             kind: TransactionKind.OwnDeposit,
             nonIncomeReason: "boundary check",
-            valueDate: TimeProvider.System.TodayInKyiv());
+            valueDate: TodayInKyiv);
+
+        Assert.Equal(TodayInKyiv, created.ValueDate);
+        var listed = await client.GetFromJsonAsync<TransactionListResponse>("/api/transactions?year=2036", Json);
+        var stored = Assert.Single(listed!.Items);
+        Assert.Equal((created.Id, TodayInKyiv), (stored.Id, stored.ValueDate));
     }
 
     [Fact]

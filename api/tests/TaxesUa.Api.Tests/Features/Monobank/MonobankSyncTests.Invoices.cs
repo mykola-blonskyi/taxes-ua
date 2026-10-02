@@ -18,7 +18,7 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-invoice", ("inv-uah", 980));
         bank.Put("inv-uah", new Operation("op-invoice", At(year, 6, 1, 9), 500_00, 980, CounterName: "Invoice Buyer"));
         await using var app = Create(At(year, 6, 10, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-invoice");
+        using var owner = await Connect(app, _ownerEmail, "token-invoice");
         await InvoicesEndpointsTests.SaveDetails(owner);
         var client = (await owner.GetFromJsonAsync<ClientResponse[]>("/api/clients", Json))!.Single(row => row.Name == "Invoice Buyer");
         var completed = await owner.PutAsJsonAsync($"/api/clients/{client.Id}", InvoicesEndpointsTests.ClientBody("Invoice Buyer"), Json);
@@ -67,7 +67,7 @@ public sealed partial class MonobankSyncTests
             At(year, 6, 10, 10),
             bank,
             Nbu(("USD", new DateOnly(year, 6, 2), "40.0000"), ("USD", new DateOnly(year, 6, 3), "40.0000"), ("USD", new DateOnly(year, 6, 4), "40.0000"), ("USD", new DateOnly(year, 6, 7), "40.0000")));
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-suggest-pay");
+        using var owner = await Connect(app, _ownerEmail, "token-suggest-pay");
         await InvoicesEndpointsTests.SaveDetails(owner);
         var buyer = await CompleteImportedClient(owner, "Zeta Suggest Ltd");
         var other = await CompleteImportedClient(owner, "Unrelated Buyer");
@@ -112,7 +112,7 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-suggest-skip", ("sugskip-uah", 980));
         bank.Put("sugskip-uah", new Operation("op-skip", At(year, 6, 2, 9), 450_00, 980, CounterName: "Skip Suggest Ltd"));
         await using var app = Create(At(year, 6, 10, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-suggest-skip");
+        using var owner = await Connect(app, _ownerEmail, "token-suggest-skip");
         await InvoicesEndpointsTests.SaveDetails(owner);
         var buyer = await CompleteImportedClient(owner, "Skip Suggest Ltd");
         var invoice = await IssueFor(owner, buyer.Id, year, 1, 450_00, Currency.UAH);
@@ -137,8 +137,8 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-suggest-own", ("sugown-uah", 980));
         bank.Put("sugown-uah", new Operation("op-own-sug", At(year, 6, 2, 9), 470_00, 980, CounterName: "Isolated Suggest Ltd"));
         await using var app = Create(At(year, 6, 10, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-suggest-own");
-        using var stranger = await ApiFixture.SignIn(app.Factory, ApiFixture.SecondAllowedEmail);
+        using var owner = await Connect(app, _ownerEmail, "token-suggest-own");
+        using var stranger = await ApiFixture.SignIn(app.Factory, _otherEmail);
         await InvoicesEndpointsTests.SaveDetails(stranger);
         var theirs = await InvoicesEndpointsTests.CreateClient(stranger, "Isolated Suggest Ltd");
         await IssueFor(stranger, theirs.Id, year, 1, 470_00, Currency.UAH);

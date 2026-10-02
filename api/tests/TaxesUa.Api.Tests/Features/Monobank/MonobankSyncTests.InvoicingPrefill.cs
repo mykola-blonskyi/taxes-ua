@@ -16,7 +16,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-prefill-wait", ("prefill-wait-fop", 980));
         await using var app = Create(At(2095, 6, 10, 10), bank);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-prefill-wait");
+        using var owner = await ConnectAtOnce(app, _ownerEmail, "token-prefill-wait");
         var spent = bank.ClientInfoCalls(app.Handler).Length;
         app.Clock.Advance(TimeSpan.FromSeconds(20));
 
@@ -38,7 +38,7 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-prefill-twice", (TaxesJar, "На податки", 980, 10_000_00));
         await using var app = Create(At(2095, 6, 11, 10), bank);
         await ClearJars(app);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-prefill-twice");
+        using var owner = await ConnectAtOnce(app, _ownerEmail, "token-prefill-twice");
         await Choose(owner, TaxesJar);
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
         Assert.Equal(HttpStatusCode.OK, (await Refresh(owner)).StatusCode);
@@ -62,7 +62,7 @@ public sealed partial class MonobankSyncTests
         bank.Jars("token-prefill-paths", (TaxesJar, "На податки", 980, 10_000_00));
         await using var app = Create(At(2095, 6, 14, 10), bank);
         await ClearJars(app);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-prefill-paths");
+        using var owner = await ConnectAtOnce(app, _ownerEmail, "token-prefill-paths");
         using var patience = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
         // The token save's minute: every path is served from its answer.
@@ -97,7 +97,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-prefill-spent", ("prefill-spent-fop", 980));
         await using var app = Create(At(2095, 6, 13, 10), bank);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-prefill-spent");
+        using var owner = await ConnectAtOnce(app, _ownerEmail, "token-prefill-spent");
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
         // A token save the bank refuses still spends the slot, and the answer held for the old token is over.
         Assert.Equal(
@@ -122,7 +122,7 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-prefill-race-b", ("prefill-race-fop", 980));
         bank.Name("token-prefill-race-b", "New FOP");
         await using var app = Create(At(2095, 6, 15, 10), bank);
-        using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-prefill-race-a");
+        using var owner = await ConnectAtOnce(app, _ownerEmail, "token-prefill-race-a");
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
         bank.HoldClientInfo("token-prefill-race-a");
 
@@ -148,10 +148,10 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-prefill-rejected", ("prefill-rejected-fop", 980));
         await using var app = Create(At(2095, 6, 12, 10), bank);
-        // Connect waits for the sync the save queues, and with it for any unfinished sync an earlier test
-        // left for this owner. One that ran after the revoke would get a 403 from its statement call, reject
-        // the token itself, and the prefill would say "not connected" instead of asking to connect again.
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-prefill-rejected");
+        // Connect waits for the sync the save queues. One that ran after the revoke would get a 403 from its
+        // statement call, reject the token itself, and the prefill would say "not connected" instead of
+        // asking to connect again.
+        using var owner = await Connect(app, _ownerEmail, "token-prefill-rejected");
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
         bank.Revoke("token-prefill-rejected");
 

@@ -25,8 +25,8 @@ public sealed partial class MonobankSyncTests
         bank.Put("tre-learn-uah", new Operation("op-tre-1", At(year, 3, 2, 9), -1_500_00, 980,
             CounterName: "ГУК у м.Києві/Печерс.р-н", Comment: "ВЗ", CounterIban: LevyIban2026, CounterEdrpou: "37993783"));
         await using var app = Create(At(year, 3, 5, 10), bank);
-        await ForgetPayments(app, ApiFixture.AllowedEmail);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-tre-learn");
+        await ForgetPayments(app, _ownerEmail);
+        using var owner = await Connect(app, _ownerEmail, "token-tre-learn");
         await Sync(app, owner);
 
         var confirmed = await ConfirmCandidate(owner, Assert.Single(await Candidates(owner, year)), PaymentKind.MilitaryLevy, year, quarter: 1);
@@ -71,8 +71,8 @@ public sealed partial class MonobankSyncTests
         bank.Put("tre-manual-uah", new Operation("op-tre-m1", At(year, 3, 2, 9), -100_00, 980,
             Comment: "ЄП", CounterIban: OtherTreasuryIban, CounterName: "ГУК Інше", CounterEdrpou: "37993784"));
         await using var app = Create(At(year, 3, 5, 10), bank);
-        await ForgetPayments(app, ApiFixture.SecondAllowedEmail);
-        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-tre-manual");
+        await ForgetPayments(app, _otherEmail);
+        using var owner = await Connect(app, _otherEmail, "token-tre-manual");
         var manual = new TreasuryAccountRequest(BudgetIban, "ГУК у м.Києві", "37993783");
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings/treasury-accounts/SingleTax", manual, Json)).StatusCode);
         await Sync(app, owner);
@@ -115,9 +115,9 @@ public sealed partial class MonobankSyncTests
         bank.Put("tre-iso-uah", new Operation("op-tre-iso", At(year, 3, 2, 9), -100_00, 980,
             Comment: "ЄСВ", CounterIban: EsvIban, CounterName: "ГУ ДПС", CounterEdrpou: "43141912"));
         await using var app = Create(At(year, 3, 5, 10), bank);
-        await ForgetPayments(app, ApiFixture.AllowedEmail);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-tre-iso");
-        using var stranger = await ApiFixture.SignIn(app.Factory, ApiFixture.SecondAllowedEmail);
+        await ForgetPayments(app, _ownerEmail);
+        using var owner = await Connect(app, _ownerEmail, "token-tre-iso");
+        using var stranger = await ApiFixture.SignIn(app.Factory, _otherEmail);
         var others = await Task.WhenAll(
             TreasuryAccount(owner, PaymentKind.SingleTax), TreasuryAccount(stranger, PaymentKind.Esv), TreasuryAccount(stranger, PaymentKind.SingleTax));
         await Sync(app, owner);
@@ -147,8 +147,8 @@ public sealed partial class MonobankSyncTests
         bank.Put("tre-order-uah", new Operation("op-ord-tie", At(year, 3, 10, 15), -500_00, 980,
             Comment: "ЄП", CounterIban: ThirdTreasuryIban, CounterName: "ГУК Інше", CounterEdrpou: "37993784"));
         await using var app = Create(At(year, 3, 12, 10), bank);
-        await ForgetPayments(app, ApiFixture.AllowedEmail);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-tre-order");
+        await ForgetPayments(app, _ownerEmail);
+        using var owner = await Connect(app, _ownerEmail, "token-tre-order");
 
         await ConfirmByAmount(owner, year, 100_00, PaymentKind.SingleTax);
         await ConfirmByAmount(owner, year, 200_00, PaymentKind.SingleTax);
@@ -184,8 +184,8 @@ public sealed partial class MonobankSyncTests
         bank.Put("tre-retract-uah", new Operation("op-ret-b", At(year, 3, 2, 9), -200_00, 980,
             Comment: "ЄСВ", CounterIban: ThirdTreasuryIban, CounterName: "ГУК Б", CounterEdrpou: "37993784"));
         await using var app = Create(At(year, 3, 5, 10), bank);
-        await ForgetPayments(app, ApiFixture.SecondAllowedEmail);
-        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-tre-retract");
+        await ForgetPayments(app, _otherEmail);
+        using var owner = await Connect(app, _otherEmail, "token-tre-retract");
         await ConfirmByAmount(owner, year, 100_00, PaymentKind.Esv);
         await ConfirmByAmount(owner, year, 200_00, PaymentKind.Esv);
         Assert.Equal("op-ret-b", (await TreasuryAccount(owner, PaymentKind.Esv)).Learned!.OperationId);
@@ -226,8 +226,8 @@ public sealed partial class MonobankSyncTests
         bank.Put("tre-fill-uah", new Operation("op-tre-fill", At(year, 3, 1, 9), -100_00, 980,
             Comment: "ЄП", CounterIban: OtherTreasuryIban, CounterName: "ГУК", CounterEdrpou: "37993783"));
         await using var app = Create(At(year, 3, 5, 10), bank);
-        await ForgetPayments(app, ApiFixture.AllowedEmail);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-tre-fill");
+        await ForgetPayments(app, _ownerEmail);
+        using var owner = await Connect(app, _ownerEmail, "token-tre-fill");
         await ConfirmByAmount(owner, year, 100_00, PaymentKind.SingleTax);
         var file = JsonNode.Parse(await owner.GetStringAsync("/api/backup"))!;
         Assert.Single(file["budgetPaymentCandidates"]!.AsArray())!["counterEdrpou"] = null;
@@ -255,8 +255,8 @@ public sealed partial class MonobankSyncTests
         bank.Put("tre-inline-uah", new Operation("op-inl-other", At(year, 3, 1, 9), -100_00, 980, Comment: "ВЗ", CounterIban: OtherTreasuryIban));
         bank.Put("tre-inline-uah", new Operation("op-inl-same", At(year, 3, 2, 9), -200_00, 980, Comment: "ВЗ", CounterIban: BudgetIban));
         await using var app = Create(At(year, 3, 5, 10), bank);
-        await ForgetPayments(app, ApiFixture.SecondAllowedEmail);
-        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-tre-inline");
+        await ForgetPayments(app, _otherEmail);
+        using var owner = await Connect(app, _otherEmail, "token-tre-inline");
         var manual = new TreasuryAccountRequest(BudgetIban, "ГУК у м.Києві", "37993783");
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings/treasury-accounts/MilitaryLevy", manual, Json)).StatusCode);
 

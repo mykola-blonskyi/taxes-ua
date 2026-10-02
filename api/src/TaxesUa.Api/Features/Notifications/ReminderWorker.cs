@@ -12,6 +12,12 @@ internal sealed class ReminderWorker(
 {
     public static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
 
+    private long _runs;
+
+    /// <summary>How many passes have finished. Tests use it to know that a pass ran, rather than sleeping
+    /// and hoping it had time to.</summary>
+    public long Runs => Volatile.Read(ref _runs);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (true)
@@ -24,6 +30,8 @@ internal sealed class ReminderWorker(
             {
                 logger.LogError(exception, "A reminder run failed.");
             }
+
+            Interlocked.Increment(ref _runs);
 
             await Task.Delay(Interval, time, stoppingToken);
         }

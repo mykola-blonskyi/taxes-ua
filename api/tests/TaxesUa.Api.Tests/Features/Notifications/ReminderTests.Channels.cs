@@ -139,8 +139,17 @@ public sealed partial class ReminderTests
 
         Assert.Equal([WeekBeforeText], Texts(telegram));
         Assert.True(telegram.To("sendMessage")[0].At >= Kyiv(TaxDue.AddDays(-7), 9, 0));
-        clock.Advance(3 * ReminderWorker.Interval);
-        await Task.Delay(200);
+        // Three passes after the one that sent: each is one interval on, and the worker counts the ones it
+        // has finished, so the check follows them rather than a sleep.
+        var worker = application.Services.GetServices<IHostedService>().OfType<ReminderWorker>().Single();
+        var target = worker.Runs + 3;
+        for (var steps = 0; worker.Runs < target; steps++)
+        {
+            Assert.True(steps < 3000, "the reminder service did not run again");
+            clock.Advance(ReminderWorker.Interval);
+            await Task.Delay(10);
+        }
+
         Assert.Single(telegram.To("sendMessage"));
     }
 

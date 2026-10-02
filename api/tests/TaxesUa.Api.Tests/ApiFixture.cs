@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
@@ -43,11 +44,24 @@ public sealed class ApiFixture : IAsyncLifetime
 
     private WebApplicationFactory<Program> _application = null!;
 
+    private readonly ConcurrentQueue<string> _owners = new();
+
     public async Task InitializeAsync()
     {
         await _database.StartAsync();
 
         _application = CreateApplication(_ => { });
+    }
+
+    // An owner no other test shares. Hosted workers act on the rows in the class-wide database, including
+    // those an earlier test left unfinished, so a test that shares an owner can find its sync, its
+    // connection or its linked channel already moved on by another test's worker. Mint the owner before
+    // the application is created: an application allowlists the owners minted so far.
+    public string NewOwner()
+    {
+        var email = $"owner-{Guid.NewGuid():N}@example.com";
+        _owners.Enqueue(email);
+        return email;
     }
 
     public WebApplicationFactory<Program> CreateApplication(Action<IWebHostBuilder> configure) =>
@@ -57,7 +71,7 @@ public sealed class ApiFixture : IAsyncLifetime
             // ConfigureAppConfiguration source is attached, so they have to be host settings.
             builder.UseSetting("Auth:Passkey:ServerDomain", "localhost");
             builder.UseSetting("ConnectionStrings:Default", _database.GetConnectionString());
-            builder.UseSetting("Auth:AllowedEmails", $" {AllowedEmail} ; {SecondAllowedEmail}");
+            builder.UseSetting("Auth:AllowedEmails", string.Join(';', [AllowedEmail, SecondAllowedEmail, .. _owners]));
             builder.UseSetting("Monobank:TokenEncryptionKeyBase64", MonobankTestKeyBase64);
 
             builder.ConfigureTestServices(services =>
