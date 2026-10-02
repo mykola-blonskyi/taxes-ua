@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Plus, Trash2 } from "lucide-react";
 import { ApiError } from "@/data/api/client";
+import { LoadState } from "@/data/api/LoadState";
 import { useClients } from "@/data/clients/useClients";
 import { currencies, type Currency } from "@/data/fx/useFxRate";
 import {
@@ -298,6 +299,7 @@ export function DraftEditor({
         options={clientOptions}
         errors={messages.forField("clientId")}
       />
+      <LoadState quiet query={clients} failed={t("clientsFailed")} />
       {clients.data && clients.data.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {t("noClients")}{" "}

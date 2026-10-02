@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
@@ -21,18 +22,15 @@ import { ReserveJarSection } from "./ReserveJarSection";
 
 export function MonobankConnectionSection() {
   const t = useTranslations("settings.monobank");
-  const { data, isLoading, isError, error } = useMonobankConnection();
+  const query = useMonobankConnection();
+  const { data, isLoading, isError, error } = query;
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError && error instanceof ApiError && error.status === 503) {
+  if (!isLoading && isError && error instanceof ApiError && error.status === 503) {
     return <p className="text-sm text-muted-foreground">{t("notConfigured")}</p>;
   }
 
-  if (isError || !data) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (isLoading || isError || !data) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   return <MonobankConnectionBody connection={data} />;

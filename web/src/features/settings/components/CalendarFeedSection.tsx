@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import { Download } from "lucide-react";
 import { calendarDownloadUrl, useCalendarFeed, useRotateCalendarFeed } from "@/data/calendar/useCalendarFeed";
 import { Button } from "@/shared/ui/button";
@@ -9,7 +10,8 @@ import { CopyField } from "@/shared/ui/copy-field";
 
 export function CalendarFeedSection() {
   const t = useTranslations("settings.calendar");
-  const { data, isLoading, isError } = useCalendarFeed();
+  const query = useCalendarFeed();
+  const { data } = query;
   const rotate = useRotateCalendarFeed();
   const [confirming, setConfirming] = useState(false);
   const path = data?.path ?? null;
@@ -20,10 +22,11 @@ export function CalendarFeedSection() {
       <h3 className="text-sm font-medium">{t("title")}</h3>
       <p className="text-sm text-muted-foreground">{t("intro")}</p>
 
-      {isLoading ? <p className="text-sm text-muted-foreground">{t("loading")}</p> : null}
-      {isError ? <p className="text-sm text-destructive">{t("loadFailed")}</p> : null}
+      {query.isLoading || query.isError ? (
+        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />
+      ) : null}
 
-      {!isLoading && !isError && !url ? (
+      {!query.isLoading && !query.isError && !url ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground">{t("none")}</p>
           <div>

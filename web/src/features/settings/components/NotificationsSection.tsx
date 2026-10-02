@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import {
   useConnectTelegram,
   useDisconnectTelegram,
@@ -26,16 +27,13 @@ export function NotificationsSection({
 }) {
   const t = useTranslations("settings.notifications");
   const [link, setLink] = useState<TelegramConnect | null>(null);
-  const { data, isLoading, isError } = useNotificationChannels({ awaitingLink: link !== null });
+  const query = useNotificationChannels({ awaitingLink: link !== null });
+  const { data } = query;
   const telegram = data?.find((channel) => channel.kind === "Telegram");
   const email = data?.find((channel) => channel.kind === "Email");
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError || !telegram || !email) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (query.isLoading || query.isError || !telegram || !email) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   return (

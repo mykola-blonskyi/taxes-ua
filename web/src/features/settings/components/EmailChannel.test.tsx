@@ -278,7 +278,7 @@ describe("EmailChannel", () => {
         "GET /api/calendar/feed": {},
       });
       const { user } = renderApp(<SettingsTabs initialTab="notifications" confirmEmailToken="tok-1" />);
-      expect(await screen.findByRole("status")).toHaveTextContent("Адресу owner@example.com підтверджено");
+      await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Адресу owner@example.com підтверджено"));
 
       await user.click(screen.getByRole("tab", { name: "Рахунки казначейства" }));
       await user.click(screen.getByRole("tab", { name: "Сповіщення" }));

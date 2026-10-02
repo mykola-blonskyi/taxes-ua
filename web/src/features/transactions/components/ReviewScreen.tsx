@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import { useInvoiceSuggestions, type InvoiceSummary } from "@/data/invoices/useInvoices";
 import { useReviewQueue, type TransactionResponse } from "@/data/transactions/useTransactions";
 import { TransactionForm } from "./TransactionForm";
@@ -12,7 +13,8 @@ export function ReviewScreen() {
   const [editing, setEditing] = useState<TransactionResponse | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
-  const { data, isLoading, isError } = useReviewQueue();
+  const query = useReviewQueue();
+  const { data } = query;
   const { data: offered } = useInvoiceSuggestions();
   // A dismissal only hides the offer for this visit. Confirming the receipt unlinked is what ends it.
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -33,8 +35,9 @@ export function ReviewScreen() {
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">{t("intro")}</p>
 
-      {isLoading ? <p className="text-sm text-muted-foreground">{t("loading")}</p> : null}
-      {isError ? <p className="text-sm text-destructive">{t("loadFailed")}</p> : null}
+      {query.isLoading || query.isError ? (
+        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />
+      ) : null}
 
       <div ref={formRef}>
         {editing ? (

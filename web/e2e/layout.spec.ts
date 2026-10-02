@@ -258,8 +258,41 @@ for (const locale of locales) {
         test.setTimeout(60_000);
         await open(page, route, locale);
         if (route === "/") {
+          const rejected = page.getByRole("alert").filter({ hasText: catalogs[locale].dashboard.sync.tokenRejected.title });
+          const fold = page.locator("main details > summary");
+          // A rejected token leads the dashboard, but a declaration or a group 3 deadline within three days
+          // goes above it and folds the warning, which depends on the date the suite runs. Open the fold then.
+          await expect(rejected.or(fold).first()).toBeVisible();
+          const dashboard = (await (await page.request.get("/api/dashboard")).json()) as {
+            declaration: { daysLeft: number | string } | null;
+            group3: { confirmed: boolean; group3Start: string | null; applicationDaysLeft: number | string | null };
+          };
+          const urgent =
+            (dashboard.declaration !== null && Number(dashboard.declaration.daysLeft) <= 3) ||
+            (!dashboard.group3.confirmed &&
+              dashboard.group3.group3Start !== null &&
+              dashboard.group3.applicationDaysLeft !== null &&
+              Number(dashboard.group3.applicationDaysLeft) <= 3);
+          if (!urgent) {
+            // Nothing is within three days, so the rejected token is the one banner: visible without opening
+            // anything (a role query skips what a closed <details> hides, so visibility alone proves it is
+            // not folded), absent from the folded list's markup, and laid out above the pay card.
+            await expect(rejected, "the rejected token should be a visible banner").toBeVisible();
+            await expect(
+              page.locator("main details [role=alert]").filter({ hasText: catalogs[locale].dashboard.sync.tokenRejected.title }),
+              "the rejected token should not be inside the folded list",
+            ).toHaveCount(0);
+            const banner = await rejected.boundingBox();
+            const payCard = await page.locator("#next-step-kinds").boundingBox();
+            expect(banner, "the rejected-token banner has a box").not.toBeNull();
+            expect(payCard, "the seeded dashboard shows the pay card").not.toBeNull();
+            expect(banner!.y + banner!.height, "the rejected token should sit above the pay card").toBeLessThanOrEqual(payCard!.y);
+          }
+          if (await fold.isVisible()) {
+            await fold.click();
+          }
           await expect(
-            page.getByRole("alert").filter({ hasText: catalogs[locale].dashboard.sync.tokenRejected.title }),
+            rejected,
             "the dashboard should show the rejected-token card",
           ).toBeVisible();
         }

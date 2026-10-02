@@ -10,34 +10,29 @@ import { formatLongDate } from "./debt";
 import { DaysLeft, DebtPeriod } from "./DebtParts";
 import { Group3Status } from "./Group3Status";
 import { HeroCard } from "./HeroCard";
+import { LoadState } from "@/data/api/LoadState";
 import { LimitBar } from "./LimitBar";
+import { activeNotices, isGroup3Unconfirmed, mostSevere, type Notice } from "./notices";
 import { PayDebtButton } from "./PayDebtButton";
 import { ReserveCard } from "./ReserveCard";
 import { SyncHealth } from "./SyncHealth";
 
 export function DashboardScreen() {
   const t = useTranslations("dashboard");
-  const { data, isLoading, isError, isFetching } = useDashboard();
+  const query = useDashboard();
+  const { data, isFetching } = query;
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError || !data) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (query.isLoading || query.isError || !data) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   const { nextStep, today } = data;
-  const needsReview = Number(data.needsReviewCount);
-  const overdueInvoices = Number(data.overdueInvoiceCount);
+  const [banner, ...folded] = activeNotices(data);
+  const notice = (name: Notice) => <NoticeView key={name} name={name} data={data} />;
 
   return (
     <div className="flex flex-col gap-6">
-      <Group3Status group3={data.group3} today={today} />
-      {data.limitCrossing ? <LimitCrossingWarning crossing={data.limitCrossing} /> : null}
-      {needsReview > 0 ? <ReviewWarning count={needsReview} /> : null}
-      {data.declaration ? <DeclarationDue due={data.declaration} today={today} /> : null}
-      {overdueInvoices > 0 ? <OverdueInvoicesNotice count={overdueInvoices} /> : null}
+      {banner ? notice(banner) : null}
       {nextStep.state === "Pay" ? (
         <>
           <HeroCard now={nextStep.now} today={today} busy={isFetching} />
@@ -46,7 +41,12 @@ export function DashboardScreen() {
       ) : (
         <StateCard response={data} />
       )}
-      {data.sync ? <SyncHealth sync={data.sync} /> : null}
+      {folded.length > 0 ? (
+        <FoldedNotices notices={folded} data={data}>
+          {folded.map(notice)}
+        </FoldedNotices>
+      ) : null}
+      {data.sync?.state === "Healthy" ? <SyncHealth sync={data.sync} /> : null}
       {data.reserve ? (
         <ReserveCard reserve={data.reserve} today={today} limitCrossing={data.limitCrossing} />
       ) : null}
@@ -55,6 +55,81 @@ export function DashboardScreen() {
       {data.limit ? <LimitBar limit={data.limit} /> : null}
       <InvoicesLink />
     </div>
+  );
+}
+
+function NoticeView({ name, data }: { name: Notice; data: DashboardResponse }) {
+  switch (name) {
+    case "overdueInvoices":
+      return <OverdueInvoicesNotice count={Number(data.overdueInvoiceCount)} />;
+    case "syncBroken":
+    case "syncStale":
+      return data.sync ? <SyncHealth sync={data.sync} /> : null;
+    case "group3":
+      return <Group3Status group3={data.group3} today={data.today} />;
+    case "limitCrossing":
+      return data.limitCrossing ? <LimitCrossingWarning crossing={data.limitCrossing} /> : null;
+    case "declaration":
+      return data.declaration ? <DeclarationDue due={data.declaration} today={data.today} /> : null;
+    case "review":
+      return <ReviewWarning count={Number(data.needsReviewCount)} />;
+  }
+}
+
+// One short line per notice, for the folded list's summary.
+function useNoticeTitles(data: DashboardResponse): Record<Notice, string> {
+  const t = useTranslations("dashboard");
+  const tDeclaration = useTranslations("declaration");
+  const syncKey =
+    data.sync?.state === "Stale" ? "stale" : data.sync?.state === "TokenUnreadable" ? "tokenUnreadable" : "tokenRejected";
+  const crossing = data.limitCrossing;
+  const due = data.declaration;
+
+  return {
+    syncBroken: t(`sync.${syncKey}.title`),
+    syncStale: t("sync.stale.title"),
+    limitCrossing: crossing
+      ? t("limitCrossing.title", { quarter: Number(crossing.quarter), year: Number(crossing.year) })
+      : "",
+    group3: isGroup3Unconfirmed(data.group3) ? t("group3.unconfirmedShort") : t("group3.beforeGroup3Title"),
+    declaration: due ? tDeclaration("title", { quarter: Number(due.quarter), year: Number(due.year) }) : "",
+    review: t("review.title", { count: Number(data.needsReviewCount) }),
+    overdueInvoices: t("overdueInvoices.title", { count: Number(data.overdueInvoiceCount) }),
+  };
+}
+
+// Everything but the single banner waits here, under the hero, until the owner opens it.
+// The summary borrows the colour of the most severe notice it holds, so a rejected bank token cannot hide
+// behind a neutral line, and it names them so the owner knows what is inside without opening it.
+const summaryTone = {
+  alert: "border-destructive/40 bg-destructive/10 text-destructive",
+  warning: "border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300",
+  info: "bg-muted text-foreground",
+} as const;
+
+function FoldedNotices({
+  notices,
+  data,
+  children,
+}: {
+  notices: Notice[];
+  data: DashboardResponse;
+  children: ReactNode;
+}) {
+  const t = useTranslations("dashboard");
+  const titles = useNoticeTitles(data);
+  const severity = mostSevere(notices);
+
+  return (
+    <details className="group rounded-lg border" data-severity={severity}>
+      <summary
+        className={`flex min-h-11 cursor-pointer flex-col justify-center gap-0.5 rounded-lg px-4 py-2 text-sm ${summaryTone[severity]}`}
+      >
+        <span className="font-medium">{t("attention", { count: notices.length })}</span>
+        <span className="break-words text-xs font-normal">{notices.map((notice) => titles[notice]).join(" · ")}</span>
+      </summary>
+      <div className="flex flex-col gap-3 p-3 pt-0">{children}</div>
+    </details>
   );
 }
 
@@ -303,3 +378,4 @@ function Credits({ credits }: { credits: DashboardResponse["credits"] }) {
     </section>
   );
 }
+

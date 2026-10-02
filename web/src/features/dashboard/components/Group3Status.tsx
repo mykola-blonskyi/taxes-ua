@@ -6,11 +6,12 @@ import type { DashboardResponse } from "@/data/dashboard/useDashboard";
 import { formatMoney } from "@/shared/lib/money";
 import { formatLongDate } from "./debt";
 import { DaysLeft } from "./DebtParts";
+import { isGroup3Unconfirmed } from "./notices";
 
 type Group3 = DashboardResponse["group3"];
 
 export function Group3Status({ group3, today }: { group3: Group3; today: string }) {
-  const unconfirmed = !group3.confirmed && group3.group3Start !== null;
+  const unconfirmed = isGroup3Unconfirmed(group3);
 
   return (
     <>

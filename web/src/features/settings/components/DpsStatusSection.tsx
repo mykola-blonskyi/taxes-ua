@@ -8,6 +8,7 @@ import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useDpsStatus, useSaveDpsStatus, type DpsStatusRequest, type DpsStatusResponse } from "@/data/settings/useDpsStatus";
 import { formatDateOnly, todayInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
+import { LoadState } from "@/data/api/LoadState";
 import { CheckboxField, SelectField, TextField } from "@/shared/ui/fields";
 
 type Start = "registration" | "quarter";
@@ -83,14 +84,11 @@ function toRequest(form: FormState): DpsStatusRequest {
 
 export function DpsStatusSection() {
   const t = useTranslations("settings");
-  const { data, isLoading, isError } = useDpsStatus();
+  const query = useDpsStatus();
+  const { data } = query;
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError || !data) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (query.isError || !data) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   return <DpsStatusForm status={data} />;

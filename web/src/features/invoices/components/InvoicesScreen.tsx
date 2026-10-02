@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useInvoice } from "@/data/invoices/useInvoices";
 import { Button } from "@/shared/ui/button";
+import { LoadState } from "@/data/api/LoadState";
 import { DraftEditor } from "./DraftEditor";
 import { InvoiceDetail } from "./InvoiceDetail";
 import { InvoiceList } from "./InvoiceList";
@@ -28,16 +29,14 @@ export function InvoicesScreen() {
 
 function OpenInvoice({ id, onBack, onOpen }: { id: string; onBack: () => void; onOpen: (id: string) => void }) {
   const t = useTranslations("invoices");
-  const { data, isLoading, isError } = useInvoice(id);
+  const query = useInvoice(id);
+  const { data } = query;
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError || !data) {
+  if (query.isLoading || query.isError || !data) {
+    // One LoadState for loading and failure, so a retry keeps keyboard focus on its button.
     return (
       <div className="flex flex-col items-start gap-3">
-        <p className="text-sm text-destructive">{t("loadFailed")}</p>
+        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />
         <Button type="button" variant="outline" size="sm" onClick={onBack}>
           {t("editor.back")}
         </Button>

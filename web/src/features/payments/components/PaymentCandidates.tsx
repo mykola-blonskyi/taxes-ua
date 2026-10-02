@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { recordedPeriodOf, useDashboard, type DashboardResponse } from "@/data/dashboard/useDashboard";
@@ -53,12 +54,8 @@ export function PaymentCandidates() {
   // Kept here: a confirmed card leaves the list as soon as it reloads.
   const [notices, setNotices] = useState<ConfirmedNotice[]>([]);
 
-  if (candidates.isLoading || dashboard.isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (candidates.isError || !candidates.data) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (candidates.isLoading || dashboard.isLoading || candidates.isError || !candidates.data) {
+    return <LoadState query={[candidates, dashboard]} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   const closeNotice = (notice: ConfirmedNotice) => setNotices((current) => current.filter((shown) => shown !== notice));
