@@ -258,11 +258,16 @@ for (const locale of locales) {
         test.setTimeout(60_000);
         await open(page, route, locale);
         if (route === "/") {
-          // The seeded owner also has an overdue invoice, which outranks the bank warning for the one banner
-          // above the pay card, so the warning sits in the folded "needs attention" list. Open it to measure it.
-          await page.locator("main details > summary").click();
+          const rejected = page.getByRole("alert").filter({ hasText: catalogs[locale].dashboard.sync.tokenRejected.title });
+          const fold = page.locator("main details > summary");
+          // A rejected token leads the dashboard, but a declaration or a group 3 deadline within three days
+          // goes above it and folds the warning, which depends on the date the suite runs. Open the fold then.
+          await expect(rejected.or(fold).first()).toBeVisible();
+          if (await fold.isVisible()) {
+            await fold.click();
+          }
           await expect(
-            page.getByRole("alert").filter({ hasText: catalogs[locale].dashboard.sync.tokenRejected.title }),
+            rejected,
             "the dashboard should show the rejected-token card",
           ).toBeVisible();
         }

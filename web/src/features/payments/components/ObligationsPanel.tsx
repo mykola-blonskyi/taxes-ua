@@ -122,6 +122,7 @@ function PayObligationButton({
         details={details.data}
         loading={details.isFetching}
         failed={details.isError && !notComputed}
+        onRetry={() => details.refetch()}
         notComputed={notComputed}
       />
     </>

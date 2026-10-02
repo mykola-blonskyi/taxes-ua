@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
+import { LoadState } from "@/data/api/LoadState";
 import { useClients } from "@/data/clients/useClients";
 import { currencies, useFxRate, type Currency } from "@/data/fx/useFxRate";
 import {
@@ -101,8 +102,10 @@ export function TransactionForm({
   const tKinds = useTranslations("transactions.kinds");
   const tCurrencies = useTranslations("transactions.currencies");
   const locale = useLocale();
-  const { data: clients } = useClients();
-  const { data: receipts } = useReceipts();
+  const clientsQuery = useClients();
+  const receiptsQuery = useReceipts();
+  const { data: clients } = clientsQuery;
+  const { data: receipts } = receiptsQuery;
   const createTransaction = useCreateTransaction();
   const updateTransaction = useUpdateTransaction();
 
@@ -333,6 +336,8 @@ export function TransactionForm({
             errors={fieldErrors?.nonIncomeReason}
           />
         ) : null}
+
+        <LoadState quiet query={[clientsQuery, receiptsQuery]} failed={t("suggestionsFailed")} />
 
         <TextField
           id="transaction-client-name"

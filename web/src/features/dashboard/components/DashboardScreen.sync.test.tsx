@@ -17,19 +17,37 @@ const base = {
   },
 } as const;
 
+function precedes(a: Node, b: Node) {
+  return Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+}
+
 describe("DashboardScreen sync health", () => {
-  it("takes the one banner slot above the pay card, ahead of the group 3 notice, which folds below", async () => {
+  it("lets a rejected token take the one banner slot above the pay card, ahead of the group 3 notice", async () => {
+    stubFetch({
+      "GET /api/dashboard": { ...base, sync: { state: "TokenRejected", lastSyncedAt: "2026-09-28T00:05:00Z" } },
+    });
+    renderApp(<DashboardScreen />);
+
+    const sync = await screen.findByRole("heading", { name: "monobank відхилив токен" });
+    const done = screen.getByRole("heading", { name: "Усе сплачено" });
+    const group3 = screen.getByText(/Групу 3 ще не підтверджено/);
+
+    expect(precedes(sync, done)).toBe(true);
+    expect(precedes(done, group3)).toBe(true);
+  });
+
+  it("folds a stale feed under the pay card, behind the group 3 notice", async () => {
     stubFetch({
       "GET /api/dashboard": { ...base, sync: { state: "Stale", lastSyncedAt: "2026-09-28T00:05:00Z" } },
     });
     renderApp(<DashboardScreen />);
 
-    const sync = await screen.findByRole("heading", { name: "Дані з банку застаріли" });
+    const group3 = await screen.findByText(/Групу 3 ще не підтверджено/);
     const done = screen.getByRole("heading", { name: "Усе сплачено" });
-    const group3 = screen.getByText(/Групу 3 ще не підтверджено/);
+    const sync = screen.getByRole("heading", { name: "Дані з банку застаріли" });
 
-    expect(sync.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(done.compareDocumentPosition(group3) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(precedes(group3, done)).toBe(true);
+    expect(precedes(done, sync)).toBe(true);
   });
 
   it("shows nothing about the bank for an owner who follows no account", async () => {
@@ -51,7 +69,7 @@ describe("DashboardScreen sync health", () => {
     const done = await screen.findByRole("heading", { name: "Усе сплачено" });
     const line = screen.getByText(/Банк: останній успішний обмін/);
 
-    expect(done.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(precedes(done, line)).toBe(true);
     expect(screen.queryByText(/Потребує уваги/)).not.toBeInTheDocument();
   });
 });

@@ -11,6 +11,7 @@ import { Button } from "@/shared/ui/button";
 import { CopyField } from "@/shared/ui/copy-field";
 import { TextField } from "@/shared/ui/fields";
 import { NbuQrCode, encodeNbuQr } from "@/shared/ui/nbu-qr";
+import { LoadStateView } from "@/shared/ui/load-state";
 import { Sheet } from "@/shared/ui/sheet";
 
 // Every recipient here is a Treasury account. False hides the QR behind a note, for when a real scan
@@ -47,6 +48,7 @@ export function PayPanel({
   details,
   loading,
   failed,
+  onRetry,
   notComputed,
 }: {
   open: boolean;
@@ -57,6 +59,8 @@ export function PayPanel({
   details: PayDetails | undefined;
   loading: boolean;
   failed: boolean;
+  // Fetches the details again; may return a promise, which the panel waits on to show it is retrying.
+  onRetry: () => unknown;
   notComputed: boolean;
 }) {
   const t = useTranslations("pay");
@@ -75,6 +79,7 @@ export function PayPanel({
         details={details}
         loading={loading}
         failed={failed}
+        onRetry={onRetry}
         notComputed={notComputed}
       />
     </Sheet>
@@ -87,6 +92,7 @@ function PayBody({
   details,
   loading,
   failed,
+  onRetry,
   notComputed,
 }: {
   initialAmountKop: number | null;
@@ -94,9 +100,13 @@ function PayBody({
   details: PayDetails | undefined;
   loading: boolean;
   failed: boolean;
+  onRetry: () => unknown;
   notComputed: boolean;
 }) {
   const t = useTranslations("pay");
+  // A refetch of details that never loaded resets the query to pending, so the failure would vanish under
+  // the retry button; the panel keeps it up until the refetch settles.
+  const [retrying, setRetrying] = useState(false);
   const [amountText, setAmountText] = useState(
     initialAmountKop !== null && initialAmountKop > 0 ? formatPlainAmount(initialAmountKop) : "",
   );
@@ -127,8 +137,16 @@ function PayBody({
 
       {notComputed ? (
         <p className="text-sm text-muted-foreground">{t("notComputed")}</p>
-      ) : failed ? (
-        <p className="text-sm text-destructive">{t("failed")}</p>
+      ) : failed || retrying ? (
+        <LoadStateView
+          state="failed"
+          text={t("failed")}
+          retrying={retrying}
+          onRetry={() => {
+            setRetrying(true);
+            void Promise.resolve(onRetry()).finally(() => setRetrying(false));
+          }}
+        />
       ) : details ? (
         <Details details={details} amountKop={amountKop} copyProps={copyProps} />
       ) : loading ? (

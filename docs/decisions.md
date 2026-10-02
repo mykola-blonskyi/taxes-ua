@@ -1585,28 +1585,54 @@ to try again except in `AuthGate`.
 
 ### Decision
 
-1. **The hero comes first; the notices are ranked.** `web/src/features/dashboard/components/notices.ts` lists
-   the notices in priority order and `activeNotices` returns the ones that apply. The first is the only banner
-   above the hero; the rest fold into one closed "Needs attention (N)" `<details>` under it. The order, most
-   urgent first:
-   1. Debts and overdue items. A debt is the hero itself (red when overdue), so it takes no banner; the overdue
-      invoices notice is the item that does.
-   2. Sync health: a stalled or rejected bank feed leaves every figure short of the truth (ADR-026). The quiet
-      "last exchange" line for a healthy feed is not a notice and stays under the hero.
-   3. Group 3 status: an unconfirmed registration, or a stretch before it, makes figures provisional (ADR-023).
-   4. Treasury account expiry. It is shown inside the hero's pay panel, where the account is used, so it never
-      takes a banner slot; it is listed to keep the ranking complete.
-   5. The others, in order: limit crossing, declaration due, transactions waiting for review.
-2. **One loading and failure component.** `LoadState` (`web/src/data/api/LoadState.tsx`) takes a TanStack query
-   (or several the screen needs together). Loading is a polite `role="status"`. A failure is a `role="alert"`
-   worded as the screen's own "could not load" followed by the api's coded reason when this build has words for
-   it (`useApiErrorText`, ADR-028), with a retry button that refetches the failed queries and is disabled while
-   it does. Texts are in `loadState` of `uk.json` and `ru.json`; a screen may pass its own loading and failure
-   sentences. It lives in `@/data/api` because it reads the api error contract and `@/shared` may not import
-   `@/data`.
+1. **The hero comes first; the notices are ranked by consequence.** `web/src/features/dashboard/components/notices.ts`
+   lists the notices in priority order and `activeNotices` returns the ones that apply. The first is the only
+   banner above the hero; the rest fold into one closed "Needs attention (N)" `<details>` under it. The order,
+   most consequential first:
+   1. Sync rejected or unreadable (`TokenRejected`, `TokenUnreadable`). Income stopped arriving, so every figure
+      depends on it and the owner pays too little (ADR-026).
+   2. Limit crossing. The regime changes for the quarters it names.
+   3. Group 3 unconfirmed, or its application deadline. Missing the deadline cannot be undone (Rule 8, ADR-023).
+   4. Declaration due.
+   5. Sync stale. Figures may be incomplete, but the feed still works.
+   6. Transactions waiting for review.
+   7. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
+
+   A debt is the hero itself (red when overdue), so it takes no banner. Treasury account expiry is shown inside
+   the hero's pay panel, where the account is used, so it never takes a banner slot. The quiet "last exchange"
+   line of a healthy feed is not a notice and stays under the hero.
+
+   A declaration, or a group 3 application, with three days or fewer left (or already past) is promoted above all
+   the others, keeping the order above between two promoted ones.
+
+   The folded list's summary shows the count and the titles of what it holds, and takes the colour of the most
+   severe of them (red if any is an alert, amber if any is a warning), so a serious notice does not hide behind a
+   neutral line.
+2. **One loading and failure state, in two layers.** `LoadStateView` (`web/src/shared/ui/load-state.tsx`) is
+   presentational: loading or offline status text, or a failure with its text and an `onRetry`. `LoadState`
+   (`web/src/data/api/LoadState.tsx`) is the thin adapter over a TanStack query (or several a screen needs
+   together); it lives in `@/data/api` because it words failures with `useApiErrorText` (ADR-028) and `@/shared`
+   may not import `@/data`. Screens without a query object, such as the pay panel, use the view with their own
+   refetch.
+   - Loading and offline are a polite `role="status"`. A query paused for the network reads as an offline line,
+     not as a retry that would do nothing.
+   - A failure is a `role="alert"` worded as the screen's own "could not load" followed by the api's coded
+     reason when this build has words for it. Its retry refetches only the failed queries.
+   - TanStack resets a failed query that has no data to pending while it refetches, which would unmount the alert
+     and drop keyboard focus. The adapter remembers it is retrying and keeps the alert and its button on
+     screen until the refetch settles. The button is `aria-disabled`, not `disabled`, so focus stays on it, and
+     reads "Retrying…".
+   - Each retry button is described by its own failure text (`aria-describedby`), since a screen can show two.
+   - `quiet` is for a side query a screen works without (the client and receipt suggestions in a form): it
+     shows nothing while loading and the failure with a retry only if it fails, so a failed list is never
+     mistaken for an empty one.
+3. **A failure that used to read as an empty state is shown.** The invoice draft's client list, the
+   transaction form's client and receipt suggestions, and the reserve jar (a failed load is not "no jar
+   chosen") now show the failure and a retry.
 
 ### Consequences
 
 A new data screen renders `LoadState` instead of writing its own `<p>`. A new dashboard notice is added to
-`noticePriority` at its rank, with a case in `NoticeView`. The banner above the hero is chosen by rank alone, so
-a lower-ranked notice never displaces a higher one, and the hero is never pushed down by more than one banner.
+`noticePriority` at its rank and to `noticeSeverity`, with a case in `NoticeView` and a title in
+`useNoticeTitles`. The banner above the hero is chosen by rank alone, apart from the three-day promotion, so
+the hero is never pushed down by more than one banner.

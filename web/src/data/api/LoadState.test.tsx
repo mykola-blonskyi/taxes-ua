@@ -1,19 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
+import { useDashboard } from "@/data/dashboard/useDashboard";
 import { renderApp, reply, screen, stubFetch, waitFor } from "@/test/harness";
 import { ApiError } from "./client";
 import { LoadState, type QueryStatus } from "./LoadState";
-import { useDashboard } from "@/data/dashboard/useDashboard";
 
 function query(overrides: Partial<QueryStatus> = {}): QueryStatus {
   return { isLoading: false, isError: false, error: null, isFetching: false, refetch: vi.fn(), ...overrides };
 }
 
 const locales = [
-  { locale: "uk", loading: "Завантаження…", retry: "Спробувати ще раз", retrying: "Повторюємо…" },
-  { locale: "ru", loading: "Загрузка…", retry: "Повторить", retrying: "Повторяем…" },
+  { locale: "uk", loading: "Завантаження…", offline: /Немає мережі/, retry: "Спробувати ще раз", retrying: "Повторюємо…" },
+  { locale: "ru", loading: "Загрузка…", offline: /Нет сети/, retry: "Повторить", retrying: "Повторяем…" },
 ] as const;
 
-describe.each(locales)("LoadState in $locale", ({ locale, loading, retry, retrying }) => {
+describe.each(locales)("LoadState in $locale", ({ locale, loading, offline, retry, retrying }) => {
   it("announces loading as a polite status with the default words", () => {
     renderApp(<LoadState query={query({ isLoading: true })} failed="Failed." />, { locale });
 
@@ -27,6 +27,13 @@ describe.each(locales)("LoadState in $locale", ({ locale, loading, retry, retryi
     expect(screen.getByRole("status")).toHaveTextContent("Own words");
   });
 
+  it("says it is offline, with no retry that would do nothing, when the query waits for the network", () => {
+    renderApp(<LoadState query={query({ isLoading: true, isPaused: true })} failed="Failed." />, { locale });
+
+    expect(screen.getByRole("status")).toHaveTextContent(offline);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("announces a failure as an alert and refetches on retry", async () => {
     const failed = query({ isError: true, error: new ApiError(500) });
     const { user } = renderApp(<LoadState query={failed} failed="Не вдалося завантажити." />, { locale });
@@ -37,10 +44,17 @@ describe.each(locales)("LoadState in $locale", ({ locale, loading, retry, retryi
     expect(failed.refetch).toHaveBeenCalledTimes(1);
   });
 
-  it("disables the retry while it refetches", () => {
-    renderApp(<LoadState query={query({ isError: true, isFetching: true })} failed="Failed." />, { locale });
+  it("keeps the alert and the button, busy and once only, while the refetch runs", async () => {
+    const failed = query({ isError: true, refetch: vi.fn(() => new Promise(() => undefined)) });
+    const { user } = renderApp(<LoadState query={failed} failed="Failed." />, { locale });
 
-    expect(screen.getByRole("button", { name: retrying })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: retry }));
+    const busy = screen.getByRole("button", { name: retrying });
+    await user.click(busy);
+
+    expect(busy).toHaveAttribute("aria-disabled", "true");
+    expect(busy).not.toBeDisabled();
+    expect(failed.refetch).toHaveBeenCalledTimes(1);
   });
 
   it("refetches only the queries that failed", async () => {
@@ -52,6 +66,33 @@ describe.each(locales)("LoadState in $locale", ({ locale, loading, retry, retryi
 
     expect(broken.refetch).toHaveBeenCalledTimes(1);
     expect(ok.refetch).not.toHaveBeenCalled();
+  });
+
+  it("ties the retry button to the failure text it belongs to", () => {
+    renderApp(<LoadState query={query({ isError: true })} failed="Failure text." />, { locale });
+
+    const button = screen.getByRole("button", { name: retry });
+
+    expect(button).toHaveAccessibleDescription("Failure text.");
+  });
+});
+
+describe("LoadState quiet", () => {
+  it("shows nothing while a side query loads or waits for the network", () => {
+    const { container, rerender } = renderApp(<LoadState quiet query={query({ isLoading: true })} failed="Failed." />);
+
+    expect(container).toBeEmptyDOMElement();
+
+    rerender(<LoadState quiet query={query({ isLoading: true, isPaused: true })} failed="Failed." />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("shows the failure and its retry when the side query fails", () => {
+    renderApp(<LoadState quiet query={query({ isError: true })} failed="Side failed." />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Side failed.");
+    expect(screen.getByRole("button", { name: "Спробувати ще раз" })).toBeInTheDocument();
   });
 });
 
@@ -72,7 +113,9 @@ describe("LoadState failure reason", () => {
   });
 
   it("says nothing more for a failure without a code", () => {
-    renderApp(<LoadState query={query({ isError: true, error: new TypeError("Failed to fetch") })} failed="Не вдалося завантажити." />);
+    renderApp(
+      <LoadState query={query({ isError: true, error: new TypeError("Failed to fetch") })} failed="Не вдалося завантажити." />,
+    );
 
     expect(screen.getByRole("alert").textContent).toContain("Не вдалося завантажити.");
     expect(screen.getByRole("alert")).not.toHaveTextContent("Не вдалося виконати дію");
@@ -85,18 +128,46 @@ function DashboardProbe() {
   return dashboard.data ? <p>Loaded {dashboard.data.today}</p> : <LoadState query={dashboard} failed="Failed to load." />;
 }
 
-describe("LoadState with a real query", () => {
-  it("loads again when retry is pressed after a failure", async () => {
+describe.each(locales)("LoadState with a real query in $locale", ({ locale, retry, retrying }) => {
+  it("loads again when retry is pressed, and keeps focus on the button while it does", async () => {
     let calls = 0;
-    stubFetch({
-      "GET /api/dashboard": () => (++calls === 1 ? reply(500, { title: "Boom" }) : { today: "2026-10-02" }),
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
     });
-    const { user } = renderApp(<DashboardProbe />);
+    stubFetch({
+      "GET /api/dashboard": async () => {
+        if (++calls === 1) {
+          return reply(500, { title: "Boom" });
+        }
+        await gate;
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Failed to load.");
-    await user.click(screen.getByRole("button", { name: "Спробувати ще раз" }));
+        return { today: "2026-10-02" };
+      },
+    });
+    const { user } = renderApp(<DashboardProbe />, { locale });
+
+    const button = await screen.findByRole("button", { name: retry });
+    await user.click(button);
+
+    const busy = await screen.findByRole("button", { name: retrying });
+    expect(busy).toBe(button);
+    expect(busy).toHaveFocus();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
+    release();
 
     await waitFor(() => expect(screen.getByText("Loaded 2026-10-02")).toBeInTheDocument());
     expect(calls).toBe(2);
+  });
+
+  it("shows the failure again, with the button ready, when the retry fails too", async () => {
+    stubFetch({ "GET /api/dashboard": reply(500, { title: "Boom" }) });
+    const { user } = renderApp(<DashboardProbe />, { locale });
+
+    await user.click(await screen.findByRole("button", { name: retry }));
+
+    await waitFor(() => expect(screen.getByRole("button", { name: retry })).not.toHaveAttribute("aria-disabled", "true"));
+    expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 });

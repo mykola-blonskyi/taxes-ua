@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardResponse } from "@/data/dashboard/useDashboard";
-import { renderApp, reply, screen, stubFetch, within } from "@/test/harness";
+import { renderApp, reply, screen, stubFetch } from "@/test/harness";
 import { DashboardScreen } from "./DashboardScreen";
-import { activeNotices, noticePriority } from "./notices";
+import { activeNotices, mostSevere, noticePriority } from "./notices";
 
 const debt = {
   kind: "SingleTax",
@@ -30,10 +30,22 @@ const everything = {
     applicationDaysLeft: 6,
     beforeGroup3: null,
   },
-  sync: { state: "Stale", lastSyncedAt: "2026-09-28T00:05:00Z" },
+  sync: { state: "TokenRejected", lastSyncedAt: "2026-09-28T00:05:00Z" },
   limitCrossing: { quarter: 3, year: 2026, switchFromQuarter: 4, switchFromYear: 2026, backOnGroup3From: null },
   declaration: { year: 2026, quarter: 3, dueDate: "2026-10-09", daysLeft: 7 },
 } as const;
+
+const quiet = {
+  ...everything,
+  needsReviewCount: 0,
+  overdueInvoiceCount: 0,
+  sync: null,
+  limitCrossing: null,
+  declaration: null,
+  group3: { ...everything.group3, confirmed: true },
+};
+
+const asData = (value: object) => value as unknown as DashboardResponse;
 
 function hero() {
   const element = document.getElementById("next-step-kinds")?.closest("section");
@@ -52,51 +64,52 @@ function before(a: Node, b: Node) {
 const locales = [
   {
     locale: "uk",
+    banner: "monobank відхилив токен",
     overdue: /інвойс(и|ів|у)? прострочено/,
-    review: /чекають? перевірки|чекає перевірки/,
     summary: "Потребує уваги (5)",
   },
   {
     locale: "ru",
+    banner: "monobank отклонил токен",
     overdue: /инвойс(а|ов)? просрочен/,
-    review: /ждут? проверки|ждёт проверки/,
     summary: "Требует внимания (5)",
   },
 ] as const;
 
-describe.each(locales)("Dashboard notices in $locale", ({ locale, overdue, review, summary }) => {
+describe.each(locales)("Dashboard notices in $locale", ({ locale, banner, overdue, summary }) => {
   it("puts the pay hero first with one banner above it, and folds the rest under it", async () => {
     stubFetch({ "GET /api/dashboard": everything });
     renderApp(<DashboardScreen />, { locale });
 
-    await screen.findByText(overdue);
+    const bannerTitle = await screen.findByRole("heading", { name: banner });
     const card = hero();
 
-    expect(before(screen.getByText(overdue), card)).toBe(true);
+    expect(before(bannerTitle, card)).toBe(true);
     for (const alert of screen.getAllByRole("alert")) {
-      expect(before(card, alert)).toBe(true);
+      expect(alert === bannerTitle.closest("section") || before(card, alert)).toBe(true);
     }
 
-    const folded = card.parentElement?.querySelector("details");
+    const folded = document.querySelector("details");
     expect(folded).not.toBeNull();
     expect(folded).not.toHaveAttribute("open");
     expect(before(card, folded!)).toBe(true);
-    expect(within(folded!).getByText(summary)).toBeInTheDocument();
-    expect(within(folded!).getByText(review)).toBeInTheDocument();
+    expect(folded!.querySelector("summary")).toHaveTextContent(summary);
+  });
+
+  it("names the folded notices in the summary and tints it red while one of them is an alert", async () => {
+    stubFetch({ "GET /api/dashboard": everything });
+    renderApp(<DashboardScreen />, { locale });
+
+    await screen.findByRole("heading", { name: banner });
+    const folded = document.querySelector("details")!;
+
+    expect(folded).toHaveAttribute("data-severity", "alert");
+    expect(folded.querySelector("summary")).toHaveTextContent(overdue);
+    expect(folded.querySelector("summary")?.className).toContain("text-destructive");
   });
 
   it("shows nothing above the hero and no fold when there is nothing to say", async () => {
-    stubFetch({
-      "GET /api/dashboard": {
-        ...everything,
-        needsReviewCount: 0,
-        overdueInvoiceCount: 0,
-        sync: null,
-        limitCrossing: null,
-        declaration: null,
-        group3: { ...everything.group3, confirmed: true },
-      },
-    });
+    stubFetch({ "GET /api/dashboard": quiet });
     renderApp(<DashboardScreen />, { locale });
 
     await screen.findByText(/17/);
@@ -109,34 +122,42 @@ describe.each(locales)("Dashboard notices in $locale", ({ locale, overdue, revie
 });
 
 describe("Dashboard notice priority", () => {
-  const quiet = {
-    ...everything,
-    needsReviewCount: 0,
-    overdueInvoiceCount: 0,
-    sync: null,
-    limitCrossing: null,
-    declaration: null,
-    group3: { ...everything.group3, confirmed: true },
-  } as unknown as DashboardResponse;
+  const withNotices = (patch: object) => asData({ ...quiet, ...patch });
 
-  const withNotices = (patch: object) => ({ ...quiet, ...patch }) as unknown as DashboardResponse;
+  it("ranks by consequence: broken sync, limit crossing, group 3, declaration, stale sync, review, overdue invoices", () => {
+    const stale = { ...everything, sync: { state: "Stale", lastSyncedAt: "2026-09-28T00:05:00Z" } };
 
-  it("ranks overdue items, then sync health, then group 3, then the rest", () => {
-    expect(activeNotices(everything as unknown as DashboardResponse)).toEqual([
-      "overdueInvoices",
-      "sync",
-      "group3",
+    expect(activeNotices(asData(everything))).toEqual([
+      "syncBroken",
       "limitCrossing",
+      "group3",
       "declaration",
       "review",
+      "overdueInvoices",
     ]);
-    expect(noticePriority).toEqual(["overdueInvoices", "sync", "group3", "limitCrossing", "declaration", "review"]);
+    expect(activeNotices(asData(stale))).toEqual([
+      "limitCrossing",
+      "group3",
+      "declaration",
+      "syncStale",
+      "review",
+      "overdueInvoices",
+    ]);
+    expect(noticePriority).toEqual([
+      "syncBroken",
+      "limitCrossing",
+      "group3",
+      "declaration",
+      "syncStale",
+      "review",
+      "overdueInvoices",
+    ]);
   });
 
-  it("lets a sync problem lead once nothing is overdue", () => {
-    const data = withNotices({ sync: everything.sync, group3: everything.group3, needsReviewCount: 1 });
+  it("puts an unreadable token with the rejected one, and a client's overdue invoice last", () => {
+    const data = withNotices({ sync: { state: "TokenUnreadable", lastSyncedAt: null }, overdueInvoiceCount: 4 });
 
-    expect(activeNotices(data)).toEqual(["sync", "group3", "review"]);
+    expect(activeNotices(data)).toEqual(["syncBroken", "overdueInvoices"]);
   });
 
   it("does not count a healthy sync or a confirmed group 3", () => {
@@ -147,9 +168,65 @@ describe("Dashboard notice priority", () => {
 
   it("counts a stretch before group 3 even when the registration is confirmed", () => {
     const beforeGroup3 = { from: "2026-07-01", to: "2026-09-27", incomeKop: 1000 };
-    const data = withNotices({ group3: { ...quiet.group3, beforeGroup3 } });
 
-    expect(activeNotices(data)).toEqual(["group3"]);
+    expect(activeNotices(withNotices({ group3: { ...quiet.group3, beforeGroup3 } }))).toEqual(["group3"]);
+  });
+
+  it("promotes a declaration with three days left or fewer above every other notice", () => {
+    const data = asData({ ...everything, declaration: { ...everything.declaration, daysLeft: 3 } });
+
+    expect(activeNotices(data)[0]).toBe("declaration");
+    expect(activeNotices(data).slice(1)).toEqual(["syncBroken", "limitCrossing", "group3", "review", "overdueInvoices"]);
+  });
+
+  it("does not promote a declaration with four days left", () => {
+    const data = asData({ ...everything, declaration: { ...everything.declaration, daysLeft: 4 } });
+
+    expect(activeNotices(data)[0]).toBe("syncBroken");
+  });
+
+  it("promotes an application deadline that is three days away, or already past", () => {
+    for (const applicationDaysLeft of [3, 0, -2]) {
+      const data = asData({ ...everything, group3: { ...everything.group3, applicationDaysLeft } });
+
+      expect(activeNotices(data)[0]).toBe("group3");
+    }
+  });
+
+  it("keeps the usual order between two urgent notices", () => {
+    const data = asData({
+      ...everything,
+      group3: { ...everything.group3, applicationDaysLeft: 1 },
+      declaration: { ...everything.declaration, daysLeft: 1 },
+    });
+
+    expect(activeNotices(data).slice(0, 3)).toEqual(["group3", "declaration", "syncBroken"]);
+  });
+
+  it("does not promote a group 3 deadline once the registration is confirmed", () => {
+    const data = asData({ ...everything, group3: { ...everything.group3, confirmed: true, applicationDaysLeft: 1 } });
+
+    expect(activeNotices(data)).not.toContain("group3");
+  });
+
+  it("takes the most severe tone of what it holds", () => {
+    expect(mostSevere(["review", "overdueInvoices"])).toBe("info");
+    expect(mostSevere(["review", "declaration"])).toBe("warning");
+    expect(mostSevere(["declaration", "syncBroken", "review"])).toBe("alert");
+    expect(mostSevere(["limitCrossing"])).toBe("alert");
+  });
+});
+
+describe("Dashboard folded summary tone", () => {
+  it("is amber when the folded notices are warnings, not alerts", async () => {
+    stubFetch({ "GET /api/dashboard": { ...quiet, declaration: everything.declaration, group3: everything.group3 } });
+    renderApp(<DashboardScreen />);
+
+    await screen.findByText(/17/);
+    const folded = document.querySelector("details")!;
+
+    expect(folded).toHaveAttribute("data-severity", "warning");
+    expect(folded.querySelector("summary")?.className).toContain("amber");
   });
 });
 
