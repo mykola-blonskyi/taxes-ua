@@ -40,23 +40,52 @@ export function LoadState({
 }) {
   const apiText = useApiErrorText();
   const [retrying, setRetrying] = useState(false);
+  // Once this instance has shown a failure it keeps showing it until a refetch succeeds and the screen
+  // unmounts it. The refetch's promise can settle a render before the query leaves pending, and falling
+  // back to the loading line in that gap would swap the button for a new element and drop focus.
+  const [sawFailure, setSawFailure] = useState(false);
   const queries = Array.isArray(query) ? query : [query];
   const broken = queries.filter((q) => q.isError);
   const [firstBroken] = broken;
+
+  if (broken.length > 0 && !sawFailure) {
+    setSawFailure(true);
+  }
 
   if (queries.some((q) => q.isPaused)) {
     return quiet ? null : <LoadStateView state="offline" />;
   }
 
-  if (!retrying && broken.length === 0) {
-    return quiet ? null : <LoadStateView state="loading" text={loading} />;
+  const settled = broken.length === 0 && !retrying && !queries.some((q) => q.isLoading || q.isFetching);
+
+  if (quiet && settled) {
+    // A side query that settled without failing: nothing to show, and the next failure starts afresh.
+    if (sawFailure) {
+      setSawFailure(false);
+    }
+
+    return null;
   }
+
+  if (!sawFailure && !retrying && broken.length === 0) {
+    // Nothing failed. While a query is on its way that is loading; when none is and the data is still
+    // missing, "loading" would last forever, so the screen gets the failure and a retry instead.
+    if (queries.some((q) => q.isLoading || q.isFetching)) {
+      return quiet ? null : <LoadStateView state="loading" text={loading} />;
+    }
+
+    if (quiet) {
+      return null;
+    }
+  }
+
+  const busy = retrying || (sawFailure && queries.some((q) => q.isFetching));
 
   return (
     <LoadStateView
       state="failed"
       text={apiText.withReason(failed, firstBroken?.error)}
-      retrying={retrying}
+      retrying={busy}
       onRetry={() => {
         setRetrying(true);
         void Promise.allSettled((broken.length > 0 ? broken : queries).map((q) => q.refetch())).finally(() =>

@@ -37,7 +37,6 @@ export function DeclarationScreen({ year, quarter }: { year?: string; quarter?: 
         </nav>
       </div>
 
-      {query.isLoading ? <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} /> : null}
       {error instanceof ApiError && error.status === 404 ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground">{t("unavailable")}</p>
@@ -45,8 +44,10 @@ export function DeclarationScreen({ year, quarter }: { year?: string; quarter?: 
             {t("unavailableCta")}
           </Link>
         </div>
-      ) : error ? (
-        <LoadState query={query} failed={t("loadFailed")} />
+      ) : query.isLoading || error ? (
+        // One mount for loading and failure: a retry resets the query to pending, and a second mount would
+        // drop keyboard focus from the retry button.
+        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />
       ) : null}
 
       {data ? <Declaration declaration={data} period={period} today={today} /> : null}

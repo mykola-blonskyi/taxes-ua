@@ -32,14 +32,11 @@ function OpenInvoice({ id, onBack, onOpen }: { id: string; onBack: () => void; o
   const query = useInvoice(id);
   const { data } = query;
 
-  if (query.isLoading) {
-    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
-  }
-
-  if (query.isError || !data) {
+  if (query.isLoading || query.isError || !data) {
+    // One LoadState for loading and failure, so a retry keeps keyboard focus on its button.
     return (
       <div className="flex flex-col items-start gap-3">
-        <LoadState query={query} failed={t("loadFailed")} />
+        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />
         <Button type="button" variant="outline" size="sm" onClick={onBack}>
           {t("editor.back")}
         </Button>

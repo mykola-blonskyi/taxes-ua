@@ -263,6 +263,24 @@ for (const locale of locales) {
           // A rejected token leads the dashboard, but a declaration or a group 3 deadline within three days
           // goes above it and folds the warning, which depends on the date the suite runs. Open the fold then.
           await expect(rejected.or(fold).first()).toBeVisible();
+          const dashboard = (await (await page.request.get("/api/dashboard")).json()) as {
+            declaration: { daysLeft: number | string } | null;
+            group3: { confirmed: boolean; group3Start: string | null; applicationDaysLeft: number | string | null };
+          };
+          const urgent =
+            (dashboard.declaration !== null && Number(dashboard.declaration.daysLeft) <= 3) ||
+            (!dashboard.group3.confirmed &&
+              dashboard.group3.group3Start !== null &&
+              dashboard.group3.applicationDaysLeft !== null &&
+              Number(dashboard.group3.applicationDaysLeft) <= 3);
+          if (!urgent) {
+            // Nothing is within three days, so the rejected token is the one banner: the first block of the
+            // page, above the pay card, and not inside the folded list.
+            await expect(page.locator("main section").first(), "the rejected token should lead the dashboard").toContainText(
+              catalogs[locale].dashboard.sync.tokenRejected.title,
+            );
+            await expect(rejected.locator("xpath=ancestor::details")).toHaveCount(0);
+          }
           if (await fold.isVisible()) {
             await fold.click();
           }

@@ -57,6 +57,23 @@ describe.each(locales)("LoadState in $locale", ({ locale, loading, offline, retr
     expect(failed.refetch).toHaveBeenCalledTimes(1);
   });
 
+  it("offers the failure and a retry, not an endless loading line, when nothing is pending and data is missing", async () => {
+    const idle = query();
+    const { user } = renderApp(<LoadState query={idle} failed="Missing." />, { locale });
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Missing.");
+    await user.click(screen.getByRole("button", { name: retry }));
+
+    expect(idle.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("still reads as loading while a query is fetching", () => {
+    renderApp(<LoadState query={query({ isFetching: true })} failed="Missing." />, { locale });
+
+    expect(screen.getByRole("status")).toHaveTextContent(loading);
+  });
+
   it("refetches only the queries that failed", async () => {
     const ok = query();
     const broken = query({ isError: true });
