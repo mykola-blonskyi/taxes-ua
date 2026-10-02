@@ -6,7 +6,7 @@ description: Drive the taxes-ua web interface in a real browser to prove a scree
 # Verify taxes-ua
 
 Every screen sits behind an auth gate, so the honest way to see one is to hold a real session and
-drive a real browser. This skill gets you both, and ships the script that measures every screen so
+drive a real browser. This skill gets you both, and points at the spec that measures every screen so
 a reviewer reruns one command instead of reading your transcript.
 
 Run every command from the repository root, which is your worktree root when you are working in one.
@@ -66,41 +66,43 @@ intercepting a request.
 ## 4. Measure
 
 ```
-node .claude/skills/verify-taxes-ua/scripts/measure-screens.mjs --width 375
-node .claude/skills/verify-taxes-ua/scripts/measure-screens.mjs --width 1280 --height 900
-node .claude/skills/verify-taxes-ua/scripts/measure-screens.mjs --width 375 --locale ru --theme dark
+cd web && pnpm e2e e2e/layout.spec.ts
 ```
 
-The script launches headless Chrome over the DevTools Protocol with no package dependency, signs in
-through the seam, and for every route reports `scrollWidth`, `clientWidth`, disclaimer presence,
-nav width, `html lang` and the resolved theme, with a screenshot each. It exits non-zero when a
-route overflows, loses its disclaimer, or renders the wrong locale, and it names the offending
-element when a route is wider than its viewport. It also opens every `[role="tab"]` on a route and
-measures each tab as its own row (`/settings#tab2`), because a panel behind a tab the initial render
-never shows can overflow on its own.
+`web/e2e/layout.spec.ts` visits every route at 375 px in Ukrainian and in Russian, signed in through the
+Development seam, against seeded data so tables and cards hold rows. For each route, and for each tab
+of a route, it asserts that the page does not scroll sideways (`scrollWidth <= clientWidth`), that the
+disclaimer from `web/messages/<locale>.json` is in the rendered text, and that `html lang` is the locale.
+A failure names the route, the locale, the tab and the offending element. CI runs it in the `e2e` job.
 
-Options are `--base --email --width --height --locale --theme --out --port --timeout`; pass
-`CHROME_PATH` if it cannot find a browser.
+It discovers routes by walking `web/src/app/**/page.tsx` and fails if
+`web/src/shared/constants/navigation.ts` links a route with no page, so a screen added by a later ticket
+is measured with no edit. A route with a dynamic segment fails until `dynamicRouteAddresses` in the spec
+gives it a concrete address. `/login` is measured signed out, which is the only way a visitor sees it.
 
-It discovers routes by walking `web/src/app/**/page.tsx`, dropping route groups, and it fails if
-`web/src/shared/constants/navigation.ts` links a route with no page. So a screen added by a later
-ticket is measured with no edit here, and this file states no route list that could go stale. A
-route with a dynamic segment is reported as skipped, because it needs seeded data; drive those by
-hand and say so in your report.
+A strip that scrolls on its own, such as the settings tabs, passes only if the component carries a
+`data-scroll-strip="<name>"` attribute and `scrollingStrips` in the spec lists that name for the route (and
+tab) with a reason. Shape never matches. A box with `overflow: hidden` does not excuse its content: a child
+wider than the box fails, unless the box truncates text with an ellipsis. A new strip is a layout
+decision. `pnpm e2e e2e/layout.spec.ts` starts and removes its own Compose stack, as described under the regression
+suite below.
 
-**Acceptance for any UI ticket.** `scrollWidth` equals `clientWidth` on every route at 375px.
-Greater means horizontal scroll, which is a defect to fix, not to report.
+**Acceptance for any UI ticket.** `pnpm e2e e2e/layout.spec.ts` passes. Horizontal scroll at 375 px is a defect to
+fix, not to report.
 
-Check theme and locale by rendered state, never by what a toggle's label says. The script does this
-for you. It reads theme from the `dark` or `light` class the provider resolves onto `<html>` and from
-the computed `body` background, and locale from `html lang` and from the disclaimer text present in
-`web/messages/<locale>.json`. A toggle can read "Темна" while the page renders light.
+To look at a width other than 375, or at the dark theme, drive the stack from step 1 by hand with the
+Playwright or chrome-devtools MCP tools; the suite does not cover them.
+
+Check theme and locale by rendered state, never by what a toggle's label says. The spec reads locale
+from `html lang` and from the disclaimer text. For theme, read the `dark` or `light` class the provider
+resolves onto `<html>` and the computed `body` background. A toggle can read "Темна" while the page
+renders light.
 
 ## 5. Evidence
 
-Screenshots and one JSON report per run land in `.verify/` at the repository root, which is
-git-ignored. Name every file you rely on in your report, and quote the measured numbers rather than
-the verdict. Cleanup never touches `.verify/`.
+Quote the measured numbers or the failure message rather than the verdict. Screenshots you take by hand
+and the passkey report go in `.verify/` at the repository root, which is git-ignored; name every file
+you rely on in your report. Cleanup never touches `.verify/`.
 
 ## 6. Cleanup
 
@@ -128,8 +130,7 @@ remove the leftover stack with `docker compose -p taxesua-e2e-<pid> down -v`; `d
 Each test seeds through the real API and asserts on a change it made itself, so no test depends on
 another. A failing run leaves `web/e2e/playwright-report/` and a trace per failed test in
 `web/e2e/test-results/`; open one with `pnpm exec playwright show-trace <trace.zip>`. Add a scenario
-there when a new owner flow ships. The width and theme sweep in step 4 stays the way to measure layout
-by hand until the suite takes it over.
+there when a new owner flow ships. The layout check in step 4 is part of this suite.
 
 ## Traps that have already cost a verifier its verdict
 
@@ -142,18 +143,19 @@ the network alone.
 **2. A no-JS context measures an empty shell and calls it clean.** This is an App Router app. The
 markup a JS-less client receives is a `<div hidden>` placeholder, and the real content arrives in an
 RSC stream that needs client JS to paint. Such a run reports a perfect `scrollWidth: 375` next to
-`hasDisclaimer: false, hasNav: false`, and those last two are the tell that the number is measuring
-nothing. Treat any run reporting no disclaimer as a failed measurement, whatever the width says.
-Always drive with JavaScript enabled.
+no disclaimer and no nav, and those last two are the tell that the number is measuring nothing. Treat
+any run reporting no disclaimer as a failed measurement, whatever the width says. Always drive with
+JavaScript enabled; the spec's disclaimer assertion fails such a run.
 
 **3. Wait for an element, never for a paint or a timeout.** `AuthGate` renders `null` from first
 paint until `useMe()` resolves, so the load event, a screenshot on a timer, and CPU throttling with
 Slow 3G all capture a blank page that looks like a broken screen. Gate every measurement on a real
-element being present with real text; the script waits for `main h2`.
+element being present with real text; the spec waits for `main h2`, for the seeded rows, and then for
+the network to go quiet.
 
 ## Driving by hand
 
-The script covers width, theme, locale and the disclaimer. For anything else (clicking the theme
+The layout spec covers width, locale and the disclaimer. For anything else (clicking the theme
 menu, switching language, signing out, a form a later ticket adds) drive the browser with the
 Playwright or chrome-devtools MCP tools. Sign in through the seam first, then prefer the stable
 handles this app already exposes, which are the `aria-label` on each toggle (`nav.label`,

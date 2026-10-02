@@ -38,7 +38,7 @@ export function SettingsTabs({ initialTab, confirmEmailToken }: { initialTab?: s
   return (
     <Tabs.Root value={tab} onValueChange={(value) => setTab(value as Tab)} className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <Tabs.List ref={listRef} className="flex min-w-0 max-w-full gap-1 overflow-x-auto border-b">
+        <Tabs.List ref={listRef} data-scroll-strip="settings-tabs" className="flex min-w-0 max-w-full gap-1 overflow-x-auto border-b">
           {tabs.map((name) => (
             <Tabs.Trigger
               key={name}

@@ -85,8 +85,12 @@ Single-context. Glossary and rules in `knowledge/`, ADRs in `docs/decisions.md`.
 
 Run `pnpm test` in `web/` (Vitest, a few seconds) before calling any web change done; CI runs it and
 the deploy waits for it. Add or update tests next to the code you change (ADR-020). Then prove any UI
-change in a real browser: launch the stack, sign in through the Development seam, and measure every
-screen. See `.claude/skills/verify-taxes-ua/SKILL.md`.
+change in a real browser: launch the stack and sign in through the Development seam. See
+`.claude/skills/verify-taxes-ua/SKILL.md`.
+
+`pnpm e2e e2e/layout.spec.ts` in `web/` is the phone-width check: every route and tab at 375 px in Ukrainian and Russian,
+with no sideways scroll, the disclaimer present and the right `html lang`. A UI change passes it before it is
+done; a strip that scrolls by design carries a `data-scroll-strip` name that is listed in `scrollingStrips` in `web/e2e/layout.spec.ts`.
 
 `pnpm e2e` in `web/` runs the Playwright suite against its own Compose stack (Docker must be running, port 3000
 is not touched) and removes the stack afterwards. A new owner flow adds a scenario in `web/e2e/` (ADR-020).
