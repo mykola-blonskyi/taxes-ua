@@ -1290,6 +1290,7 @@ Tightening `SameSite` to `Strict`. It does not stop a sibling subdomain, which i
 The web client needed no change: the browser sets the headers, and the Next rewrite passes them to the api
 untouched, which `web/e2e/cross-site.spec.ts` proves against the real stack by sending the headers a
 browser would (Chromium refuses a cross-origin loopback request before sending it, so a real cross-site
-browser request cannot be made in the suite). The api tests that post without headers still pass because of rule 3. A reverse
+browser request cannot be made in the suite). That spec covers only the Next hop; Traefik and Cloudflare in front of it are not exercised, and a header
+they strip would go unnoticed there. The api tests that post without headers still pass because of rule 3. A reverse
 proxy that strips `Sec-Fetch-Site` and `Origin` would silently disable the check, so the e2e spec is what
 guards that path. A cross-origin request to the monobank webhook is accepted by design.

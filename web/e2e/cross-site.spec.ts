@@ -15,11 +15,15 @@ test.describe("cross-site requests", () => {
     expect(status).toBe(200);
   });
 
-  test("Sec-Fetch-Site and Origin reach the api unchanged", async ({ request }) => {
+  test("Sec-Fetch-Site and Origin reach the api unchanged", async ({ request, baseURL }) => {
     const crossSite = await request.post(rotateFeed, { headers: { "Sec-Fetch-Site": "cross-site" } });
     const foreignOrigin = await request.post(rotateFeed, { headers: { Origin: "https://todo.blonskyi.dev" } });
     const sameOrigin = await request.post(rotateFeed, { headers: { "Sec-Fetch-Site": "same-origin" } });
 
+    // Origin without Sec-Fetch-Site is what Safari before 16.4 sends.
+    const originOnly = await request.post(rotateFeed, { headers: { Origin: new URL(baseURL!).origin } });
+
+    expect(originOnly.status()).toBe(200);
     expect(crossSite.status()).toBe(403);
     expect(foreignOrigin.status()).toBe(403);
     expect(sameOrigin.status()).toBe(200);

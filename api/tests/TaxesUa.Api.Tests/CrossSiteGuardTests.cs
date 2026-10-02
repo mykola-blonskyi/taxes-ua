@@ -127,6 +127,24 @@ public sealed class CrossSiteGuardTests(ApiFixture fixture) : IClassFixture<ApiF
         }
     }
 
+    // The whole pipeline, including UseForwardedHeaders: the origin the browser saw comes from X-Forwarded-*.
+    [Theory]
+    [InlineData("https", "https://taxes.example", HttpStatusCode.OK)]
+    [InlineData("http", "https://taxes.example", HttpStatusCode.Forbidden)]
+    [InlineData("https", "https://evil.example", HttpStatusCode.Forbidden)]
+    public async Task The_origin_is_checked_against_the_forwarded_scheme_and_host(
+        string proto, string origin, HttpStatusCode expected)
+    {
+        using var owner = await ApiFixture.SignIn(fixture.CreateApplication(_ => { }), ApiFixture.AllowedEmail);
+        using var request = Post(RotateFeed, origin: origin);
+        request.Headers.Add("X-Forwarded-Proto", proto);
+        request.Headers.Add("X-Forwarded-Host", "taxes.example");
+
+        using var response = await owner.SendAsync(request);
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
     // Behind the proxy the scheme and host are the public ones UseForwardedHeaders restored, and the
     // origin has no port when the port is the default.
     [Theory]
