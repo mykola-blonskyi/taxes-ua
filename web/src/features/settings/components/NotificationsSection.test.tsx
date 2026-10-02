@@ -211,6 +211,27 @@ describe("NotificationsSection: Telegram", () => {
   });
 
   it.each([
+    ["uk", "Підключити Telegram", "Відключити"],
+    ["ru", "Подключить Telegram", "Отключить"],
+  ] as const)("offers %s Connect and Disconnect for a restored, unconfirmed chat, and Disconnect deletes it", async (locale, connectLabel, disconnectLabel) => {
+    let stored: NotificationChannel = { ...linked, confirmed: false, enabled: false };
+    const api = stubFetch({
+      [channels]: () => [stored, email],
+      [disconnect]: () => {
+        stored = unlinked;
+        return reply(204);
+      },
+    });
+    const { user } = renderSection(locale);
+
+    expect(await screen.findByRole("button", { name: connectLabel })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: disconnectLabel }));
+
+    await waitFor(() => expect(api.requestsTo(disconnect)).toHaveLength(1));
+    expect(await screen.findByText(/^(Підключіть|Подключите) Telegram, /)).toBeVisible();
+  });
+
+  it.each([
     ["uk", /^Після відновлення з копії чат потрібно підтвердити ще раз/, "Підключити Telegram", "Надсилати нагадування в Telegram"],
     ["ru", /^После восстановления из копии чат нужно подтвердить ещё раз/, "Подключить Telegram", "Отправлять напоминания в Telegram"],
   ] as const)(

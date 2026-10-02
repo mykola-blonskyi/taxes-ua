@@ -77,7 +77,7 @@ function TelegramChannel({
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">{t(channel.linked ? "reconfirm" : "intro")}</p>
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             disabled={connect.isPending}
@@ -85,8 +85,19 @@ function TelegramChannel({
           >
             {connect.isPending ? t("connecting") : link ? t("newLink") : t("connect")}
           </Button>
+          {channel.linked ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disconnect.isPending}
+              onClick={() => disconnect.mutate(undefined, { onSuccess: () => onLink(null) })}
+            >
+              {disconnect.isPending ? t("disconnecting") : t("disconnect")}
+            </Button>
+          ) : null}
         </div>
         {connect.isError ? <p className="text-sm text-destructive">{t("connectFailed")}</p> : null}
+        {disconnect.isError ? <p className="text-sm text-destructive">{t("saveFailed")}</p> : null}
         {link ? (
           <div className="flex min-w-0 flex-col gap-2 rounded-lg border p-3">
             <p className="text-sm">{t("linkSteps")}</p>
