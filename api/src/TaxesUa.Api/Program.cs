@@ -291,6 +291,7 @@ if (!app.Environment.IsDevelopment())
         await next();
     });
 }
+app.UseCrossSiteGuard();
 app.UseAuthentication();
 app.UseAuthorization();
 

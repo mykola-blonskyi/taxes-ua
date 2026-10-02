@@ -310,8 +310,11 @@ sends HSTS, `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a Content-
 api sends the same headers except the CSP on `/api/*`, which Next passes through untouched. `PASSKEY_SERVER_DOMAIN` pins the WebAuthn Relying
 Party ID rather than letting Identity infer it from the host header, and the api refuses to start
 without it too; a passkey is bound to the RP ID it was registered against. The OpenAPI document is
-served only in Development. Anti-forgery for cookie auth via the `X-Requested-With` header and
-SameSite. Change log `audit_log`. In-app disclaimer: the calculation is informational.
+served only in Development. Anti-forgery for cookie auth is SameSite=Lax plus `CrossSiteGuard` (ADR-024): an unsafe
+method (POST, PUT, PATCH, DELETE) is refused with a 403 ProblemDetails, `code: cross_site_request`, unless
+`Sec-Fetch-Site` is `same-origin` or, when that header is absent, `Origin` equals the public origin. A request
+with neither header is not a browser request and passes. The monobank webhook is exempt. There is no
+`X-Requested-With` check. Change log `audit_log`. In-app disclaimer: the calculation is informational.
 
 ---
 
