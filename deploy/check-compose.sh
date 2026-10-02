@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Asserts what the production compose file promises docs/deploy.md: Traefik reaches only `web`,
-# and `api` keeps its key ring across redeploys and exits when a startup guard throws.
+# every service restarts, is memory-limited and rotates its logs, and `api` keeps its key ring across redeploys and exits when a startup guard throws.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -19,3 +19,16 @@ check '[.services.api.volumes[] | select(.source == "dataprotection-keys") | .ta
 check '.services.web.healthcheck.test | length > 0' true "web has a healthcheck, so Coolify can report its status"
 check '.services.api.environment.Monobank__PublicBaseUrl' "${MONOBANK_PUBLIC_BASE_URL:-}" \
   "MONOBANK_PUBLIC_BASE_URL reaches the api, which registers no webhook while it is empty"
+check '[.services.api.volumes[] | select(.source == "migration-dumps") | .target] | .[0]' \
+  "$(jq -r '.services.api.environment.Migrations__DumpDirectory' <<<"$config")" \
+  "the dump volume is mounted where Migrations__DumpDirectory points"
+check '.services.api.environment | has("SOURCE_COMMIT") or has("App__Release")' false \
+  "compose leaves SOURCE_COMMIT to Coolify, which turns a mention into an empty user variable"
+check '.services.api.healthcheck.start_period' 5m0s "api may take five minutes to dump and migrate before it counts as unhealthy"
+for service in api web; do
+  check ".services.$service.restart" unless-stopped "$service has a restart policy"
+  check ".services.$service.mem_limit | tonumber > 0" true "$service has a memory limit"
+  check ".services.$service.logging.driver" json-file "$service logs through json-file"
+  check ".services.$service.logging.options[\"max-size\"] != null and .services.$service.logging.options[\"max-file\"] != null" true \
+    "$service rotates its logs"
+done
