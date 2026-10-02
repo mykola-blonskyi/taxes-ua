@@ -24,7 +24,7 @@ import {
 import { todayInKyiv } from "@/shared/lib/dates";
 import { formatAmount } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
-import { SelectField, TextAreaField, TextField } from "@/shared/ui/fields";
+import { FieldErrors as FieldErrorList, SelectField, TextAreaField, TextField } from "@/shared/ui/fields";
 import { useErrorMessages } from "../errorMessages";
 import {
   addDays,
@@ -338,9 +338,7 @@ export function DraftEditor({
 
       <section className="flex flex-col gap-3">
         <h4 className="text-sm font-semibold">{t("lines")}</h4>
-        {messages.forField("lines") ? (
-          <p className="text-xs text-destructive">{messages.forField("lines")?.join(" ")}</p>
-        ) : null}
+        <FieldErrorList id="invoice-lines-error" errors={messages.forField("lines")} />
 
         {form.lines.map((line, index) => (
           <div key={line.key} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3">

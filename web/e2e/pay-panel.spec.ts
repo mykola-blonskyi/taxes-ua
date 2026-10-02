@@ -49,3 +49,29 @@ test("the pay panel for an obligation shows the Treasury account, the purpose an
   await expect(panel.getByRole("img", { name: uk.pay.qrLabel })).toBeVisible();
   await expect(panel.getByText(uk.pay.qrUpdating)).toBeHidden();
 });
+
+test("an emptied pay amount is flagged invalid and described by its message, and clears when fixed", async ({ page, request }) => {
+  const { year, quarter } = await seedRegisteredOwner(request);
+  await seedTreasuryAccounts(request);
+
+  await page.goto("/payments");
+  await page
+    .getByRole("heading", { name: uk.dashboard.quarter.replace("{quarter}", String(quarter)).replace("{year}", String(year)) })
+    .locator("..")
+    .getByRole("listitem")
+    .filter({ hasText: uk.payments.kinds.Esv })
+    .getByRole("button", { name: uk.pay.button })
+    .click();
+
+  const amount = page.getByRole("dialog").getByLabel(uk.pay.amountInput);
+  await expect(amount).toBeVisible();
+  await amount.fill("");
+  await expect(page.getByRole("alert").filter({ hasText: uk.pay.amountInvalid })).toBeVisible();
+  await expect(amount).toHaveAttribute("aria-invalid", "true");
+  await expect(amount).toHaveAccessibleDescription(uk.pay.amountInvalid);
+
+  await amount.fill("1234,56");
+
+  await expect(amount).not.toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByRole("alert").filter({ hasText: uk.pay.amountInvalid })).toHaveCount(0);
+});

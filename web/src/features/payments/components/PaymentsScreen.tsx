@@ -46,7 +46,7 @@ export function PaymentsScreen() {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-sm text-muted-foreground">{t("noYears")}</p>
-        <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+        <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
           {t("noYearsCta")}
         </Link>
       </div>
@@ -71,7 +71,7 @@ export function PaymentsScreen() {
             setSelectedYear(Number(event.target.value));
             setEditing(null);
           }}
-          className="w-full max-w-32 rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="w-full max-w-32 rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring pointer-coarse:min-h-11"
         >
           {configuredYears.map((configuredYear) => (
             <option key={configuredYear} value={configuredYear}>
@@ -131,7 +131,7 @@ function LedgerNotice({ title, message, cta }: { title?: string; message: string
       {title ? <h3 className="text-sm font-semibold text-destructive">{title}</h3> : null}
       <p className="text-sm text-muted-foreground">{message}</p>
       {cta ? (
-        <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+        <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
           {cta}
         </Link>
       ) : null}

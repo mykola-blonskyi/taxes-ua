@@ -24,7 +24,7 @@ export function AppNav() {
             href={href}
             aria-current={current ? "page" : undefined}
             className={cn(
-              "flex min-w-0 flex-1 flex-col items-center gap-0.5 px-1 py-2 text-[11px] md:flex-none md:flex-row md:gap-2 md:rounded-lg md:px-3 md:py-2 md:text-sm",
+              "flex min-w-0 flex-1 flex-col items-center gap-0.5 px-1 py-2 text-xs md:flex-none md:flex-row md:gap-2 md:rounded-lg md:px-3 md:py-2 md:text-sm",
               current ? "text-foreground md:bg-muted" : "text-muted-foreground hover:text-foreground",
             )}
           >

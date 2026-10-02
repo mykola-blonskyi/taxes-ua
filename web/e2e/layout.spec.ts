@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import ru from "../messages/ru.json";
 import uk from "../messages/uk.json";
@@ -84,10 +85,11 @@ async function settled(page: Page, locale: (typeof locales)[number]) {
   );
 }
 
-type Finding = { kind: "overflow" | "strip"; element: string; detail: string };
+type Finding = { kind: "overflow" | "strip" | "target"; element: string; detail: string };
 type Measurement = {
   scrollWidth: number;
   clientWidth: number;
+  coarse: boolean;
   lang: string;
   bodyText: string;
   findings: Finding[];
@@ -166,13 +168,75 @@ function measure(allowedStrips: string[]): Measurement {
     }
   }
 
+  // A coarse pointer needs 44 px to hit. A control's box counts, and so does the label tied to a checkbox
+  // or radio (the label is what a thumb taps). Text links inside a sentence are exempt, as in WCAG 2.5.8;
+  // an element a screen hides on purpose (sr-only, hidden file inputs) is not a target.
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  const minimum = 44;
+  const targets = document.querySelectorAll(
+    'button, a[href], select, textarea, summary, [role="tab"], input:not([type="hidden"])',
+  );
+  const targetFindings: Finding[] = [];
+  for (const element of Array.from(targets)) {
+    const box = element.getBoundingClientRect();
+    if (box.width <= 1 || box.height <= 1) continue;
+    if (element instanceof HTMLInputElement && element.type === "file") continue;
+    if (element.closest("[inert], [aria-hidden='true']")) continue;
+
+    let left = box.left;
+    let right = box.right;
+    let top = box.top;
+    let bottom = box.bottom;
+    if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
+      for (const label of Array.from(element.labels ?? [])) {
+        const labelBox = label.getBoundingClientRect();
+        left = Math.min(left, labelBox.left);
+        right = Math.max(right, labelBox.right);
+        top = Math.min(top, labelBox.top);
+        bottom = Math.max(bottom, labelBox.bottom);
+      }
+    }
+    const width = right - left;
+    const height = bottom - top;
+    if (element instanceof HTMLAnchorElement) {
+      const sentence = Array.from(element.parentElement?.childNodes ?? []).some(
+        (node) => node !== element && node.nodeType === Node.TEXT_NODE && (node.textContent ?? "").trim() !== "",
+      );
+      if (sentence) continue;
+    }
+
+    // A text link is as wide as its words, so only its height must reach the minimum.
+    const narrow = !(element instanceof HTMLAnchorElement) && Math.round(width) < minimum;
+    if (Math.round(height) < minimum || narrow) {
+      targetFindings.push({
+        kind: "target",
+        element: describe(element),
+        detail: `is ${Math.round(width)}x${Math.round(height)} px, under ${minimum} px for a coarse pointer`,
+      });
+    }
+  }
+
   return {
     scrollWidth: doc.scrollWidth,
     clientWidth,
+    coarse,
     lang: doc.lang,
     bodyText: document.body.innerText,
-    findings: findings.slice(0, 8),
+    findings: findings.slice(0, 8).concat(targetFindings.slice(0, 8)),
   };
+}
+
+// axe-core against the rendered state, failing on serious and critical violations. No rule is disabled: a
+// rule that cannot hold for this app would be listed here with the reason, never switched off silently.
+async function accessibilityViolations(page: Page, where: string) {
+  const { violations } = await new AxeBuilder({ page }).analyze();
+
+  return violations
+    .filter((violation) => violation.impact === "serious" || violation.impact === "critical")
+    .map((violation) => {
+      const nodes = violation.nodes.slice(0, 6).map((node) => `${node.target.join(" ")} [${node.any[0]?.message ?? ""}]`).join("; ");
+      return `${where}: axe ${violation.impact} ${violation.id}: ${violation.help} (${violation.nodes.length} node(s): ${nodes})`;
+    });
 }
 
 async function inspect(page: Page, route: string, locale: (typeof locales)[number], state: string) {
@@ -190,6 +254,10 @@ async function inspect(page: Page, route: string, locale: (typeof locales)[numbe
   for (const finding of measured.findings) {
     problems.push(`${where}: ${finding.element} ${finding.detail}`);
   }
+  if (!measured.coarse) {
+    problems.push(`${where}: the browser reports a fine pointer, so the touch-target check measured nothing`);
+  }
+  problems.push(...(await accessibilityViolations(page, where)));
   if (!measured.bodyText.includes(catalogs[locale].disclaimer)) {
     problems.push(`${where}: the ${locale} disclaimer is not in the rendered text`);
   }

@@ -12,7 +12,7 @@ import {
 } from "@/data/declarations/useDeclarations";
 import { Button } from "@/shared/ui/button";
 import { LoadState } from "@/data/api/LoadState";
-import { TextAreaField, TextField } from "@/shared/ui/fields";
+import { FieldErrors, TextAreaField, TextField } from "@/shared/ui/fields";
 
 const maxKvedCodes = 20;
 
@@ -159,7 +159,10 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
         />
       </fieldset>
 
-      <fieldset className="flex min-w-0 flex-col gap-3">
+      <fieldset
+        className="flex min-w-0 flex-col gap-3"
+        aria-describedby={fieldErrors("kvedCodes")?.length ? "kved-codes-error" : undefined}
+      >
         <legend className="text-base font-semibold">{tDeclaration("kved")}</legend>
         <p className="text-xs text-muted-foreground">{tDeclaration("kvedHint")}</p>
         {form.kvedCodes.map((code, index) => (
@@ -185,11 +188,7 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
             </Button>
           </div>
         ))}
-        {fieldErrors("kvedCodes")?.map((message) => (
-          <p key={message} className="text-xs text-destructive">
-            {message}
-          </p>
-        ))}
+        <FieldErrors id="kved-codes-error" errors={fieldErrors("kvedCodes")} />
         <div>
           <Button
             type="button"

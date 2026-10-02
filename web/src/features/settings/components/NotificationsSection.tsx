@@ -92,7 +92,7 @@ function TelegramChannel({
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="min-w-0 break-all text-sm text-primary underline-offset-4 hover:underline"
+              className="min-w-0 break-all text-sm text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
             >
               {t("openTelegram")}
             </a>

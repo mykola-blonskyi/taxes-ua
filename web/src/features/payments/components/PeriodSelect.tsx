@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import type { PaymentKind } from "@/data/payments/usePayments";
 import { useIsOutsideGroup3 } from "@/data/periods/usePeriods";
-import { FieldWrapper } from "@/shared/ui/fields";
+import { FieldWrapper, inputClasses } from "@/shared/ui/fields";
 import { fromPeriodValue, monthName, type PeriodValue } from "../period";
 
 const quarters = [1, 2, 3, 4];
@@ -34,11 +34,13 @@ export function PeriodSelect({
 
   return (
     <FieldWrapper label={tForm("period")} htmlFor={id} hint={hint} errors={errors}>
+      {(control) => (
+        <>
       <select
-        id={id}
         value={value}
         onChange={(event) => onChange(event.target.value as PeriodValue)}
-        className="w-full min-w-24 rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        className={inputClasses}
+        {...control}
       >
         <optgroup label={tForm("quarters")}>
           {quarters.map((quarter) => (
@@ -58,6 +60,8 @@ export function PeriodSelect({
       {outsideGroup3 ? (
         <p className="text-xs text-amber-700 dark:text-amber-400">{tForm("outsideGroup3")}</p>
       ) : null}
+        </>
+      )}
     </FieldWrapper>
   );
 }

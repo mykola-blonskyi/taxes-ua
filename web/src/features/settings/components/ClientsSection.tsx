@@ -245,7 +245,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
         {client ? (
           <Link
             href={`/history?entity=Client&id=${client.id}`}
-            className="text-sm text-primary underline-offset-4 hover:underline"
+            className="text-sm text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
           >
             {t("history")}
           </Link>

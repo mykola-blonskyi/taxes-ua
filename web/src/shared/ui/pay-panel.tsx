@@ -110,6 +110,9 @@ function PayBody({
   const [amountText, setAmountText] = useState(
     initialAmountKop !== null && initialAmountKop > 0 ? formatPlainAmount(initialAmountKop) : "",
   );
+  // The sheet opens on the amount the screen computed, or on an empty box when there is none. An empty box
+  // the owner has not touched is not an error, so the message waits for the first edit or for leaving the box.
+  const [amountTouched, setAmountTouched] = useState(false);
   const parsed = parseHryvnia(amountText);
   const amountKop = parsed !== null && parsed > 0 ? parsed : null;
   const copyProps = (field: string) => ({
@@ -127,8 +130,10 @@ function PayBody({
         value={amountText}
         inputMode="decimal"
         autoComplete="off"
-        errors={amountKop === null ? [t("amountInvalid")] : undefined}
+        errors={amountKop === null && amountTouched ? [t("amountInvalid")] : undefined}
+        onBlur={() => setAmountTouched(true)}
         onChange={(text) => {
+          setAmountTouched(true);
           setAmountText(text);
           const next = parseHryvnia(text);
           onAmountChange(next !== null && next > 0 ? next : null);
@@ -183,7 +188,7 @@ function Details({
         </ul>
         <Link
           href="/settings?tab=treasury"
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
         >
           {t("settingsLink")}
         </Link>
@@ -217,7 +222,7 @@ function ExpiredAccount({ validUntil }: { validUntil: string }) {
       <p className="text-sm font-medium">{t("expiredText", { validUntil: formatNumericDate(validUntil, locale) })}</p>
       <Link
         href="/settings?tab=treasury"
-        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+        className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
       >
         {t("expiredSettingsLink")}
       </Link>
@@ -277,7 +282,7 @@ function QrBlock({ details, amountKop }: { details: PayDetails; amountKop: numbe
             <Dialog.Title className="sr-only">{t("qrLabel")}</Dialog.Title>
             <Dialog.Close
               aria-label={t("close")}
-              className="absolute -right-2 -top-2 rounded-full border bg-background p-1.5 text-foreground shadow outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="absolute -right-2 -top-2 rounded-full border bg-background p-1.5 text-foreground shadow outline-none focus-visible:ring-3 focus-visible:ring-ring"
             >
               <XIcon className="size-5" />
             </Dialog.Close>

@@ -88,7 +88,7 @@ the deploy waits for it. Add or update tests next to the code you change (ADR-02
 change in a real browser: launch the stack and sign in through the Development seam. See
 `.claude/skills/verify-taxes-ua/SKILL.md`.
 
-`pnpm e2e e2e/layout.spec.ts` in `web/` is the phone-width check: every route and tab at 375 px in Ukrainian and Russian,
+`pnpm e2e e2e/layout.spec.ts` in `web/` is the phone-width check: every route and tab at 375 px in Ukrainian and Russian, with axe (serious and critical fail), controls of 44 px or more for a coarse pointer,
 with no sideways scroll, the disclaimer present and the right `html lang`. A UI change passes it before it is
 done; a strip that scrolls by design carries a `data-scroll-strip` name that is listed in `scrollingStrips` in `web/e2e/layout.spec.ts`.
 

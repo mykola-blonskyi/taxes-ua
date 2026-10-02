@@ -1636,3 +1636,42 @@ A new data screen renders `LoadState` instead of writing its own `<p>`. A new da
 `noticePriority` at its rank and to `noticeSeverity`, with a case in `NoticeView` and a title in
 `useNoticeTitles`. The banner above the hero is chosen by rank alone, apart from the three-day promotion, so
 the hero is never pushed down by more than one banner.
+
+## ADR-030. One field primitive wires every form error, and a phone is held to 44 px, a visible focus ring and axe
+
+Date: 2026-10-03
+
+Status: Accepted
+
+### Context
+
+The audit (UX High 5, Medium 7-8) found that a form error was a bare list under the input: no `aria-invalid`, no
+`aria-describedby`, not announced. The pay panel scolded an amount box the owner had not touched. Buttons and
+fields were 24-32 px tall on a phone, and the focus ring was about 1.6:1 against the page.
+
+### Decision
+
+1. **`FieldWrapper` in `@/shared/ui/fields` is the one field primitive.** It derives `<id>-hint` and `<id>-error`
+   from the field id and hands the control `id`, `aria-invalid` and `aria-describedby` (hint first, error second).
+   Every field component (`TextField`, `NumberField`, `SelectField`, ...) is built on it, and a control of its own
+   (`PeriodSelect`) takes the same props through the function form of `children`. Errors render as
+   `FieldErrors`, a `role="alert"` region that is announced when it appears. A message that belongs to a group of
+   controls (weekend days, KVED codes, invoice lines) uses `FieldErrors` directly and the fieldset points its
+   `aria-describedby` at it.
+2. **An error is shown only for a field the owner has touched or submitted.** The primitive shows what it is
+   given, so the caller decides: the pay panel and the mark-paid form track what was edited; server-side
+   field errors arrive only after a submit.
+3. **Coarse pointers get 44 px.** `buttonVariants`, the field classes, tabs, menu items, checkbox and radio rows
+   and standalone text links add `pointer-coarse:` sizes. Links inside a sentence are exempt, as in WCAG 2.5.8.
+   The layout spec measures every control at 375 px with a touch context.
+4. **The focus ring is solid `--ring`, `oklch(0.55 0 0)` in both themes**, at least 3:1 against the page and
+   against a filled button. `focus-ring.test.ts` computes it from `globals.css`. `--muted-foreground` and
+   `--destructive` were darkened in the light theme so small text passes AA on the muted and tinted cards.
+5. **axe runs in the layout spec** (`@axe-core/playwright`) in every state it measures, in uk and ru, and fails on
+   serious and critical violations. No rule is disabled.
+
+### Consequences
+
+A new form field uses a field component, or `FieldWrapper` with a function child, and never an unwired `<input>`.
+A new control is checked at 375 px with a coarse pointer by the layout spec without an edit. A rule axe cannot
+satisfy for this app would be disabled in `accessibilityViolations` with a comment that says why.
