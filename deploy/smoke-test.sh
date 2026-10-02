@@ -68,6 +68,10 @@ static_csp=$(header content-security-policy -H "Host: $domain" http://web:3000/f
 check "$static_csp" "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" \
   "a path with a dot gets the static CSP: scripts and styles from 'self' only"
 check "$(request -H "Host: $domain" http://web:3000/foo.bar | tr -d '\r' | grep -ci '^content-security-policy:')" 1 "a path with a dot carries one CSP"
+for file in /offline.html /offline.js /offline.css /sw.js; do
+  check "$(header content-security-policy -H "Host: $domain" "http://web:3000$file")" "$static_csp" "$file carries the static CSP"
+  check "$(request -H "Host: $domain" "http://web:3000$file" | tr -d '\r' | grep -ci '^content-security-policy:')" 1 "$file carries one CSP"
+done
 check "$(request -H "Host: $domain" http://web:3000/login | tr -d '\r' | grep -ci '^content-security-policy:')" 1 "a page carries one CSP"
 check "$(header permissions-policy -H "Host: $domain" http://web:3000/login | grep -c 'camera=()')" 1 "/login sends a Permissions-Policy"
 check "$(header x-powered-by -H "Host: $domain" http://web:3000/login)" "" "/login does not advertise the framework"
