@@ -1,0 +1,24 @@
+name: Set up web
+description: Node, pnpm with its store cached, and the locked dependencies of web/.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24
+        # pnpm arrives with corepack in the next step, so the automatic package-manager cache would not find it.
+        package-manager-cache: false
+    - run: corepack enable
+      shell: bash
+    - id: pnpm-store
+      run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      shell: bash
+      working-directory: web
+    - uses: actions/cache@v6
+      with:
+        path: ${{ steps.pnpm-store.outputs.path }}
+        key: pnpm-store-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+        restore-keys: pnpm-store-${{ runner.os }}-
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+      working-directory: web
