@@ -1,7 +1,8 @@
 services:
   web:
     ports:
-      - "3000:3000"
+      # WEB_PORT lets the end-to-end suite publish its own stack beside a developer's one on 3000.
+      - "${WEB_PORT:-3000}:3000"
 
   api:
     environment:

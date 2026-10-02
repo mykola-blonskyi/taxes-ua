@@ -111,6 +111,26 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml down
 Tear down only the stack you started. The script kills its own Chrome and uses a throwaway profile,
 so nothing survives a crashed run except the evidence.
 
+## Regression suite: `pnpm e2e`
+
+```
+cd web && pnpm exec playwright install chromium   # once
+cd web && pnpm e2e
+```
+
+Runs the Playwright suite in `web/e2e/` (Chromium only) and is what CI runs as the `e2e` job. Global
+setup builds the Compose stack under its own project name on a random port in 40000-49999 (never 3000),
+points Telegram and monobank at in-process stubs through `TELEGRAM_BASE_URL` and `MONOBANK_BASE_URL`,
+signs the owner in through the Development seam (step 3) and saves the session. Teardown runs
+`docker compose down --volumes`, so one command leaves nothing behind. If the run is killed hard,
+remove the leftover stack with `docker compose -p taxesua-e2e-<pid> down -v`; `docker ps` shows the name.
+
+Each test seeds through the real API and asserts on a change it made itself, so no test depends on
+another. A failing run leaves `web/e2e/playwright-report/` and a trace per failed test in
+`web/e2e/test-results/`; open one with `pnpm exec playwright show-trace <trace.zip>`. Add a scenario
+there when a new owner flow ships. The width and theme sweep in step 4 stays the way to measure layout
+by hand until the suite takes it over.
+
 ## Traps that have already cost a verifier its verdict
 
 **1. An interception outlives the call that set it.** A `page.route` handler, a patched `fetch` or

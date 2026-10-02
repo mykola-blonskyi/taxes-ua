@@ -87,3 +87,6 @@ Run `pnpm test` in `web/` (Vitest, a few seconds) before calling any web change 
 the deploy waits for it. Add or update tests next to the code you change (ADR-020). Then prove any UI
 change in a real browser: launch the stack, sign in through the Development seam, and measure every
 screen. See `.claude/skills/verify-taxes-ua/SKILL.md`.
+
+`pnpm e2e` in `web/` runs the Playwright suite against its own Compose stack (Docker must be running, port 3000
+is not touched) and removes the stack afterwards. A new owner flow adds a scenario in `web/e2e/` (ADR-020).
