@@ -14,11 +14,23 @@ import { formatMoney } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
 import { SelectField, TextField } from "@/shared/ui/fields";
 import { dayAfterQuarter, type Period } from "../period";
+import { ProvisionalNote } from "./ProvisionalNote";
 
 const declarationTypes = ["Reporting", "NewReporting", "Clarifying"] as const satisfies readonly DeclarationType[];
 
-export function FilingMark({ filed, period, today }: { filed: DeclarationFiling | null; period: Period; today: string }) {
+export function FilingMark({
+  filed,
+  period,
+  today,
+  group3Confirmed,
+}: {
+  filed: DeclarationFiling | null;
+  period: Period;
+  today: string;
+  group3Confirmed: boolean;
+}) {
   const t = useTranslations("declaration.filing");
+  const tProvisional = useTranslations("declaration.provisional");
 
   return (
     <section className="flex min-w-0 flex-col gap-3" aria-labelledby="filing-heading">
@@ -28,6 +40,7 @@ export function FilingMark({ filed, period, today }: { filed: DeclarationFiling 
         </h3>
         <p className="text-xs text-muted-foreground">{t("hint")}</p>
       </div>
+      {group3Confirmed ? null : <ProvisionalNote text={tProvisional("filing")} />}
       {filed ? <Filed filed={filed} period={period} /> : <MarkForm period={period} today={today} />}
     </section>
   );

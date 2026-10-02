@@ -238,6 +238,7 @@ function CandidateCard({
           <PeriodSelect
             id={`candidate-period-${candidate.id}`}
             year={state.periodYear}
+            kind={state.kind}
             value={state.period}
             onChange={(period) => setState((current) => ({ ...current, period }))}
           />

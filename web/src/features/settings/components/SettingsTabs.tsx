@@ -8,6 +8,7 @@ import { useTreasuryAccounts } from "@/data/treasury/useTreasuryAccounts";
 import { CalendarFeedSection } from "./CalendarFeedSection";
 import { ClientsSection } from "./ClientsSection";
 import { DeclarationDetailsForm } from "./DeclarationDetailsForm";
+import { DpsStatusSection } from "./DpsStatusSection";
 import { FopSettingsForm } from "./FopSettingsForm";
 import { InvoicingForm } from "./InvoicingForm";
 import { MonobankConnectionSection } from "./MonobankConnectionSection";
@@ -15,7 +16,7 @@ import { NotificationsSection } from "./NotificationsSection";
 import { TaxYearTable } from "./TaxYearTable";
 import { TreasuryAccountsSection } from "./TreasuryAccountsSection";
 
-const tabs = ["fop", "taxYears", "monobank", "clients", "invoicing", "declaration", "treasury", "notifications"] as const;
+const tabs = ["fop", "dps", "taxYears", "monobank", "clients", "invoicing", "declaration", "treasury", "notifications"] as const;
 type Tab = (typeof tabs)[number];
 
 function isTab(value: string | undefined): value is Tab {
@@ -58,6 +59,9 @@ export function SettingsTabs({ initialTab, confirmEmailToken }: { initialTab?: s
       </div>
       <Tabs.Content value="fop">
         <FopSettingsForm />
+      </Tabs.Content>
+      <Tabs.Content value="dps" className="min-w-0">
+        <DpsStatusSection />
       </Tabs.Content>
       <Tabs.Content value="taxYears" className="min-w-0">
         <TaxYearTable />

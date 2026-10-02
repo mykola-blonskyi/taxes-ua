@@ -16,6 +16,7 @@ import { formatDateOnly, formatInstantInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
 import { SelectField } from "@/shared/ui/fields";
 import type { Period } from "../period";
+import { ProvisionalNote } from "./ProvisionalNote";
 
 const declarationTypes = ["Reporting", "NewReporting", "Clarifying"] as const satisfies readonly DeclarationType[];
 
@@ -34,6 +35,7 @@ function startDownload(url: string, fileName: string) {
 export function XmlFile({ declaration, period }: { declaration: DeclarationResponse; period: Period }) {
   const t = useTranslations("declaration.xml");
   const tTypes = useTranslations("declaration.types");
+  const tProvisional = useTranslations("declaration.provisional");
   const locale = useLocale();
   const generate = useGenerateDeclarationFile(period.year, period.quarter);
   const [chosen, setChosen] = useState<DeclarationType | null>(null);
@@ -69,6 +71,7 @@ export function XmlFile({ declaration, period }: { declaration: DeclarationRespo
           <p className="text-xs text-muted-foreground">{t("annexHint")}</p>
         ) : null}
       </div>
+      {declaration.readiness.group3Confirmed ? null : <ProvisionalNote text={tProvisional("file")} />}
 
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
         <div className="min-w-0 sm:w-64">

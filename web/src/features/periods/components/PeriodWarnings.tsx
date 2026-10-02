@@ -2,9 +2,11 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import type { PeriodsResponse } from "@/data/periods/usePeriods";
+import { formatDateOnly } from "@/shared/lib/dates";
+import { formatMoney } from "@/shared/lib/money";
 import { cn } from "@/shared/lib/utils";
 
 type Warnings = PeriodsResponse["warnings"];
@@ -19,6 +21,7 @@ export function PeriodWarnings({
   limitCrossing: PeriodsResponse["limitCrossing"];
 }) {
   const t = useTranslations("periods");
+  const locale = useLocale();
 
   const excludedOperationCount = Number(warnings.excludedOperationCount);
   const negativeQuarters = warnings.negativeCumulativeTaxQuarters.map((quarter) => Number(quarter));
@@ -32,7 +35,8 @@ export function PeriodWarnings({
     missingTaxYear !== null ||
     excludedOperationCount > 0 ||
     negativeQuarters.length > 0 ||
-    limitCrossing !== null;
+    limitCrossing !== null ||
+    Boolean(warnings.beforeGroup3);
 
   if (!hasWarning) {
     return null;
@@ -41,6 +45,19 @@ export function PeriodWarnings({
   return (
     <ul className="flex flex-col gap-1.5">
       {limitCrossing !== null ? <LimitCrossingItem year={year} crossing={limitCrossing} /> : null}
+
+      {warnings.beforeGroup3 ? (
+        <WarningItem tone="warning">
+          {t("warnings.beforeGroup3", {
+            from: formatDateOnly(warnings.beforeGroup3.from, locale),
+            to: formatDateOnly(warnings.beforeGroup3.to, locale),
+            income: formatMoney(Number(warnings.beforeGroup3.incomeKop), locale),
+          })}{" "}
+          <Link href="/settings?tab=dps" className="font-medium text-primary underline-offset-4 hover:underline">
+            {t("warnings.dpsStatusCta")}
+          </Link>
+        </WarningItem>
+      ) : null}
 
       {warnings.taxYearUnverified ? (
         <WarningItem tone="destructive">
@@ -130,13 +147,16 @@ function isBefore(left: { year: number; quarter: number }, right: { year: number
   return left.year < right.year || (left.year === right.year && left.quarter < right.quarter);
 }
 
-function WarningItem({ tone, children }: { tone: "destructive" | "muted"; children: ReactNode }) {
+const toneClasses = {
+  destructive: "text-destructive",
+  warning: "text-amber-700 dark:text-amber-400",
+  muted: "text-muted-foreground",
+} as const;
+
+function WarningItem({ tone, children }: { tone: keyof typeof toneClasses; children: ReactNode }) {
   return (
     <li
-      className={cn(
-        "flex items-start gap-1.5 text-sm",
-        tone === "destructive" ? "text-destructive" : "text-muted-foreground",
-      )}
+      className={cn("flex items-start gap-1.5 text-sm", toneClasses[tone])}
     >
       <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
       <span className="min-w-0 break-words">{children}</span>

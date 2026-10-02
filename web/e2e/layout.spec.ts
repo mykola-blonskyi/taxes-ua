@@ -16,7 +16,7 @@ const viewport = { width: 375, height: 812 };
 // carries, never by its shape. A strip that scrolls and is not listed for its route (and tab, when given)
 // is a failure, so a table that starts overflowing its card cannot hide behind its own scrollbar.
 const scrollingStrips: readonly { route: string; tab?: string; strip: string; reason: string }[] = [
-  { route: "/settings", strip: "settings-tabs", reason: "eight settings tabs do not fit 375 px, so the tab list scrolls" },
+  { route: "/settings", strip: "settings-tabs", reason: "nine settings tabs do not fit 375 px, so the tab list scrolls" },
 ];
 
 // Text that proves a screen painted its seeded rows and not an empty state or a loading line. It is filled
@@ -242,7 +242,7 @@ for (const locale of locales) {
       }
 
       test(`${route} does not scroll sideways`, async ({ page }) => {
-        // A tabbed route opens eight panels, each waiting for its data.
+        // A tabbed route opens nine panels, each waiting for its data.
         test.setTimeout(60_000);
         await open(page, route, locale);
         const problems = await inspect(page, route, locale, "");

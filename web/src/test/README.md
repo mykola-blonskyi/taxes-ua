@@ -14,7 +14,7 @@ it("warns about a quarter outside group 3", async () => {
   stubFetch({
     "GET /api/periods/{year}": { year: 2026, balances: {}, group3Quarters: [3, 4] },
   });
-  renderApp(<PeriodSelect id="period" year={2026} value="q1" onChange={() => {}} />);
+  renderApp(<PeriodSelect id="period" year={2026} kind="SingleTax" value="q1" onChange={() => {}} />);
 
   expect(await screen.findByText("Цей період поза групою 3: …")).toBeVisible();
 });
