@@ -1,6 +1,7 @@
 "use client";
 
 import { Languages } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { locales } from "@/i18n/locales";
 import { setLocale } from "@/i18n/setLocale";
@@ -16,6 +17,7 @@ import {
 export function LanguageToggle() {
   const t = useTranslations("language");
   const locale = useLocale();
+  const router = useRouter();
 
   return (
     <DropdownMenu>
@@ -27,7 +29,10 @@ export function LanguageToggle() {
       <DropdownMenuContent align="end">
         <DropdownMenuRadioGroup
           value={locale}
-          onValueChange={(value) => void setLocale(value)}
+          onValueChange={(value) => {
+            setLocale(value);
+            router.refresh();
+          }}
         >
           {locales.map((value) => (
             <DropdownMenuRadioItem key={value} value={value}>
