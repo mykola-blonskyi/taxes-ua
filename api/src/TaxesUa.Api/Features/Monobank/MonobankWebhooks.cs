@@ -44,6 +44,8 @@ internal sealed class MonobankWebhooks : BackgroundService
 
     private readonly ConcurrentDictionary<string, byte> _waiting = new();
 
+    private int _outstanding;
+
     private readonly string? _baseUrl;
 
     private readonly IServiceScopeFactory _scopes;
@@ -88,16 +90,25 @@ internal sealed class MonobankWebhooks : BackgroundService
         _ => WebhookState.Pending,
     };
 
+    /// <summary>True when no registration or removal is waiting or running. Tests use it to know that
+    /// nothing was asked of the bank, rather than sleeping and hoping it had time to.</summary>
+    public bool IsIdle => Volatile.Read(ref _outstanding) == 0;
+
     public void Reconcile(string ownerId)
     {
         if (_waiting.TryAdd(ownerId, 0))
         {
-            _channel.Writer.TryWrite(new WebhookWork.Reconcile(ownerId));
+            Enqueue(new WebhookWork.Reconcile(ownerId));
         }
     }
 
-    public void Clear(string ownerId, byte[] encryptedToken) =>
-        _channel.Writer.TryWrite(new WebhookWork.Clear(ownerId, encryptedToken));
+    public void Clear(string ownerId, byte[] encryptedToken) => Enqueue(new WebhookWork.Clear(ownerId, encryptedToken));
+
+    private void Enqueue(WebhookWork work)
+    {
+        Interlocked.Increment(ref _outstanding);
+        _channel.Writer.TryWrite(work);
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -132,6 +143,10 @@ internal sealed class MonobankWebhooks : BackgroundService
             catch (Exception exception)
             {
                 _logger.LogError(exception, "The monobank webhook of owner {OwnerId} was not updated.", work.OwnerId);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _outstanding);
             }
         }
     }

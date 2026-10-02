@@ -37,7 +37,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-cand", ("cand-uah", 980), ("cand-usd", 840));
         await using var app = Create(At(2062, 3, 5, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-cand");
+        using var owner = await Connect(app, _ownerEmail, "token-cand");
         var waiting = await NeedsReviewCount(owner);
         bank.Put("cand-uah", new Operation("op-cand-levy", At(2062, 3, 2, 9), -1_500_00, 980,
             CounterName: "ГУК у м.Києві/Печерс.р-н/11011800", Comment: "Сплата військового збору", CounterIban: LevyIban2026));
@@ -75,7 +75,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-cand-confirm", ("cand-confirm-uah", 980));
         await using var app = Create(At(year, 5, 1, 10), bank);
-        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-cand-confirm");
+        using var owner = await Connect(app, _otherEmail, "token-cand-confirm");
         await RegisterOn(owner, year);
         var owed = Assert.Single((await Dashboard(owner)).NextStep.Now);
         Assert.Equal((PaymentKind.Esv, 1, ObligationStatus.Overdue), (owed.Kind, owed.FromQuarter, owed.Status));
@@ -121,7 +121,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-cand-match", ("cand-match-uah", 980));
         await using var app = Create(At(year, 2, 12, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-cand-match");
+        using var owner = await Connect(app, _ownerEmail, "token-cand-match");
         var typed = await PostPayment(owner, new PaymentRequest(new DateOnly(year, 2, 10), PaymentKind.SingleTax, 3_000_00, year - 1, 4, null, "typed"));
         bank.Put("cand-match-uah", new Operation("op-cand-match", At(year, 2, 10, 9), -3_000_00, 980,
             Comment: "*;101;1234567890;Єдиний податок;;;", CounterIban: BudgetIban));
@@ -158,7 +158,7 @@ public sealed partial class MonobankSyncTests
         bank.Put("cand-stale-uah", new Operation("op-cand-stale", At(year, 3, 5, 9), -500_00, 980,
             Comment: "ВЗ", CounterIban: BudgetIban));
         await using var app = Create(At(year, 3, 6, 10), bank);
-        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-cand-stale");
+        using var owner = await Connect(app, _otherEmail, "token-cand-stale");
         var shown = Assert.Single(await Candidates(owner, year));
         Assert.Empty(shown.Matches);
 
@@ -179,7 +179,7 @@ public sealed partial class MonobankSyncTests
         bank.Put("cand-dismiss-uah", new Operation("op-cand-dismiss", At(year, 6, 1, 9), -700_00, 980,
             Comment: "Повернення помилково сплачених коштів", CounterIban: EsvIban));
         await using var app = Create(At(year, 6, 3, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-cand-dismiss");
+        using var owner = await Connect(app, _ownerEmail, "token-cand-dismiss");
         var candidate = Assert.Single(await Candidates(owner, year));
         Assert.Equal(PaymentKind.Esv, candidate.SuggestedKind);
         var waiting = await NeedsReviewCount(owner);
@@ -207,9 +207,9 @@ public sealed partial class MonobankSyncTests
         bank.Put("cand-iso-uah", new Operation("op-cand-iso", At(year, 1, 20, 9), -900_00, 980,
             Comment: "ЄСВ", CounterIban: BudgetIban));
         await using var app = Create(At(year, 1, 21, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-cand-iso");
+        using var owner = await Connect(app, _ownerEmail, "token-cand-iso");
         var candidate = Assert.Single(await Candidates(owner, year));
-        using var stranger = await ApiFixture.SignIn(app.Factory, ApiFixture.SecondAllowedEmail);
+        using var stranger = await ApiFixture.SignIn(app.Factory, _otherEmail);
 
         Assert.Empty(await Candidates(stranger, year));
         Assert.Equal(HttpStatusCode.NotFound, (await ConfirmCandidate(stranger, candidate, PaymentKind.Esv, year, quarter: 1)).StatusCode);
@@ -231,8 +231,8 @@ public sealed partial class MonobankSyncTests
         bank.Put("cand-backup-uah", new Operation("op-cand-gone", At(year, 4, 2, 9), -200_00, 980, Comment: "ЄП", CounterIban: BudgetIban));
         bank.Put("cand-backup-uah", new Operation("op-cand-open", At(year, 4, 3, 9), -300_00, 980, Comment: "Оплата", CounterIban: EsvIban));
         await using var app = Create(At(year, 4, 5, 10), bank);
-        await EmptyLedger(app, ApiFixture.SecondAllowedEmail);
-        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-cand-backup");
+        await EmptyLedger(app, _otherEmail);
+        using var owner = await Connect(app, _otherEmail, "token-cand-backup");
         var candidates = (await Candidates(owner, year)).ToDictionary(row => row.AmountKop);
         Assert.Equal(HttpStatusCode.OK, (await ConfirmCandidate(owner, candidates[100_00], PaymentKind.SingleTax, year, quarter: 1)).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await Dismiss(owner, candidates[200_00])).StatusCode);
@@ -274,7 +274,7 @@ public sealed partial class MonobankSyncTests
         bank.Put("cand-delete-uah", new Operation("op-cand-del-2", At(year, 4, 2, 9), -200_00, 980, Comment: "Оплата", CounterIban: DeletedIban));
         bank.Put("cand-delete-uah", new Operation("op-cand-del-3", At(year, 4, 3, 9), -300_00, 980, Comment: "Оплата", CounterIban: BudgetIban));
         await using var app = Create(At(year, 4, 5, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-cand-delete");
+        using var owner = await Connect(app, _ownerEmail, "token-cand-delete");
         var candidates = (await Candidates(owner, year)).ToDictionary(row => row.AmountKop);
         var waiting = await NeedsReviewCount(owner);
         Assert.Equal(HttpStatusCode.NoContent, (await Dismiss(owner, candidates[300_00])).StatusCode);
@@ -304,7 +304,7 @@ public sealed partial class MonobankSyncTests
         bank.Put("cand-edit-uah", new Operation("op-cand-edit-1", At(year, 4, 1, 9), -100_00, 980, CounterIban: EditedIban));
         bank.Put("cand-edit-uah", new Operation("op-cand-edit-2", At(year, 4, 2, 9), -200_00, 980, Comment: "Оплата", CounterIban: EditedIban));
         await using var app = Create(At(year, 4, 5, 10), bank);
-        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-cand-edit");
+        using var owner = await Connect(app, _otherEmail, "token-cand-edit");
         var candidates = (await Candidates(owner, year)).ToDictionary(row => row.AmountKop);
 
         var confirmed = await ConfirmCandidate(owner, candidates[100_00], PaymentKind.Esv, year, quarter: 1);
@@ -328,7 +328,7 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-cand-separate", ("cand-separate-uah", 980));
         bank.Put("cand-separate-uah", new Operation("op-cand-separate", At(year, 2, 10, 9), -3_000_00, 980, Comment: "ЄП", CounterIban: BudgetIban));
         await using var app = Create(At(year, 2, 12, 10), bank);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-cand-separate");
+        using var owner = await Connect(app, _ownerEmail, "token-cand-separate");
         var typed = await PostPayment(owner, new PaymentRequest(new DateOnly(year, 2, 10), PaymentKind.SingleTax, 3_000_00, year, 1, null, "typed"));
         await Sync(app, owner);
         var candidate = Assert.Single(await Candidates(owner, year));
@@ -351,7 +351,7 @@ public sealed partial class MonobankSyncTests
         var bank = new FakeBank();
         bank.Connect("token-cand-count", ("cand-count-uah", 980));
         await using var app = Create(At(2072, 3, 5, 10), bank);
-        using var owner = await Connect(app, ApiFixture.SecondAllowedEmail, "token-cand-count");
+        using var owner = await Connect(app, _otherEmail, "token-cand-count");
         bank.Put("cand-count-uah", new Operation("op-cand-count", At(2072, 3, 2, 9), -100_00, 980, CounterIban: BudgetIban));
 
         await Sync(app, owner);

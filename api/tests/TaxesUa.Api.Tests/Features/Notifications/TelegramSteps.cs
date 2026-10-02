@@ -24,25 +24,16 @@ internal static class TelegramSteps
     public static readonly JsonSerializerOptions Json =
         new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
-    // The tests share one database, so each starts from an owner with nothing linked. The poll offset is
-    // the bot's, not an owner's, so the first owner's reset clears it too.
-    public static async Task Reset(WebApplicationFactory<Program> application, string email = ApiFixture.AllowedEmail)
+    // Each test has an owner of its own, with nothing linked. The poll offset is the bot's, not an owner's,
+    // so every test in the class shares it and starts from none.
+    public static async Task ForgetPollOffset(WebApplicationFactory<Program> application)
     {
         await using var scope = application.Services.CreateAsyncScope();
-        await Reset(scope.ServiceProvider, email);
+        await ForgetPollOffset(scope.ServiceProvider);
     }
 
-    public static async Task Reset(IServiceProvider services, string email = ApiFixture.AllowedEmail)
-    {
-        var database = services.GetRequiredService<AppDbContext>();
-        var users = database.Users.Where(user => user.Email == email).Select(user => user.Id);
-        await database.NotificationChannels.Where(row => users.Contains(row.UserId)).ExecuteDeleteAsync();
-        await database.NotificationLinkCodes.Where(row => users.Contains(row.UserId)).ExecuteDeleteAsync();
-        if (email == ApiFixture.AllowedEmail)
-        {
-            await database.TelegramPollStates.ExecuteDeleteAsync();
-        }
-    }
+    public static Task<int> ForgetPollOffset(IServiceProvider services) =>
+        services.GetRequiredService<AppDbContext>().TelegramPollStates.ExecuteDeleteAsync();
 
     public static async Task<string> Connect(HttpClient owner)
     {

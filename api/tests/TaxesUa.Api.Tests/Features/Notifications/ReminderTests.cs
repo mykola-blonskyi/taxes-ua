@@ -25,6 +25,9 @@ public sealed partial class ReminderTests(ApiFixture fixture) : IClassFixture<Ap
 {
     private const long SingleTaxKop = 617_280;
 
+    // Owners no other test shares (see ApiFixture.NewOwner).
+    private readonly string _ownerEmail = fixture.NewOwner();
+
     private const long MilitaryLevyKop = 123_456;
 
     private static readonly DateOnly TaxDue = new(2031, 5, 20);
@@ -177,9 +180,9 @@ public sealed partial class ReminderTests(ApiFixture fixture) : IClassFixture<Ap
         await running;
     }
 
-    // The database is shared by the class, so every test starts from the same owner: nothing sent,
+    // Every test has an owner of its own, so each starts with nothing sent,
     // paid, filed or linked, one income receipt, and Telegram linked. The linking reply is not counted.
-    private static async Task<HttpClient> Prepare(
+    private async Task<HttpClient> Prepare(
         WebApplicationFactory<Program> application,
         StubTelegramHandler telegram,
         string locale = "uk",
@@ -192,19 +195,17 @@ public sealed partial class ReminderTests(ApiFixture fixture) : IClassFixture<Ap
     }
 
     // The same owner with no channel connected, for the email channel's tests.
-    private static async Task<HttpClient> PrepareOwner(
+    private async Task<HttpClient> PrepareOwner(
         WebApplicationFactory<Program> application, string locale = "uk", PaymentMode mode = PaymentMode.Quarterly)
     {
-        var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await using (var scope = application.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            // A run reminds every owner with a channel, and the owners of earlier tests still have theirs.
             var userId = await OwnerId(database);
-            await database.SentReminders.Where(row => row.UserId == userId).ExecuteDeleteAsync();
-            await database.BudgetPayments.Where(row => row.UserId == userId).ExecuteDeleteAsync();
-            await database.DeclarationFilings.Where(row => row.UserId == userId).ExecuteDeleteAsync();
-            await database.Transactions.Where(row => row.UserId == userId).ExecuteDeleteAsync();
-            await Reset(scope.ServiceProvider);
+            await database.NotificationChannels.Where(row => row.UserId != userId).ExecuteDeleteAsync();
+            await ForgetPollOffset(scope.ServiceProvider);
         }
 
         var taxYear = new TaxYearConfigRequest(800_000, 500, 100, 2_200, 1_500, 1_000, [85], 19, 40, 10, 15, [], "a test source");
@@ -231,7 +232,7 @@ public sealed partial class ReminderTests(ApiFixture fixture) : IClassFixture<Ap
         Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
     }
 
-    private static async Task<List<SentReminder>> SentLog(WebApplicationFactory<Program> application)
+    private async Task<List<SentReminder>> SentLog(WebApplicationFactory<Program> application)
     {
         await using var scope = application.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -239,6 +240,6 @@ public sealed partial class ReminderTests(ApiFixture fixture) : IClassFixture<Ap
         return await database.SentReminders.AsNoTracking().Where(row => row.UserId == userId).ToListAsync();
     }
 
-    private static Task<string> OwnerId(AppDbContext database) =>
-        database.Users.Where(user => user.Email == ApiFixture.AllowedEmail).Select(user => user.Id).SingleAsync();
+    private Task<string> OwnerId(AppDbContext database) =>
+        database.Users.Where(user => user.Email == _ownerEmail).Select(user => user.Id).SingleAsync();
 }

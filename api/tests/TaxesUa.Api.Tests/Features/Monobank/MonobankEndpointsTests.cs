@@ -14,6 +14,11 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
 {
     private const string GoodToken = "good-token";
 
+    // Owners no other test shares (see ApiFixture.NewOwner).
+    private readonly string _ownerEmail = fixture.NewOwner();
+
+    private readonly string _otherEmail = fixture.NewOwner();
+
     [Fact]
     public async Task A_valid_token_saves_and_lists_accounts_with_fop_ones_preselected()
     {
@@ -22,7 +27,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
             ("acc-fop-1", "fop", 980, "UA000000000000000000000000001"),
             ("acc-black-1", "black", 980, "UA000000000000000000000000002"));
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
 
         var response = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
 
@@ -50,7 +55,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         var body = StubMonobankHandler.ClientInfo("client-1", ("acc-1", "fop", 980, "UA1"));
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _otherEmail);
 
         var response = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "wrong-token" });
 
@@ -60,7 +65,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
 
         await using var scope = application.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var userId = await UserId(database, ApiFixture.SecondAllowedEmail);
+        var userId = await UserId(database, _otherEmail);
         Assert.False(await database.MonobankConnections.AnyAsync(c => c.UserId == userId));
         Assert.False(await database.BankAccounts.AnyAsync(a => a.UserId == userId));
     }
@@ -70,7 +75,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         var body = StubMonobankHandler.ClientInfo("client-1", ("acc-diia", "diia", 980, "UA9"));
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
 
         var response = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
 
@@ -91,7 +96,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
             ("fop-b", "fop", 840, "UA2"),
             ("black", "black", 980, "UA3"));
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
 
         var response = await owner.PutAsJsonAsync(
@@ -117,7 +122,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
             ("deactivate-b", "fop", 980, "UA2"));
         var onlyB = StubMonobankHandler.ClientInfo("client-1", ("deactivate-b", "fop", 980, "UA2"));
         using var application = fixture.CreateApplication(ForTokens((GoodToken, both), ("second-token", onlyB)));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
 
         var response = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "second-token" });
@@ -138,7 +143,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
             ("keep-a", "fop", 980, "UA1"),
             ("keep-b", "fop", 840, "UA2"));
         using var application = fixture.CreateApplication(ForTokens((GoodToken, both), ("second-token", both)));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
         await owner.PutAsJsonAsync("/api/monobank/accounts", new { followedExternalIds = new[] { "keep-a" } });
 
@@ -159,7 +164,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
         var onlyB = StubMonobankHandler.ClientInfo("client-1", ("reappear-b", "fop", 980, "UA2"));
         using var application = fixture.CreateApplication(ForTokens(
             (GoodToken, both), ("second-token", onlyB), ("third-token", both)));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "second-token" });
 
@@ -175,7 +180,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         var body = StubMonobankHandler.ClientInfo("client-1", ("acc-a", "fop", 980, "UA1"));
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
 
         var rejected = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "not-a-real-token" });
@@ -191,7 +196,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         var body = StubMonobankHandler.ClientInfo("client-1", ("acc-a", "fop", 980, "UA1"));
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
 
         var response = await owner.PutAsync(
@@ -206,7 +211,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         var body = StubMonobankHandler.ClientInfo("client-1", ("acc-a", "fop", 980, "UA1"));
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
 
         var response = await owner.PutAsJsonAsync(
@@ -226,7 +231,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     public async Task A_malformed_client_info_payload_never_crashes_to_a_server_error(string malformedBody)
     {
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, malformedBody));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
 
         var response = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
 
@@ -252,10 +257,10 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         var body = StubMonobankHandler.ClientInfo("client-1", ("fop-a", "fop", 980, "UA1"));
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
 
-        using var other = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
+        using var other = await ApiFixture.SignIn(application, _otherEmail);
         var status = await other.GetFromJsonAsync<ConnectionStatus>("/api/monobank/connection");
 
         Assert.NotNull(status);
@@ -268,7 +273,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         var body = StubMonobankHandler.ClientInfo("client-1", ("fop-a", "fop", 980, "UA1"));
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
 
         var disconnect = await owner.DeleteAsync("/api/monobank/connection");
@@ -281,7 +286,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
 
         await using var scope = application.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var userId = await UserId(database, ApiFixture.AllowedEmail);
+        var userId = await UserId(database, _ownerEmail);
         Assert.False(await database.MonobankConnections.AnyAsync(c => c.UserId == userId));
         Assert.True(await database.BankAccounts.AnyAsync(a => a.UserId == userId && a.ExternalId == "fop-a"));
     }
@@ -291,7 +296,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         var body = StubMonobankHandler.ClientInfo("client-1", ("fop-a", "fop", 980, "UA1"));
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
 
         var put = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
         var putBody = await put.Content.ReadAsStringAsync();
@@ -308,7 +313,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     {
         var body = StubMonobankHandler.ClientInfo("client-1", ("fop-a", "fop", 980, "UA1"));
         using var application = fixture.CreateApplication(StubMonobankHandler.ForToken(GoodToken, body));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await owner.PutAsJsonAsync("/api/monobank/connection", new { token = GoodToken });
 
         var backup = await owner.GetStringAsync("/api/backup");
@@ -323,7 +328,7 @@ public sealed class MonobankEndpointsTests(ApiFixture fixture) : IClassFixture<A
     public async Task Every_route_answers_service_unavailable_when_no_key_is_configured()
     {
         using var application = fixture.CreateApplicationWithoutMonobankKey();
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
 
         var get = await owner.GetAsync("/api/monobank/connection");
         var put = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "anything" });

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Data;
@@ -15,6 +16,11 @@ namespace TaxesUa.Api.Tests.Features.Notifications;
 
 public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
+    // Owners no other test shares (see ApiFixture.NewOwner).
+    private readonly string _ownerEmail = fixture.NewOwner();
+
+    private readonly string _otherEmail = fixture.NewOwner();
+
     private static readonly DateTimeOffset Start = new(2031, 6, 1, 10, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -171,11 +177,11 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
         // Before the service starts: it reads the stored offset once, when its first round begins.
         await using (var scope = fixture.CreateScope())
         {
-            await Reset(scope.ServiceProvider);
+            await ForgetPollOffset(scope.ServiceProvider);
         }
 
         await using var application = fixture.CreateApplication(telegram, runPoller: true);
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
 
         var code = CodeOf(await Connect(owner));
         telegram.Push(StubTelegramHandler.Update(10, OwnerChat, $"/start {code}"));
@@ -203,7 +209,9 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
         using var owner = await SignIn(application);
 
         var channel = await Channel(owner);
-        await Task.Delay(300);
+        // Without a usable token the worker returns as soon as it starts, so once it has, it has polled nothing.
+        var worker = application.Services.GetServices<IHostedService>().OfType<TelegramPollWorker>().Single();
+        await worker.ExecuteTask!.WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.False(channel["available"]!.GetValue<bool>());
         Assert.False(channel["linked"]!.GetValue<bool>());
@@ -237,7 +245,7 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
         var telegram = new StubTelegramHandler();
         await using var application = fixture.CreateApplication(telegram, new FakeTimeProvider(Start));
         using var owner = await SignIn(application);
-        await Reset(application);
+        await ForgetPollOffset(application);
 
         Assert.Equal(HttpStatusCode.Conflict, (await owner.PostAsync(Channels + "/telegram/test", null)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await owner.PutAsJsonAsync(Channels + "/telegram", new { enabled = true })).StatusCode);
@@ -520,7 +528,7 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
         var telegram = new StubTelegramHandler();
         await using var application = fixture.CreateApplication(telegram, new FakeTimeProvider(Start));
         using var owner = await SignIn(application);
-        using var other = await SignIn(application, ApiFixture.SecondAllowedEmail);
+        using var other = await SignIn(application, _otherEmail);
         await Link(application, owner, telegram);
 
         Assert.False((await Channel(other))["linked"]!.GetValue<bool>());
@@ -547,7 +555,7 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
         var clock = new FakeTimeProvider(Start);
         await using var application = fixture.CreateApplication(telegram, clock);
         using var owner = await SignIn(application);
-        await Reset(application);
+        await ForgetPollOffset(application);
         await Link(application, owner, telegram);
         var afterLinking = await History(owner);
 
@@ -579,7 +587,7 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
                 logging.AddProvider(logs);
             }));
         using var owner = await SignIn(application);
-        await Reset(application);
+        await ForgetPollOffset(application);
         var bodies = new List<string>();
 
         var connect = await owner.PostAsync(Channels + "/telegram/connect", null);
@@ -660,12 +668,16 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
         }
     }
 
-    private Task<HttpClient> SignIn(WebApplicationFactory<Program> application) => SignIn(application, ApiFixture.AllowedEmail);
+    private Task<HttpClient> SignIn(WebApplicationFactory<Program> application) => SignIn(application, _ownerEmail);
 
     private async Task<HttpClient> SignIn(WebApplicationFactory<Program> application, string email)
     {
         var client = await ApiFixture.SignIn(application, email);
-        await Reset(application, email);
+        if (email == _ownerEmail)
+        {
+            await ForgetPollOffset(application);
+        }
+
         return client;
     }
 
@@ -680,7 +692,7 @@ public sealed class TelegramChannelTests(ApiFixture fixture) : IClassFixture<Api
     {
         await using var scope = application.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var ownerId = await database.Users.Where(user => user.Email == ApiFixture.AllowedEmail).Select(user => user.Id).SingleAsync();
+        var ownerId = await database.Users.Where(user => user.Email == _ownerEmail).Select(user => user.Id).SingleAsync();
         var delivery = scope.ServiceProvider.GetRequiredService<TelegramDelivery>();
 
         var sending = delivery.SendAsync(ownerId, "reminder", evenIfDisabled: false, CancellationToken.None);

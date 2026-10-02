@@ -19,14 +19,18 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
 
     private const string Address = "owner@mail.test";
 
+    // Owners no other test shares (see ApiFixture.NewOwner).
+    private readonly string _ownerEmail = fixture.NewOwner();
+
+    private readonly string _otherEmail = fixture.NewOwner();
+
     private const string Email = "Email";
 
     [Fact]
     public async Task Without_smtp_settings_the_channel_is_unavailable_and_nothing_can_be_added()
     {
         await using var application = fixture.CreateApplication(_ => { });
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
 
         var channel = await Channel(owner, Email);
         var added = await Add(owner, Address);
@@ -43,8 +47,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
 
         var added = await Add(owner, "  " + Address + " ");
         var channel = (await added.Content.ReadFromJsonAsync<JsonObject>())!;
@@ -74,8 +77,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await SetLocale(owner, "ru");
 
         await Add(owner, Address);
@@ -89,8 +91,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await Add(owner, Address);
 
         var confirmed = await Confirm(owner, TokenOf(Assert.Single(email.Delivered)));
@@ -108,8 +109,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await Add(owner, Address);
         var token = TokenOf(Assert.Single(email.Delivered));
 
@@ -126,8 +126,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
         var email = new InMemoryEmailTransport();
         var clock = new FakeTimeProvider(Start);
         await using var application = fixture.CreateApplication(email, clock);
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await Add(owner, Address);
         var token = TokenOf(Assert.Single(email.Delivered));
 
@@ -159,8 +158,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await Add(owner, Address);
         var token = TokenOf(Assert.Single(email.Delivered));
         var middle = token.Length / 2;
@@ -184,10 +182,8 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        using var other = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
-        await Reset(application);
-        await Reset(application, ApiFixture.SecondAllowedEmail);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
+        using var other = await ApiFixture.SignIn(application, _otherEmail);
         await Add(owner, Address);
         await Add(other, "other@mail.test");
 
@@ -203,8 +199,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await Add(owner, Address);
         using var stranger = ApiFixture.CreateClient(application);
 
@@ -218,8 +213,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await Add(owner, "typo@mail.test");
         var typo = TokenOf(email.Delivered[0]);
         await Add(owner, Address);
@@ -239,8 +233,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await Add(owner, Address);
         await Confirm(owner, TokenOf(email.Delivered[0]));
 
@@ -265,8 +258,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
 
         var response = await Add(owner, input);
 
@@ -280,8 +272,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await Connected(owner, email);
         await SwitchEmail(owner, false);
 
@@ -307,8 +298,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await Connected(owner, email);
         email.Clear();
         email.Answer = (_, _) => new DeliveryAttempt(DeliveryFailure.Unreachable);
@@ -332,8 +322,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport { Answer = (_, _) => new DeliveryAttempt(DeliveryFailure.Unreachable) };
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
 
         var added = await Add(owner, Address);
 
@@ -347,8 +336,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport { Answer = (_, _) => new DeliveryAttempt(DeliveryFailure.Authentication) };
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
 
         var added = await Add(owner, Address);
 
@@ -369,8 +357,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
     {
         var email = new InMemoryEmailTransport();
         await using var application = fixture.CreateApplication(email, new FakeTimeProvider(Start));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         await Connected(owner, email);
 
         Assert.Equal(HttpStatusCode.NoContent, (await Remove(owner)).StatusCode);
@@ -394,8 +381,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
                 logging.AddFilter((_, _, _) => true);
                 logging.AddProvider(logs);
             }));
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Reset(application);
+        using var owner = await ApiFixture.SignIn(application, _ownerEmail);
         var bodies = new List<string>();
 
         bodies.Add(await (await Add(owner, Address)).Content.ReadAsStringAsync());

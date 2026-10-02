@@ -26,6 +26,10 @@ internal sealed class MonobankSyncQueue
         }
     }
 
+    /// <summary>True when nothing is waiting or running. Tests use it to know that no sync was started,
+    /// rather than sleeping and hoping it had time to.</summary>
+    public bool IsIdle => _waiting.IsEmpty && _running.IsEmpty;
+
     public bool IsPending(SyncWork work) => _waiting.ContainsKey(work) || _running.ContainsKey(work);
 
     public async IAsyncEnumerable<SyncWork> DequeueAllAsync(
