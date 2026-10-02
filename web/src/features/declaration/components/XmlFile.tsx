@@ -12,7 +12,7 @@ import {
   type DeclarationResponse,
   type DeclarationType,
 } from "@/data/declarations/useDeclarations";
-import { formatInstantInKyiv } from "@/shared/lib/dates";
+import { formatDateOnly, formatInstantInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
 import { SelectField } from "@/shared/ui/fields";
 import type { Period } from "../period";
@@ -39,7 +39,7 @@ export function XmlFile({ declaration, period }: { declaration: DeclarationRespo
   const [chosen, setChosen] = useState<DeclarationType | null>(null);
 
   const type = chosen ?? declaration.filed?.type ?? "Reporting";
-  const canPrepare = declaration.readiness.ready && declaration.figures !== null;
+  const canPrepare = declaration.fileAvailable && declaration.readiness.ready && declaration.figures !== null;
   const failure = generate.error instanceof ApiError ? generate.error : null;
   const fileErrors = failure?.status === 422 ? (failure.errors.file ?? []) : [];
 
@@ -87,7 +87,13 @@ export function XmlFile({ declaration, period }: { declaration: DeclarationRespo
           </Button>
         </div>
       </div>
-      {canPrepare ? null : <p className="text-xs text-muted-foreground">{t("notReady")}</p>}
+      {declaration.fileAvailable ? (
+        canPrepare ? null : <p className="text-xs text-muted-foreground">{t("notReady")}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          {t("notEnded", { date: formatDateOnly(declaration.fileAvailableFrom, locale) })}
+        </p>
+      )}
 
       {generate.isError ? (
         <div className="flex min-w-0 flex-col gap-2 text-sm text-destructive" role="alert">

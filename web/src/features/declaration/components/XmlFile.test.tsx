@@ -13,8 +13,10 @@ const withAnnex: DeclarationFile = {
 };
 const withoutAnnex: DeclarationFile = { ...withAnnex, annexFileName: null };
 
-function declaration(overrides: { ready?: boolean; esvKop?: number | null; files?: DeclarationFile[] } = {}) {
-  const { ready = true, esvKop = 190_234, files = [] } = overrides;
+function declaration(
+  overrides: { ready?: boolean; esvKop?: number | null; files?: DeclarationFile[]; fileAvailable?: boolean } = {},
+) {
+  const { ready = true, esvKop = 190_234, files = [], fileAvailable = true } = overrides;
 
   return {
     year: 2026,
@@ -23,6 +25,8 @@ function declaration(overrides: { ready?: boolean; esvKop?: number | null; files
     readiness: { ready },
     filed: null,
     files,
+    fileAvailable,
+    fileAvailableFrom: "2026-07-01",
   } as unknown as DeclarationResponse;
 }
 
@@ -158,6 +162,25 @@ describe("XmlFile", () => {
 
       expect(screen.getByRole("button", { name: "Скачать XML" })).toBeDisabled();
       expect(screen.getByText("Файл можно подготовить, когда всё готово к подаче.")).toBeVisible();
+    });
+
+    describe("a quarter that has not ended", () => {
+      it("disables the download and says from which date it opens, even when everything else is ready", () => {
+        const api = stubFetch({});
+        renderXml(declaration({ fileAvailable: false }));
+
+        expect(screen.getByRole("button", { name: "Завантажити XML" })).toBeDisabled();
+        expect(screen.getByText(/^Файл можна підготувати з 1 лип\. 2026 р\., коли квартал закінчиться/)).toBeVisible();
+        expect(screen.queryByText("Файл можна підготувати, коли все готово до подання.")).not.toBeInTheDocument();
+        expect(api.requests).toHaveLength(0);
+      });
+
+      it("says so in Russian", () => {
+        renderXml(declaration({ fileAvailable: false }), "ru");
+
+        expect(screen.getByRole("button", { name: "Скачать XML" })).toBeDisabled();
+        expect(screen.getByText(/^Файл можно подготовить с 1 июл\. 2026 г\., когда квартал закончится/)).toBeVisible();
+      });
     });
 
     it("reports a conflict and downloads nothing", async () => {
