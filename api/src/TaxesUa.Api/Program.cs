@@ -308,10 +308,14 @@ if (app.Environment.IsDevelopment())
     api.MapDevelopmentSignIn();
 }
 
+// The commit this container was built from, set by Coolify's SOURCE_COMMIT. CI waits for it to appear
+// in /api/health, which is how a new release is told apart from the old one still answering.
+var release = app.Configuration["App:Release"] is { Length: > 0 } configured ? configured : "unknown";
+
 api.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
 {
     var dbOk = await db.Database.CanConnectAsync(ct);
-    var payload = new { status = dbOk ? "ok" : "degraded", database = dbOk };
+    var payload = new { status = dbOk ? "ok" : "degraded", database = dbOk, release };
     return dbOk ? Results.Ok(payload) : Results.Json(payload, statusCode: StatusCodes.Status503ServiceUnavailable);
 });
 
@@ -343,7 +347,13 @@ api.MapCalendarApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
-    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    await MigrationDump.MigrateAsync(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        app.Configuration["Migrations:DumpDirectory"],
+        app.Configuration.GetValue("Migrations:DumpKeep", MigrationDump.DefaultKeep),
+        MigrationDump.PgDumpAsync,
+        scope.ServiceProvider.GetRequiredService<TimeProvider>(),
+        app.Logger);
 }
 
 app.Run();

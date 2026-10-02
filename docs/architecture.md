@@ -323,7 +323,9 @@ with neither header is not a browser request and passes. The monobank webhook is
 Logging: structured ASP.NET Core logs to stdout, read through Coolify. Amounts are logged; tokens
 and emails are not.
 
-Metrics: not needed for a single user. `/api/health` with a database check, for Coolify
-monitoring.
+Metrics: not needed for a single user. `/api/health` with a database check and the running `release`
+(the commit), for Coolify monitoring and for the deploy job, which waits for it to show the new commit
+(ADR-027). Before pending migrations run, `api` dumps the database to the `migration-dumps` volume and
+refuses to migrate if the dump fails.
 
 Tracing: none.

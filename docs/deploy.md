@@ -25,6 +25,9 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
 - `api` runs as `Production` and refuses to start while `DATABASE_URL`, `GOOGLE_CLIENT_ID`,
   `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `ALLOWED_HOSTS` or `PASSKEY_SERVER_DOMAIN` is empty.
   Its log names the missing variables, and the container exits instead of staying up unhealthy.
+- Both services restart `unless-stopped`, are memory-limited (`api` 512 MB, `web` 384 MB) and rotate
+  their logs (10 MB, 5 files). `api` dumps the database to the `migration-dumps` volume before it runs a
+  pending migration, and does not migrate if that fails (ADR-027, "Rollback").
 - `MONOBANK_TOKEN_ENCRYPTION_KEY` is the one secret that is *not* required to start (ADR-011): left
   empty, the api still comes up and the monobank settings section answers "not configured" instead
   of 500s. Set it whenever the owner is ready to connect monobank.
@@ -233,7 +236,7 @@ From the laptop:
 
 ```bash
 D=https://taxes.blonskyi.dev
-curl -s "$D/api/health"                                                   # {"status":"ok","database":true}
+curl -s "$D/api/health"                                                   # {"status":"ok","database":true,"release":"<commit>"}
 curl -s -o /dev/null -w '%{http_code}\n' "$D/api/openapi/v1.json"         # 404
 curl -s -o /dev/null -w '%{http_code}\n' "$D/api/auth/login/development?email=<allowlisted email>"  # 404
 curl -s -o /dev/null -w '%{http_code}\n' "$D/api/auth/me"                 # 401
@@ -333,25 +336,43 @@ domain. Do them now and tick them on their issues:
 the documented path for the Compose build pack: Coolify builds whatever `main` holds.
 
 **A bad release with a migration.** Migrations run when `api` starts and only move forward, so the
-old code may not run against the new schema. Before deploying any release that carries a
-migration, take a dump of this database alone to the laptop:
+old code may not run against the new schema. Before each migration `api` dumps this database alone
+to the `migration-dumps` volume (ADR-027), so there is always a dump to go back to. The instance-wide
+dumps from step 8 are no substitute: they restore every project on the instance at once.
 
-```bash
-ssh blonskyi 'docker exec 3p9qjnulllqn3bcjqokir0wq pg_dump -U postgres -Fc taxes_ua' > taxes_ua-before-release.dump
-```
+Where the dumps are: the compose volume `migration-dumps`, mounted in `api` at
+`/var/lib/taxes-ua/dumps`. The newest 10 are kept, named
+`taxes_ua-pre-migrate-<UTC time>-from-<last applied migration>-to-<last pending migration>.dump`
+(custom format, compressed). The volume is on the VPS disk, so copy the file off the VPS before a risky
+restore.
 
-The instance-wide dumps from step 8 are no substitute here. They restore every project on the
-instance at once. To roll back:
+If the dump itself fails, `api` logs `The pre-migration dump failed` at critical level, does not migrate and
+exits. The database is untouched, the deploy fails, and CI's `Wait for this commit to report healthy` step
+fails at its 15-minute timeout. Read the `api` log in Coolify, fix the cause (disk full, volume permissions,
+`pg_dump` older than the server) and redeploy.
 
-1. Stop the resource in Coolify, so nothing writes to the database while it is restored.
-2. Restore the dump taken before the release. **Everything written after that dump is lost.**
+1. Find the dump taken before the bad release: the newest file whose name ends in the migration the release
+   added. The volume's real name carries Coolify's prefix.
 
    ```bash
-   ssh blonskyi 'docker exec -i 3p9qjnulllqn3bcjqokir0wq pg_restore -U postgres --clean --if-exists --no-owner --role=taxes_ua_app -d taxes_ua' < taxes_ua-before-release.dump
+   V=$(ssh blonskyi "docker volume ls -q | grep migration-dumps")
+   ssh blonskyi "docker run --rm -v $V:/d:ro alpine:3 ls -lt /d"
    ```
 
-3. Revert the release on `main`.
-4. Deploy, which starts the old code against the restored schema.
+2. Stop the resource in Coolify, so nothing writes to the database while it is restored.
+3. Restore that dump. **Everything written after it was taken is lost.**
+
+   ```bash
+   ssh blonskyi "docker run --rm -v $V:/d:ro alpine:3 cat /d/<file>.dump" \
+     | ssh blonskyi 'docker exec -i 3p9qjnulllqn3bcjqokir0wq pg_restore -U postgres --clean --if-exists --no-owner --role=taxes_ua_app -d taxes_ua'
+   ```
+
+4. Revert the release on `main`, so the old code is what deploys. Merge the revert and let CI deploy it, or
+   click Deploy in Coolify after the revert is on `main`. The old code starts against the restored schema and
+   finds nothing pending to migrate.
+
+If the migration failed halfway, nothing needs restoring: EF runs each migration in a transaction, so the
+database is still on the previous migration. Revert the release and deploy.
 
 **Check.** Step 7's commands pass again.
 
@@ -383,4 +404,17 @@ Webhook (auth required)** with the API token as a bearer header. Coolify's docum
 **Check.** After the next merge to `main`, the CI run shows `Deploy to Coolify` green and Coolify's
 Deployments list a new deployment for that commit. The CI's `concurrency` group cancels an older
 run on `main` when a newer push arrives, so only the latest commit deploys.
+
+After the webhook, the job polls `https://taxes.blonskyi.dev/api/health` every 15 seconds for up to 15
+minutes and passes only when it answers `status: ok` and `release` is the commit being deployed. The
+`release` comes from Coolify's `SOURCE_COMMIT`, which `docker-compose.yml` passes to `api` as
+`App__Release`; the old release also answers ok, so the commit is what tells them apart. If it never
+appears the job fails: open the Coolify deployment log and the `api` log, then see "Rollback". The job
+shares the `deploy-coolify` concurrency group, so two deploys never run at once and one in progress is
+not cancelled. A run whose webhook builds a newer `main` than its own commit fails at the timeout even
+though the newer release is up; check the newer run.
+
+**Check.** `curl -s https://taxes.blonskyi.dev/api/health` shows the commit of the latest merge in
+`release`. If it shows `unknown`, Coolify did not set `SOURCE_COMMIT` for the resource: add it in the
+resource's Environment Variables as the commit variable Coolify documents.
 

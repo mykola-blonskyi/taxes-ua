@@ -115,6 +115,11 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     needs: [api-test, web-lint-build, web-test, e2e, docker-api, docker-web, deploy-checks]
+    # Two pushes in a row must not run two deploys at once, and a deploy already underway is never
+    # cancelled halfway through its migration. A newer run waits for it.
+    concurrency:
+      group: deploy-coolify
+      cancel-in-progress: false
     steps:
       - name: Trigger the Coolify deploy webhook
         # Coolify's /deploy route answers an authenticated GET with 405 despite its docs; it takes POST.
@@ -141,3 +146,27 @@ jobs:
           echo "Coolify answered $status"
           head -c 500 response.txt; echo
           test "$status" = 200
+
+      - name: Wait for this commit to report healthy
+        # /api/health carries the commit the running container was built from (App__Release, set from
+        # Coolify's SOURCE_COMMIT). The old release answers ok too, so health alone proves nothing: wait
+        # for the new commit. A migration that fails, or a dump that fails before it, keeps it from
+        # appearing, and the job fails at the timeout.
+        env:
+          HEALTH_URL: https://taxes.blonskyi.dev/api/health
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          deadline=$((SECONDS + 900))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            body=$(curl --silent --max-time 10 "$HEALTH_URL" || true)
+            status=$(jq -r '.status // empty' <<<"$body" 2>/dev/null || true)
+            release=$(jq -r '.release // empty' <<<"$body" 2>/dev/null || true)
+            echo "status=${status:-none} release=${release:-none}"
+            if [ "$status" = ok ] && [ -n "$release" ] && [ "$release" != unknown ]; then
+              case "$EXPECTED_SHA" in "$release"*) echo "Release $release is healthy"; exit 0 ;; esac
+              case "$release" in "$EXPECTED_SHA"*) echo "Release $release is healthy"; exit 0 ;; esac
+            fi
+            sleep 15
+          done
+          echo "::error::$HEALTH_URL did not report status ok for commit $EXPECTED_SHA within 15 minutes. Check the Coolify deployment log and docs/deploy.md, Rollback."
+          exit 1
