@@ -1279,8 +1279,7 @@ DELETE:
    `UseForwardedHeaders` restores from `X-Forwarded-*` (the host is pinned by `ALLOWED_HOSTS`).
 3. Neither header: the request passes.
 
-A refusal is a 403 ProblemDetails with type `https://taxes-ua/problems/cross-site-request` and
-`code: cross_site_request`.
+A refusal is a 403 ProblemDetails with `code: cross_site_request` (ADR-028).
 
 Rule 3 is the decision to read carefully. Every browser that can attach the owner's cookie to an unsafe
 request sends `Sec-Fetch-Site` (Chrome 76, Firefox 90, Safari 16.4) or at least `Origin` (all of them, on any
@@ -1425,3 +1424,75 @@ rollback of a release with a migration restores the matching dump (see "Rollback
 concurrency still cancels an older run on `main` when a newer push arrives, including its deploy job while it
 polls; Coolify keeps deploying, and the newer run reports the result. A run for commit A whose webhook builds a
 newer `main` never sees A in `/api/health` and fails at the timeout, although the newer release is up.
+
+
+---
+
+## ADR-028. Name every API failure with a stable code, and translate it in the web by that code
+
+Date: 2026-10-02
+
+Status: Accepted
+
+### Context
+
+The audit (Architecture H3) found that the error contract was free English text. Of about 70 `Results.Problem`
+calls only two carried a machine-readable `reason`, and nothing in the web read it. Field errors were English
+sentences repeated with different wording in a dozen places, and the web translated them with
+`message.includes("exceed" | "control character" | ...)` in four files, and showed the rest as they came.
+Rewording a server sentence silently broke a Ukrainian or Russian message, and a failure nobody had written a
+pattern for reached the owner in English.
+
+### Decision
+
+1. **Every failure carries a `code`.** One helper, `Problems` (`api/src/TaxesUa.Api/Problems.cs`), writes every
+   failure response; no other code calls `Results.Problem` or `Results.ValidationProblem` (a test scans the
+   sources). `Problems.Create` writes a ProblemDetails with the extension `code`; `Problems.Validation` writes a
+   400 (or 422) ProblemDetails whose `code` is `validation_failed` unless a more specific one is given
+   (`invoice_incomplete`, `backup_invalid`, `prototype_invalid`). `title` and `detail` stay English sentences for
+   logs and for a person reading a response; the web never shows them. The `type` URIs of the earlier problems are
+   gone: the code replaces them. The `reason` extension of the declaration file refusals became `code`
+   (`quarter_not_ended`, `file_generated_before_quarter_end`); extra data stays an extension
+   (`availableFrom`, `missingInvoices`).
+2. **A rejected body carries a code per field error.** `errors` (field to English sentences, ASP.NET's own
+   shape) is kept, and `errorCodes` holds the code of each sentence at the same index, keyed by the same field
+   path. Validators build a `FieldErrors` (`Set`, `Add`, `Merge`) instead of a dictionary of sentences, so a
+   sentence cannot be written without a code. A check that explains itself returns an `Issue` (code and
+   sentence), such as `IbanProblem` or `SignatureError`.
+3. **One list of codes.** `ProblemCodes` is a single static class of snake_case constants, grouped by the part of
+   the app. A code names the reason, not the field: `too_long`, `required`, `control_character` serve every text
+   field, and a reason with its own wording has its own code (`iban_checksum`, `rnokpp_invalid`,
+   `registration_date_after_group3_receipt`). A test keeps every constant used and snake_case.
+4. **The OpenAPI document says so.** Endpoints declare `ProducesCodedProblem(status)` and `ProducesFieldProblem()`,
+   which publish `CodedProblemDetails` and `FieldProblemDetails`, so `openapi-typescript` types `code` and
+   `errorCodes`.
+5. **The web translates by code.** `ApiError` exposes `code`, `fieldCodes` and `extensions`, and no longer the
+   sentences. The catalog `apiErrors` in `web/messages/{uk,ru}.json` is keyed by code, one flat namespace, plus
+   `unknown`. `useApiErrorText` (`web/src/data/api/`) turns a failure, a field's codes or a screen's own
+   "could not save" followed by the reason into text. A code the build has no words for, a failure with no code and
+   a thrown value that is not an `ApiError` all read as the generic sentence, never as the API's English. Screens
+   whose layout depends on what failed still branch on the status or the code, not on the text.
+6. **Two tests keep it that way.** The catalog test reads `ProblemCodes.cs` and fails when a code lacks a Ukrainian
+   or Russian text, or a text lacks a code. The guard test fails when a web source reads an error's `message`,
+   `detail` or `title`, or contains an English sentence the API sends.
+
+### Alternatives considered
+
+Codes only in `errors`, in place of the sentences: the shape the generated types already express, but the logs
+lose the sentences and the ASP.NET validation shape is no longer the one the tests and tools expect. A flat
+`code` per response and no per-field codes: forms would still need the sentences to tell two failures of one
+field apart. RFC 7807 `type` URIs as the code: a URI per reason is longer to write and compare, and the web has no
+use for resolving them. Translating on the server by `Accept-Language`: the server would own two catalogs, the
+`web` owns the language setting, and a cached response would carry the wrong language. A map from code to message
+key per feature: the same code (`too_long`) would be mapped in a dozen places; one flat catalog is the simpler
+rule.
+
+### Consequences
+
+Adding a failure means adding a constant and its two texts; the tests fail until both exist. Rewording a sentence, or changing it to name a limit, touches no web file. The texts carry no limits
+(a text says "too long", not "at most 64 characters"), because the code carries none; where a limit matters the
+screen's own hint says it. The English sentence of a field error is still useful in logs and in the API tests'
+failure messages, and the tests assert codes. The backup and import file errors use a small set of generic codes
+(`id_not_unique`, `unknown_reference`, `inconsistent_fields`, `duplicate_value`) beside the field path the screen
+prints, since the owner reads them as a list of places in a file, not as prose. The declaration screen no longer
+lists the XML schema checker's own messages: they are English diagnostics, which the api still sends in `errors` for the logs.

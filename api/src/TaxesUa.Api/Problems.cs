@@ -93,11 +93,7 @@ internal sealed class FieldErrors
 
     public int Count => byField.Count;
 
-    public bool Has(string field) => byField.ContainsKey(field);
-
     public IEnumerable<string> Fields => byField.Keys;
-
-    public Issue[] this[string field] => byField[field];
 
     public void Set(string field, string code, string message) => byField[field] = [new Issue(code, message)];
 
