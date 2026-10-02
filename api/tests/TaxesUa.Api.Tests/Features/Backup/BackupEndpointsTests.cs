@@ -152,18 +152,28 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             backup["transactions"]!.AsArray().Count(row => row!["reviewStatus"]!.GetValue<string>() == "Confirmed"));
     }
 
-    [Fact]
-    public async Task A_file_that_says_prorated_restores_as_the_full_month()
+    [Theory]
+    [InlineData(15, "FullMonth")]
+    [InlineData(16, "Prorated")]
+    public async Task Prorated_restores_as_the_full_month_only_from_a_file_older_than_version_16(int version, string restored)
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         var file = Baseline();
+        file["schemaVersion"] = version;
         file["settings"]!["esvRegistrationMonthPolicy"] = "Prorated";
+        if (version == 15)
+        {
+            foreach (var key in new[] { "group3Since", "group3Confirmation", "dpsFopRegistered", "dpsEsvRegistered", "dpsAccountsRegistered" })
+            {
+                file["settings"]!.AsObject().Remove(key);
+            }
+        }
 
         await Restore(owner, file.ToJsonString());
 
         var settings = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
-        Assert.Equal(EsvRegistrationMonthPolicy.FullMonth, settings!.EsvRegistrationMonthPolicy);
+        Assert.Equal(restored, settings!.EsvRegistrationMonthPolicy.ToString());
     }
 
     [Fact]
@@ -1066,7 +1076,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", new SettingsRequest(
             new DateOnly(2031, 1, 10),
             PaymentMode.MonthlyAdvance,
-            EsvRegistrationMonthPolicy.FullMonth,
+            EsvRegistrationMonthPolicy.Prorated,
             EsvExempt: false,
             TaxPaymentCountsFromStatutoryDeclarationDate: false,
             ShiftTaxPaymentFromWeekend: true,

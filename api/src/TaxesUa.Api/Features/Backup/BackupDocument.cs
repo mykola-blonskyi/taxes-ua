@@ -355,18 +355,21 @@ internal sealed record BackupDocument(
         }
     }
 
-    /// <summary>
-    /// Every rule a row must meet that the file alone can answer, through the same validators the
-    /// endpoints run. The refund links need the receipts' stored state, so
-    /// <see cref="TransactionsEndpoints.ValidateLinksAsync"/> checks them after the rows are written.
-    /// </summary>
     // A version 15 file predates the DPS status (#172): the app assumed group 3 from registration and
-    // nothing was confirmed or ticked, which is what the migration gives a stored owner too.
+    // nothing was confirmed or ticked, which is what the migration gives a stored owner too. It also
+    // predates the move off the wrong Prorated default, and cannot tell that default from a deliberate
+    // choice, so its Prorated is read as FullMonth, as the migration did for stored owners (ADR-018
+    // amendment). A version 16 file is written after that move, so its Prorated is the owner's choice.
     private static void UpgradeFromVersion15(JsonObject root)
     {
         root["schemaVersion"] = CurrentSchemaVersion;
         if (root["settings"] is JsonObject settings)
         {
+            if (settings["esvRegistrationMonthPolicy"]?.ToString() == nameof(EsvRegistrationMonthPolicy.Prorated))
+            {
+                settings["esvRegistrationMonthPolicy"] = nameof(EsvRegistrationMonthPolicy.FullMonth);
+            }
+
             settings["group3Since"] = settings["fopRegistrationDate"]?.DeepClone();
             settings["group3Confirmation"] = null;
             settings["dpsFopRegistered"] = false;
@@ -375,6 +378,11 @@ internal sealed record BackupDocument(
         }
     }
 
+    /// <summary>
+    /// Every rule a row must meet that the file alone can answer, through the same validators the
+    /// endpoints run. The refund links need the receipts' stored state, so
+    /// <see cref="TransactionsEndpoints.ValidateLinksAsync"/> checks them after the rows are written.
+    /// </summary>
     public Dictionary<string, string[]>? Validate(DateOnly today, DateTimeOffset now)
     {
         // RespectNullableAnnotations checks members, not array elements.
@@ -834,14 +842,10 @@ internal sealed record SettingsBackup(
         DpsEsvRegistered,
         DpsAccountsRegistered));
 
-    // A file cannot tell the old, wrong Prorated default from a deliberate choice, so restore never brings
-    // it back (ADR-018 amendment).
     public SettingsRequest ToRequest() => new(
         FopRegistrationDate,
         PaymentMode,
-        EsvRegistrationMonthPolicy == EsvRegistrationMonthPolicy.Prorated
-            ? EsvRegistrationMonthPolicy.FullMonth
-            : EsvRegistrationMonthPolicy,
+        EsvRegistrationMonthPolicy,
         EsvExempt,
         TaxPaymentCountsFromStatutoryDeclarationDate,
         ShiftTaxPaymentFromWeekend,

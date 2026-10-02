@@ -836,10 +836,10 @@ same statement it writes, for each owner moved, the settings update the audit in
 logged, so the switch shows in the owner's change history. Its Down does nothing, since a row moved
 cannot be told from one that was always `FullMonth`.
 
-A backup file of schema version 15 cannot tell the old default from a deliberate choice, so a restore
-reads `Prorated` as `FullMonth`. A restore is then no longer byte for byte for an owner who picks
-`Prorated` after this change; that owner picks it again. Erring this way overstates ESV, never
-understates it.
+A backup file of schema version 15 or older cannot tell the old default from a deliberate choice, so a
+restore of it reads `Prorated` as `FullMonth`, in the upgrade from version 15. Erring this way overstates
+ESV, never understates it. Schema 16 (#172) is written only after this change, so a version 16 file
+restores `Prorated` as it is: there it is the owner's choice.
 
 `Prorated` stays as a setting, labelled in the interface as not matching the law. Removing it was not
 cheap: the backup carries the field, and dropping a value or the field needs a schema version, and every
