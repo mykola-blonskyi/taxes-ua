@@ -86,6 +86,27 @@ public sealed class MigrationDumpTests(ApiFixture fixture) : IClassFixture<ApiFi
     }
 
     [Fact]
+    public async Task A_retry_of_the_same_migration_takes_no_second_dump()
+    {
+        await using var first = await NewEmptyDatabase();
+        var calls = 0;
+        DatabaseDump dump = (_, path, _) =>
+        {
+            calls++;
+            return File.WriteAllTextAsync(path, "dump");
+        };
+        await MigrationDump.MigrateAsync(first, _directory, 5, dump, _clock, NullLogger.Instance);
+
+        // The same pending set again, as after a crash between the dump and the migration.
+        await using var retry = await NewEmptyDatabase();
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        await MigrationDump.MigrateAsync(retry, _directory, 5, dump, _clock, NullLogger.Instance);
+
+        Assert.Equal(1, calls);
+        Assert.Single(Directory.GetFiles(_directory));
+    }
+
+    [Fact]
     public async Task Only_the_newest_dumps_are_kept()
     {
         Directory.CreateDirectory(_directory);
@@ -127,6 +148,17 @@ public sealed class MigrationDumpTests(ApiFixture fixture) : IClassFixture<ApiFi
         var health = await client.GetFromJsonAsync<Dictionary<string, object>>("/api/health");
 
         Assert.Equal("abc1234", health!["release"].ToString());
+    }
+
+    [Fact]
+    public async Task Health_falls_back_to_the_SOURCE_COMMIT_coolify_injects()
+    {
+        using var application = fixture.CreateApplication(builder => builder.UseSetting("SOURCE_COMMIT", "def5678"));
+        using var client = ApiFixture.CreateClient(application);
+
+        var health = await client.GetFromJsonAsync<Dictionary<string, object>>("/api/health");
+
+        Assert.Equal("def5678", health!["release"].ToString());
     }
 
     private async Task<AppDbContext> NewEmptyDatabase()

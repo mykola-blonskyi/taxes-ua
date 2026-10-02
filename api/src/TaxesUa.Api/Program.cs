@@ -308,9 +308,11 @@ if (app.Environment.IsDevelopment())
     api.MapDevelopmentSignIn();
 }
 
-// The commit this container was built from, set by Coolify's SOURCE_COMMIT. CI waits for it to appear
-// in /api/health, which is how a new release is told apart from the old one still answering.
-var release = app.Configuration["App:Release"] is { Length: > 0 } configured ? configured : "unknown";
+// The commit this container was built from. Coolify injects SOURCE_COMMIT into the compose services;
+// the compose file must not mention it, or Coolify makes it an empty user variable. CI waits for it to
+// appear in /api/health, which is how a new release is told apart from the old one still answering.
+var release = new[] { app.Configuration["App:Release"], app.Configuration["SOURCE_COMMIT"] }
+    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "unknown";
 
 api.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
 {

@@ -1386,7 +1386,8 @@ shared with about six other projects.
    migrations. With none, it does nothing. With any, it runs `pg_dump --format=custom` of the app database into
    `Migrations__DumpDirectory` (the `migration-dumps` volume), writing `<name>.partial` and renaming it only
    when the file is non-empty. The name is `taxes_ua-pre-migrate-<UTC time>-from-<last applied>-to-<last
-   pending>.dump`. It keeps the newest 10 (`Migrations__DumpKeep`).
+   pending>.dump`. It keeps the newest 10 (`Migrations__DumpKeep`). If a dump with the same from/to already
+   exists (a restart loop), no new one is taken, so a loop cannot prune the older dumps.
 2. **A failed dump stops the migration.** The dump error is logged as critical and rethrown, so the process
    exits (`init: true`) with the database still on the old schema. The site is down until the dump works or a
    fix is deployed; that is the price of never migrating without a way back. An unset
@@ -1397,10 +1398,11 @@ shared with about six other projects.
    from the PostgreSQL apt repository, because `pg_dump` must be at least the server's major version and
    Debian's is older. When the shared instance moves to a newer major, bump the number in `api/Dockerfile`.
    `deploy/smoke-test.sh` runs the real dump against a PostgreSQL 18 container.
-4. **The release is in `/api/health`.** `docker-compose.yml` passes Coolify's `SOURCE_COMMIT` to `api` as
-   `App__Release`, and `/api/health` returns it as `release` (`unknown` when unset). After the webhook, the
+4. **The release is in `/api/health`.** `api` reads Coolify's injected `SOURCE_COMMIT` (or `App:Release`) and `/api/health` returns it as `release`
+   (`unknown` when unset). The compose file must not mention `SOURCE_COMMIT`: Coolify turns a mention into an
+   empty user variable, which stops it injecting the commit. After the webhook, the
    deploy job polls `https://taxes.blonskyi.dev/api/health` every 15 seconds for 15 minutes and passes only
-   when `status` is `ok` and `release` matches the commit being deployed (either one a prefix of the other).
+   when `status` is `ok` and `release` matches the commit being deployed (either one a prefix of the other, and the release at least 7 characters).
    Health alone would pass on the old release still answering.
 5. **Compose.** Both services get `restart: unless-stopped`, `mem_limit` (512 MB `api`, 384 MB `web`) and
    `json-file` logging with `max-size: 10m`, `max-file: 5`. The deploy job joins the `deploy-coolify`

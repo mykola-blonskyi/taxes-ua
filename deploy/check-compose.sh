@@ -22,7 +22,9 @@ check '.services.api.environment.Monobank__PublicBaseUrl' "${MONOBANK_PUBLIC_BAS
 check '[.services.api.volumes[] | select(.source == "migration-dumps") | .target] | .[0]' \
   "$(jq -r '.services.api.environment.Migrations__DumpDirectory' <<<"$config")" \
   "the dump volume is mounted where Migrations__DumpDirectory points"
-check '.services.api.environment.App__Release' "${SOURCE_COMMIT:-}" "SOURCE_COMMIT reaches the api as its release"
+check '.services.api.environment | has("SOURCE_COMMIT") or has("App__Release")' false \
+  "compose leaves SOURCE_COMMIT to Coolify, which turns a mention into an empty user variable"
+check '.services.api.healthcheck.start_period' 5m0s "api may take five minutes to dump and migrate before it counts as unhealthy"
 for service in api web; do
   check ".services.$service.restart" unless-stopped "$service has a restart policy"
   check ".services.$service.mem_limit | tonumber > 0" true "$service has a memory limit"

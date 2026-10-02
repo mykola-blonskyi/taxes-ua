@@ -360,19 +360,41 @@ fails at its 15-minute timeout. Read the `api` log in Coolify, fix the cause (di
    ```
 
 2. Stop the resource in Coolify, so nothing writes to the database while it is restored.
-3. Restore that dump. **Everything written after it was taken is lost.**
+3. Restore that dump into a fresh database, as `postgres`, so a table the bad migration added cannot
+   survive. Nothing here touches `taxes_ua` yet.
 
    ```bash
+   P='docker exec -i 3p9qjnulllqn3bcjqokir0wq'
+   ssh blonskyi "$P psql -U postgres -c 'DROP DATABASE IF EXISTS taxes_ua_restore' -c 'CREATE DATABASE taxes_ua_restore OWNER taxes_ua_app'"
    ssh blonskyi "docker run --rm -v $V:/d:ro alpine:3 cat /d/<file>.dump" \
-     | ssh blonskyi 'docker exec -i 3p9qjnulllqn3bcjqokir0wq pg_restore -U postgres --clean --if-exists --no-owner --role=taxes_ua_app -d taxes_ua'
+     | ssh blonskyi "$P pg_restore -U postgres --no-owner --role=taxes_ua_app --single-transaction --exit-on-error -d taxes_ua_restore"
    ```
 
-4. Revert the release on `main`, so the old code is what deploys. Merge the revert and let CI deploy it, or
+   Verify it: the last row of `__EFMigrationsHistory` is the migration the dump name says it was taken
+   *from*, and the row counts look right.
+
+   ```bash
+   ssh blonskyi "$P psql -U postgres -d taxes_ua_restore -Atc 'select \"MigrationId\" from \"__EFMigrationsHistory\" order by 1 desc limit 1'"
+   ssh blonskyi "$P psql -U postgres -d taxes_ua_restore -Atc 'select count(*) from \"Receipts\"'"
+   ```
+
+4. Swap it in. **Everything written after the dump was taken is lost.** The resource is stopped, so
+   nothing is connected; `WITH (FORCE)` also drops any stray session.
+
+   ```bash
+   ssh blonskyi "$P psql -U postgres -c 'ALTER DATABASE taxes_ua RENAME TO taxes_ua_bad' -c 'ALTER DATABASE taxes_ua_restore RENAME TO taxes_ua'"
+   ```
+
+   Keep `taxes_ua_bad` until the old release is confirmed healthy, then
+   `DROP DATABASE taxes_ua_bad WITH (FORCE)`. If the rename fails because a session is still open, run
+   `DROP DATABASE taxes_ua WITH (FORCE)` instead, then the second `ALTER`.
+
+5. Revert the release on `main`, so the old code is what deploys. Merge the revert and let CI deploy it, or
    click Deploy in Coolify after the revert is on `main`. The old code starts against the restored schema and
    finds nothing pending to migrate.
 
-If the migration failed halfway, nothing needs restoring: EF runs each migration in a transaction, so the
-database is still on the previous migration. Revert the release and deploy.
+If the migration failed halfway, nothing needs restoring unless a migration suppresses its transaction (none
+does today): EF runs each migration in a transaction, so the database is still on the previous migration. Revert the release and deploy.
 
 **Check.** Step 7's commands pass again.
 
@@ -407,14 +429,14 @@ run on `main` when a newer push arrives, so only the latest commit deploys.
 
 After the webhook, the job polls `https://taxes.blonskyi.dev/api/health` every 15 seconds for up to 15
 minutes and passes only when it answers `status: ok` and `release` is the commit being deployed. The
-`release` comes from Coolify's `SOURCE_COMMIT`, which `docker-compose.yml` passes to `api` as
-`App__Release`; the old release also answers ok, so the commit is what tells them apart. If it never
+`release` is Coolify's `SOURCE_COMMIT`, which Coolify injects into the services and `api` reads from its
+environment (the compose file must not mention it); the old release also answers ok, so the commit is what tells them apart. If it never
 appears the job fails: open the Coolify deployment log and the `api` log, then see "Rollback". The job
 shares the `deploy-coolify` concurrency group, so two deploys never run at once and one in progress is
 not cancelled. A run whose webhook builds a newer `main` than its own commit fails at the timeout even
 though the newer release is up; check the newer run.
 
 **Check.** `curl -s https://taxes.blonskyi.dev/api/health` shows the commit of the latest merge in
-`release`. If it shows `unknown`, Coolify did not set `SOURCE_COMMIT` for the resource: add it in the
-resource's Environment Variables as the commit variable Coolify documents.
+`release`. If it shows `unknown`, delete any user-defined `SOURCE_COMMIT` variable on the resource
+(Environment Variables): an empty one stops Coolify from injecting the real commit.
 

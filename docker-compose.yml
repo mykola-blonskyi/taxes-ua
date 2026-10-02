@@ -54,9 +54,6 @@ services:
       Smtp__Password: ${SMTP_PASSWORD:-}
       Smtp__From: ${SMTP_FROM:-}
       App__PublicUrl: ${APP_PUBLIC_URL:-}
-      # Coolify sets SOURCE_COMMIT to the commit being deployed; /api/health reports it so CI can
-      # tell the new release from the old one still answering.
-      App__Release: ${SOURCE_COMMIT:-}
       Migrations__DumpDirectory: /var/lib/taxes-ua/dumps
     volumes:
       - dataprotection-keys:/var/lib/taxes-ua/keys
@@ -67,7 +64,9 @@ services:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/api/health"]
       interval: 30s
       timeout: 5s
-      start_period: 20s
+      # The pre-migration dump and the migration run before the api listens; a slow one must not fail
+      # the deploy.
+      start_period: 300s
       retries: 3
 
 volumes:

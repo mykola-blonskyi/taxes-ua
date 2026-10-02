@@ -57,7 +57,15 @@ internal static class MigrationDump
         CancellationToken ct)
     {
         var applied = (await db.Database.GetAppliedMigrationsAsync(ct)).LastOrDefault() ?? "empty";
-        var name = $"{FilePrefix}{clock.GetUtcNow():yyyyMMddTHHmmssZ}-from-{applied}-to-{pending[^1]}.dump";
+        var suffix = $"-from-{applied}-to-{pending[^1]}.dump";
+        if (Directory.Exists(directory) && Directory.GetFiles(directory, FilePrefix + "*" + suffix).Length > 0)
+        {
+            // A restart loop retries the same migration; the dump taken before the first try still holds the data.
+            logger.LogInformation("A dump for this migration already exists in {Directory}, not taking another.", directory);
+            return;
+        }
+
+        var name = $"{FilePrefix}{clock.GetUtcNow():yyyyMMddTHHmmssZ}{suffix}";
         var path = Path.Combine(directory, name);
         var partial = path + ".partial";
 

@@ -24,6 +24,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 RUN install -d -m 700 -o "$APP_UID" /var/lib/taxes-ua/keys /var/lib/taxes-ua/dumps
 COPY --from=build /app .
 EXPOSE 8080
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s CMD curl -fsS http://localhost:8080/api/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=300s CMD curl -fsS http://localhost:8080/api/health || exit 1
 USER $APP_UID
 ENTRYPOINT ["dotnet", "TaxesUa.Api.dll"]
