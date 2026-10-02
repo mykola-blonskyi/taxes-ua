@@ -953,6 +953,12 @@ job that the deploy job needs. Tests run in a time zone far from Kyiv, so a date
 inside a component file moves to a sibling module when a test needs it (the IBAN message mapping did).
 The component and end-to-end layers add Testing Library, Playwright and a CI job each, in their own tickets.
 
+The end-to-end layer (#152) adds `@playwright/test` (Chromium only), the suite in `web/e2e/` and an `e2e` CI
+job that the deploy job needs. `pnpm e2e` builds the Compose stack in Development mode under its own project
+name and a random port, and removes it with its volumes afterwards. Telegram and monobank point at in-process
+stubs. The suite runs on one worker against one database, so each test seeds its own data and asserts on the
+change it made rather than on absolute totals. A failed CI run uploads the report and traces.
+
 ---
 
 ## ADR-021. Read the reserve jar through the rate gate without ever waiting for it
