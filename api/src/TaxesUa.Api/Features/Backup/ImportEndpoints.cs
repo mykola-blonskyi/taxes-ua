@@ -36,9 +36,10 @@ public static class ImportEndpoints
                 // needs a CORS preflight the api never grants.
                 if (!http.Request.HasJsonContentType())
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status415UnsupportedMediaType,
-                        title: "A prototype file is sent as application/json.");
+                    return Problems.Create(
+                        StatusCodes.Status415UnsupportedMediaType,
+                        ProblemCodes.UnsupportedMediaType,
+                        "A prototype file is sent as application/json.");
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -50,14 +51,15 @@ public static class ImportEndpoints
                 var body = await BackupEndpoints.ReadBoundedAsync(http.Request.Body, cancellationToken);
                 if (body is null)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status413PayloadTooLarge,
-                        title: $"A prototype file must not exceed {BackupEndpoints.MaxRestoreBytes / 1024 / 1024} MB.");
+                    return Problems.Create(
+                        StatusCodes.Status413PayloadTooLarge,
+                        ProblemCodes.PayloadTooLarge,
+                        $"A prototype file must not exceed {BackupEndpoints.MaxRestoreBytes / 1024 / 1024} MB.");
                 }
 
                 var today = time.TodayInKyiv();
                 PrototypeFile? file;
-                Dictionary<string, string[]> errors;
+                FieldErrors errors;
                 try
                 {
                     using var json = JsonDocument.Parse(body);
@@ -65,20 +67,21 @@ public static class ImportEndpoints
                 }
                 catch (JsonException exception)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status400BadRequest,
-                        title: $"The file is not valid JSON. {exception.Message}");
+                    return Problems.Create(
+                        StatusCodes.Status400BadRequest,
+                        ProblemCodes.PrototypeNotJson,
+                        $"The file is not valid JSON. {exception.Message}");
                 }
 
                 if (file is null)
                 {
-                    return Results.ValidationProblem(errors, title: "The prototype file breaks the rules below.");
+                    return Problems.Validation(errors, "The prototype file breaks the rules below.", code: ProblemCodes.PrototypeInvalid);
                 }
 
                 return await ImportAsync(database, user.Id, file, today, time.GetUtcNow(), dryRun ?? false, cancellationToken) switch
                 {
-                    (_, { } importErrors) => Results.ValidationProblem(
-                        importErrors, title: "The prototype file breaks the rules below."),
+                    (_, { } importErrors) => Problems.Validation(
+                        importErrors, "The prototype file breaks the rules below.", code: ProblemCodes.PrototypeInvalid),
                     var (result, _) => Results.Ok(result),
                 };
             })
@@ -86,17 +89,17 @@ public static class ImportEndpoints
             .RequireAuthorization()
             .Accepts<JsonElement>("application/json")
             .Produces<ImportResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status413PayloadTooLarge)
-            .ProducesProblem(StatusCodes.Status415UnsupportedMediaType);
+            .ProducesCodedProblem(StatusCodes.Status413PayloadTooLarge)
+            .ProducesCodedProblem(StatusCodes.Status415UnsupportedMediaType);
 
         return routes;
     }
 
     // A dry run takes the same path and rolls back, so the counts the owner confirms are the counts the
     // real import writes.
-    private static async Task<(ImportResponse? Result, Dictionary<string, string[]>? Errors)> ImportAsync(
+    private static async Task<(ImportResponse? Result, FieldErrors? Errors)> ImportAsync(
         AppDbContext database,
         string userId,
         PrototypeFile file,
@@ -115,10 +118,13 @@ public static class ImportEndpoints
         var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, userId, cancellationToken);
         if (file.PaidMonths.Length > 0 && settings.FopRegistrationDate is null)
         {
-            return (null, new()
-            {
-                ["mpaid"] = ["Set the FOP registration date in Settings first: a paid month's amounts are computed from it."],
-            });
+            var needsRegistration = new FieldErrors();
+            needsRegistration.Set(
+                "mpaid",
+                ProblemCodes.RegistrationDateRequired,
+                "Set the FOP registration date in Settings first: a paid month's amounts are computed from it.");
+
+            return (null, needsRegistration);
         }
 
         var (added, present) = await AddIncomesAsync(database, userId, file.Incomes, now, cancellationToken);
@@ -243,7 +249,7 @@ public static class ImportEndpoints
             .Select(row => (row.Kind, row.PeriodYear, row.PeriodMonth!.Value))
             .ToHashSet();
 
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
         var (added, present, nothingDue) = (0, 0, 0);
         foreach (var year in years)
         {
@@ -252,8 +258,10 @@ public static class ImportEndpoints
             {
                 foreach (var month in months.Where(month => month.Year == year))
                 {
-                    errors[$"mpaid.{year}-{month.Month:00}"] =
-                        [$"Tax year {year} has no parameters. Add them under Settings first."];
+                    errors.Set(
+                        $"mpaid.{year}-{month.Month:00}",
+                        ProblemCodes.TaxYearNotConfigured,
+                        $"Tax year {year} has no parameters. Add them under Settings first.");
                 }
 
                 continue;
@@ -294,10 +302,7 @@ public static class ImportEndpoints
                     var request = new PaymentRequest(paidOn, kind, amountKop, year, null, month.Month, null);
                     if (PaymentsEndpoints.Validate(request) is { } invalid)
                     {
-                        foreach (var (key, messages) in invalid)
-                        {
-                            errors[$"mpaid.{year}-{month.Month:00}.{key}"] = messages;
-                        }
+                        errors.Merge($"mpaid.{year}-{month.Month:00}", invalid);
 
                         continue;
                     }
@@ -310,13 +315,13 @@ public static class ImportEndpoints
             }
         }
 
-        return new PaymentsResult(added, present, nothingDue, errors.Count == 0 ? null : errors);
+        return new PaymentsResult(added, present, nothingDue, errors.OrNull());
     }
 
     private sealed record IncomeKey(
         DateOnly ValueDate, Currency Currency, long AmountMinor, long AmountUahKop, string? ClientName);
 
-    private sealed record PaymentsResult(int Added, int Present, int NothingDue, Dictionary<string, string[]>? Errors);
+    private sealed record PaymentsResult(int Added, int Present, int NothingDue, FieldErrors? Errors);
 }
 
 /// <summary>

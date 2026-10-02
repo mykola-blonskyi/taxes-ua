@@ -105,34 +105,37 @@ describe("DpsStatusSection", () => {
       [read]: { ...unconfirmed, confirmation: { confirmedOn: "2026-10-01", receiptNumber: "  " } },
       [write]: reply(400, {
         title: "One or more validation errors occurred.",
+        code: "validation_failed",
         errors: { "confirmation.receiptNumber": ["receiptNumber is required."] },
+        errorCodes: { "confirmation.receiptNumber": ["required"] },
       }),
     });
     const { user } = renderApp(<DpsStatusSection />);
 
     await user.click(await screen.findByRole("button", { name: "Зберегти" }));
 
-    expect(await screen.findByText("Вкажіть номер квитанції.")).toBeVisible();
+    expect(await screen.findByText("Заповніть це поле.")).toBeVisible();
     expect(screen.getByText("Перевірте введені дані:")).toBeVisible();
   });
 
   it("explains a receipt dated after today", async () => {
     stubFetch({
       [read]: { ...unconfirmed, confirmation: { confirmedOn: "2026-10-01", receiptNumber: "9154001234" } },
-      [write]: reply(400, { errors: { "confirmation.confirmedOn": ["confirmedOn must not be in the future."] } }),
+      [write]: reply(400, { code: "validation_failed", errorCodes: { "confirmation.confirmedOn": ["date_in_future"] } }),
     });
     const { user } = renderApp(<DpsStatusSection />);
 
     await user.click(await screen.findByRole("button", { name: "Зберегти" }));
 
-    expect(await screen.findByText("Дата квитанції не може бути пізніше за сьогодні.")).toBeVisible();
+    expect(await screen.findByText("Дата не може бути пізніше за сьогодні.")).toBeVisible();
   });
 
   it("reads the same in Russian, with the server's rejection of the start date", async () => {
     stubFetch({
       [read]: unconfirmed,
       [write]: reply(400, {
-        errors: { group3Since: ["group3Since must be the registration date or the first day of a later quarter."] },
+        code: "validation_failed",
+        errorCodes: { group3Since: ["quarter_start_required"] },
       }),
     });
     const { user } = renderApp(<DpsStatusSection />, { locale: "ru" });

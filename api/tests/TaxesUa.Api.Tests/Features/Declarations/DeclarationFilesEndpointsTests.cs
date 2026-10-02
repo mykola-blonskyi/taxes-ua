@@ -296,6 +296,9 @@ public sealed class DeclarationFilesEndpointsTests(ApiFixture fixture) : IClassF
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal("validation_failed", problem.RootElement.GetProperty("code").GetString());
+        ProblemAssert.Rejects(problem.RootElement, "file");
+        Assert.All(ProblemAssert.CodesOf(problem.RootElement, "file"), code => Assert.Equal("declaration_schema_invalid", code));
         var errors = problem.RootElement.GetProperty("errors").GetProperty("file");
         Assert.Contains(errors.EnumerateArray(), error => error.GetString()!.Contains("C_STI_ORIG", StringComparison.Ordinal));
         Assert.Equal(HttpStatusCode.NotFound, (await owner.GetAsync($"/api/declarations/{year}/1/files/Reporting")).StatusCode);
@@ -321,6 +324,7 @@ public sealed class DeclarationFilesEndpointsTests(ApiFixture fixture) : IClassF
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        ProblemAssert.Rejects(problem.RootElement, "file");
         var errors = problem.RootElement.GetProperty("errors").GetProperty("file");
         Assert.Contains(errors.EnumerateArray(), error => error.GetString()!.StartsWith("address ", StringComparison.Ordinal));
         Assert.Empty((await Get(owner, year, 1)).Files);

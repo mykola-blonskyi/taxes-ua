@@ -63,7 +63,7 @@ public static class TreasuryAccountsEndpoints
                 var normalized = Normalize(request);
                 if (Validate(normalized) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -92,7 +92,7 @@ public static class TreasuryAccountsEndpoints
                 return Results.Ok(ToResponse(kind, row));
             })
             .Produces<TreasuryAccountResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         accounts.MapPost("/{kind}/revert", async (
@@ -119,9 +119,10 @@ public static class TreasuryAccountsEndpoints
                     .FirstOrDefaultAsync(account => account.UserId == user.Id && account.Kind == kind, cancellationToken);
                 if (row is not { LearnedIban: not null })
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: "No confirmed payment has taught this kind's account yet, so there is nothing to revert to.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.TreasuryNothingToRevert,
+                        "No confirmed payment has taught this kind's account yet, so there is nothing to revert to.");
                 }
 
                 row.ManualIban = null;
@@ -138,7 +139,7 @@ public static class TreasuryAccountsEndpoints
             .Produces<TreasuryAccountResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         accounts.MapPut("/{kind}/valid-until", async (
                 PaymentKind kind,
@@ -155,7 +156,7 @@ public static class TreasuryAccountsEndpoints
 
                 if (ValidUntilProblem(request.ValidUntil) is { } problem)
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["validUntil"] = [problem] });
+                    return Problems.Validation("validUntil", problem.Code, problem.Message);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -170,9 +171,10 @@ public static class TreasuryAccountsEndpoints
                     .FirstOrDefaultAsync(account => account.UserId == user.Id && account.Kind == kind, cancellationToken);
                 if (row is null || InUse(row).Source == TreasuryAccountSource.None)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: "There is no account for this kind yet, so there is nothing to end.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.TreasuryNothingToEnd,
+                        "There is no account for this kind yet, so there is nothing to end.");
                 }
 
                 if (row.IsManual)
@@ -190,10 +192,10 @@ public static class TreasuryAccountsEndpoints
                 return Results.Ok(ToResponse(kind, row));
             })
             .Produces<TreasuryAccountResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
             .Produces(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         accounts.MapPost("/{kind}/notice/dismiss", async (
                 PaymentKind kind,
@@ -370,43 +372,52 @@ public static class TreasuryAccountsEndpoints
         request.RecipientCode?.Trim() ?? string.Empty,
         request.ValidUntil);
 
-    internal static Dictionary<string, string[]>? Validate(TreasuryAccountRequest request)
+    internal static FieldErrors? Validate(TreasuryAccountRequest request)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
         if (InvoicingEndpoints.IbanProblem(request.Iban, TreasuryPayment.TreasuryBankId) is { } ibanProblem)
         {
-            errors["iban"] = [ibanProblem];
+            errors.Set("iban", ibanProblem);
         }
 
         if (request.RecipientName.Length == 0)
         {
-            errors["recipientName"] = ["recipientName is required."];
+            errors.Set("recipientName", ProblemCodes.Required, "recipientName is required.");
         }
         else if (request.RecipientName.Length > MaxManualNameLength)
         {
-            errors["recipientName"] = [$"recipientName must not exceed {MaxManualNameLength} characters."];
+            errors.Set(
+                "recipientName",
+                ProblemCodes.TooLong,
+                $"recipientName must not exceed {MaxManualNameLength} characters.");
         }
         else if (TextRules.HasDisallowedControlChar(request.RecipientName))
         {
-            errors["recipientName"] = ["recipientName must not contain a control character."];
+            errors.Set(
+                "recipientName",
+                ProblemCodes.ControlCharacter,
+                "recipientName must not contain a control character.");
         }
 
         if (request.RecipientCode.Length != RecipientCodeLength || !request.RecipientCode.All(char.IsAsciiDigit))
         {
-            errors["recipientCode"] = [$"recipientCode must be {RecipientCodeLength} digits."];
+            errors.Set(
+                "recipientCode",
+                ProblemCodes.RecipientCodeInvalid,
+                $"recipientCode must be {RecipientCodeLength} digits.");
         }
 
         if (ValidUntilProblem(request.ValidUntil) is { } validUntilProblem)
         {
-            errors["validUntil"] = [validUntilProblem];
+            errors.Set("validUntil", validUntilProblem);
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
-    internal static string? ValidUntilProblem(DateOnly? validUntil) =>
+    internal static Issue? ValidUntilProblem(DateOnly? validUntil) =>
         validUntil is { } date && !PaymentsEndpoints.InYearRange(date.Year)
-            ? PaymentsEndpoints.YearRangeMessage("validUntil year")
+            ? new Issue(ProblemCodes.YearOutOfRange, PaymentsEndpoints.YearRangeMessage("validUntil year"))
             : null;
 
     private static async Task<TreasuryAccount> FindOrAddAsync(

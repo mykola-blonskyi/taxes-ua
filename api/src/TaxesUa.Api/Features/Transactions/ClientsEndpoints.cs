@@ -59,7 +59,7 @@ public static class ClientsEndpoints
                 var normalized = request.Normalized();
                 if (ClientRules.Validate(normalized) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -90,7 +90,7 @@ public static class ClientsEndpoints
                 return Results.Created($"/api/clients/{client.Id}", ToResponse(client, receiptCount: 0));
             })
             .Produces<ClientResponse>(StatusCodes.Status201Created)
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         clients.MapPut("/{id:guid}", async (
@@ -104,7 +104,7 @@ public static class ClientsEndpoints
                 var normalized = request.Normalized();
                 if (ClientRules.Validate(normalized) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -142,9 +142,9 @@ public static class ClientsEndpoints
                 return Results.Ok(ToResponse(client, receiptCount));
             })
             .Produces<ClientResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         clients.MapDelete("/{id:guid}", async (
                 Guid id,
@@ -169,17 +169,19 @@ public static class ClientsEndpoints
                 var receiptCount = await database.Transactions.CountAsync(row => row.ClientId == id, cancellationToken);
                 if (receiptCount > 0)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: $"This client has {receiptCount} receipt(s) and cannot be deleted. Unlink or delete them first.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.ClientHasReceipts,
+                        $"This client has {receiptCount} receipt(s) and cannot be deleted. Unlink or delete them first.");
                 }
 
                 var invoiceCount = await database.Invoices.CountAsync(row => row.ClientId == id, cancellationToken);
                 if (invoiceCount > 0)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: $"This client has {invoiceCount} invoice(s) and cannot be deleted.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.ClientHasInvoices,
+                        $"This client has {invoiceCount} invoice(s) and cannot be deleted.");
                 }
 
                 database.Clients.Remove(client);
@@ -189,8 +191,8 @@ public static class ClientsEndpoints
             })
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         return routes;
     }
@@ -201,11 +203,12 @@ public static class ClientsEndpoints
             client => client.UserId == userId && client.Name == name && client.Id != except, cancellationToken);
 
     private static IResult DuplicateNameProblem() =>
-        Results.ValidationProblem(new Dictionary<string, string[]> { ["name"] = [DuplicateName] });
+        Problems.Validation("name", ProblemCodes.NameTaken, DuplicateName);
 
-    private static IResult Missing(Guid id) => Results.Problem(
-        statusCode: StatusCodes.Status404NotFound,
-        title: $"No client exists with id {id}.");
+    private static IResult Missing(Guid id) => Problems.Create(
+        StatusCodes.Status404NotFound,
+        ProblemCodes.ClientNotFound,
+        $"No client exists with id {id}.");
 
     private static ClientResponse ToResponse(Client client, int receiptCount) => new(
         client.Id,

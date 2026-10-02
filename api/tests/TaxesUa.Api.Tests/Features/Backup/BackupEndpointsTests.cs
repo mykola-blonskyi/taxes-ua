@@ -714,7 +714,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
             using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            Assert.Equal(["2031-002"], problem.RootElement.GetProperty("errors").GetProperty("missingInvoices")
+            Assert.Equal("backup_missing_invoices", problem.RootElement.GetProperty("code").GetString());
+            Assert.Equal(["2031-002"], problem.RootElement.GetProperty("missingInvoices")
                 .EnumerateArray().Select(item => item.GetString()));
             Assert.Equal(newer, await Backup(owner));
 
@@ -749,7 +750,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
             using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            Assert.Equal(["2031-002", "2031-003"], problem.RootElement.GetProperty("errors").GetProperty("missingInvoices")
+            Assert.Equal("backup_missing_invoices", problem.RootElement.GetProperty("code").GetString());
+            Assert.Equal(["2031-002", "2031-003"], problem.RootElement.GetProperty("missingInvoices")
                 .EnumerateArray().Select(item => item.GetString()));
 
             var withoutDrafts = JsonNode.Parse(await Backup(owner))!.AsObject();
@@ -929,8 +931,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         if (errorKey is not null)
         {
             using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            var errors = problem.RootElement.GetProperty("errors");
-            Assert.True(errors.TryGetProperty(errorKey, out _), $"no error under {errorKey}: {errors}");
+            Assert.Equal("backup_invalid", problem.RootElement.GetProperty("code").GetString());
+            ProblemAssert.Rejects(problem.RootElement, errorKey);
         }
 
         Assert.Equal(before, await Backup(owner));

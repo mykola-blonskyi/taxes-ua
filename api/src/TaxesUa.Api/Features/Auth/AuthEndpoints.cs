@@ -18,9 +18,10 @@ public static class AuthEndpoints
                 IAuthenticationSchemeProvider schemes,
                 SignInManager<ApplicationUser> signInManager) =>
                 await schemes.GetSchemeAsync(GoogleDefaults.AuthenticationScheme) is null
-                    ? Results.Problem(
-                        statusCode: StatusCodes.Status503ServiceUnavailable,
-                        title: "Google sign-in is not configured on this deployment.")
+                    ? Problems.Create(
+                        StatusCodes.Status503ServiceUnavailable,
+                        ProblemCodes.GoogleNotConfigured,
+                        "Google sign-in is not configured on this deployment.")
                     : Results.Challenge(
                         // Writes the LoginProvider item that GetExternalLoginInfoAsync needs to find
                         // the external sign-in on the callback.
@@ -29,13 +30,13 @@ public static class AuthEndpoints
                             CallbackUrl(returnUrl)),
                         [GoogleDefaults.AuthenticationScheme]))
             .Produces(StatusCodes.Status302Found)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+            .ProducesCodedProblem(StatusCodes.Status503ServiceUnavailable);
 
         auth.MapGet("/callback", CompleteSignIn)
             .Produces(StatusCodes.Status302Found)
-            .ProducesProblem(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status403Forbidden)
-            .ProducesProblem(StatusCodes.Status500InternalServerError);
+            .ProducesCodedProblem(StatusCodes.Status401Unauthorized)
+            .ProducesCodedProblem(StatusCodes.Status403Forbidden)
+            .ProducesCodedProblem(StatusCodes.Status500InternalServerError);
 
         // Deleting the cookies is the whole of sign-out. The session ticket is self-contained, so a
         // copy taken earlier stays valid until it expires. That is deliberate, see ADR-009.
@@ -73,18 +74,20 @@ public static class AuthEndpoints
         var login = await signInManager.GetExternalLoginInfoAsync();
         if (login is null)
         {
-            return Results.Problem(
-                statusCode: StatusCodes.Status401Unauthorized,
-                title: "External sign-in did not complete. Start again from /api/auth/login/google.");
+            return Problems.Create(
+                StatusCodes.Status401Unauthorized,
+                ProblemCodes.ExternalSignInIncomplete,
+                "External sign-in did not complete. Start again from /api/auth/login/google.");
         }
 
         var email = login.Principal.FindFirstValue(ClaimTypes.Email);
         if (email is null || !allowlist.Permits(email) || !EmailVerified(login.Principal))
         {
             await http.SignOutAsync(IdentityConstants.ExternalScheme);
-            return Results.Problem(
-                statusCode: StatusCodes.Status403Forbidden,
-                title: "This Google account is not allowed to sign in to this application.");
+            return Problems.Create(
+                StatusCodes.Status403Forbidden,
+                ProblemCodes.AccountNotAllowed,
+                "This Google account is not allowed to sign in to this application.");
         }
 
         var user = await userManager.FindByLoginAsync(login.LoginProvider, login.ProviderKey);
@@ -105,14 +108,14 @@ public static class AuthEndpoints
                 var created = await userManager.CreateAsync(user);
                 if (!created.Succeeded)
                 {
-                    return Failed("The account could not be created.", created);
+                    return Failed(ProblemCodes.AccountCreateFailed, "The account could not be created.", created);
                 }
             }
 
             var linked = await userManager.AddLoginAsync(user, login);
             if (!linked.Succeeded)
             {
-                return Failed("The Google login could not be linked to the account.", linked);
+                return Failed(ProblemCodes.GoogleLinkFailed, "The Google login could not be linked to the account.", linked);
             }
         }
 
@@ -126,9 +129,10 @@ public static class AuthEndpoints
     internal static bool EmailVerified(ClaimsPrincipal principal) =>
         bool.TryParse(principal.FindFirstValue(EmailVerifiedClaim), out var verified) && verified;
 
-    internal static IResult Failed(string title, IdentityResult result) => Results.Problem(
-        statusCode: StatusCodes.Status500InternalServerError,
-        title: title,
+    internal static IResult Failed(string code, string title, IdentityResult result) => Problems.Create(
+        StatusCodes.Status500InternalServerError,
+        code,
+        title,
         detail: string.Join(" ", result.Errors.Select(error => error.Description)));
 
     internal static string CallbackUrl(string? returnUrl) =>

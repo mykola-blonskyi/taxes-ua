@@ -49,7 +49,8 @@ public static class TransactionsEndpoints
             {
                 if (year < MinYear || year > MaxYear)
                 {
-                    return Results.ValidationProblem(YearOutOfRange());
+                    return Problems.Validation(
+                        "year", ProblemCodes.YearOutOfRange, $"year must be between {MinYear} and {MaxYear}.");
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -82,7 +83,7 @@ public static class TransactionsEndpoints
                     year, settings.FopRegistrationDate, totalIncomeKop, items));
             })
             .Produces<TransactionListResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         transactions.MapPost("", async (
@@ -98,7 +99,7 @@ public static class TransactionsEndpoints
                 var normalized = Normalize(request);
                 if (Validate(request, normalized, time.TodayInKyiv()) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -122,16 +123,16 @@ public static class TransactionsEndpoints
 
                 return result switch
                 {
-                    RecordTransactionResult.Invalid invalid => Results.ValidationProblem(invalid.Errors),
+                    RecordTransactionResult.Invalid invalid => Problems.Validation(invalid.Errors),
                     RecordTransactionResult.RateUnavailable unavailable =>
                         FxEndpoints.RateUnavailable(unavailable.Currency, unavailable.Date, unavailable.Lookup),
                     _ => throw new UnreachableException(),
                 };
             })
             .Produces<TransactionResponse>(StatusCodes.Status201Created)
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status502BadGateway);
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway);
 
         transactions.MapPut("/{id:guid}", async (
                 Guid id,
@@ -146,7 +147,7 @@ public static class TransactionsEndpoints
                 var normalized = Normalize(request);
                 if (Validate(request, normalized, time.TodayInKyiv()) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -168,14 +169,14 @@ public static class TransactionsEndpoints
 
                 if (await ValidateLinksAsync(database, user.Id, row, request, cancellationToken) is { } linkErrors)
                 {
-                    return Results.ValidationProblem(linkErrors);
+                    return Problems.Validation(linkErrors);
                 }
 
                 if (ApplyAmount(row, request, lookup) is { } problem)
                 {
                     return problem switch
                     {
-                        AmountProblem.Invalid invalid => Results.ValidationProblem(invalid.Errors),
+                        AmountProblem.Invalid invalid => Problems.Validation(invalid.Errors),
                         AmountProblem.RateUnavailable unavailable =>
                             FxEndpoints.RateUnavailable(unavailable.Currency, unavailable.Date, unavailable.Lookup),
                         _ => throw new UnreachableException(),
@@ -201,10 +202,10 @@ public static class TransactionsEndpoints
                 return Results.Ok(ToResponse(row, normalized.ClientName, beforeRegistration, setAside(row)));
             })
             .Produces<TransactionResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status502BadGateway);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway);
 
         transactions.MapDelete("/{id:guid}", async (
                 Guid id,
@@ -231,9 +232,10 @@ public static class TransactionsEndpoints
                 if (await database.Transactions.AnyAsync(
                         t => t.UserId == user.Id && t.RefundsTransactionId == row.Id, cancellationToken))
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: "This receipt has linked refunds. Delete or unlink them first.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.ReceiptHasRefunds,
+                        "This receipt has linked refunds. Delete or unlink them first.");
                 }
 
                 // An imported row stays as a tombstone holding its operation id, so the next sync does
@@ -264,8 +266,8 @@ public static class TransactionsEndpoints
             })
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         transactions.MapPost("/{id:guid}/confirm", async (
                 Guid id,
@@ -297,9 +299,10 @@ public static class TransactionsEndpoints
                 // a kind they never saw.
                 if (row.Kind != request.Kind)
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: $"The transaction is now {row.Kind}, not {request.Kind}. Reload it before confirming.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.TransactionKindChanged,
+                        $"The transaction is now {row.Kind}, not {request.Kind}. Reload it before confirming.");
                 }
 
                 if (row.ReviewStatus == ReviewStatus.NeedsReview)
@@ -319,8 +322,8 @@ public static class TransactionsEndpoints
             })
             .Produces<TransactionResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         // Every year at once: an import backfill can leave rows waiting in a year the owner is not viewing.
         transactions.MapGet("/review", async (
@@ -393,9 +396,10 @@ public static class TransactionsEndpoints
     private static Task LockOwnerAsync(AppDbContext database, string userId, CancellationToken cancellationToken) =>
         database.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
 
-    private static IResult Missing(Guid id) => Results.Problem(
-        statusCode: StatusCodes.Status404NotFound,
-        title: $"No transaction exists with id {id}.");
+    private static IResult Missing(Guid id) => Problems.Create(
+        StatusCodes.Status404NotFound,
+        ProblemCodes.TransactionNotFound,
+        $"No transaction exists with id {id}.");
 
     // Asks the same Rule 8 decision `IncomeLedger.ForYear` makes, so a row's flag and the list's total
     // cannot disagree.
@@ -413,14 +417,14 @@ public static class TransactionsEndpoints
     // Rule 8 follows a refund to its receipt, so a link has to point at a receipt that can carry it:
     // the owner's own Income row in the refund's currency, not over-refunded (compared in that
     // currency's minor units), and not turned into something else later.
-    internal static async Task<Dictionary<string, string[]>?> ValidateLinksAsync(
+    internal static async Task<FieldErrors?> ValidateLinksAsync(
         AppDbContext database,
         string userId,
         Transaction? row,
         TransactionRequest request,
         CancellationToken cancellationToken)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
         var editedId = row?.Id;
 
         if (request.RefundsTransactionId is { } receiptId)
@@ -435,13 +439,17 @@ public static class TransactionsEndpoints
                 cancellationToken);
             if (receipt is null)
             {
-                errors[Field(nameof(request.RefundsTransactionId))] =
-                    ["refundsTransactionId must be one of your receipts."];
+                errors.Set(
+                    Field(nameof(request.RefundsTransactionId)),
+                    ProblemCodes.UnknownReceipt,
+                    "refundsTransactionId must be one of your receipts.");
             }
             else if (request.Currency != receipt.Currency)
             {
-                errors[Field(nameof(request.RefundsTransactionId))] =
-                    [$"A refund of a {receipt.Currency} receipt must be in {receipt.Currency}."];
+                errors.Set(
+                    Field(nameof(request.RefundsTransactionId)),
+                    ProblemCodes.RefundCurrencyMismatch,
+                    $"A refund of a {receipt.Currency} receipt must be in {receipt.Currency}.");
             }
             else
             {
@@ -449,11 +457,11 @@ public static class TransactionsEndpoints
                     database, userId, receiptId, editedId, cancellationToken);
                 if (refundedMinor + request.AmountMinor > receipt.AmountMinor)
                 {
-                    errors[Field(nameof(request.RefundsTransactionId))] =
-                    [
+                    errors.Set(
+                        Field(nameof(request.RefundsTransactionId)),
+                        ProblemCodes.RefundExceedsReceipt,
                         $"Refunds linked to this receipt would total {refundedMinor + request.AmountMinor}, "
-                        + $"more than its amount {receipt.AmountMinor}.",
-                    ];
+                        + $"more than its amount {receipt.AmountMinor}.");
                 }
             }
         }
@@ -465,18 +473,24 @@ public static class TransactionsEndpoints
         {
             if (request.Kind != TransactionKind.Income)
             {
-                errors[Field(nameof(request.Kind))] =
-                    ["kind must stay Income while refunds are linked to this receipt."];
+                errors.Set(
+                    Field(nameof(request.Kind)),
+                    ProblemCodes.KindLockedByRefunds,
+                    "kind must stay Income while refunds are linked to this receipt.");
             }
             else if (request.Currency != row.Currency)
             {
-                errors[Field(nameof(request.Currency))] =
-                    ["currency must stay the same while refunds are linked to this receipt."];
+                errors.Set(
+                    Field(nameof(request.Currency)),
+                    ProblemCodes.CurrencyLockedByRefunds,
+                    "currency must stay the same while refunds are linked to this receipt.");
             }
             else if (request.AmountMinor < linkedMinor)
             {
-                errors[Field(nameof(request.AmountMinor))] =
-                    [$"amountMinor must be at least {linkedMinor}, the total of the refunds linked to this receipt."];
+                errors.Set(
+                    Field(nameof(request.AmountMinor)),
+                    ProblemCodes.AmountBelowLinkedRefunds,
+                    $"amountMinor must be at least {linkedMinor}, the total of the refunds linked to this receipt.");
             }
         }
 
@@ -487,20 +501,29 @@ public static class TransactionsEndpoints
             var unlinkFirst = $"while the receipt pays invoice {row.InvoiceNumber}; unlink it first.";
             if (request.Kind != TransactionKind.Income)
             {
-                errors[Field(nameof(request.Kind))] = [$"kind must stay Income {unlinkFirst}"];
+                errors.Set(
+                    Field(nameof(request.Kind)),
+                    ProblemCodes.KindLockedByInvoice,
+                    $"kind must stay Income {unlinkFirst}");
             }
             else if (request.Currency != row.Currency)
             {
-                errors[Field(nameof(request.Currency))] = [$"currency must stay {row.Currency} {unlinkFirst}"];
+                errors.Set(
+                    Field(nameof(request.Currency)),
+                    ProblemCodes.CurrencyLockedByInvoice,
+                    $"currency must stay {row.Currency} {unlinkFirst}");
             }
 
             if (Normalize(request).InvoiceNumber != row.InvoiceNumber)
             {
-                errors[Field(nameof(request.InvoiceNumber))] = [$"invoiceNumber must stay {row.InvoiceNumber} {unlinkFirst}"];
+                errors.Set(
+                    Field(nameof(request.InvoiceNumber)),
+                    ProblemCodes.InvoiceNumberLocked,
+                    $"invoiceNumber must stay {row.InvoiceNumber} {unlinkFirst}");
             }
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
     private static Task<long> LinkedRefundsMinorAsync(
@@ -556,11 +579,13 @@ public static class TransactionsEndpoints
 
         if (ExceedsUahBound(request.AmountMinor, rate.RateE4))
         {
-            return new AmountProblem.Invalid(new Dictionary<string, string[]>
-            {
-                [Field(nameof(request.AmountMinor))] =
-                    [$"amountMinor at this rate must not exceed {MaxAmountMinor} kopecks in hryvnia."],
-            });
+            var tooLarge = new FieldErrors();
+            tooLarge.Set(
+                Field(nameof(request.AmountMinor)),
+                ProblemCodes.AmountTooLarge,
+                $"amountMinor at this rate must not exceed {MaxAmountMinor} kopecks in hryvnia.");
+
+            return new AmountProblem.Invalid(tooLarge);
         }
 
         row.ValueDate = request.ValueDate;
@@ -664,107 +689,142 @@ public static class TransactionsEndpoints
             row.ReviewStatus,
             setAside);
 
-    private static Dictionary<string, string[]> YearOutOfRange() => new()
-    {
-        ["year"] = [$"year must be between {MinYear} and {MaxYear}."],
-    };
-
-    internal static Dictionary<string, string[]>? Validate(
+    internal static FieldErrors? Validate(
         TransactionRequest request, NormalizedText normalized, DateOnly today)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
 
         if (request.AmountMinor <= 0)
         {
-            errors[Field(nameof(request.AmountMinor))] = ["amountMinor must be positive."];
+            errors.Set(Field(nameof(request.AmountMinor)), ProblemCodes.NotPositive, "amountMinor must be positive.");
         }
         else if (request.AmountMinor > MaxAmountMinor)
         {
-            errors[Field(nameof(request.AmountMinor))] = [$"amountMinor must not exceed {MaxAmountMinor}."];
+            errors.Set(
+                Field(nameof(request.AmountMinor)),
+                ProblemCodes.AmountTooLarge,
+                $"amountMinor must not exceed {MaxAmountMinor}.");
         }
 
         if (request.ManualRateE4 is { } manualRateE4)
         {
             if (request.Currency == Currency.UAH)
             {
-                errors[Field(nameof(request.ManualRateE4))] = ["manualRateE4 must be empty for UAH."];
+                errors.Set(
+                    Field(nameof(request.ManualRateE4)),
+                    ProblemCodes.ManualRateNotAllowed,
+                    "manualRateE4 must be empty for UAH.");
             }
             else if (manualRateE4 < 1 || manualRateE4 > MaxRateE4)
             {
-                errors[Field(nameof(request.ManualRateE4))] = [$"manualRateE4 must be between 1 and {MaxRateE4}."];
+                errors.Set(
+                    Field(nameof(request.ManualRateE4)),
+                    ProblemCodes.RateOutOfRange,
+                    $"manualRateE4 must be between 1 and {MaxRateE4}.");
             }
         }
 
         if (request.ValueDate.Year < MinYear || request.ValueDate.Year > MaxYear)
         {
-            errors[Field(nameof(request.ValueDate))] =
-                [$"valueDate year must be between {MinYear} and {MaxYear}."];
+            errors.Set(
+                Field(nameof(request.ValueDate)),
+                ProblemCodes.YearOutOfRange,
+                $"valueDate year must be between {MinYear} and {MaxYear}.");
         }
         else if (request.ValueDate > today)
         {
             // Income arises on the credit date (Rule 2), so a real operation cannot be dated after
             // today in Kyiv.
-            errors[Field(nameof(request.ValueDate))] = ["valueDate must not be after today."];
+            errors.Set(
+                Field(nameof(request.ValueDate)),
+                ProblemCodes.DateInFuture,
+                "valueDate must not be after today.");
         }
 
         var isIncomeKind = request.Kind is TransactionKind.Income or TransactionKind.RefundToClient;
         if (!isIncomeKind && normalized.NonIncomeReason is null)
         {
-            errors[Field(nameof(request.NonIncomeReason))] =
-                ["nonIncomeReason is required for a non-income kind."];
+            errors.Set(
+                Field(nameof(request.NonIncomeReason)),
+                ProblemCodes.Required,
+                "nonIncomeReason is required for a non-income kind.");
         }
         else if (isIncomeKind && normalized.NonIncomeReason is not null)
         {
-            errors[Field(nameof(request.NonIncomeReason))] =
-                ["nonIncomeReason must be empty for an income kind."];
+            errors.Set(
+                Field(nameof(request.NonIncomeReason)),
+                ProblemCodes.NotAllowed,
+                "nonIncomeReason must be empty for an income kind.");
         }
         else if (normalized.NonIncomeReason is { Length: > MaxReasonLength })
         {
-            errors[Field(nameof(request.NonIncomeReason))] =
-                [$"nonIncomeReason must not exceed {MaxReasonLength} characters."];
+            errors.Set(
+                Field(nameof(request.NonIncomeReason)),
+                ProblemCodes.TooLong,
+                $"nonIncomeReason must not exceed {MaxReasonLength} characters.");
         }
         else if (normalized.NonIncomeReason is { } reason && TextRules.HasDisallowedControlChar(reason))
         {
-            errors[Field(nameof(request.NonIncomeReason))] = [ControlCharMessage("nonIncomeReason")];
+            errors.Set(
+                Field(nameof(request.NonIncomeReason)),
+                ProblemCodes.ControlCharacter,
+                ControlCharMessage("nonIncomeReason"));
         }
 
         if (request.RefundsTransactionId is not null && request.Kind != TransactionKind.RefundToClient)
         {
-            errors[Field(nameof(request.RefundsTransactionId))] =
-                ["refundsTransactionId is allowed only on a refund to a client."];
+            errors.Set(
+                Field(nameof(request.RefundsTransactionId)),
+                ProblemCodes.RefundLinkNotAllowed,
+                "refundsTransactionId is allowed only on a refund to a client.");
         }
 
         if (normalized.ClientName is { Length: > MaxClientNameLength })
         {
-            errors[Field(nameof(request.ClientName))] =
-                [$"clientName must not exceed {MaxClientNameLength} characters."];
+            errors.Set(
+                Field(nameof(request.ClientName)),
+                ProblemCodes.TooLong,
+                $"clientName must not exceed {MaxClientNameLength} characters.");
         }
         else if (normalized.ClientName is { } clientName && TextRules.HasDisallowedControlChar(clientName))
         {
-            errors[Field(nameof(request.ClientName))] = [ControlCharMessage("clientName")];
+            errors.Set(
+                Field(nameof(request.ClientName)),
+                ProblemCodes.ControlCharacter,
+                ControlCharMessage("clientName"));
         }
 
         if (normalized.InvoiceNumber is { Length: > MaxInvoiceNumberLength })
         {
-            errors[Field(nameof(request.InvoiceNumber))] =
-                [$"invoiceNumber must not exceed {MaxInvoiceNumberLength} characters."];
+            errors.Set(
+                Field(nameof(request.InvoiceNumber)),
+                ProblemCodes.TooLong,
+                $"invoiceNumber must not exceed {MaxInvoiceNumberLength} characters.");
         }
         else if (normalized.InvoiceNumber is { } invoiceNumber && TextRules.HasDisallowedControlChar(invoiceNumber))
         {
-            errors[Field(nameof(request.InvoiceNumber))] = [ControlCharMessage("invoiceNumber")];
+            errors.Set(
+                Field(nameof(request.InvoiceNumber)),
+                ProblemCodes.ControlCharacter,
+                ControlCharMessage("invoiceNumber"));
         }
 
         if (normalized.Description is { Length: > MaxDescriptionLength })
         {
-            errors[Field(nameof(request.Description))] =
-                [$"description must not exceed {MaxDescriptionLength} characters."];
+            errors.Set(
+                Field(nameof(request.Description)),
+                ProblemCodes.TooLong,
+                $"description must not exceed {MaxDescriptionLength} characters.");
         }
         else if (normalized.Description is { } description && TextRules.HasDisallowedControlChar(description))
         {
-            errors[Field(nameof(request.Description))] = [ControlCharMessage("description")];
+            errors.Set(
+                Field(nameof(request.Description)),
+                ProblemCodes.ControlCharacter,
+                ControlCharMessage("description"));
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
     // Derived rather than spelled a second time, so the key the web reads an error under cannot drift

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useConfirmTransaction,
   useDeleteTransaction,
@@ -67,6 +68,7 @@ function TransactionRow({
 }) {
   const t = useTranslations("transactions");
   const tKinds = useTranslations("transactions.kinds");
+  const apiText = useApiErrorText();
   const locale = useLocale();
   const deleteTransaction = useDeleteTransaction();
   const confirmTransaction = useConfirmTransaction();
@@ -253,7 +255,7 @@ function TransactionRow({
         <p className="text-xs text-destructive">
           {deleteFailure.status === 409
             ? t("row.deleteLinked")
-            : `${t("row.deleteFailed")} ${deleteFailure.message}`}
+            : apiText.withReason(t("row.deleteFailed"), deleteFailure)}
         </p>
       ) : null}
 
@@ -261,7 +263,7 @@ function TransactionRow({
         <p className="text-xs text-destructive">
           {confirmFailure.status === 409
             ? t("row.confirmStale")
-            : `${t("row.confirmFailed")} ${confirmFailure.message}`}
+            : apiText.withReason(t("row.confirmFailed"), confirmFailure)}
         </p>
       ) : null}
     </li>

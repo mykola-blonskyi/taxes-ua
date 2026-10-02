@@ -41,7 +41,7 @@ public static class PeriodsEndpoints
             })
             .Produces<PeriodsResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         return routes;
     }
@@ -188,9 +188,10 @@ public static class PeriodsEndpoints
     private static DateOnly MonthEnd(int year, int month) =>
         new DateOnly(year, month, 1).AddMonths(1).AddDays(-1);
 
-    private static IResult Missing(int year) => Results.Problem(
-        statusCode: StatusCodes.Status404NotFound,
-        title: $"No tax year configuration exists for {year}.");
+    private static IResult Missing(int year) => Problems.Create(
+        StatusCodes.Status404NotFound,
+        ProblemCodes.TaxYearNotFound,
+        $"No tax year configuration exists for {year}.");
 }
 
 /// <summary>

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   maxSignatureBytes,
   signatureTypes,
@@ -15,6 +16,7 @@ import { Button } from "@/shared/ui/button";
 
 export function InvoicingSignature({ details }: { details: InvoicingDetailsResponse }) {
   const t = useTranslations("settings.invoicing.signature");
+  const apiText = useApiErrorText();
   const upload = useUploadSignature();
   const remove = useDeleteSignature();
   const input = useRef<HTMLInputElement>(null);
@@ -23,7 +25,7 @@ export function InvoicingSignature({ details }: { details: InvoicingDetailsRespo
   const failure = upload.error instanceof ApiError ? upload.error : remove.error instanceof ApiError ? remove.error : null;
   const message =
     rejection ??
-    (failure ? (failure.status === 413 ? t("tooLarge") : failure.status === 415 ? t("wrongType") : t("failed")) : null);
+    (failure ? apiText.withReason(t("failed"), failure) : null);
 
   function choose(file: File | undefined) {
     setRejection(null);

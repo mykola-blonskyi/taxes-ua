@@ -194,11 +194,13 @@ describe("XmlFile", () => {
       expect(downloads).toHaveLength(0);
     });
 
-    it("lists what the schema check rejected", async () => {
+    it("says the schema check rejected the data, without the checker's English", async () => {
       stubFetch({
         "POST /api/declarations/{year}/{quarter}/files": reply(422, {
           title: "Invalid",
+          code: "validation_failed",
           errors: { file: ["Element 'KVED' is not valid."] },
+          errorCodes: { file: ["declaration_schema_invalid"] },
         }),
       });
       const { user } = renderXml(declaration());
@@ -208,7 +210,8 @@ describe("XmlFile", () => {
 
       const alert = screen.getByRole("alert");
       expect(alert).toHaveTextContent("З цих даних не вийде файл, що пройде перевірку схеми.");
-      expect(within(alert).getByRole("listitem")).toHaveTextContent("Element 'KVED' is not valid.");
+      expect(within(alert).queryByRole("listitem")).not.toBeInTheDocument();
+      expect(alert).not.toHaveTextContent("KVED");
     });
 
     it("reports any other failure", async () => {

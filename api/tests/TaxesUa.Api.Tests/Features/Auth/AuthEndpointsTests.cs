@@ -37,7 +37,7 @@ public sealed class AuthEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFi
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         var body = await response.Content.ReadAsStringAsync();
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        Assert.False(string.IsNullOrWhiteSpace(problem?.Title), "the 403 carries no explanation");
+        Assert.Equal("account_not_allowed", problem?.Extensions["code"]?.ToString());
         Assert.DoesNotContain(RejectedEmail, body, StringComparison.OrdinalIgnoreCase);
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
@@ -65,7 +65,7 @@ public sealed class AuthEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFi
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        Assert.False(string.IsNullOrWhiteSpace(problem?.Title), "the 403 carries no explanation");
+        Assert.Equal("account_not_allowed", problem?.Extensions["code"]?.ToString());
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
 

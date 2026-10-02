@@ -101,7 +101,7 @@ internal abstract record RecordTransactionResult
     internal sealed record Success(Transaction Row, string? ClientName, bool BeforeRegistration)
         : RecordTransactionResult;
 
-    internal sealed record Invalid(Dictionary<string, string[]> Errors) : RecordTransactionResult;
+    internal sealed record Invalid(FieldErrors Errors) : RecordTransactionResult;
 
     internal sealed record RateUnavailable(Currency Currency, DateOnly Date, NbuLookup Lookup)
         : RecordTransactionResult;
@@ -114,7 +114,7 @@ internal abstract record AmountProblem
     {
     }
 
-    internal sealed record Invalid(Dictionary<string, string[]> Errors) : AmountProblem;
+    internal sealed record Invalid(FieldErrors Errors) : AmountProblem;
 
     internal sealed record RateUnavailable(Currency Currency, DateOnly Date, NbuLookup Lookup) : AmountProblem;
 }

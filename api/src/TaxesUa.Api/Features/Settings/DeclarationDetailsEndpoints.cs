@@ -50,7 +50,7 @@ public static partial class DeclarationDetailsEndpoints
                 var normalized = Normalize(request);
                 if (Validate(normalized) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -75,7 +75,7 @@ public static partial class DeclarationDetailsEndpoints
                 return Results.Ok(ToResponse(invoicing, details));
             })
             .Produces<DeclarationDetailsResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         return routes;
@@ -91,40 +91,55 @@ public static partial class DeclarationDetailsEndpoints
     };
 
     /// <summary>Validates a request already passed through <see cref="Normalize"/>.</summary>
-    internal static Dictionary<string, string[]>? Validate(DeclarationDetailsRequest request)
+    internal static FieldErrors? Validate(DeclarationDetailsRequest request)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
 
         if (request.TaxOfficeRegion is { } region && region is < 1 or > 99)
         {
-            errors["taxOfficeRegion"] = ["taxOfficeRegion must be 1 to 99."];
+            errors.Set("taxOfficeRegion", ProblemCodes.TaxOfficeRegionRange, "taxOfficeRegion must be 1 to 99.");
         }
         else if (request.TaxOfficeRegion is null && request.TaxOfficeDistrict is not null)
         {
-            errors["taxOfficeRegion"] = ["taxOfficeRegion is required with taxOfficeDistrict."];
+            errors.Set(
+                "taxOfficeRegion",
+                ProblemCodes.TaxOfficePairIncomplete,
+                "taxOfficeRegion is required with taxOfficeDistrict.");
         }
 
         if (request.TaxOfficeDistrict is { } district && district is < 0 or > 99)
         {
-            errors["taxOfficeDistrict"] = ["taxOfficeDistrict must be 0 to 99."];
+            errors.Set("taxOfficeDistrict", ProblemCodes.TaxOfficeDistrictRange, "taxOfficeDistrict must be 0 to 99.");
         }
         else if (request.TaxOfficeDistrict is null && request.TaxOfficeRegion is not null)
         {
-            errors["taxOfficeDistrict"] = ["taxOfficeDistrict is required with taxOfficeRegion."];
+            errors.Set(
+                "taxOfficeDistrict",
+                ProblemCodes.TaxOfficePairIncomplete,
+                "taxOfficeDistrict is required with taxOfficeRegion.");
         }
 
         if (request.TaxOfficeName.Length > MaxTaxOfficeNameLength)
         {
-            errors["taxOfficeName"] = [$"taxOfficeName must not exceed {MaxTaxOfficeNameLength} characters."];
+            errors.Set(
+                "taxOfficeName",
+                ProblemCodes.TooLong,
+                $"taxOfficeName must not exceed {MaxTaxOfficeNameLength} characters.");
         }
         else if (TextRules.HasDisallowedControlChar(request.TaxOfficeName))
         {
-            errors["taxOfficeName"] = ["taxOfficeName must not contain a control character."];
+            errors.Set(
+                "taxOfficeName",
+                ProblemCodes.ControlCharacter,
+                "taxOfficeName must not contain a control character.");
         }
 
         if (request.KvedCodes.Length > MaxKvedCodes)
         {
-            errors["kvedCodes"] = [$"kvedCodes must not list more than {MaxKvedCodes} codes."];
+            errors.Set(
+                "kvedCodes",
+                ProblemCodes.KvedTooMany,
+                $"kvedCodes must not list more than {MaxKvedCodes} codes.");
         }
 
         for (var i = 0; i < request.KvedCodes.Length; i++)
@@ -132,24 +147,27 @@ public static partial class DeclarationDetailsEndpoints
             var code = request.KvedCodes[i];
             if (!KvedPattern().IsMatch(code))
             {
-                errors[$"kvedCodes[{i}]"] = ["A KVED code is two digits, a dot and two digits, such as 62.01."];
+                errors.Set(
+                    $"kvedCodes[{i}]",
+                    ProblemCodes.KvedFormatInvalid,
+                    "A KVED code is two digits, a dot and two digits, such as 62.01.");
             }
             else if (request.KvedCodes.Take(i).Contains(code))
             {
-                errors[$"kvedCodes[{i}]"] = ["A KVED code must not repeat."];
+                errors.Set($"kvedCodes[{i}]", ProblemCodes.KvedDuplicate, "A KVED code must not repeat.");
             }
         }
 
         if (request.Address.Length > MaxAddressLength)
         {
-            errors["address"] = [$"address must not exceed {MaxAddressLength} characters."];
+            errors.Set("address", ProblemCodes.TooLong, $"address must not exceed {MaxAddressLength} characters.");
         }
         else if (TextRules.HasDisallowedControlChar(request.Address))
         {
-            errors["address"] = ["address must not contain a control character."];
+            errors.Set("address", ProblemCodes.ControlCharacter, "address must not contain a control character.");
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
     internal static void Apply(DeclarationDetails details, DeclarationDetailsRequest request)

@@ -191,9 +191,9 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         var edited = await client.PutAsJsonAsync($"/api/payments/{paidToday.Id}", tomorrow, Json);
 
         Assert.Equal(HttpStatusCode.BadRequest, created.StatusCode);
-        await AssertErrorKey(created, "paidOn");
+        await AssertErrorKey(created, "paidOn", "date_in_future");
         Assert.Equal(HttpStatusCode.BadRequest, edited.StatusCode);
-        await AssertErrorKey(edited, "paidOn");
+        await AssertErrorKey(edited, "paidOn", "date_in_future");
         var listed = Assert.Single((await List(client, year)).Items);
         Assert.Equal(today, listed.PaidOn);
     }
@@ -214,7 +214,7 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
 
         Assert.Equal(new DateOnly(2070, 6, 16), accepted.PaidOn);
         Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
-        await AssertErrorKey(refused, "paidOn");
+        await AssertErrorKey(refused, "paidOn", "date_in_future");
     }
 
     [Fact]
@@ -557,10 +557,17 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
     private static TaxYearConfigRequest TaxYearRequest() => new(
         800_000L, 600, 200, 2100, 1600, 1200, [80, 95], 20, 41, 11, 16, 10, [], "a test source");
 
-    private static async Task AssertErrorKey(HttpResponseMessage response, string key)
+    private static async Task AssertErrorKey(HttpResponseMessage response, string key, string? code = null)
     {
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.True(problem.RootElement.GetProperty("errors").TryGetProperty(key, out _), $"no error under {key}");
+        if (code is null)
+        {
+            ProblemAssert.Rejects(problem.RootElement, key);
+        }
+        else
+        {
+            ProblemAssert.FieldIs(problem.RootElement, key, code);
+        }
     }
 
     private static async Task<HttpClient> SignIn(ApiFixture fixture, string email)

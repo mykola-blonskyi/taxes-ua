@@ -55,7 +55,7 @@ public static class TaxYearEndpoints
             })
             .Produces<TaxYearConfigResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         taxYears.MapPut("/{year:int}", async (
                 int year,
@@ -63,20 +63,19 @@ public static class TaxYearEndpoints
                 AppDbContext database,
                 CancellationToken cancellationToken) =>
             {
-                var errors = Validate(Bounds(year, request));
+                var errors = Validate(Bounds(year, request)) ?? new FieldErrors();
                 if (TextRules.HasDisallowedControlChar(request.Source))
                 {
-                    errors ??= [];
-                    errors[JsonNamingPolicy.CamelCase.ConvertName(nameof(request.Source))] =
-                    [
+                    errors.Set(
+                        JsonNamingPolicy.CamelCase.ConvertName(nameof(request.Source)),
+                        ProblemCodes.ControlCharacter,
                         "source must not contain a NUL or other control character "
-                            + "(tab, line feed and carriage return are allowed).",
-                    ];
+                            + "(tab, line feed and carriage return are allowed).");
                 }
 
-                if (errors is not null)
+                if (errors.OrNull() is { } rejected)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(rejected);
                 }
 
                 var config = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
@@ -92,7 +91,7 @@ public static class TaxYearEndpoints
                 return Results.Ok(ToResponse(config));
             })
             .Produces<TaxYearConfigResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         taxYears.MapPost("/{year:int}/verify", async (
@@ -113,7 +112,7 @@ public static class TaxYearEndpoints
             })
             .Produces<TaxYearConfigResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         taxYears.MapPost("/{year:int}/clone-to/{next:int}", async (
                 int year,
@@ -123,7 +122,7 @@ public static class TaxYearEndpoints
             {
                 if (Validate([YearBound("Year", year), YearBound("Next", next)]) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var source = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
@@ -134,9 +133,10 @@ public static class TaxYearEndpoints
 
                 if (await database.TaxYearConfigs.AnyAsync(config => config.Year == next, cancellationToken))
                 {
-                    return Results.Problem(
-                        statusCode: StatusCodes.Status409Conflict,
-                        title: $"A tax year configuration already exists for {next}.");
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.TaxYearAlreadyExists,
+                        $"A tax year configuration already exists for {next}.");
                 }
 
                 var copy = source.CloneTo(next);
@@ -146,17 +146,18 @@ public static class TaxYearEndpoints
                 return Results.Created($"/api/tax-years/{next}", ToResponse(copy));
             })
             .Produces<TaxYearConfigResponse>(StatusCodes.Status201Created)
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         return routes;
     }
 
-    private static IResult Missing(int year) => Results.Problem(
-        statusCode: StatusCodes.Status404NotFound,
-        title: $"No tax year configuration exists for {year}.");
+    private static IResult Missing(int year) => Problems.Create(
+        StatusCodes.Status404NotFound,
+        ProblemCodes.TaxYearNotFound,
+        $"No tax year configuration exists for {year}.");
 
     // A write invalidates the verification, which attested to the numbers that were stored before it.
     private static void Apply(TaxYearConfig config, TaxYearConfigRequest request)
@@ -245,9 +246,9 @@ public static class TaxYearEndpoints
 
     private static Bound YearBound(string name, int year) => new(name, year, MinYear, MaxYear);
 
-    private static Dictionary<string, string[]>? Validate(IEnumerable<Bound> bounds)
+    private static FieldErrors? Validate(IEnumerable<Bound> bounds)
     {
-        var errors = new Dictionary<string, List<string>>();
+        var errors = new FieldErrors();
 
         foreach (var bound in bounds)
         {
@@ -256,17 +257,10 @@ public static class TaxYearEndpoints
                 continue;
             }
 
-            if (!errors.TryGetValue(bound.Field, out var messages))
-            {
-                errors[bound.Field] = messages = [];
-            }
-
-            messages.Add(bound.Message);
+            errors.Add(bound.Field, ProblemCodes.OutOfRange, bound.Message);
         }
 
-        return errors.Count == 0
-            ? null
-            : errors.ToDictionary(entry => entry.Key, entry => entry.Value.ToArray());
+        return errors.OrNull();
     }
 
     private readonly record struct Bound(

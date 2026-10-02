@@ -127,12 +127,13 @@ export function formFromInvoice(invoice: InvoiceResponse): InvoiceForm {
   };
 }
 
-// Keys are the api's own (`lines[2].rateMinor`), so a local rejection and a server one render alike.
+// Keys are the api's own (`lines[2].rateMinor`) and values are error codes, so a local rejection and a
+// server one render alike.
 export type FieldErrors = Record<string, string[]>;
 
 export type BuiltRequest = { request: InvoiceRequest; errors: null } | { request: null; errors: FieldErrors };
 
-export function buildRequest(form: InvoiceForm, messages: { quantity: string; rate: string }): BuiltRequest {
+export function buildRequest(form: InvoiceForm): BuiltRequest {
   const errors: FieldErrors = {};
   const lines: InvoiceLineRequest[] = [];
 
@@ -141,11 +142,11 @@ export function buildRequest(form: InvoiceForm, messages: { quantity: string; ra
     const rateMinor = parseHryvnia(line.rate);
 
     if (quantityThousandths === null) {
-      errors[`lines[${index}].quantityThousandths`] = [messages.quantity];
+      errors[`lines[${index}].quantityThousandths`] = ["quantity_out_of_range"];
     }
 
     if (rateMinor === null) {
-      errors[`lines[${index}].rateMinor`] = [messages.rate];
+      errors[`lines[${index}].rateMinor`] = ["invalid_amount"];
     }
 
     if (quantityThousandths !== null && rateMinor !== null) {

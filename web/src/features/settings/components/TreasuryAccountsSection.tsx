@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useDismissTreasuryNotice,
   useRevertTreasuryAccount,
@@ -11,10 +12,8 @@ import {
   type TreasuryAccount,
 } from "@/data/treasury/useTreasuryAccounts";
 import { formatDateOnly } from "@/shared/lib/dates";
-import { parseIbanProblem } from "@/shared/lib/ibanProblem";
 import { Button } from "@/shared/ui/button";
 import { TextField } from "@/shared/ui/fields";
-import { errorKey } from "./treasuryErrors";
 import { TreasuryValidUntil } from "./TreasuryValidUntil";
 
 function normalizeIban(value: string): string {
@@ -144,6 +143,7 @@ function AccountCard({ account }: { account: TreasuryAccount }) {
 
 function AccountEditor({ account, onClose }: { account: TreasuryAccount; onClose: () => void }) {
   const t = useTranslations("settings.treasury");
+  const apiText = useApiErrorText();
   const save = useSaveTreasuryAccount();
   const [form, setForm] = useState<FormState>({
     iban: account.iban ?? "",
@@ -151,19 +151,10 @@ function AccountEditor({ account, onClose }: { account: TreasuryAccount; onClose
     recipientCode: account.recipientCode ?? "",
   });
   const failure = save.error instanceof ApiError ? save.error : null;
-  const rejected = Object.keys(failure?.errors ?? {}).length > 0;
+  const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
 
   function fieldErrors(field: keyof FormState): string[] | undefined {
-    return failure?.errors[field]?.map((message) => {
-      const iban = field === "iban" ? parseIbanProblem(message) : null;
-      if (iban) {
-        return iban.key === "ibanLength" ? t("errors.ibanLength", { count: iban.count }) : t(`errors.${iban.key}`);
-      }
-
-      const key = errorKey(field, message);
-
-      return key === null ? message : t(`errors.${key}`);
-    });
+    return failure?.fieldCodes[field]?.map(apiText.ofCode);
   }
 
   function update(field: keyof FormState) {

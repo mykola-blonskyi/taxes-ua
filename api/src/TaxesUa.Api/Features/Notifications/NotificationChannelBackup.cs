@@ -19,15 +19,15 @@ internal sealed record NotificationChannelBackup(
     public static NotificationChannelBackup From(NotificationChannel row) =>
         new(row.Kind, row.Address, row.Enabled, row.LinkedAt, row.ConfirmedAt);
 
-    public (string Key, string Message)? Error() => Kind switch
+    public (string Key, Issue Issue)? Error() => Kind switch
     {
-        _ when !Enum.IsDefined(Kind) => ("kind", "kind must name a channel kind."),
+        _ when !Enum.IsDefined(Kind) => ("kind", new Issue(ProblemCodes.InvalidValue, "kind must name a channel kind.")),
         NotificationChannelKind.Telegram when !long.TryParse(Address, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _) =>
-            ("address", "A Telegram address must be a chat id."),
+            ("address", new Issue(ProblemCodes.InvalidValue, "A Telegram address must be a chat id.")),
         NotificationChannelKind.Email when !EmailTexts.TryNormalize(Address, out _) =>
-            ("address", "An email address must be a plain address such as name@example.com."),
-        NotificationChannelKind.Telegram when ConfirmedAt is null => ("confirmedAt", "A Telegram channel is always confirmed."),
-        _ when Enabled && ConfirmedAt is null => ("enabled", "A channel cannot be enabled before it is confirmed."),
+            ("address", new Issue(ProblemCodes.InvalidValue, "An email address must be a plain address such as name@example.com.")),
+        NotificationChannelKind.Telegram when ConfirmedAt is null => ("confirmedAt", new Issue(ProblemCodes.InvalidValue, "A Telegram channel is always confirmed.")),
+        _ when Enabled && ConfirmedAt is null => ("enabled", new Issue(ProblemCodes.InvalidValue, "A channel cannot be enabled before it is confirmed.")),
         _ => null,
     };
 

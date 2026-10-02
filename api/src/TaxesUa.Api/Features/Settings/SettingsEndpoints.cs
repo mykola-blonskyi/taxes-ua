@@ -50,7 +50,7 @@ public static class SettingsEndpoints
             {
                 if (Validate(request) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -63,11 +63,10 @@ public static class SettingsEndpoints
                 if (stored?.Group3ConfirmedOn is { } confirmedOn
                     && !(request.FopRegistrationDate is { } registered && registered <= confirmedOn))
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        ["fopRegistrationDate"] =
-                            ["fopRegistrationDate must not be after the group 3 confirmation date."],
-                    });
+                    return Problems.Validation(
+                        "fopRegistrationDate",
+                        ProblemCodes.RegistrationDateAfterGroup3Receipt,
+                        "fopRegistrationDate must not be after the group 3 confirmation date.");
                 }
 
                 if (stored is null)
@@ -91,7 +90,7 @@ public static class SettingsEndpoints
                 return Results.Ok(ToResponse(stored));
             })
             .Produces<SettingsResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         return routes;
@@ -135,9 +134,9 @@ public static class SettingsEndpoints
         settings.DefaultCurrency,
         settings.BackOnGroup3From);
 
-    internal static Dictionary<string, string[]>? Validate(SettingsRequest request)
+    internal static FieldErrors? Validate(SettingsRequest request)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
 
         foreach (var (name, value, allowed) in new[]
                  {
@@ -148,28 +147,34 @@ public static class SettingsEndpoints
         {
             if (!allowed.Contains(value, StringComparer.Ordinal))
             {
-                errors[Field(name)] = [$"{name} must be one of {string.Join(", ", allowed)}."];
+                errors.Set(
+                    Field(name),
+                    ProblemCodes.InvalidValue,
+                    $"{name} must be one of {string.Join(", ", allowed)}.");
             }
         }
 
         if (request.WeekendDays.Distinct().Count() != request.WeekendDays.Length)
         {
             var name = nameof(request.WeekendDays);
-            errors[Field(name)] = [$"{name} must not name a day twice."];
+            errors.Set(Field(name), ProblemCodes.DuplicateValue, $"{name} must not name a day twice.");
         }
         else if (request.WeekendDays.Length == Enum.GetValues<DayOfWeek>().Length)
         {
             var name = nameof(request.WeekendDays);
-            errors[Field(name)] = [$"{name} must leave at least one working day."];
+            errors.Set(Field(name), ProblemCodes.WeekendAllDays, $"{name} must leave at least one working day.");
         }
 
         if (request.BackOnGroup3From is { } back && (back.Quarter is < 1 or > 4 || back.Year is < TransactionsEndpoints.MinYear or > TransactionsEndpoints.MaxYear))
         {
             var name = nameof(request.BackOnGroup3From);
-            errors[Field(name)] = [$"{name} must be a quarter from 1 to 4 of a year from {TransactionsEndpoints.MinYear} to {TransactionsEndpoints.MaxYear}."];
+            errors.Set(
+                Field(name),
+                ProblemCodes.InvalidQuarter,
+                $"{name} must be a quarter from 1 to 4 of a year from {TransactionsEndpoints.MinYear} to {TransactionsEndpoints.MaxYear}.");
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
     // Derived rather than spelled a second time, so the key the web reads an error under cannot drift

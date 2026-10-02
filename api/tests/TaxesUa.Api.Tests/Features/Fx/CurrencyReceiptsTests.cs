@@ -175,7 +175,7 @@ public sealed class CurrencyReceiptsTests(ApiFixture fixture) : IClassFixture<Ap
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.True(document.RootElement.GetProperty("errors").TryGetProperty(key, out _));
+        ProblemAssert.Rejects(document.RootElement, key);
         Assert.Empty(nbu.Requests);
     }
 
@@ -248,7 +248,7 @@ public sealed class CurrencyReceiptsTests(ApiFixture fixture) : IClassFixture<Ap
     {
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.True(document.RootElement.GetProperty("errors").TryGetProperty(key, out _));
+        ProblemAssert.Rejects(document.RootElement, key);
     }
 
     // The sync and restore take the owner's lock for whole windows and files, so an edit that held it

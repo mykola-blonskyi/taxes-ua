@@ -266,6 +266,12 @@ The dependency rules are enforced in eslint (`no-restricted-imports`): features 
 each other and are only reachable from outside through `index.ts`; `data` knows nothing about
 features; `shared` imports nothing above itself; nothing imports from `app`.
 
+**Errors (ADR-028).** Every failure the app writes goes through `Problems` and carries a stable snake_case
+`code` from `ProblemCodes`; a rejected body also carries `errorCodes`, the code of each field error beside the
+English sentences in `errors`. The web never shows or matches the English: `ApiError` exposes `code` and
+`fieldCodes`, and `useApiErrorText` words them from the `apiErrors` catalog in `web/messages`, with a generic
+sentence for a code it does not know.
+
 Both layouts follow the same idea — one folder per feature, reachable only through its public
 surface — enforced by whatever each language gives for free: `internal` in C#, `no-restricted-
 imports` in eslint.

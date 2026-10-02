@@ -55,7 +55,7 @@ public static class DpsStatusEndpoints
                 var normalized = Normalize(request);
                 if (Validate(normalized, settings?.FopRegistrationDate, time.TodayInKyiv()) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 if (settings is null)
@@ -70,7 +70,7 @@ public static class DpsStatusEndpoints
                 return Results.Ok(await ToResponseAsync(database, settings, cancellationToken));
             })
             .Produces<DpsStatusResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         return routes;
@@ -84,20 +84,25 @@ public static class DpsStatusEndpoints
     };
 
     /// <summary>Validates a request already passed through <see cref="Normalize"/>.</summary>
-    internal static Dictionary<string, string[]>? Validate(DpsStatusRequest request, DateOnly? registrationDate, DateOnly today)
+    internal static FieldErrors? Validate(DpsStatusRequest request, DateOnly? registrationDate, DateOnly today)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
 
         if (request.Group3Since is { } since)
         {
             if (registrationDate is not { } registered)
             {
-                errors["group3Since"] = ["group3Since requires fopRegistrationDate in settings."];
+                errors.Set(
+                    "group3Since",
+                    ProblemCodes.RegistrationDateRequired,
+                    "group3Since requires fopRegistrationDate in settings.");
             }
             else if (since != registered && !IsQuarterStartAfter(since, registered))
             {
-                errors["group3Since"] =
-                    ["group3Since must be the registration date or the first day of a later quarter."];
+                errors.Set(
+                    "group3Since",
+                    ProblemCodes.QuarterStartRequired,
+                    "group3Since must be the registration date or the first day of a later quarter.");
             }
         }
 
@@ -105,33 +110,47 @@ public static class DpsStatusEndpoints
         {
             if (confirmation.ReceiptNumber.Length == 0)
             {
-                errors["confirmation.receiptNumber"] = ["receiptNumber is required."];
+                errors.Set("confirmation.receiptNumber", ProblemCodes.Required, "receiptNumber is required.");
             }
             else if (confirmation.ReceiptNumber.Length > MaxReceiptNumberLength)
             {
-                errors["confirmation.receiptNumber"] =
-                    [$"receiptNumber must not exceed {MaxReceiptNumberLength} characters."];
+                errors.Set(
+                    "confirmation.receiptNumber",
+                    ProblemCodes.TooLong,
+                    $"receiptNumber must not exceed {MaxReceiptNumberLength} characters.");
             }
             else if (TextRules.HasDisallowedControlChar(confirmation.ReceiptNumber))
             {
-                errors["confirmation.receiptNumber"] = ["receiptNumber must not contain control characters."];
+                errors.Set(
+                    "confirmation.receiptNumber",
+                    ProblemCodes.ControlCharacter,
+                    "receiptNumber must not contain control characters.");
             }
 
             if (registrationDate is not { } registered)
             {
-                errors["confirmation.confirmedOn"] = ["confirmation requires fopRegistrationDate in settings."];
+                errors.Set(
+                    "confirmation.confirmedOn",
+                    ProblemCodes.RegistrationDateRequired,
+                    "confirmation requires fopRegistrationDate in settings.");
             }
             else if (confirmation.ConfirmedOn < registered)
             {
-                errors["confirmation.confirmedOn"] = ["confirmedOn must not be before the registration date."];
+                errors.Set(
+                    "confirmation.confirmedOn",
+                    ProblemCodes.DateBeforeRegistration,
+                    "confirmedOn must not be before the registration date.");
             }
             else if (confirmation.ConfirmedOn > today)
             {
-                errors["confirmation.confirmedOn"] = ["confirmedOn must not be in the future."];
+                errors.Set(
+                    "confirmation.confirmedOn",
+                    ProblemCodes.DateInFuture,
+                    "confirmedOn must not be in the future.");
             }
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
     internal static bool IsQuarterStartAfter(DateOnly day, DateOnly registered) =>

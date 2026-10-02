@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useDeclarationDetails,
   useSaveDeclarationDetails,
@@ -15,29 +16,6 @@ import { TextAreaField, TextField } from "@/shared/ui/fields";
 const maxKvedCodes = 20;
 
 type FormState = { region: string; district: string; officeName: string; kvedCodes: string[]; address: string };
-
-type ErrorKey =
-  | "regionRange"
-  | "districtRange"
-  | "bothParts"
-  | "kvedFormat"
-  | "kvedDuplicate"
-  | "kvedTooMany"
-  | "tooLong"
-  | "controlChar";
-
-// The api answers in English from a closed set of messages; each maps to a translated one and anything
-// unforeseen is shown as it came.
-const errorPatterns: readonly (readonly [string, ErrorKey])[] = [
-  ["1 to 99", "regionRange"],
-  ["0 to 99", "districtRange"],
-  ["is required with", "bothParts"],
-  ["two digits, a dot", "kvedFormat"],
-  ["must not repeat", "kvedDuplicate"],
-  ["must not list more", "kvedTooMany"],
-  ["exceed", "tooLong"],
-  ["control character", "controlChar"],
-];
 
 function twoDigits(value: number | string | null): string {
   return value === null ? "" : String(value).padStart(2, "0");
@@ -72,20 +50,17 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
   const t = useTranslations("settings");
   const tDeclaration = useTranslations("settings.declaration");
   const tFields = useTranslations("declaration.fields");
+  const apiText = useApiErrorText();
   const save = useSaveDeclarationDetails();
   const [form, setForm] = useState<FormState>(() => toFormState(details));
 
   const failure = save.error instanceof ApiError ? save.error : null;
-  const rejected = Object.keys(failure?.errors ?? {}).length > 0;
+  const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
   const missing = details.missingDetails;
   const sentKved = form.kvedCodes.flatMap((code, index) => (code.trim() === "" ? [] : [index]));
 
   function fieldErrors(key: string): string[] | undefined {
-    return failure?.errors[key]?.map((message) => {
-      const match = errorPatterns.find(([pattern]) => message.includes(pattern));
-
-      return match ? tDeclaration(`errors.${match[1]}`) : message;
-    });
+    return failure?.fieldCodes[key]?.map(apiText.ofCode);
   }
 
   function kvedErrors(index: number): string[] | undefined {
@@ -242,7 +217,7 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
       />
 
       {failure && !rejected ? (
-        <p className="text-sm text-destructive">{`${t("saveFailed")} ${failure.message}`}</p>
+        <p className="text-sm text-destructive">{apiText.withReason(t("saveFailed"), failure)}</p>
       ) : null}
       {save.isSuccess ? <p className="text-sm text-muted-foreground">{tDeclaration("saved")}</p> : null}
 

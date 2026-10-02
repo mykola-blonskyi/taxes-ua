@@ -94,7 +94,7 @@ public static class PaymentCandidatesEndpoints
 
                 if (candidate.Status != CandidateStatus.Pending)
                 {
-                    return Conflict($"The candidate is already {candidate.Status}. Reload the list.");
+                    return Conflict(ProblemCodes.CandidateAlreadyDecided, $"The candidate is already {candidate.Status}. Reload the list.");
                 }
 
                 var matches = Matches(
@@ -111,7 +111,9 @@ public static class PaymentCandidatesEndpoints
                 {
                     if (matches.FirstOrDefault(row => row.Id == linkId) is not { } match)
                     {
-                        return Conflict("The payment to link no longer has this date, kind and amount. Reload the list.");
+                        return Conflict(
+                            ProblemCodes.CandidateLinkChanged,
+                            "The payment to link no longer has this date, kind and amount. Reload the list.");
                     }
 
                     payment = match;
@@ -119,7 +121,9 @@ public static class PaymentCandidatesEndpoints
                 else if (matches.Count > 0 && !request.RecordSeparately)
                 {
                     // A payment the owner typed since the list was read would otherwise be recorded twice.
-                    return Conflict("A payment you recorded has the same date, kind and amount. Reload to link it.");
+                    return Conflict(
+                        ProblemCodes.CandidateMatchRecorded,
+                        "A payment you recorded has the same date, kind and amount. Reload to link it.");
                 }
                 else
                 {
@@ -133,7 +137,7 @@ public static class PaymentCandidatesEndpoints
                         Note: null);
                     if (PaymentsEndpoints.Validate(paymentRequest) is { } errors)
                     {
-                        return Results.ValidationProblem(errors);
+                        return Problems.Validation(errors);
                     }
 
                     payment = new BudgetPayment { Id = Guid.NewGuid(), UserId = user.Id, CreatedAt = now };
@@ -159,10 +163,10 @@ public static class PaymentCandidatesEndpoints
                 return Results.Ok(new ConfirmCandidateResponse(PaymentsEndpoints.ToResponse(payment, settings), notice));
             })
             .Produces<ConfirmCandidateResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         candidates.MapPost("/{id:guid}/dismiss", async (
                 Guid id,
@@ -189,7 +193,9 @@ public static class PaymentCandidatesEndpoints
 
                 if (candidate.Status == CandidateStatus.Confirmed)
                 {
-                    return Conflict("The candidate is already confirmed. Delete its payment instead.");
+                    return Conflict(
+                        ProblemCodes.CandidateAlreadyConfirmed,
+                        "The candidate is already confirmed. Delete its payment instead.");
                 }
 
                 if (candidate.Status == CandidateStatus.Pending)
@@ -204,8 +210,8 @@ public static class PaymentCandidatesEndpoints
             })
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         return routes;
     }
@@ -289,12 +295,13 @@ public static class PaymentCandidatesEndpoints
     internal static Task LockOwnerAsync(AppDbContext database, string userId, CancellationToken cancellationToken) =>
         database.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
 
-    private static IResult Missing(Guid id) => Results.Problem(
-        statusCode: StatusCodes.Status404NotFound,
-        title: $"No payment candidate exists with id {id}.");
+    private static IResult Missing(Guid id) => Problems.Create(
+        StatusCodes.Status404NotFound,
+        ProblemCodes.CandidateNotFound,
+        $"No payment candidate exists with id {id}.");
 
-    private static IResult Conflict(string title) =>
-        Results.Problem(statusCode: StatusCodes.Status409Conflict, title: title);
+    private static IResult Conflict(string code, string title) =>
+        Problems.Create(StatusCodes.Status409Conflict, code, title);
 }
 
 /// <summary>

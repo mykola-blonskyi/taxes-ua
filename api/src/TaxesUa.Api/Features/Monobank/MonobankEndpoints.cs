@@ -37,7 +37,7 @@ public static class MonobankEndpoints
             })
             .Produces<MonobankConnectionResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+            .ProducesCodedProblem(StatusCodes.Status503ServiceUnavailable);
 
         monobank.MapPut("/connection", async (
                 MonobankTokenRequest request,
@@ -60,10 +60,7 @@ public static class MonobankEndpoints
 
                 if (string.IsNullOrWhiteSpace(request.Token))
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        ["token"] = ["Token is required."],
-                    });
+                    return Problems.Validation("token", ProblemCodes.Required, "Token is required.");
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -81,16 +78,14 @@ public static class MonobankEndpoints
                     case ClientInfoResult.InvalidToken:
                         // Nothing is stored: the token is checked before it ever reaches encryption or
                         // the database, so a typo never lands even encrypted.
-                        return Results.ValidationProblem(new Dictionary<string, string[]>
-                        {
-                            ["token"] = ["monobank rejected this token."],
-                        });
+                        return Problems.Validation("token", ProblemCodes.TokenRejected, "monobank rejected this token.");
 
                     case ClientInfoResult.Unavailable unavailable:
-                        return Results.Problem(
-                            title: "monobank is temporarily unavailable.",
-                            detail: unavailable.Reason,
-                            statusCode: StatusCodes.Status502BadGateway);
+                        return Problems.Create(
+                            StatusCodes.Status502BadGateway,
+                            ProblemCodes.MonobankUnavailable,
+                            "monobank is temporarily unavailable.",
+                            detail: unavailable.Reason);
 
                     case ClientInfoResult.Found found:
                         await SaveConnectionAsync(
@@ -107,10 +102,10 @@ public static class MonobankEndpoints
                 }
             })
             .Produces<MonobankConnectionResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status502BadGateway)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway)
+            .ProducesCodedProblem(StatusCodes.Status503ServiceUnavailable);
 
         monobank.MapPut("/accounts", async (
                 FollowedAccountsRequest request,
@@ -130,10 +125,7 @@ public static class MonobankEndpoints
 
                 if (request.FollowedExternalIds is null)
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        ["followedExternalIds"] = ["followedExternalIds is required."],
-                    });
+                    return Problems.Validation("followedExternalIds", ProblemCodes.Required, "followedExternalIds is required.");
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -170,9 +162,9 @@ public static class MonobankEndpoints
                 return Results.Ok(await LoadStatusAsync(database, queue, webhooks, time, user.Id, cancellationToken));
             })
             .Produces<MonobankConnectionResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+            .ProducesCodedProblem(StatusCodes.Status503ServiceUnavailable);
 
         monobank.MapDelete("/connection", async (
                 UserManager<ApplicationUser> users,
@@ -235,16 +227,18 @@ public static class MonobankEndpoints
                     .FirstOrDefaultAsync(row => row.UserId == user.Id, cancellationToken);
                 if (connection is null)
                 {
-                    return Results.Problem(
-                        title: "Connect monobank before syncing.",
-                        statusCode: StatusCodes.Status409Conflict);
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.MonobankNotConnected,
+                        "Connect monobank before syncing.");
                 }
 
                 if (connection.RejectedAt is not null)
                 {
-                    return Results.Problem(
-                        title: "monobank rejected the token; replace it before syncing.",
-                        statusCode: StatusCodes.Status409Conflict);
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.MonobankTokenRejected,
+                        "monobank rejected the token; replace it before syncing.");
                 }
 
                 await EnqueueFollowedAsync(database, queue, user.Id, cancellationToken);
@@ -254,8 +248,8 @@ public static class MonobankEndpoints
             })
             .Produces<MonobankConnectionResponse>(StatusCodes.Status202Accepted)
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status409Conflict)
-            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict)
+            .ProducesCodedProblem(StatusCodes.Status503ServiceUnavailable);
 
         // monobank's own endpoints (ADR-012): anonymous, found only by the secret in the path, and
         // never reading the body, so a forged notification can at most queue a statement read.
@@ -288,12 +282,12 @@ public static class MonobankEndpoints
             .Select(row => row.UserId)
             .FirstOrDefaultAsync(cancellationToken);
 
-    private static IResult NotConfigured() => Results.Problem(
-        title: "monobank is not configured.",
+    private static IResult NotConfigured() => Problems.Create(
+        StatusCodes.Status503ServiceUnavailable,
+        ProblemCodes.MonobankNotConfigured,
+        "monobank is not configured.",
         detail: "MONOBANK_TOKEN_ENCRYPTION_KEY is not set on this deployment, so no token can be "
-            + "stored safely.",
-        statusCode: StatusCodes.Status503ServiceUnavailable,
-        type: "https://taxes-ua/problems/monobank-not-configured");
+            + "stored safely.");
 
     internal static async Task EnqueueFollowedAsync(
         AppDbContext database, MonobankSyncQueue queue, string userId, CancellationToken cancellationToken)

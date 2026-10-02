@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useClients } from "@/data/clients/useClients";
 import { currencies, useFxRate, type Currency } from "@/data/fx/useFxRate";
 import {
@@ -96,6 +97,7 @@ export function TransactionForm({
   onCancel: () => void;
 }) {
   const t = useTranslations("transactions.form");
+  const apiText = useApiErrorText();
   const tKinds = useTranslations("transactions.kinds");
   const tCurrencies = useTranslations("transactions.currencies");
   const locale = useLocale();
@@ -110,8 +112,8 @@ export function TransactionForm({
 
   const mutation = editing ? updateTransaction : createTransaction;
   const failure = mutation.error instanceof ApiError ? mutation.error : null;
-  const fieldErrors = failure?.errors;
-  const rejectedFields = Object.keys(fieldErrors ?? {}).length > 0;
+  const fieldErrors = apiText.fieldTexts(failure);
+  const rejectedFields = Object.keys(fieldErrors).length > 0;
 
   const parsedAmount = parseHryvnia(form.amountText);
   const amountIsInvalid = form.amountText.trim() !== "" && parsedAmount === null;
@@ -378,7 +380,7 @@ export function TransactionForm({
       </div>
 
       {failure && !rejectedFields ? (
-        <p className="text-sm text-destructive">{`${t("saveFailed")} ${failure.message}`}</p>
+        <p className="text-sm text-destructive">{apiText.withReason(t("saveFailed"), failure)}</p>
       ) : null}
 
       <div className="flex gap-2">

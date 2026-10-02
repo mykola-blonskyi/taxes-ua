@@ -20,18 +20,15 @@ public static class FxEndpoints
                 // The binder also accepts a number, so `currency=7` arrives as an undefined member.
                 if (currency is not (Currency.USD or Currency.EUR))
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        [nameof(currency)] = ["currency must be USD or EUR."],
-                    });
+                    return Problems.Validation(nameof(currency), ProblemCodes.InvalidValue, "currency must be USD or EUR.");
                 }
 
                 if (date.Year < MinYear || date.Year > MaxYear)
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        [nameof(date)] = [$"date year must be between {MinYear} and {MaxYear}."],
-                    });
+                    return Problems.Validation(
+                        nameof(date),
+                        ProblemCodes.YearOutOfRange,
+                        $"date year must be between {MinYear} and {MaxYear}.");
                 }
 
                 var lookup = await rates.GetAsync(currency, date, cancellationToken);
@@ -40,21 +37,26 @@ public static class FxEndpoints
                     : RateUnavailable(currency, date, lookup);
             })
             .Produces<FxRateResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status502BadGateway);
+            .ProducesCodedProblem(StatusCodes.Status502BadGateway);
 
         return routes;
     }
 
     // Shared with the transactions endpoints, so the web reads one 502 that tells the owner to enter
     // the rate manually wherever the rate was needed.
-    internal static IResult RateUnavailable(Currency currency, DateOnly date, NbuLookup lookup) => Results.Problem(
-        statusCode: StatusCodes.Status502BadGateway,
-        title: lookup is NbuLookup.NoRate
-            ? $"NBU published no {currency} rate for the {NbuRateClient.MaxDaysBack} days up to {date:yyyy-MM-dd}. "
-                + "Enter the rate manually."
-            : "The NBU rate service is unavailable. Enter the rate manually.");
+    internal static IResult RateUnavailable(Currency currency, DateOnly date, NbuLookup lookup) =>
+        lookup is NbuLookup.NoRate
+            ? Problems.Create(
+                StatusCodes.Status502BadGateway,
+                ProblemCodes.FxRateNotPublished,
+                $"NBU published no {currency} rate for the {NbuRateClient.MaxDaysBack} days up to {date:yyyy-MM-dd}. "
+                    + "Enter the rate manually.")
+            : Problems.Create(
+                StatusCodes.Status502BadGateway,
+                ProblemCodes.FxServiceUnavailable,
+                "The NBU rate service is unavailable. Enter the rate manually.");
 }
 
 internal sealed record FxRateResponse(Currency Currency, DateOnly Date, int RateE4, DateOnly RateDate);

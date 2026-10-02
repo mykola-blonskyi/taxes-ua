@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
-import { ApiError } from "@/data/api/client";
+import { readProblem } from "@/data/api/client";
 import { meQueryKey } from "@/data/auth/useMe";
 
 export class PasskeyUnsupportedError extends Error {
@@ -79,7 +79,7 @@ export type PasskeyMode = keyof typeof passkeyCeremonies;
 async function postForJson(path: string): Promise<unknown> {
   const response = await fetch(path, { method: "POST", credentials: "same-origin" });
   if (!response.ok) {
-    throw new ApiError(response.status, response.statusText || undefined);
+    throw await readProblem(response);
   }
 
   return response.json();
@@ -95,7 +95,7 @@ async function postCredential(path: string, credential: Credential): Promise<voi
     body: JSON.stringify({ credentialJson: JSON.stringify(credential) }),
   });
   if (!response.ok) {
-    throw new ApiError(response.status, response.statusText || undefined);
+    throw await readProblem(response);
   }
 }
 

@@ -31,7 +31,7 @@ public sealed class PasskeyTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 
         await AssertStatus(HttpStatusCode.BadRequest, response);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
-        Assert.False(string.IsNullOrWhiteSpace(problem?.Title), "the 400 carries no explanation");
+        Assert.Equal("passkey_registration_failed", problem?.Extensions["code"]?.ToString());
     }
 
     [Fact]

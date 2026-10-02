@@ -31,10 +31,7 @@ public static class PaymentsEndpoints
             {
                 if (year < TransactionsEndpoints.MinYear || year > TransactionsEndpoints.MaxYear)
                 {
-                    return Results.ValidationProblem(new Dictionary<string, string[]>
-                    {
-                        ["year"] = [YearRangeMessage("year")],
-                    });
+                    return Problems.Validation("year", ProblemCodes.YearOutOfRange, YearRangeMessage("year"));
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -55,7 +52,7 @@ public static class PaymentsEndpoints
                     year, [.. items.Select(row => ToResponse(row, IsBeforeRegistration(row, settings)))]));
             })
             .Produces<PaymentListResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         payments.MapPost("", async (
@@ -68,7 +65,7 @@ public static class PaymentsEndpoints
             {
                 if (Validate(request, time.TodayInKyiv()) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -88,7 +85,7 @@ public static class PaymentsEndpoints
                 return Results.Created($"/api/payments/{row.Id}", ToResponse(row, IsBeforeRegistration(row, settings)));
             })
             .Produces<PaymentResponse>(StatusCodes.Status201Created)
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         payments.MapPut("/{id:guid}", async (
@@ -102,7 +99,7 @@ public static class PaymentsEndpoints
             {
                 if (Validate(request, time.TodayInKyiv()) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -132,9 +129,9 @@ public static class PaymentsEndpoints
                 return Results.Ok(ToResponse(row, IsBeforeRegistration(row, settings)));
             })
             .Produces<PaymentResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         payments.MapDelete("/{id:guid}", async (
                 Guid id,
@@ -167,7 +164,7 @@ public static class PaymentsEndpoints
             })
             .Produces(StatusCodes.Status204NoContent)
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status404NotFound);
+            .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         return routes;
     }
@@ -219,9 +216,10 @@ public static class PaymentsEndpoints
     private static bool IsBeforeRegistration(BudgetPayment row, SettingsEntity settings) =>
         settings.FopRegistrationDate is { } registrationDate && row.PaidOn < registrationDate;
 
-    private static IResult Missing(Guid id) => Results.Problem(
-        statusCode: StatusCodes.Status404NotFound,
-        title: $"No payment exists with id {id}.");
+    private static IResult Missing(Guid id) => Problems.Create(
+        StatusCodes.Status404NotFound,
+        ProblemCodes.PaymentNotFound,
+        $"No payment exists with id {id}.");
 
     /// <summary>
     /// A payment is money already paid, so when <paramref name="today"/> (Kyiv, Rule 10) is given its date
@@ -229,59 +227,78 @@ public static class PaymentsEndpoints
     /// and one before the FOP registration only raises <c>BeforeRegistration</c>. Backup import and the
     /// bank candidates pass no day: they carry dates that were true when they were written.
     /// </summary>
-    internal static Dictionary<string, string[]>? Validate(PaymentRequest request, DateOnly? today = null)
+    internal static FieldErrors? Validate(PaymentRequest request, DateOnly? today = null)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
 
         if (request.AmountKop <= 0)
         {
-            errors[Field(nameof(request.AmountKop))] = ["amountKop must be positive."];
+            errors.Set(Field(nameof(request.AmountKop)), ProblemCodes.NotPositive, "amountKop must be positive.");
         }
         else if (request.AmountKop > MaxAmountKop)
         {
-            errors[Field(nameof(request.AmountKop))] = [$"amountKop must not exceed {MaxAmountKop}."];
+            errors.Set(
+                Field(nameof(request.AmountKop)),
+                ProblemCodes.AmountTooLarge,
+                $"amountKop must not exceed {MaxAmountKop}.");
         }
 
         if (!InYearRange(request.PaidOn.Year))
         {
-            errors[Field(nameof(request.PaidOn))] = [YearRangeMessage("paidOn year")];
+            errors.Set(Field(nameof(request.PaidOn)), ProblemCodes.YearOutOfRange, YearRangeMessage("paidOn year"));
         }
         else if (today is { } latest && request.PaidOn > latest)
         {
-            errors[Field(nameof(request.PaidOn))] = [$"paidOn must not be after today ({latest:yyyy-MM-dd})."];
+            errors.Set(
+                Field(nameof(request.PaidOn)),
+                ProblemCodes.DateInFuture,
+                $"paidOn must not be after today ({latest:yyyy-MM-dd}).");
         }
 
         if (!InYearRange(request.PeriodYear))
         {
-            errors[Field(nameof(request.PeriodYear))] = [YearRangeMessage("periodYear")];
+            errors.Set(Field(nameof(request.PeriodYear)), ProblemCodes.YearOutOfRange, YearRangeMessage("periodYear"));
         }
 
         switch (request)
         {
             case { PeriodQuarter: null, PeriodMonth: null }:
             case { PeriodQuarter: not null, PeriodMonth: not null }:
-                errors[Field(nameof(request.PeriodQuarter))] =
-                    ["Exactly one of periodQuarter and periodMonth must be set."];
+                errors.Set(
+                    Field(nameof(request.PeriodQuarter)),
+                    ProblemCodes.PeriodAmbiguous,
+                    "Exactly one of periodQuarter and periodMonth must be set.");
                 break;
             case { PeriodQuarter: < 1 or > 4 }:
-                errors[Field(nameof(request.PeriodQuarter))] = ["periodQuarter must be between 1 and 4."];
+                errors.Set(
+                    Field(nameof(request.PeriodQuarter)),
+                    ProblemCodes.QuarterOutOfRange,
+                    "periodQuarter must be between 1 and 4.");
                 break;
             case { PeriodMonth: < 1 or > 12 }:
-                errors[Field(nameof(request.PeriodMonth))] = ["periodMonth must be between 1 and 12."];
+                errors.Set(
+                    Field(nameof(request.PeriodMonth)),
+                    ProblemCodes.MonthOutOfRange,
+                    "periodMonth must be between 1 and 12.");
                 break;
         }
 
         if (Trim(request.Note) is { Length: > MaxNoteLength })
         {
-            errors[Field(nameof(request.Note))] = [$"note must not exceed {MaxNoteLength} characters."];
+            errors.Set(
+                Field(nameof(request.Note)),
+                ProblemCodes.TooLong,
+                $"note must not exceed {MaxNoteLength} characters.");
         }
         else if (Trim(request.Note) is { } note && TextRules.HasDisallowedControlChar(note))
         {
-            errors[Field(nameof(request.Note))] =
-                ["note must not contain a NUL or other control character (tab, line feed and carriage return are allowed)."];
+            errors.Set(
+                Field(nameof(request.Note)),
+                ProblemCodes.ControlCharacter,
+                "note must not contain a NUL or other control character (tab, line feed and carriage return are allowed).");
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 
     internal static bool InYearRange(int year) =>

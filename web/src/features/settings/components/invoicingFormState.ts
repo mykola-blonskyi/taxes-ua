@@ -60,35 +60,3 @@ export function toRequest(form: FormState): InvoicingDetailsRequest {
     paymentDetails: sentCurrencies(form).map((currency) => ({ currency, ...payments[currency] })),
   };
 }
-
-export type ErrorKey =
-  | "rnokpp"
-  | "iban"
-  | "swift"
-  | "beneficiaryBank"
-  | "required"
-  | "tooLong"
-  | "controlChar"
-  | "duplicateCurrency";
-
-// The api answers in English; the messages it can send for a field are a closed set, so each maps to a
-// translated one and anything unforeseen is shown as it came.
-export function errorKey(field: string, message: string): ErrorKey | null {
-  if (message.includes("exceed")) {
-    return "tooLong";
-  }
-
-  if (message.includes("control character")) {
-    return "controlChar";
-  }
-
-  if (message.includes("must not repeat")) {
-    return "duplicateCurrency";
-  }
-
-  if (field === "rnokpp" || field === "iban" || field === "swift") {
-    return field;
-  }
-
-  return message.includes("required") ? (field === "beneficiaryBank" ? "beneficiaryBank" : "required") : null;
-}

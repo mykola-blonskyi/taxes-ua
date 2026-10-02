@@ -421,8 +421,7 @@ public sealed class ImportEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static async Task AssertErrorUnder(HttpResponseMessage response, string key)
     {
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var errors = problem.RootElement.GetProperty("errors");
-        Assert.True(errors.TryGetProperty(key, out _), $"no error under {key}: {errors}");
+        ProblemAssert.Rejects(problem.RootElement, key);
     }
 
     private static async Task Restore(HttpClient owner, string file)

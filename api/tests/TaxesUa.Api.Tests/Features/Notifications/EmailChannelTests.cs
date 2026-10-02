@@ -38,7 +38,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
         Assert.False(channel["available"]!.GetValue<bool>());
         Assert.False(channel["linked"]!.GetValue<bool>());
         Assert.Equal(HttpStatusCode.ServiceUnavailable, added.StatusCode);
-        Assert.Contains("email-not-configured", await added.Content.ReadAsStringAsync());
+        await ProblemAssert.CodeIsAsync(added, "email_not_configured");
         Assert.Equal(HttpStatusCode.ServiceUnavailable, (await owner.PostAsync(Channels + "/email/test", null)).StatusCode);
     }
 
@@ -141,7 +141,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
         var expired = await Confirm(owner, second);
 
         Assert.Equal(HttpStatusCode.Gone, expired.StatusCode);
-        Assert.Contains("email-link-expired", await expired.Content.ReadAsStringAsync());
+        await ProblemAssert.CodeIsAsync(expired, "email_link_expired");
         Assert.False((await Channel(owner, Email))["confirmed"]!.GetValue<bool>());
 
         Assert.Equal(HttpStatusCode.OK, (await owner.PostAsync(Channels + "/email/resend", null)).StatusCode);
@@ -173,7 +173,7 @@ public sealed partial class EmailChannelTests(ApiFixture fixture) : IClassFixtur
         var response = await Confirm(owner, tampered);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains("email-link-invalid", await response.Content.ReadAsStringAsync());
+        await ProblemAssert.CodeIsAsync(response, "email_link_invalid");
         Assert.False((await Channel(owner, Email))["confirmed"]!.GetValue<bool>());
     }
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useDeletePayment, type PaymentResponse } from "@/data/payments/usePayments";
 import { formatDateOnly } from "@/shared/lib/dates";
 import { formatMoney } from "@/shared/lib/money";
@@ -29,6 +30,7 @@ export function PaymentList({
 
 function PaymentRow({ payment, onEdit }: { payment: PaymentResponse; onEdit: (payment: PaymentResponse) => void }) {
   const t = useTranslations("payments");
+  const apiText = useApiErrorText();
   const locale = useLocale();
   const deletePayment = useDeletePayment();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -115,7 +117,7 @@ function PaymentRow({ payment, onEdit }: { payment: PaymentResponse; onEdit: (pa
       </div>
 
       {deleteFailure ? (
-        <p className="text-xs text-destructive">{`${t("row.deleteFailed")} ${deleteFailure.message}`}</p>
+        <p className="text-xs text-destructive">{apiText.withReason(t("row.deleteFailed"), deleteFailure)}</p>
       ) : null}
     </li>
   );

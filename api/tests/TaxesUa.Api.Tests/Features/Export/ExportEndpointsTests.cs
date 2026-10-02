@@ -130,7 +130,7 @@ public sealed class ExportEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static async Task AssertErrorKey(HttpResponseMessage response, string key)
     {
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        Assert.True(document.RootElement.GetProperty("errors").TryGetProperty(key, out _));
+        ProblemAssert.Rejects(document.RootElement, key);
     }
 
     private async Task<TransactionResponse> Create(

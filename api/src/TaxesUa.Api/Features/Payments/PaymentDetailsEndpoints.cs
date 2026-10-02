@@ -25,7 +25,7 @@ public static class PaymentDetailsEndpoints
             {
                 if (Validate(kind, periodYear, periodQuarter, periodMonth, amountKop) is { } errors)
                 {
-                    return Results.ValidationProblem(errors);
+                    return Problems.Validation(errors);
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -35,10 +35,10 @@ public static class PaymentDetailsEndpoints
                 }
 
                 var quarterOfPeriod = periodQuarter ?? (periodMonth!.Value + 2) / 3;
-                var (viewed, reason) = await LoadOfferedAsync(database, user.Id, kind, periodYear, quarterOfPeriod, cancellationToken);
-                if (reason is not null)
+                var (viewed, notOffered) = await LoadOfferedAsync(database, user.Id, kind, periodYear, quarterOfPeriod, cancellationToken);
+                if (notOffered is { } reason)
                 {
-                    return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: reason);
+                    return Problems.Create(StatusCodes.Status409Conflict, reason.Code, reason.Message);
                 }
 
                 var row = await database.TreasuryAccounts.AsNoTracking()
@@ -87,25 +87,29 @@ public static class PaymentDetailsEndpoints
             .WithTags("Payments")
             .RequireAuthorization()
             .Produces<PaymentDetailsResponse>()
-            .ProducesValidationProblem()
+            .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
-            .ProducesProblem(StatusCodes.Status409Conflict);
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
         return routes;
     }
 
-    private static async Task<(YearAccruals? Viewed, string? Reason)> LoadOfferedAsync(
+    private static async Task<(YearAccruals? Viewed, Issue? NotOffered)> LoadOfferedAsync(
         AppDbContext database, string userId, PaymentKind kind, int year, int quarter, CancellationToken cancellationToken)
     {
         var loaded = await YearAccruals.LoadAsync(database, userId, year, cancellationToken);
         if (loaded is null)
         {
-            return (null, $"There is no tax configuration for {year}, so the app does not offer to pay its periods.");
+            return (null, new Issue(
+                ProblemCodes.TaxYearNotConfigured,
+                $"There is no tax configuration for {year}, so the app does not offer to pay its periods."));
         }
 
         return loaded.Viewed.Accrual.Accrues(kind, quarter)
             ? (loaded.Viewed, null)
-            : (null, $"Quarter {quarter} of {year} has no {kind} accrual outside group 3, so the app does not offer to pay it.");
+            : (null, new Issue(
+                ProblemCodes.PeriodNotPayable,
+                $"Quarter {quarter} of {year} has no {kind} accrual outside group 3, so the app does not offer to pay it."));
     }
 
     private static PaymentAccountExpiryResponse? ExpiryOf(
@@ -123,45 +127,51 @@ public static class PaymentDetailsEndpoints
         return due > validUntil ? new PaymentAccountExpiryResponse(validUntil, PaymentAccountExpiryState.ExpiresBeforeDue) : null;
     }
 
-    private static Dictionary<string, string[]>? Validate(
+    private static FieldErrors? Validate(
         PaymentKind kind, int periodYear, int? periodQuarter, int? periodMonth, long? amountKop)
     {
-        var errors = new Dictionary<string, string[]>();
+        var errors = new FieldErrors();
 
         if (!Enum.IsDefined(kind))
         {
-            errors["kind"] = ["kind must be SingleTax, MilitaryLevy or Esv."];
+            errors.Set("kind", ProblemCodes.InvalidValue, "kind must be SingleTax, MilitaryLevy or Esv.");
         }
 
         if (amountKop <= 0)
         {
-            errors["amountKop"] = ["amountKop must be positive."];
+            errors.Set("amountKop", ProblemCodes.NotPositive, "amountKop must be positive.");
         }
         else if (amountKop > PaymentsEndpoints.MaxAmountKop)
         {
-            errors["amountKop"] = [$"amountKop must not exceed {PaymentsEndpoints.MaxAmountKop}."];
+            errors.Set(
+                "amountKop",
+                ProblemCodes.AmountTooLarge,
+                $"amountKop must not exceed {PaymentsEndpoints.MaxAmountKop}.");
         }
 
         if (!PaymentsEndpoints.InYearRange(periodYear))
         {
-            errors["periodYear"] = [PaymentsEndpoints.YearRangeMessage("periodYear")];
+            errors.Set("periodYear", ProblemCodes.YearOutOfRange, PaymentsEndpoints.YearRangeMessage("periodYear"));
         }
 
         switch ((periodQuarter, periodMonth))
         {
             case (null, null):
             case (not null, not null):
-                errors["periodQuarter"] = ["Exactly one of periodQuarter and periodMonth must be set."];
+                errors.Set(
+                    "periodQuarter",
+                    ProblemCodes.PeriodAmbiguous,
+                    "Exactly one of periodQuarter and periodMonth must be set.");
                 break;
             case (< 1 or > 4, _):
-                errors["periodQuarter"] = ["periodQuarter must be between 1 and 4."];
+                errors.Set("periodQuarter", ProblemCodes.QuarterOutOfRange, "periodQuarter must be between 1 and 4.");
                 break;
             case (_, < 1 or > 12):
-                errors["periodMonth"] = ["periodMonth must be between 1 and 12."];
+                errors.Set("periodMonth", ProblemCodes.MonthOutOfRange, "periodMonth must be between 1 and 12.");
                 break;
         }
 
-        return errors.Count == 0 ? null : errors;
+        return errors.OrNull();
     }
 }
 

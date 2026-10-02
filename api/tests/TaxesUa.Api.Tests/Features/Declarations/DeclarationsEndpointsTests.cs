@@ -301,7 +301,7 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
                 $"/api/declarations/{year}/1/filing", new DeclarationFilingRequest(filedOn, DeclarationType.Reporting), Json);
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
             using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            Assert.True(problem.RootElement.GetProperty("errors").TryGetProperty("filedOn", out _));
+            ProblemAssert.Rejects(problem.RootElement, "filedOn");
         }
 
         foreach (var type in new[] { "\"Final\"", "0", "\"Reporting, Clarifying\"" })

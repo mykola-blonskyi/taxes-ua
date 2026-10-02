@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useSaveSettings, useSettings, type SettingsRequest } from "@/data/settings/useSettings";
 import { locales } from "@/i18n/locales";
 import { Button } from "@/shared/ui/button";
@@ -101,14 +102,15 @@ export function FopSettingsForm() {
 function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
   const t = useTranslations("settings");
   const tFop = useTranslations("settings.fop");
+  const apiText = useApiErrorText();
   const tLanguage = useTranslations("language");
   const tTheme = useTranslations("theme");
   const saveSettings = useSaveSettings();
   const [form, setForm] = useState<FormState>(() => toFormState(initial));
 
   const failure = saveSettings.error instanceof ApiError ? saveSettings.error : null;
-  const fieldErrors = failure?.errors;
-  const rejectedFields = Object.keys(fieldErrors ?? {}).length > 0;
+  const fieldErrors = apiText.fieldTexts(failure);
+  const rejectedFields = Object.keys(fieldErrors).length > 0;
 
   function toggleWeekendDay(day: DayOfWeek, enabled: boolean) {
     setForm((current) => ({
@@ -281,7 +283,7 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
       </fieldset>
 
       {failure && !rejectedFields ? (
-        <p className="text-sm text-destructive">{`${t("saveFailed")} ${failure.message}`}</p>
+        <p className="text-sm text-destructive">{apiText.withReason(t("saveFailed"), failure)}</p>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
