@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { KindDebt } from "@/data/dashboard/useDashboard";
-import { reply, renderApp, screen, stubFetch, useFakeTimers, waitFor } from "@/test/harness";
+import type { PaymentDetails } from "@/data/payments/usePaymentDetails";
+import { act, reply, renderApp, screen, stubFetch, useFakeTimers, waitFor } from "@/test/harness";
 import { PayDebtButton } from "./PayDebtButton";
 
 const debt: KindDebt = {
@@ -16,14 +17,14 @@ const debt: KindDebt = {
   advanceMonth: null,
 };
 
-const recipient = { iban: "UA213223130000026007233566001", name: "ГУК у м.Києві/Київ", code: "37993783" };
+const recipient: NonNullable<PaymentDetails["recipient"]> = { iban: "UA213223130000026007233566001", name: "ГУК у м.Києві/Київ", code: "37993783", source: "Manual" };
 
 // The api answers without a QR until it is asked for an amount, as the real endpoint does.
-function paymentDetails(request: { query: Record<string, string> }) {
+function paymentDetails(request: { query: Record<string, string> }): PaymentDetails {
   const amountKop = request.query.amountKop ? Number(request.query.amountKop) : null;
 
   return {
-    kind: "SingleTax" as const,
+    kind: "SingleTax",
     periodYear: 2026,
     periodQuarter: 2,
     periodMonth: null,
@@ -40,6 +41,8 @@ describe("PayDebtButton", () => {
     const api = stubFetch({ "GET /api/payment-details": paymentDetails });
     const { user } = renderApp(<PayDebtButton debt={debt} />);
 
+    // A request would start in an effect, so let effects and promises run before saying none was sent.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
     expect(api.requests).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: "Сплатити" }));

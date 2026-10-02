@@ -28,6 +28,9 @@ vi.mock("next/navigation", () => navigationModule);
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
+  // user-event installs a clipboard stub per setup and never removes it.
+  Reflect.deleteProperty(navigator, "clipboard");
   resetTimers();
   resetNavigation();
   resetFetchStub();

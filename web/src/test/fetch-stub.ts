@@ -99,14 +99,17 @@ async function describeRequest(request: Request): Promise<RecordedRequest> {
 
 /** The `fetch` the page sees. vitest.setup.ts installs it before the api client captures `fetch`. */
 export async function delegatingFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const request = await describeRequest(new Request(input, init));
+  const incoming = new Request(input, init);
+  const request = await describeRequest(incoming);
+  // Only the page's own origin reaches the api through the proxy; any other host is a wrong base url.
+  const sameOrigin = new URL(incoming.url).origin === location.origin;
   // A literal route wins over one with parameters: "/payments/candidates" over "/payments/{id}".
   const route = [...routes]
     .sort((a, b) => a.params - b.params)
-    .find((candidate) => candidate.method === request.method && candidate.pattern.test(request.path));
+    .find((candidate) => sameOrigin && candidate.method === request.method && candidate.pattern.test(request.path));
 
   if (!route) {
-    unmatched.push(`${request.method} ${request.path}`);
+    unmatched.push(`${request.method} ${incoming.url}`);
 
     return json(501, { title: `No fetch stub for ${request.method} ${request.path}` });
   }
@@ -128,7 +131,6 @@ export type FetchStub = {
 export function stubFetch(answers: Routes): FetchStub {
   routes = Object.entries(answers).map(([key, handler]) => compile(key, handler as Handler<RouteKey>));
   recorded = [];
-  unmatched = [];
 
   return {
     get requests() {

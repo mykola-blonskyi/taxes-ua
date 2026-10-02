@@ -47,11 +47,14 @@ expect(api.requests[0]).toEqual({ method: "GET", path: "…", query: { … }, bo
 - A key is `"METHOD /path"` exactly as the generated types in `data/api/schema.d.ts` spell it, with the
   `{param}` placeholders left in. A method or path the schema does not have fails the typecheck.
 - The value is the success body, typed as a deep partial of the schema's response: set only what the
-  component reads. A misspelled field or a wrong type fails the typecheck; a field the schema later
-  makes required does not.
+  component reads. In an inline literal, a misspelled field or a wrong type fails the typecheck; a field
+  the schema later makes required does not.
+- That check has gaps. A fixture built elsewhere and passed in is checked only for the fields it shares
+  with the type, so an extra or renamed field slips through. Annotate shared fixtures and handler returns
+  with the response type (`: PaymentDetails`) to get the full check. `reply()` bodies are untyped.
 - A function gets the recorded request (`method`, concrete `path`, `query`, parsed JSON `body`) and may
   return a promise, to hold an answer back. `reply(status, body?, headers?)` answers a failure.
-- Every test starts with no routes. A request no route covers gets a 501 and fails the test after it ends,
+- Every test starts with no routes. A request no route covers, or one sent to another origin than the page's, gets a 501 and fails the test after it ends,
   so a component cannot call an endpoint the test did not plan for.
 
 `vitest.setup.ts` installs the stub as the global `fetch` before the api client is imported, because the
