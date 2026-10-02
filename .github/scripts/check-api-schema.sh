@@ -7,6 +7,10 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 port=5241
+if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
+  echo "::error::Port $port is already in use. The check would compare against whatever answers there instead of this checkout's API. Stop that process and run again."
+  exit 1
+fi
 log=$(mktemp)
 fresh=$(mktemp)
 api_pid=
@@ -20,7 +24,7 @@ ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="http://localhost:$port" \
 api_pid=$!
 
 for _ in $(seq 1 120); do
-  if curl -fsS "http://localhost:$port/api/health" >/dev/null 2>&1; then break; fi
+  if curl -fsS --max-time 5 "http://localhost:$port/api/health" >/dev/null 2>&1; then break; fi
   if ! kill -0 "$api_pid" 2>/dev/null; then
     echo "::error::The API exited before it answered"
     cat "$log"
@@ -28,7 +32,7 @@ for _ in $(seq 1 120); do
   fi
   sleep 2
 done
-curl -fsS "http://localhost:$port/api/health" >/dev/null || { echo "::error::The API did not answer in 4 minutes"; cat "$log"; exit 1; }
+curl -fsS --max-time 5 "http://localhost:$port/api/health" >/dev/null || { echo "::error::The API did not answer in 4 minutes"; cat "$log"; exit 1; }
 
 (cd web && pnpm exec openapi-typescript "http://localhost:$port/api/openapi/v1.json" -o "$fresh")
 

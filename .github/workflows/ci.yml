@@ -48,7 +48,7 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('api/**/*.csproj', 'api/Directory.Packages.props') }}
           restore-keys: nuget-${{ runner.os }}-
-      - run: dotnet test api/TaxesUa.slnx --filter "${{ matrix.filter }}" --logger "trx;LogFileName=${{ matrix.shard }}.trx" --results-directory api/TestResults
+      - run: dotnet test api/TaxesUa.slnx --filter "${{ matrix.filter }}" --logger "trx;LogFilePrefix=${{ matrix.shard }}" --results-directory api/TestResults
       - name: Keep the test results of a failed run
         if: failure() || cancelled()
         uses: actions/upload-artifact@v7
@@ -142,6 +142,9 @@ jobs:
         if: steps.browsers.outputs.cache-hit != 'true'
       - run: pnpm exec playwright install-deps chromium
         if: steps.browsers.outputs.cache-hit == 'true'
+      - name: Pull the base images, retrying
+        working-directory: .
+        run: .github/scripts/prepull-images.sh
       # Builds the Compose stack, runs the suite against it and removes the stack with its volumes.
       - run: pnpm e2e
       - name: Keep the report and traces of a failed run
@@ -160,6 +163,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: Pull the base images, retrying
+        run: .github/scripts/prepull-images.sh
       - uses: docker/setup-buildx-action@v4
       - uses: docker/build-push-action@v7
         with:
@@ -173,6 +178,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: Pull the base images, retrying
+        run: .github/scripts/prepull-images.sh
       - uses: docker/setup-buildx-action@v4
       - uses: docker/build-push-action@v7
         with:
@@ -186,6 +193,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: Pull the base images, retrying
+        run: .github/scripts/prepull-images.sh
       - run: deploy/check-compose.sh
       - run: deploy/smoke-test.sh
 
