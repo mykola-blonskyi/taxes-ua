@@ -34,6 +34,8 @@ internal sealed class TaxYearConfig
 
     public int AdvanceRecommendedDay { get; set; }
 
+    public int Group3ApplicationDays { get; set; }
+
     public DateOnly[] Holidays { get; set; } = [];
 
     public string Source { get; set; } = string.Empty;
@@ -59,7 +61,8 @@ internal sealed class TaxYearConfig
         Holidays,
         IncomeLimitKop,
         ExcessRateBp,
-        LimitWarnThresholdsPct);
+        LimitWarnThresholdsPct,
+        Group3ApplicationDays);
 
     // VerifiedAt is left unset on purpose: a verification attests to the numbers someone compared
     // against the law, and nobody has compared the copy.
@@ -79,6 +82,7 @@ internal sealed class TaxYearConfig
             DeclarationDays = DeclarationDays,
             TaxPaymentDaysAfterDeclaration = TaxPaymentDaysAfterDeclaration,
             AdvanceRecommendedDay = AdvanceRecommendedDay,
+            Group3ApplicationDays = Group3ApplicationDays,
             Holidays = [.. Holidays],
             Source = Source,
         };

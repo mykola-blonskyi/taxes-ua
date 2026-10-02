@@ -219,7 +219,7 @@ public sealed class LimitCrossingNextYearEndpointsTests(ApiFixture fixture) : IC
         foreach (var configured in new[] { year, year + 1 })
         {
             var taxYear = new TaxYearConfigRequest(
-                864_700, 500, 100, 2_200, 1_500, 1, [85, 100], 19, 40, 10, 15, [], "a test source");
+                864_700, 500, 100, 2_200, 1_500, 1, [85, 100], 19, 40, 10, 15, 10, [], "a test source");
             Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync($"/api/tax-years/{configured}", taxYear, Json)).StatusCode);
             Assert.Equal(HttpStatusCode.OK, (await owner.PostAsync($"/api/tax-years/{configured}/verify", null)).StatusCode);
         }

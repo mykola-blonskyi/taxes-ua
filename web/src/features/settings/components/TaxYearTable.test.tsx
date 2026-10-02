@@ -23,6 +23,7 @@ const year2026: TaxYearConfigResponse = {
   declarationDays: 40,
   taxPaymentDaysAfterDeclaration: 10,
   advanceRecommendedDay: 15,
+  group3ApplicationDays: 10,
   holidays: ["2026-01-01", "2026-08-24"],
   source: "Закон про держбюджет",
   verifiedAt: null,
@@ -46,6 +47,7 @@ const copy = {
     declarationDays: "Днів на подання декларації",
     paymentDays: "Днів на сплату після декларації",
     advanceDay: "Рекомендований день авансу",
+    group3Days: "Днів на заяву про 3 групу",
     holidays: "Святкові дні",
     source: "Джерело",
     unverified: "Не перевірено",
@@ -69,6 +71,7 @@ const copy = {
     declarationDays: "Дней на подачу декларации",
     paymentDays: "Дней на уплату после декларации",
     advanceDay: "Рекомендуемый день аванса",
+    group3Days: "Дней на заявление о 3 группе",
     holidays: "Праздничные дни",
     source: "Источник",
     unverified: "Не проверено",
@@ -99,6 +102,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable in %s", (locale) => {
     expect(screen.getByLabelText(`${words.declarationDays} 2026`)).toHaveValue(40);
     expect(screen.getByLabelText(`${words.paymentDays} 2026`)).toHaveValue(10);
     expect(screen.getByLabelText(`${words.advanceDay} 2026`)).toHaveValue(15);
+    expect(screen.getByLabelText(`${words.group3Days} 2026`)).toHaveValue(10);
     expect(screen.getByLabelText(`${words.holidays} 2026`)).toHaveValue("2026-01-01, 2026-08-24");
     expect(screen.getByLabelText(`${words.source} 2026`)).toHaveValue("Закон про держбюджет");
     // The wide table's header and the narrow card's field both carry the hint.
@@ -126,7 +130,12 @@ describe.each(["uk", "ru"] as const)("TaxYearTable in %s", (locale) => {
 
     const [request] = api.requestsTo(save);
     expect(request.path).toBe("/api/tax-years/2026");
-    expect(request.body).toMatchObject({ singleTaxRateBp: 300, minWageKop: 802_800, limitWarnThresholdsPct: [85, 100] });
+    expect(request.body).toMatchObject({
+      singleTaxRateBp: 300,
+      minWageKop: 802_800,
+      limitWarnThresholdsPct: [85, 100],
+      group3ApplicationDays: 10,
+    });
   });
 
   it("copies a year to the next one and marks it verified", async () => {

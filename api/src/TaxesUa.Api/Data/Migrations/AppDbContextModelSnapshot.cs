@@ -1152,6 +1152,15 @@ namespace TaxesUa.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("DpsAccountsRegistered")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("DpsEsvRegistered")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("DpsFopRegistered")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("EsvExempt")
                         .HasColumnType("boolean");
 
@@ -1159,6 +1168,15 @@ namespace TaxesUa.Api.Data.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateOnly?>("FopRegistrationDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("Group3ConfirmedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Group3ReceiptNumber")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly?>("Group3Since")
                         .HasColumnType("date");
 
                     b.Property<string>("Locale")
@@ -1210,6 +1228,9 @@ namespace TaxesUa.Api.Data.Migrations
                     b.Property<int>("ExcessRateBp")
                         .HasColumnType("integer");
 
+                    b.Property<int>("Group3ApplicationDays")
+                        .HasColumnType("integer");
+
                     b.PrimitiveCollection<DateOnly[]>("Holidays")
                         .IsRequired()
                         .HasColumnType("date[]");
@@ -1257,6 +1278,7 @@ namespace TaxesUa.Api.Data.Migrations
                             EsvMonthlyKop = 190234L,
                             EsvRateBp = 2200,
                             ExcessRateBp = 1500,
+                            Group3ApplicationDays = 10,
                             Holidays = new DateOnly[0],
                             IncomeLimitKop = 1009104900L,
                             IncomeLimitMinWages = 1167,

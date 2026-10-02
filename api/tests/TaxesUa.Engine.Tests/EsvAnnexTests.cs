@@ -143,7 +143,8 @@ public class EsvAnnexTests
         Holidays: [],
         IncomeLimitKop: 1_009_104_900,
         ExcessRateBp: 1_500,
-        LimitWarnThresholdsPct: [85, 100]);
+        LimitWarnThresholdsPct: [85, 100],
+        Group3ApplicationDays: 10);
 
     private static long Q3EsvKop(YearAccrual year) => year.Quarters.Single(quarter => quarter.Income.Quarter == 3).EsvKop;
 

@@ -408,7 +408,7 @@ public sealed partial class MonobankSyncTests
         new(row.ValueDate, row.AmountMinor, row.Currency, null, kind, reason, row.ClientName, row.InvoiceNumber, row.Description, null);
 
     private static TaxYearConfigRequest TaxYear() =>
-        new(800_000L, 600, 200, 2100, 1600, 1200, [80, 95], 20, 41, 11, 16, [], "a test source");
+        new(800_000L, 600, 200, 2100, 1600, 1200, [80, 95], 20, 41, 11, 16, 10, [], "a test source");
 
     private static async Task<TransactionResponse[]> Review(HttpClient owner) =>
         (await owner.GetFromJsonAsync<TransactionResponse[]>("/api/transactions/review", Json))!;

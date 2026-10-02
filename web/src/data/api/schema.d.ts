@@ -1834,6 +1834,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/dps-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DpsStatusResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DpsStatusRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DpsStatusResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["HttpValidationProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/tax-years": {
         parameters: {
             query?: never;
@@ -5263,6 +5344,14 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        BeforeGroup3Response: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** Format: int64 */
+            incomeKop: number | string;
+        };
         BudgetPaymentBackup: {
             /** Format: uuid */
             id: string;
@@ -5369,6 +5458,7 @@ export interface components {
             declaration: null | components["schemas"]["DeclarationDueResponse"];
             /** Format: int32 */
             overdueInvoiceCount: number | string;
+            group3: components["schemas"]["Group3StatusResponse"];
         };
         Deadline: {
             /** Format: date */
@@ -5504,6 +5594,8 @@ export interface components {
             registrationDateSet: boolean;
             missingDetails: ("Name" | "Rnokpp" | "TaxOffice" | "Kved" | "Address")[];
             outsideGroup3: boolean;
+            beforeGroup3: boolean;
+            group3Confirmed: boolean;
             unpaid: components["schemas"]["UnpaidResponse"];
             ready: boolean;
         };
@@ -5533,6 +5625,28 @@ export interface components {
         DeclarationType: "Reporting" | "NewReporting" | "Clarifying";
         /** @enum {null|string} */
         DeliveryFailure: "Blocked" | "Rejected" | "RateLimited" | "Unreachable" | "Timeout" | "ServerError" | "Unreadable" | "Authentication" | null;
+        DpsStatusRequest: {
+            /** Format: date */
+            group3Since: null | string;
+            confirmation: null | components["schemas"]["Group3ConfirmationDto"];
+            fopRegistered: boolean;
+            esvRegistered: boolean;
+            accountsRegistered: boolean;
+        };
+        DpsStatusResponse: {
+            /** Format: date */
+            group3Since: null | string;
+            confirmation: null | components["schemas"]["Group3ConfirmationDto"];
+            fopRegistered: boolean;
+            esvRegistered: boolean;
+            accountsRegistered: boolean;
+            /** Format: date */
+            fopRegistrationDate: null | string;
+            /** Format: date */
+            group3Start: null | string;
+            /** Format: date */
+            applicationDeadline: null | string;
+        };
         EmailAddressRequest: {
             address: null | string;
         };
@@ -5552,6 +5666,26 @@ export interface components {
             rateE4: number | string;
             /** Format: date */
             rateDate: string;
+        };
+        Group3ConfirmationBackup: {
+            /** Format: date */
+            confirmedOn: string;
+            receiptNumber: string;
+        };
+        Group3ConfirmationDto: {
+            /** Format: date */
+            confirmedOn: string;
+            receiptNumber: string;
+        };
+        Group3StatusResponse: {
+            /** Format: date */
+            group3Start: null | string;
+            confirmed: boolean;
+            /** Format: date */
+            applicationDeadline: null | string;
+            /** Format: int32 */
+            applicationDaysLeft: null | number | string;
+            beforeGroup3: null | components["schemas"]["BeforeGroup3Response"];
         };
         HttpValidationProblemDetails: {
             type?: null | string;
@@ -6165,6 +6299,7 @@ export interface components {
             months: null | components["schemas"]["MonthPeriodResponse"][];
             balances: null | components["schemas"]["YearBalancesResponse"];
             group3Quarters: (number | string)[];
+            esvQuarters: (number | string)[];
         };
         PeriodWarnings: {
             taxYearUnverified: boolean;
@@ -6175,6 +6310,7 @@ export interface components {
             yearBeforeRegistration: boolean;
             /** Format: int32 */
             missingTaxYear: null | number | string;
+            beforeGroup3: null | components["schemas"]["BeforeGroup3Response"];
         };
         ProblemDetails: {
             type?: null | string;
@@ -6219,6 +6355,7 @@ export interface components {
             cumulativeMilitaryLevyKop: number | string;
             deadlines: components["schemas"]["QuarterDeadlines"];
             obligations: null | components["schemas"]["QuarterObligations"];
+            group3: boolean;
         };
         /** @enum {null|string} */
         RateSource: "Nbu" | "Manual" | null;
@@ -6332,6 +6469,12 @@ export interface components {
             theme: string;
             defaultCurrency: string;
             backOnGroup3From: null | components["schemas"]["YearQuarter"];
+            /** Format: date */
+            group3Since: null | string;
+            group3Confirmation: null | components["schemas"]["Group3ConfirmationBackup"];
+            dpsFopRegistered: boolean;
+            dpsEsvRegistered: boolean;
+            dpsAccountsRegistered: boolean;
         };
         SettingsRequest: {
             /** Format: date */
@@ -6398,6 +6541,8 @@ export interface components {
             taxPaymentDaysAfterDeclaration: number | string;
             /** Format: int32 */
             advanceRecommendedDay: number | string;
+            /** Format: int32 */
+            group3ApplicationDays: number | string;
             holidays: string[];
             source: string;
         };
@@ -6429,6 +6574,8 @@ export interface components {
             taxPaymentDaysAfterDeclaration: number | string;
             /** Format: int32 */
             advanceRecommendedDay: number | string;
+            /** Format: int32 */
+            group3ApplicationDays: number | string;
             holidays: string[];
             source: string;
             /** Format: date-time */

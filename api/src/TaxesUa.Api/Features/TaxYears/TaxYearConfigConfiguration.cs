@@ -33,6 +33,7 @@ internal sealed class TaxYearConfigConfiguration : IEntityTypeConfiguration<TaxY
             DeclarationDays = 40,
             TaxPaymentDaysAfterDeclaration = 10,
             AdvanceRecommendedDay = 15,
+            Group3ApplicationDays = 10,
 
             // Rule 5: martial law makes holidays business days, so the list is empty rather than
             // unknown.

@@ -168,7 +168,7 @@ public sealed partial class TaxReserveEndpointsTests(ApiFixture fixture) : IClas
     }
 
     private static readonly TaxYearConfigInput Config = new(
-        864_700, 500, 100, 2_200, 19, 40, 10, [], 864_700 * 1_167, 1_500, [85, 100]);
+        864_700, 500, 100, 2_200, 19, 40, 10, [], 864_700 * 1_167, 1_500, [85, 100], 10);
 
     private static readonly FopSettingsInput Fop = new(
         [DayOfWeek.Saturday, DayOfWeek.Sunday], true, true, null, Engine.EsvRegistrationMonthPolicy.FullMonth, false);
@@ -217,7 +217,7 @@ public sealed partial class TaxReserveEndpointsTests(ApiFixture fixture) : IClas
     private static async Task PutYear(HttpClient client, int year, int singleTaxBp = 500, int levyBp = 100)
     {
         var config = new TaxYearConfigRequest(
-            864_700, singleTaxBp, levyBp, 2_200, 1_500, 1_167, [85, 100], 19, 40, 10, 15, [], "a test source");
+            864_700, singleTaxBp, levyBp, 2_200, 1_500, 1_167, [85, 100], 19, 40, 10, 15, 10, [], "a test source");
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", config, Json)).StatusCode);
     }
 

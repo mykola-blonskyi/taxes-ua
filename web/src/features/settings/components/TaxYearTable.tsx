@@ -27,6 +27,7 @@ type FormState = {
   declarationDays: number;
   taxPaymentDaysAfterDeclaration: number;
   advanceRecommendedDay: number;
+  group3ApplicationDays: number;
   holidaysText: string;
   source: string;
 };
@@ -44,6 +45,7 @@ function toFormState(taxYear: TaxYearConfigResponse): FormState {
     declarationDays: Number(taxYear.declarationDays),
     taxPaymentDaysAfterDeclaration: Number(taxYear.taxPaymentDaysAfterDeclaration),
     advanceRecommendedDay: Number(taxYear.advanceRecommendedDay),
+    group3ApplicationDays: Number(taxYear.group3ApplicationDays),
     holidaysText: taxYear.holidays.join(", "),
     source: taxYear.source,
   };
@@ -66,6 +68,7 @@ function toRequest(form: FormState): TaxYearConfigRequest {
     declarationDays: form.declarationDays,
     taxPaymentDaysAfterDeclaration: form.taxPaymentDaysAfterDeclaration,
     advanceRecommendedDay: form.advanceRecommendedDay,
+    group3ApplicationDays: form.group3ApplicationDays,
     holidays: form.holidaysText
       .split(",")
       .map((value) => value.trim())
@@ -118,6 +121,7 @@ export function TaxYearTable() {
             <th className="min-w-24 p-2 font-medium">{tYears("declarationDays")}</th>
             <th className="min-w-24 p-2 font-medium">{tYears("taxPaymentDaysAfterDeclaration")}</th>
             <th className="min-w-24 p-2 font-medium">{tYears("advanceRecommendedDay")}</th>
+            <th className="min-w-24 p-2 font-medium">{tYears("group3ApplicationDays")}</th>
             <th className="min-w-24 p-2 font-medium">
               {tYears("holidays")}
               <span className="block font-normal">{tYears("holidaysHint")}</span>
@@ -297,6 +301,16 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           value={form.advanceRecommendedDay}
           onChange={(value) => setForm((current) => ({ ...current, advanceRecommendedDay: value }))}
           errors={fieldErrors?.advanceRecommendedDay}
+        />
+      </td>
+      <td className="md:table-cell md:p-2">
+        <NumberField
+          id={`group3-application-days-${year}`}
+          label={`${tYears("group3ApplicationDays")} ${year}`}
+          labelClassName="text-xs text-muted-foreground md:sr-only"
+          value={form.group3ApplicationDays}
+          onChange={(value) => setForm((current) => ({ ...current, group3ApplicationDays: value }))}
+          errors={fieldErrors?.group3ApplicationDays}
         />
       </td>
       <td className="col-span-2 md:table-cell md:p-2">

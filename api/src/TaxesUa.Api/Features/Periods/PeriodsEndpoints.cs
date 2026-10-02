@@ -73,7 +73,8 @@ public static class PeriodsEndpoints
                 accrual.CumulativeExcessTaxKop,
                 accrual.CumulativeMilitaryLevyKop,
                 DeadlineCalendar.ForQuarter(year, accrual.Income.Quarter, configInput, settingsInput),
-                ToObligations(obligations, year, accrual.Income.Quarter)))
+                ToObligations(obligations, year, accrual.Income.Quarter),
+                accrual.Group3))
             .ToArray();
 
         var months = ledger is null
@@ -113,7 +114,8 @@ public static class PeriodsEndpoints
                                 (payment.Period as PaymentPeriod.Monthly)?.Month,
                                 payment.AmountKop)),
                     ]),
-            [.. Enumerable.Range(1, 4).Where(loaded.Accrual.InGroup3)]);
+            [.. Enumerable.Range(1, 4).Where(loaded.Accrual.InGroup3)],
+            [.. Enumerable.Range(1, 4).Where(quarter => loaded.Accrual.Accrues(PaymentKind.Esv, quarter))]);
     }
 
     private static QuarterObligations? ToObligations(
@@ -177,7 +179,8 @@ public static class PeriodsEndpoints
             excludedOperationCount,
             [.. negativeQuarters],
             loaded.Settings.FopRegistrationDate is { } registered && loaded.Accrual.Year < registered.Year,
-            loadedYears.MissingTaxYear);
+            loadedYears.MissingTaxYear,
+            BeforeGroup3Response.Of(loaded.Accrual.Income.BeforeGroup3));
     }
 
     private static DateOnly QuarterEnd(int year, int quarter) => MonthEnd(year, 3 * quarter);
@@ -195,7 +198,9 @@ public static class PeriodsEndpoints
 /// the mode changes nothing else in this response (Rule 6). <c>Quarters</c> and <c>Months</c> stop at
 /// the quarter named by <c>LimitCrossing</c>, when the year's income went over its limit (Rule 4).
 /// <c>Group3Quarters</c> are the year's quarters in group 3, before registration included, so a client
-/// can tell which payment periods the ledger leaves out without redoing the crossings.
+/// can tell which single tax and levy periods the ledger leaves out without redoing the crossings.
+/// <c>EsvQuarters</c> are those the ledger counts ESV for: the group 3 quarters and the ones before group
+/// 3 starts, since ESV does not depend on the tax system.
 /// </summary>
 internal sealed record PeriodsResponse(
     int Year,
@@ -204,7 +209,8 @@ internal sealed record PeriodsResponse(
     QuarterPeriodResponse[] Quarters,
     MonthPeriodResponse[]? Months,
     YearBalancesResponse? Balances,
-    int[] Group3Quarters);
+    int[] Group3Quarters,
+    int[] EsvQuarters);
 
 /// <summary>
 /// One month's accruals and Rule 6's advance for it. <c>RecommendedKop</c> is what of the month's
@@ -263,7 +269,8 @@ internal sealed record ObligationResponse(
 /// Rule 9, Rule 8 and Rule 7 as the screen needs them. Each field is one sentence the interface
 /// writes; the api sends no text, per ADR-002. <c>YearBeforeRegistration</c> and
 /// <c>MissingTaxYear</c> say why a year with a registration date still has no balances: the year
-/// precedes the Rule 7 ledger, or the ledger stopped at that unconfigured year.
+/// precedes the Rule 7 ledger, or the ledger stopped at that unconfigured year. <c>BeforeGroup3</c>
+/// is the part of the year on the general system, whose quarters owe ESV only (<c>Group3</c> false).
 /// </summary>
 internal sealed record PeriodWarnings(
     bool TaxYearUnverified,
@@ -271,7 +278,18 @@ internal sealed record PeriodWarnings(
     int ExcludedOperationCount,
     int[] NegativeCumulativeTaxQuarters,
     bool YearBeforeRegistration,
-    int? MissingTaxYear);
+    int? MissingTaxYear,
+    BeforeGroup3Response? BeforeGroup3);
+
+/// <summary>
+/// The days from registration to the day before group 3 starts that fall in the year, and the net
+/// income of that stretch, which the general system taxes and the app does not (Tax Code 298.1.4).
+/// </summary>
+internal sealed record BeforeGroup3Response(DateOnly From, DateOnly To, long IncomeKop)
+{
+    public static BeforeGroup3Response? Of(BeforeGroup3? stretch) =>
+        stretch is null ? null : new BeforeGroup3Response(stretch.From, stretch.To, stretch.IncomeKop);
+}
 
 /// <summary>
 /// Rule 4: the income went over the limit in <c>Quarter</c> of <c>Year</c>, so group 3 ends with it and
@@ -296,7 +314,8 @@ internal sealed record LimitCrossingResponse(
 /// One quarter's own accruals and the year-to-date figures through it. The cumulative figures are the
 /// declaration's numbers: Q1 is the quarter, Q2 the half-year, Q3 nine months, Q4 the year. The single
 /// tax includes the excess tax, and the two excess figures are the income over the limit and its tax,
-/// nonzero only in the quarter the limit is crossed in (Rule 4).
+/// nonzero only in the quarter the limit is crossed in (Rule 4). <c>Group3</c> false marks a quarter
+/// before group 3 starts, which owes ESV only.
 /// </summary>
 internal sealed record QuarterPeriodResponse(
     int Quarter,
@@ -311,4 +330,5 @@ internal sealed record QuarterPeriodResponse(
     long CumulativeExcessTaxKop,
     long CumulativeMilitaryLevyKop,
     QuarterDeadlines Deadlines,
-    QuarterObligations? Obligations);
+    QuarterObligations? Obligations,
+    bool Group3);

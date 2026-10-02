@@ -38,7 +38,9 @@ Formula: `AmountUahKop = roundHalfUp(AmountMinor × RateE4 / 10000)`.
 - Single Tax: `SingleTaxRateBp` of income (2026: 5%).
 - Military Levy: `MilitaryLevyRateBp` of income (2026: 1%).
 - ESV for oneself: `EsvRateBp` of the monthly minimum wage (2026: 22% × 8,647 = 1,902.34 UAH).
-  Paid from the month of FOP registration, regardless of income.
+  Paid from the month of FOP registration, regardless of income and of the tax system: a quarter
+  before `Group3Since` (Rule 8) accrues ESV like any other. Its months are reported on the ESV annex of
+  the general system's annual property and income declaration, not on the group 3 annex 1 (Rule 15).
 - Registration month: the full minimum (`EsvRegistrationMonthPolicy.FullMonth`, the default), whatever
   the registration day. Law 2464-VI sets the ESV of a FOP on the simplified system at no less than the
   minimum insurance contribution ("сума єдиного внеску не може бути меншою за розмір мінімального
@@ -51,7 +53,7 @@ Formula: `AmountUahKop = roundHalfUp(AmountMinor × RateE4 / 10000)`.
   https://7eminar.ua/news/6368-ci-platit-fop-jesv-jedinii-podatok-ta-viiskovii-zbir-u.
 - Until 2026-10-02 the default was `Prorated`, recorded as confirmed by the owner on 2026-09-27. That
   rested on the premise that the law allows a part-month minimum, which it does not. A migration moved
-  every owner on `Prorated` to `FullMonth` and logged the change in each owner's history, and a restore from backup reads `Prorated` as `FullMonth`
+  every owner on `Prorated` to `FullMonth` and logged the change in each owner's history, and a restore from a backup file older than schema 16 reads `Prorated` as `FullMonth`
   (ADR-018, amendment of 2026-10-02).
 - `Prorated` stays as a setting the interface labels as not matching the law. It prorates the base,
   the minimum wage times active days over the month's days, rounded once; the ESV is the rate on that
@@ -71,7 +73,8 @@ accrued for prior quarters of the year.
 Annual limit = `IncomeLimitMinWages` × minimum wage as of January 1 (2026: 10,091,049 UAH). The
 limit is not prorated for a partial year, whatever the registration date or the length of the year
 already elapsed. Income before `FopRegistrationDate` is excluded the same way it is from every
-other accrual (Rule 8), so the limit bar never counts it.
+other accrual (Rule 8), so the limit bar never counts it. Income before `Group3Since` is not group 3
+income and is excluded the same way (Rule 8).
 
 Warnings at 85% and 100% of the limit: at or above 85% of the limit is `Warn`, at or above the
 limit itself is `Exceeded`. Both boundaries are inclusive, so income at exactly 85.00% is already
@@ -110,6 +113,10 @@ payment the owner records for such a quarter, or for a month of one, is kept and
 group 3 balances, and never settles a group 3 obligation (Rule 7). The stop runs across years: after a Q4 crossing the switch starts with the next year's Q1, after a Q1 to
 Q3 crossing with the next quarter, and in both cases every later configured year is outside group 3
 too, whatever its own income. A year missing from the configured run passes the stop on.
+
+A quarter before `Group3Since` (Rule 8) is outside group 3 too, but it is not a crossing: its income is
+under the general system, whose taxes the app does not compute, and it still accrues ESV, which is owed
+from registration whatever the tax system.
 
 Only the owner lifts the stop, with the setting "back on group 3 from" a year and quarter. From that
 quarter on the app computes group 3 again, as a new period: its income, the limit test, the
@@ -272,7 +279,7 @@ is a statistic and not a balance, which is why it is the one place the kinds are
 
 ---
 
-## Rule 8. FOP registration
+## Rule 8. FOP registration and the start of group 3
 
 Before `FopRegistrationDate` there are no obligations. Operations with a `ValueDate` earlier than
 the registration date are flagged with a warning and excluded from income.
@@ -281,13 +288,58 @@ The exclusion is transitive: a refund linked to an excluded receipt is excluded 
 own date, so it neither lowers period income nor creates a tax credit. An unlinked refund is judged
 by its own date only.
 
-Advice for the owner: file the Group 3 application together with the registration, so the single
-tax applies from the registration date. Otherwise the general tax system applies until the 1st of
-the following month.
-
 A budget payment whose `PaidOn` is before `FopRegistrationDate` is a different case: it is still
 saved and credited toward its kind's balance (unlike a receipt, a payment is never excluded), and
 the payments list only shows a soft warning on that row so the owner can double-check the date.
+
+### The start of group 3
+
+Registration does not make the FOP a group 3 payer; the DPS register does (Tax Code 298.1.2, 298.1.4,
+#172):
+
+- An application for group 3 filed within `Group3ApplicationDays` (10) days of the state registration
+  makes the FOP a single tax payer from the registration date.
+- Otherwise the general system applies from the registration date. The FOP can move to group 3 only
+  from the first day of a later quarter, by an application filed at least 15 calendar days before that
+  quarter, once a year.
+
+The owner records the outcome in `Settings.Group3Since`: the registration date, or the first day of a
+quarter after it. The api refuses any other date. Null means the registration date, and the
+registration date itself is stored as null, so a corrected registration date carries group 3 with it.
+Saving a registration date clears a stored start that is not a quarter start after it, and a
+registration date after the group 3 receipt is refused. Owners who existed before #172 have null,
+unconfirmed, so nothing they see changed.
+
+Between the registration date and `Group3Since` the FOP is on the general system: personal income tax
+at 18% and military levy at 5% of net income, quarterly advances, and an annual property and income
+declaration. The app does not model those taxes. ESV does not depend on the tax system: it is owed
+from the registration date at the minimum (Rule 3), so the app keeps accruing it. That stretch is
+otherwise treated like a quarter outside group 3 after a limit crossing (Rule 4):
+
+- A quarter that ends before `Group3Since` has no single tax and no military levy: no obligations,
+  advances, reserve or reminders for them, and no group 3 declaration. A single tax or levy payment
+  that names it stays out of the ledger (Rule 7). Its ESV is accrued, owed, reminded and paid as
+  usual. Its months are reported on the ESV annex of the general system's annual property and income declaration (Tax Code 298.1.2, 298.1.4), which
+  the app does not build; the group 3 annex 1 and line 21 cover only the group 3 months (Rule 15).
+- An operation dated in the stretch is left out of group 3 income. The exclusion is transitive for a
+  linked refund, as above. The limit bar does not count it.
+- The dashboard and the periods screen name the stretch and the income received in it. They say that
+  the general system's income tax and levy are owed on it and the app does not compute them.
+
+Group 3 is confirmed when the owner marks it so, with the date and number of the DPS receipt
+(`Group3ConfirmedOn`, `Group3ReceiptNumber`). The app cannot read the register. Until the mark is
+set, every figure is provisional:
+
+- The dashboard shows a banner saying so, which links to the "Status with the DPS" checklist.
+- The declaration screen warns beside the file and the filed mark. Neither is blocked: the owner may
+  know more than the app does.
+- While `Group3Since` is the registration date, the application deadline (the registration date plus
+  the registration year's `Group3ApplicationDays`) is shown on the dashboard until it passes and is
+  reminded (Rule 17).
+
+The checklist has four manual ticks: FOP registered, single tax application accepted (the confirmation
+above), ESV payer registered, and accounts registered. Its hint says where to check them: the Cabinet's
+"Облікові дані" and Diia's "Податки".
 
 ---
 
@@ -665,7 +717,12 @@ carries them the same way, with a minus sign: the schema's amount type (`DGdecim
 rates are the declared year's `TaxYearConfig` rates, never code. A quarter after the crossing quarter
 (Rule 4), in the crossing year or a later one, has no group 3 declaration until the owner is back on
 group 3: no figures are shown, the screen says the FOP must file under the system it moved to, the
-declaration is not ready, and the home screen does not name it as due.
+declaration is not ready, and the home screen does not name it as due. A quarter that ends before
+`Group3Since` (Rule 8) is the same: the FOP files under the general system for it, and its ESV months
+go on that system's annual declaration, not on the group 3 annex 1. The annex's stretch starts on the
+group 3 start, and line 21 counts only the group 3 months. While group 3 is not
+confirmed (Rule 8), the screen warns beside the file and the filed mark that the figures are
+provisional; neither is blocked, and readiness does not count it.
 
 Crossing in Q1 to Q3 (settled in #112, ADR-018): the year's ESV for the group 3 months goes on the
 crossing quarter's declaration, the last group 3 declaration of the year, with annex 1 marked "перехід
@@ -867,9 +924,14 @@ What is reminded:
   screen. An advance dated on or after its quarter's own deadline is left to the quarterly reminder.
 - A quarter's declaration deadline (Rule 5) while the quarter is not marked filed (Rule 15), for every
   group 3 quarter that ends on or after the registration date.
+- The group 3 application deadline (Rule 8): the registration date plus the registration year's
+  `Group3ApplicationDays`, while group 3 is not confirmed and `Group3Since` is the registration date.
+  It is reminded 7 days before, 1 day before and on the date, and never after it. Confirming group 3,
+  or recording a later `Group3Since`, drops it.
 
 A quarter outside group 3 after a limit crossing (Rule 4) has no obligations and no declaration, so
-nothing of it is reminded. Everything due on one date comes in one message, and the single tax and the
+nothing of it is reminded. A quarter before `Group3Since` (Rule 8) has no single tax, levy or declaration
+to remind, but its ESV is reminded as usual. Everything due on one date comes in one message, and the single tax and the
 military levy keep an amount each.
 
 The moments are 7 days before, 1 day before and on the date, each at 09:00 in Kyiv, and, for a payment
@@ -892,7 +954,7 @@ delivered the message before the answer was lost, so it is neither retried nor r
 kept as possibly sent. Any other failure keeps the record too, and shows on the channel in settings; a blocked bot also switches the channel off.
 
 A message is plain text in the owner's interface language (uk or ru): the date and the days left, one
-line per item (the kind and period with the amount owed now, or the declaration to file), and a link to
+line per item (the kind and period with the amount owed now, the declaration to file, or the group 3 application to file), and a link to
 the app's home screen, where the pay panel is. The runs are 5 minutes apart.
 
 Email is a channel like Telegram, through the same sender, the same sent log (the channel is part of the

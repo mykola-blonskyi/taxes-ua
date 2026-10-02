@@ -50,6 +50,10 @@ export function QuartersTable({ quarters }: { quarters: Quarter[] }) {
   const t = useTranslations("periods");
   const locale = useLocale();
 
+  // A quarter before group 3 starts owes ESV only (Rule 8): no declaration and no single tax payment.
+  const groupThreeOnly = (quarter: Quarter, deadline: Quarter["deadlines"]["declaration"]) =>
+    quarter.group3 ? <DeadlineDate deadline={deadline} locale={locale} /> : <span className="text-muted-foreground">—</span>;
+
   const columns: PeriodColumn<Quarter>[] = [
     {
       key: "income",
@@ -122,12 +126,12 @@ export function QuartersTable({ quarters }: { quarters: Quarter[] }) {
     {
       key: "declarationDue",
       header: t("declaration"),
-      cell: (quarter) => <DeadlineDate deadline={quarter.deadlines.declaration} locale={locale} />,
+      cell: (quarter) => groupThreeOnly(quarter, quarter.deadlines.declaration),
     },
     {
       key: "taxPaymentDue",
       header: t("taxPayment"),
-      cell: (quarter) => <DeadlineDate deadline={quarter.deadlines.taxPayment} locale={locale} />,
+      cell: (quarter) => groupThreeOnly(quarter, quarter.deadlines.taxPayment),
     },
   ];
 

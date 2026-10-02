@@ -20,6 +20,8 @@ internal static class DeclarationReadiness
         InvoicingDetails? invoicing,
         DeclarationDetails? details,
         bool outsideGroup3,
+        bool beforeGroup3,
+        bool group3Confirmed,
         PaymentLedger? ledger)
     {
         var missingDetails = DeclarationDetails.Missing(invoicing, details);
@@ -28,7 +30,8 @@ internal static class DeclarationReadiness
             && taxYearVerified
             && registrationDateSet
             && missingDetails.Length == 0
-            && !outsideGroup3;
+            && !outsideGroup3
+            && !beforeGroup3;
 
         return new DeclarationReadinessResponse(
             receiptsToReview,
@@ -37,6 +40,8 @@ internal static class DeclarationReadiness
             registrationDateSet,
             missingDetails,
             outsideGroup3,
+            beforeGroup3,
+            group3Confirmed,
             new UnpaidResponse(
                 Remaining(ledger?.SingleTax),
                 Remaining(ledger?.MilitaryLevy),
@@ -50,12 +55,15 @@ internal static class DeclarationReadiness
 }
 
 /// <summary>
-/// Every item but <c>Unpaid</c> blocks <c>Ready</c>: receipts or payment candidates left to review,
-/// an unverified tax year, no registration date, a missing detail, and a quarter after the one the
-/// limit was crossed in, which has no group 3 declaration (Rule 4). The crossing quarter itself does not
-/// block: its 15% lines are filled. <c>ReceiptsToReview</c> counts the year's imports
-/// through the quarter's end; <c>PendingPaymentCandidates</c> counts the pending ones whose payment
-/// date in Kyiv falls in the quarter.
+/// Every item but <c>Unpaid</c> and <c>Group3Confirmed</c> blocks <c>Ready</c>: receipts or payment
+/// candidates left to review, an unverified tax year, no registration date, a missing detail, a quarter
+/// after the one the limit was crossed in, which has no group 3 declaration (Rule 4), and a quarter that
+/// ends before group 3 starts, which is on the general system (<c>BeforeGroup3</c>, Tax Code 298.1.4).
+/// The crossing quarter itself does not block: its 15% lines are filled. <c>Group3Confirmed</c> false
+/// is a warning only: the DPS may not have the group 3 record yet, but the declaration is still due.
+/// <c>ReceiptsToReview</c> counts the year's imports through the quarter's end;
+/// <c>PendingPaymentCandidates</c> counts the pending ones whose payment date in Kyiv falls in the
+/// quarter.
 /// </summary>
 internal sealed record DeclarationReadinessResponse(
     int ReceiptsToReview,
@@ -64,6 +72,8 @@ internal sealed record DeclarationReadinessResponse(
     bool RegistrationDateSet,
     DeclarationDetailField[] MissingDetails,
     bool OutsideGroup3,
+    bool BeforeGroup3,
+    bool Group3Confirmed,
     UnpaidResponse Unpaid,
     bool Ready);
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
+import type { PaymentKind } from "@/data/payments/usePayments";
 import { renderApp, screen, stubFetch, waitFor, type Routes } from "@/test/harness";
 import type { PeriodValue } from "../period";
 import { PeriodSelect } from "./PeriodSelect";
@@ -7,15 +8,21 @@ import { PeriodSelect } from "./PeriodSelect";
 const hintUk = "Цей період поза групою 3: платіж не зарахується в борги групи 3 і буде показаний окремо.";
 const hintRu = "Этот период вне группы 3: платёж не засчитается в долги группы 3 и будет показан отдельно.";
 
-function Host({ initial = "q1" }: { initial?: PeriodValue }) {
+function Host({ initial = "q1", kind = "SingleTax" }: { initial?: PeriodValue; kind?: PaymentKind }) {
   const [value, setValue] = useState<PeriodValue>(initial);
 
-  return <PeriodSelect id="period" year={2026} value={value} onChange={setValue} />;
+  return <PeriodSelect id="period" year={2026} kind={kind} value={value} onChange={setValue} />;
 }
 
 // The owner moved to group 3 in the third quarter: only quarters 3 and 4 are in the group 3 ledger.
 const fromThirdQuarter: Routes = {
-  "GET /api/periods/{year}": { year: 2026, balances: {}, group3Quarters: [3, 4] },
+  "GET /api/periods/{year}": { year: 2026, balances: {}, group3Quarters: [3, 4], esvQuarters: [3, 4] },
+};
+
+// Registered in the second quarter, on group 3 from the third: ESV is owed from registration, so the
+// ledger counts it for the second quarter too.
+const registeredBeforeGroup3: Routes = {
+  "GET /api/periods/{year}": { year: 2026, balances: {}, group3Quarters: [3, 4], esvQuarters: [2, 3, 4] },
 };
 
 describe("PeriodSelect", () => {
@@ -67,8 +74,27 @@ describe("PeriodSelect", () => {
     expect(screen.getByText(hintUk)).toBeVisible();
   });
 
+  it("does not warn about an ESV payment for a quarter before group 3, which the ledger still counts", async () => {
+    stubFetch(registeredBeforeGroup3);
+    const { user } = renderApp(<Host initial="q2" kind="Esv" />);
+    const select = screen.getByRole("combobox", { name: "Період" });
+
+    await user.selectOptions(select, "q1");
+    expect(await screen.findByText(hintUk)).toBeVisible();
+
+    await user.selectOptions(select, "q2");
+    expect(screen.queryByText(hintUk)).not.toBeInTheDocument();
+  });
+
+  it("still warns about the single tax for a quarter before group 3", async () => {
+    stubFetch(registeredBeforeGroup3);
+    renderApp(<Host initial="q2" kind="SingleTax" />);
+
+    expect(await screen.findByText(hintUk)).toBeVisible();
+  });
+
   it("never warns for a year without balances", async () => {
-    const api = stubFetch({ "GET /api/periods/{year}": { year: 2026, balances: null, group3Quarters: [] } });
+    const api = stubFetch({ "GET /api/periods/{year}": { year: 2026, balances: null, group3Quarters: [], esvQuarters: [] } });
     renderApp(<Host />);
 
     await waitFor(() => expect(api.requests).toHaveLength(1));

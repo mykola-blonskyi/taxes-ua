@@ -153,7 +153,8 @@ public class PaymentsOutsideGroup3Tests
         Holidays: [],
         IncomeLimitKop: LimitKop,
         ExcessRateBp: 1_500,
-        LimitWarnThresholdsPct: [85, 100]);
+        LimitWarnThresholdsPct: [85, 100],
+        Group3ApplicationDays: 10);
 
     private static readonly FopSettingsInput RegisteredIn2025 = new(
         WeekendDays: [DayOfWeek.Saturday, DayOfWeek.Sunday],

@@ -5,20 +5,32 @@ import { periodsQueryKey, useIsOutsideGroup3, type PeriodsResponse } from "./use
 
 type Balances = NonNullable<PeriodsResponse["balances"]>;
 
-function periods(balances: boolean, group3Quarters: PeriodsResponse["group3Quarters"]): PeriodsResponse {
-  return { balances: balances ? ({} as Balances) : null, group3Quarters } as PeriodsResponse;
+function periods(
+  balances: boolean,
+  group3Quarters: PeriodsResponse["group3Quarters"],
+  esvQuarters: PeriodsResponse["esvQuarters"] = group3Quarters,
+): PeriodsResponse {
+  return { balances: balances ? ({} as Balances) : null, group3Quarters, esvQuarters } as PeriodsResponse;
 }
+
+type Kind = Parameters<typeof useIsOutsideGroup3>[2];
 
 // The hook is rendered once on the server, where a query answers from what is already cached and
 // starts no request, so the answer is the whole of what the hook decides.
-function hint(year: number, quarter: number, cached: PeriodsResponse | undefined, cachedYear = year): boolean {
+function hint(
+  year: number,
+  quarter: number,
+  cached: PeriodsResponse | undefined,
+  cachedYear = year,
+  kind: Kind = "SingleTax",
+): boolean {
   const client = new QueryClient();
   if (cached) {
     client.setQueryData([...periodsQueryKey, cachedYear], cached);
   }
 
   function Probe() {
-    return <>{String(useIsOutsideGroup3(year, quarter))}</>;
+    return <>{String(useIsOutsideGroup3(year, quarter, kind))}</>;
   }
 
   return (
@@ -49,6 +61,16 @@ describe("useIsOutsideGroup3", () => {
     ["a year without balances and no quarters", [], 1],
   ])("never warns for %s", (_name, group3Quarters, quarter) => {
     expect(hint(2026, quarter, periods(false, group3Quarters))).toBe(false);
+  });
+
+  it.each([
+    ["ESV for a quarter before group 3", "Esv", 2, false],
+    ["the single tax for a quarter before group 3", "SingleTax", 2, true],
+    ["the military levy for a quarter before group 3", "MilitaryLevy", 2, true],
+    ["ESV for a quarter before registration", "Esv", 1, true],
+    ["a payment of no kind yet for a quarter before group 3", null, 2, true],
+  ] as const)("registered in Q2, group 3 from Q3: %s", (_name, kind, quarter, outside) => {
+    expect(hint(2026, quarter, periods(true, [3, 4], [2, 3, 4]), 2026, kind)).toBe(outside);
   });
 
   it("does not warn before the year's periods have loaded", () => {

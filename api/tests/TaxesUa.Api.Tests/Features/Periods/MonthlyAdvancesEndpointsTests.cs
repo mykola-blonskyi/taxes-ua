@@ -113,7 +113,7 @@ public sealed class MonthlyAdvancesEndpointsTests(ApiFixture fixture) : IClassFi
     private static async Task SetUp(HttpClient client, PaymentMode mode)
     {
         var year = new TaxYearConfigRequest(
-            864_700, 500, 100, 2_200, 1_500, 1_167, [85, 100], 19, 40, 10, 15, [], "a test source");
+            864_700, 500, 100, 2_200, 1_500, 1_167, [85, 100], 19, 40, 10, 15, 10, [], "a test source");
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{Year}", year, Json)).StatusCode);
         await PutSettings(client, mode);
 

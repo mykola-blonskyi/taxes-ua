@@ -46,9 +46,10 @@ internal sealed record BackupDocument(
     // counterEdrpou (#98); 10 added the settings' backOnGroup3From (#118); 11 added notificationChannels (#106);
     // 12 added declarationFiles and the declaration details' taxOfficeName (#111); 13 added the declaration
     // files' annexFileName and annexContent (#112); 14 added reserveJar (#102); 15 added the notification
-    // channels' confirmedAt, which email needs because an address waits for its link (#107). An older file is
+    // channels' confirmedAt, which email needs because an address waits for its link (#107); 16 added the
+    // settings' group3Since, group3Confirmation and the three DPS registration ticks (#172). An older file is
     // upgraded to this shape one version at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 15;
+    public const int CurrentSchemaVersion = 16;
 
     private const int MaxExternalIdLength = 200;
 
@@ -165,6 +166,11 @@ internal sealed record BackupDocument(
         if (version <= 14)
         {
             UpgradeFromVersion14(root);
+        }
+
+        if (version <= 15)
+        {
+            UpgradeFromVersion15(root);
         }
     }
 
@@ -339,13 +345,36 @@ internal sealed record BackupDocument(
     // a Telegram chat, confirmed when it was linked.
     private static void UpgradeFromVersion14(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 15;
         if (root["notificationChannels"] is JsonArray channels)
         {
             foreach (var channel in channels.OfType<JsonObject>())
             {
                 channel["confirmedAt"] = channel["linkedAt"]?.DeepClone();
             }
+        }
+    }
+
+    // A version 15 file predates the DPS status (#172): the app assumed group 3 from registration, which a
+    // null group3Since says, and nothing was confirmed or ticked, as the migration leaves a stored owner. It also
+    // predates the move off the wrong Prorated default, and cannot tell that default from a deliberate
+    // choice, so its Prorated is read as FullMonth, as the migration did for stored owners (ADR-018
+    // amendment). A version 16 file is written after that move, so its Prorated is the owner's choice.
+    private static void UpgradeFromVersion15(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        if (root["settings"] is JsonObject settings)
+        {
+            if (settings["esvRegistrationMonthPolicy"]?.ToString() == nameof(EsvRegistrationMonthPolicy.Prorated))
+            {
+                settings["esvRegistrationMonthPolicy"] = nameof(EsvRegistrationMonthPolicy.FullMonth);
+            }
+
+            settings["group3Since"] = null;
+            settings["group3Confirmation"] = null;
+            settings["dpsFopRegistered"] = false;
+            settings["dpsEsvRegistered"] = false;
+            settings["dpsAccountsRegistered"] = false;
         }
     }
 
@@ -388,6 +417,7 @@ internal sealed record BackupDocument(
         if (Settings is { } settings)
         {
             Merge("settings", SettingsEndpoints.Validate(settings.ToRequest()));
+            Merge("settings", DpsStatusEndpoints.Validate(settings.ToDpsStatusRequest(), settings.FopRegistrationDate, today));
         }
 
         if (InvoicingDetails is { } invoicing)
@@ -776,7 +806,12 @@ internal sealed record SettingsBackup(
     string Locale,
     string Theme,
     string DefaultCurrency,
-    YearQuarter? BackOnGroup3From)
+    YearQuarter? BackOnGroup3From,
+    DateOnly? Group3Since,
+    Group3ConfirmationBackup? Group3Confirmation,
+    bool DpsFopRegistered,
+    bool DpsEsvRegistered,
+    bool DpsAccountsRegistered)
 {
     public static SettingsBackup From(SettingsEntity settings) => new(
         settings.FopRegistrationDate,
@@ -789,16 +824,28 @@ internal sealed record SettingsBackup(
         settings.Locale,
         settings.Theme,
         settings.DefaultCurrency,
-        settings.BackOnGroup3From);
+        settings.BackOnGroup3From,
+        settings.Group3Since,
+        DpsStatusEndpoints.ConfirmationOf(settings) is { } confirmation
+            ? new Group3ConfirmationBackup(confirmation.ConfirmedOn, confirmation.ReceiptNumber)
+            : null,
+        settings.DpsFopRegistered,
+        settings.DpsEsvRegistered,
+        settings.DpsAccountsRegistered);
 
-    // A file cannot tell the old, wrong Prorated default from a deliberate choice, so restore never brings
-    // it back (ADR-018 amendment).
+    public DpsStatusRequest ToDpsStatusRequest() => DpsStatusEndpoints.Normalize(new(
+        Group3Since,
+        Group3Confirmation is { } confirmation
+            ? new Group3ConfirmationDto(confirmation.ConfirmedOn, confirmation.ReceiptNumber)
+            : null,
+        DpsFopRegistered,
+        DpsEsvRegistered,
+        DpsAccountsRegistered));
+
     public SettingsRequest ToRequest() => new(
         FopRegistrationDate,
         PaymentMode,
-        EsvRegistrationMonthPolicy == EsvRegistrationMonthPolicy.Prorated
-            ? EsvRegistrationMonthPolicy.FullMonth
-            : EsvRegistrationMonthPolicy,
+        EsvRegistrationMonthPolicy,
         EsvExempt,
         TaxPaymentCountsFromStatutoryDeclarationDate,
         ShiftTaxPaymentFromWeekend,
@@ -812,9 +859,13 @@ internal sealed record SettingsBackup(
     {
         var settings = new SettingsEntity { UserId = userId };
         SettingsEndpoints.Apply(settings, ToRequest());
+        DpsStatusEndpoints.Apply(settings, ToDpsStatusRequest());
         return settings;
     }
 }
+
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+internal sealed record Group3ConfirmationBackup(DateOnly ConfirmedOn, string ReceiptNumber);
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record ClientBackup(

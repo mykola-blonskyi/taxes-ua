@@ -10,6 +10,7 @@ using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Engine;
+using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
 
 namespace TaxesUa.Api.Features.Dashboard;
 
@@ -38,6 +39,13 @@ public static class DashboardEndpoints
                 var loaded = await YearAccruals.LoadAsync(database, user.Id, today.Year, cancellationToken);
                 var declaration = await DeclarationDueAsync(database, user.Id, today, cancellationToken);
 
+                var group3 = await Group3StatusAsync(
+                    database,
+                    loaded?.Viewed.Settings ?? await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken),
+                    loaded?.Viewed.Accrual.Income.BeforeGroup3,
+                    today,
+                    cancellationToken);
+
                 // A gap in the configured years stops the ledger (see LoadedYears), so any debt shown
                 // would leave out that year's and could be wrong.
                 if (loaded is null || loaded.MissingTaxYear is not null)
@@ -55,7 +63,8 @@ public static class DashboardEndpoints
                         null,
                         needsReview,
                         declaration,
-                        overdueInvoices));
+                        overdueInvoices,
+                        group3));
                 }
 
                 var settings = loaded.Viewed.Settings.ToEngineInput();
@@ -77,7 +86,7 @@ public static class DashboardEndpoints
                 // is any next-step debt. Income outside group 3 is not group 3 income, so the bar stops
                 // where the accruals do and its excess tax is the one owed; a year with no quarter in
                 // group 3 has no bar.
-                var limit = accrual.Quarters is [.., var last]
+                var limit = accrual.Quarters.LastOrDefault(each => each.Group3) is { } last
                     ? LimitMonitor.Evaluate(last.Income.CumulativeIncomeKop, loaded.Viewed.Config.ToEngineInput())
                     : null;
 
@@ -91,7 +100,8 @@ public static class DashboardEndpoints
                     reserve is null ? null : await ToReserveAsync(database, user.Id, reserve, today, time.GetUtcNow(), cancellationToken),
                     needsReview,
                     declaration,
-                    overdueInvoices));
+                    overdueInvoices,
+                    group3));
             })
             .WithTags("Dashboard")
             .RequireAuthorization()
@@ -127,6 +137,30 @@ public static class DashboardEndpoints
         }
 
         return new DeclarationDueResponse(year, quarter, due, due.DayNumber - today.DayNumber);
+    }
+
+    // The application deadline shows while the reminder plan would still remind of it, through the
+    // deadline itself: Group3Application.Pending is the predicate both read.
+    private static async Task<Group3StatusResponse> Group3StatusAsync(
+        AppDbContext database,
+        SettingsEntity settings,
+        BeforeGroup3? beforeGroup3,
+        DateOnly today,
+        CancellationToken cancellationToken)
+    {
+        var fop = settings.ToEngineInput();
+        var deadline = await DpsStatusEndpoints.RegistrationYearConfigAsync(database, settings, cancellationToken) is { } config
+            && Group3Application.Pending(fop, config) is { } pending
+            && today <= pending
+                ? pending
+                : (DateOnly?)null;
+
+        return new Group3StatusResponse(
+            fop.Group3Start,
+            fop.Group3Confirmed,
+            deadline,
+            deadline is { } due ? due.DayNumber - today.DayNumber : null,
+            BeforeGroup3Response.Of(beforeGroup3));
     }
 
     private static KindCreditResponse[] Credits(PaymentLedger ledger) =>
@@ -237,7 +271,22 @@ internal sealed record DashboardResponse(
     ReserveResponse? Reserve,
     int NeedsReviewCount,
     DeclarationDueResponse? Declaration,
-    int OverdueInvoiceCount);
+    int OverdueInvoiceCount,
+    Group3StatusResponse Group3);
+
+/// <summary>
+/// The FOP's group 3 status with the DPS. <c>Group3Start</c> is the first day the figures count as
+/// group 3, null without a registration date. <c>ApplicationDeadline</c> is Tax Code 298.1.2's last
+/// day for the application, sent while it is unconfirmed, group 3 is expected from registration and
+/// the day has not passed; <c>ApplicationDaysLeft</c> counts Kyiv days to it. <c>BeforeGroup3</c> is
+/// this year's stretch on the general system, between registration and <c>Group3Start</c>.
+/// </summary>
+internal sealed record Group3StatusResponse(
+    DateOnly? Group3Start,
+    bool Confirmed,
+    DateOnly? ApplicationDeadline,
+    int? ApplicationDaysLeft,
+    BeforeGroup3Response? BeforeGroup3);
 
 /// <summary><c>DaysLeft</c> counts Kyiv days to <c>DueDate</c>, zero on the day itself.</summary>
 internal sealed record DeclarationDueResponse(int Year, int Quarter, DateOnly DueDate, int DaysLeft);

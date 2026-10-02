@@ -95,7 +95,12 @@ function Declaration({ declaration, period, today }: { declaration: DeclarationR
         </div>
       </dl>
 
-      <FilingMark filed={declaration.filed} period={period} today={today} />
+      <FilingMark
+        filed={declaration.filed}
+        period={period}
+        today={today}
+        group3Confirmed={declaration.readiness.group3Confirmed}
+      />
       <Readiness year={period.year} readiness={declaration.readiness} />
       <Figures declaration={declaration} />
       <XmlFile declaration={declaration} period={period} />

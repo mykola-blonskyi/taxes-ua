@@ -203,7 +203,8 @@ public static class Balances
     /// <param name="years">The years in range, in any order and not necessarily contiguous.</param>
     /// <param name="payments">Every payment the owner has. Those named for a year after the last one
     /// in range belong to a later view and are left out; those named for a quarter of a year in range
-    /// that is outside group 3 go to <see cref="KindLedger.OutsideGroup3"/>; those named for any other
+    /// that has no accrual of their kind go to <see cref="KindLedger.OutsideGroup3"/> (ESV of a quarter
+    /// before group 3 starts is accrued, its single tax and levy are not); those named for any other
     /// quarter, even one of a year before registration or absent from <paramref name="years"/>, are
     /// credit.</param>
     public static PaymentLedger ForYears(
@@ -227,7 +228,7 @@ public static class Balances
         var outsideGroup3 = payments
             .Where(payment => payment.PeriodYear <= horizon)
             .ToLookup(payment => accrualOf.TryGetValue(payment.PeriodYear, out var accrual)
-                && !accrual.InGroup3(payment.Period.Quarter));
+                && !accrual.Accrues(payment.Kind, payment.Period.Quarter));
         return new PaymentLedger(
             ForKind(PaymentKind.SingleTax, quarter => quarter.SingleTaxKop, deadlines => deadlines.TaxPayment),
             ForKind(PaymentKind.MilitaryLevy, quarter => quarter.MilitaryLevyKop, deadlines => deadlines.TaxPayment),

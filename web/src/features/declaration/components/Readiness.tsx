@@ -56,11 +56,18 @@ export function Readiness({ year, readiness }: { year: number; readiness: Declar
           : t("detailsUnmet", { fields: missing.map((field) => tFields(field)).join(", ") }),
       fix: { href: "/settings?tab=declaration", label: t("detailsCta") },
     },
-    {
-      key: "limit",
-      met: !readiness.outsideGroup3,
-      text: readiness.outsideGroup3 ? t("limitUnmet") : t("limitMet"),
-    },
+    readiness.beforeGroup3
+      ? {
+          key: "group3",
+          met: false,
+          text: t("beforeGroup3"),
+          fix: { href: "/settings?tab=dps", label: t("beforeGroup3Cta") },
+        }
+      : {
+          key: "group3",
+          met: !readiness.outsideGroup3,
+          text: readiness.outsideGroup3 ? t("limitUnmet") : t("limitMet"),
+        },
   ];
 
   return (

@@ -60,6 +60,16 @@ public static class SettingsEndpoints
                 }
 
                 var stored = await database.Settings.FindAsync([user.Id], cancellationToken);
+                if (stored?.Group3ConfirmedOn is { } confirmedOn
+                    && !(request.FopRegistrationDate is { } registered && registered <= confirmedOn))
+                {
+                    return Results.ValidationProblem(new Dictionary<string, string[]>
+                    {
+                        ["fopRegistrationDate"] =
+                            ["fopRegistrationDate must not be after the group 3 confirmation date."],
+                    });
+                }
+
                 if (stored is null)
                 {
                     stored = new Settings { UserId = user.Id };
@@ -67,6 +77,15 @@ public static class SettingsEndpoints
                 }
 
                 Apply(stored, request);
+                // Only a quarter start after the registration date stays a start of its own; anything else
+                // was "from registration", which null says without going stale when the date moves (Rule 8).
+                if (stored.Group3Since is { } since
+                    && !(stored.FopRegistrationDate is { } registration
+                        && DpsStatusEndpoints.IsQuarterStartAfter(since, registration)))
+                {
+                    stored.Group3Since = null;
+                }
+
                 await database.SaveChangesAsync(cancellationToken);
 
                 return Results.Ok(ToResponse(stored));

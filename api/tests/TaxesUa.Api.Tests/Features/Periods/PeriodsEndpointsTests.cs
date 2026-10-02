@@ -170,7 +170,8 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
                     config.Holidays,
                     config.MinWageKop * config.IncomeLimitMinWages,
                     config.ExcessRateBp,
-                    config.LimitWarnThresholdsPct),
+                    config.LimitWarnThresholdsPct,
+                    config.Group3ApplicationDays),
                 new FopSettingsInput(
                     settings.WeekendDays,
                     settings.TaxPaymentCountsFromStatutoryDeclarationDate,
@@ -420,6 +421,7 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         41,
         11,
         16,
+        10,
         holidays,
         "a test source");
 

@@ -368,6 +368,7 @@ public static class DeclarationsEndpoints
         var settings = viewed.Settings.ToEngineInput();
         var incomeKop = IncomeThrough(loaded, quarter);
         var inGroup3 = viewed.Accrual.InGroup3(quarter);
+        var beforeGroup3 = settings.Group3Start is { } group3Start && QuarterEnd(year, quarter) < group3Start;
 
         var yearStart = new DateOnly(year, 1, 1);
         var quarterEnd = QuarterEnd(year, quarter);
@@ -418,7 +419,9 @@ public static class DeclarationsEndpoints
                 settings.FopRegistrationDate is not null,
                 invoicing,
                 details,
-                !inGroup3,
+                !inGroup3 && !beforeGroup3,
+                beforeGroup3,
+                settings.Group3Confirmed,
                 ledger),
             filing is null ? null : ToFiling(filing, incomeKop),
             fileAvailable ? files : [],

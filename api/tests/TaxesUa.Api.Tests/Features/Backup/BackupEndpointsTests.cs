@@ -40,7 +40,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":15,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
+        """{"schemaVersion":16,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -152,18 +152,28 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             backup["transactions"]!.AsArray().Count(row => row!["reviewStatus"]!.GetValue<string>() == "Confirmed"));
     }
 
-    [Fact]
-    public async Task A_file_that_says_prorated_restores_as_the_full_month()
+    [Theory]
+    [InlineData(15, "FullMonth")]
+    [InlineData(16, "Prorated")]
+    public async Task Prorated_restores_as_the_full_month_only_from_a_file_older_than_version_16(int version, string restored)
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         var file = Baseline();
+        file["schemaVersion"] = version;
         file["settings"]!["esvRegistrationMonthPolicy"] = "Prorated";
+        if (version == 15)
+        {
+            foreach (var key in new[] { "group3Since", "group3Confirmation", "dpsFopRegistered", "dpsEsvRegistered", "dpsAccountsRegistered" })
+            {
+                file["settings"]!.AsObject().Remove(key);
+            }
+        }
 
         await Restore(owner, file.ToJsonString());
 
         var settings = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
-        Assert.Equal(EsvRegistrationMonthPolicy.FullMonth, settings!.EsvRegistrationMonthPolicy);
+        Assert.Equal(restored, settings!.EsvRegistrationMonthPolicy.ToString());
     }
 
     [Fact]
@@ -182,6 +192,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         current["reserveJar"] = null;
         current["declarationFiles"] = new JsonArray();
         current["settings"]!["backOnGroup3From"] = null;
+        current["settings"]!["group3Confirmation"] = null;
+        current["settings"]!["dpsFopRegistered"] = false;
+        current["settings"]!["dpsEsvRegistered"] = false;
         var version2 = current.DeepClone().AsObject();
         version2["schemaVersion"] = 2;
         version2.Remove("treasuryAccounts");
@@ -377,6 +390,36 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.False(saved["enabled"]!.GetValue<bool>());
         Assert.DoesNotContain("confirmEmail", backup);
         Assert.DoesNotContain("token", backup, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task A_restore_brings_back_the_dps_status_and_a_version_15_file_has_group_3_from_registration_unconfirmed()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+
+        await Restore(owner, Baseline().ToJsonString());
+        var restored = await owner.GetFromJsonAsync<DpsStatusResponse>("/api/settings/dps-status", Json);
+        var version15 = Baseline();
+        version15["schemaVersion"] = 15;
+        var settings = version15["settings"]!.AsObject();
+        foreach (var key in new[] { "group3Since", "group3Confirmation", "dpsFopRegistered", "dpsEsvRegistered", "dpsAccountsRegistered" })
+        {
+            settings.Remove(key);
+        }
+
+        await Restore(owner, version15.ToJsonString());
+        var upgraded = await owner.GetFromJsonAsync<DpsStatusResponse>("/api/settings/dps-status", Json);
+
+        Assert.Equal(
+            ((DateOnly?)null, new Group3ConfirmationDto(new DateOnly(2031, 1, 5), "9123456789"), true, true, false),
+            (restored!.Group3Since, restored.Confirmation, restored.FopRegistered, restored.EsvRegistered, restored.AccountsRegistered));
+        Assert.Equal(
+            ((DateOnly?)null, (Group3ConfirmationDto?)null, false, false, false),
+            (upgraded!.Group3Since, upgraded.Confirmation, upgraded.FopRegistered, upgraded.EsvRegistered, upgraded.AccountsRegistered));
+        Assert.Equal(new DateOnly(2031, 1, 1), upgraded.Group3Start);
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
     }
 
     [Theory]
@@ -812,6 +855,10 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "an email channel enabled before it is confirmed", "notificationChannels[1].enabled" },
         { "a telegram channel that was never confirmed", "notificationChannels[0].confirmedAt" },
         { "a newer schema version", null },
+        { "group 3 from the middle of a quarter", "settings.group3Since" },
+        { "a blank group 3 receipt number", "settings.confirmation.receiptNumber" },
+        { "a group 3 receipt before registration", "settings.confirmation.confirmedOn" },
+        { "a group 3 receipt dated after today", "settings.confirmation.confirmedOn" },
         { "country that is not ISO 3166-1", "clients[0].country" },
         { "malformed client email", "clients[0].email" },
         { "no schema version", null },
@@ -1005,10 +1052,13 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 // The total is the sum of the lines, recomputed on restore rather than trusted from the file.
                 .Where(name => entity != typeof(Invoice) || name != nameof(Invoice.TotalMinor))
                 .Where(name => entity != typeof(BankAccount) || !syncStateNotBackedUp.Contains(name))
-                // The year and the quarter of the return to group 3 travel as one YearQuarter.
+                // The year and the quarter of the return to group 3 travel as one YearQuarter, and the group 3
+                // receipt's date and number as one confirmation.
                 .Select(name => entity == typeof(SettingsEntity) && name.StartsWith(nameof(SettingsEntity.BackOnGroup3From), StringComparison.Ordinal)
                     ? nameof(SettingsEntity.BackOnGroup3From)
-                    : name);
+                    : entity == typeof(SettingsEntity) && name is nameof(SettingsEntity.Group3ConfirmedOn) or nameof(SettingsEntity.Group3ReceiptNumber)
+                        ? nameof(SettingsBackup.Group3Confirmation)
+                        : name);
             var carried = record.GetProperties().Select(property => property.Name).ToHashSet();
             Assert.All(columns, column => Assert.Contains(column, carried));
         }
@@ -1027,7 +1077,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", new SettingsRequest(
             new DateOnly(2031, 1, 10),
             PaymentMode.MonthlyAdvance,
-            EsvRegistrationMonthPolicy.FullMonth,
+            EsvRegistrationMonthPolicy.Prorated,
             EsvExempt: false,
             TaxPaymentCountsFromStatutoryDeclarationDate: false,
             ShiftTaxPaymentFromWeekend: true,
@@ -1100,7 +1150,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             BackupDocument.CurrentSchemaVersion,
             new SettingsBackup(
                 new DateOnly(2031, 1, 1), PaymentMode.Quarterly, EsvRegistrationMonthPolicy.FullMonth, false, true,
-                true, [DayOfWeek.Saturday, DayOfWeek.Sunday], "uk", "system", "UAH", new YearQuarter(2032, 2)),
+                true, [DayOfWeek.Saturday, DayOfWeek.Sunday], "uk", "system", "UAH", new YearQuarter(2032, 2),
+                null, new Group3ConfirmationBackup(new DateOnly(2031, 1, 5), "9123456789"), true, true, false),
             [
                 new ClientBackup(
                     ClientId, "Acme", "1 Main St, Berlin", "DE", "DE123456789", "ap@acme.example", Currency.EUR, "Net 14"),
@@ -1405,6 +1456,18 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "a newer schema version":
                 file["schemaVersion"] = BackupDocument.CurrentSchemaVersion + 1;
+                break;
+            case "group 3 from the middle of a quarter":
+                file["settings"]!["group3Since"] = "2031-02-01";
+                break;
+            case "a blank group 3 receipt number":
+                file["settings"]!["group3Confirmation"]!["receiptNumber"] = "  ";
+                break;
+            case "a group 3 receipt before registration":
+                file["settings"]!["group3Confirmation"]!["confirmedOn"] = "2030-12-31";
+                break;
+            case "a group 3 receipt dated after today":
+                file["settings"]!["group3Confirmation"]!["confirmedOn"] = "2031-06-02";
                 break;
             case "country that is not ISO 3166-1":
                 file["clients"]![0]!["country"] = "XX";

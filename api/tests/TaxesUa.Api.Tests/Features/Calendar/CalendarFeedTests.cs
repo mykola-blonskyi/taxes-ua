@@ -299,6 +299,27 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
     }
 
     [Fact]
+    public async Task A_quarter_before_group_3_starts_lists_its_esv_and_nothing_else()
+    {
+        const int year = 2069;
+        await using var application = At(year);
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year, new DateOnly(year, 8, 10), PaymentMode.Quarterly);
+        var status = new DpsStatusRequest(new DateOnly(year, 10, 1), null, false, false, false);
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings/dps-status", status, Json)).StatusCode);
+
+        var uids = Parse(await Subscribe(application, owner)).Events.Select(each => each.Uid!).ToArray();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await owner.PutAsJsonAsync("/api/settings/dps-status", status with { Group3Since = null }, Json)).StatusCode);
+
+        Assert.Contains($"esv-{year}-q3@taxes-ua", uids);
+        Assert.DoesNotContain($"taxpayment-{year}-q3@taxes-ua", uids);
+        Assert.DoesNotContain($"declaration-{year}-q3@taxes-ua", uids);
+        Assert.Contains($"declaration-{year}-q4@taxes-ua", uids);
+    }
+
+    [Fact]
     public async Task A_year_outside_the_ledger_gets_no_advances()
     {
         const int year = 2066;
@@ -443,14 +464,14 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
     // The 2026 parameters, with weekday holidays on the first half-year's statutory dates, so a
     // holiday shift sits beside the weekend ones.
     private static TaxYearConfigInput Config(int year) => new(
-        864_700, 500, 100, 2_200, 19, 40, 10, Holidays(year), 864_700L * 1_167, 1_500, [85, 100]);
+        864_700, 500, 100, 2_200, 19, 40, 10, Holidays(year), 864_700L * 1_167, 1_500, [85, 100], 10);
 
     private static FopSettingsInput Engine(DateOnly registered) => new(
         Weekend, true, true, registered, TaxesUa.Engine.EsvRegistrationMonthPolicy.FullMonth, false);
 
     private static DateOnly[] Holidays(int year)
     {
-        var bare = new TaxYearConfigInput(864_700, 500, 100, 2_200, 19, 40, 10, [], 864_700L * 1_167, 1_500, [85, 100]);
+        var bare = new TaxYearConfigInput(864_700, 500, 100, 2_200, 19, 40, 10, [], 864_700L * 1_167, 1_500, [85, 100], 10);
         var settings = Engine(new DateOnly(year, 1, 1));
         var q1 = DeadlineCalendar.ForQuarter(year, 1, bare, settings);
         var q2 = DeadlineCalendar.ForQuarter(year, 2, bare, settings);
@@ -476,7 +497,7 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
         foreach (var each in years ?? [year, year + 1])
         {
             var taxYear = new TaxYearConfigRequest(
-                864_700, 500, 100, 2_200, 1_500, incomeLimitMinWages, [85, 100], 19, 40, 10, 15, Holidays(each), "a test source");
+                864_700, 500, 100, 2_200, 1_500, incomeLimitMinWages, [85, 100], 19, 40, 10, 15, 10, Holidays(each), "a test source");
             Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync($"/api/tax-years/{each}", taxYear, Json)).StatusCode);
         }
 

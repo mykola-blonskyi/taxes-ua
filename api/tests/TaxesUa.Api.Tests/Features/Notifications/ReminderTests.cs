@@ -207,7 +207,7 @@ public sealed partial class ReminderTests(ApiFixture fixture) : IClassFixture<Ap
             await Reset(scope.ServiceProvider);
         }
 
-        var taxYear = new TaxYearConfigRequest(800_000, 500, 100, 2_200, 1_500, 1_000, [85], 19, 40, 10, 15, [], "a test source");
+        var taxYear = new TaxYearConfigRequest(800_000, 500, 100, 2_200, 1_500, 1_000, [85], 19, 40, 10, 15, 10, [], "a test source");
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/tax-years/2031", taxYear, Json)).StatusCode);
         await SetSettings(owner, new DateOnly(2031, 1, 1), locale, mode, esvExempt: true);
         var income = new TransactionRequest(

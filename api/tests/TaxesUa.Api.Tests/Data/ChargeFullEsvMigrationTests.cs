@@ -70,8 +70,8 @@ public sealed class ChargeFullEsvMigrationTests(ApiFixture fixture) : IClassFixt
             (entry.UserId, entry.Entity, entry.EntityId, entry.Action));
 
         var (interceptorBefore, interceptorAfter) = await InterceptorEntryForTheSameChange();
-        Assert.True(JsonNode.DeepEquals(Sorted(interceptorBefore), Sorted(entry.Before!)), entry.Before);
-        Assert.True(JsonNode.DeepEquals(Sorted(interceptorAfter), Sorted(entry.After!)), entry.After);
+        Assert.True(JsonNode.DeepEquals(AtThisMigration(interceptorBefore), Sorted(entry.Before!)), entry.Before);
+        Assert.True(JsonNode.DeepEquals(AtThisMigration(interceptorAfter), Sorted(entry.After!)), entry.After);
     }
 
     // The same owner and change written through the API, so the interceptor's own snapshot is the reference.
@@ -104,6 +104,26 @@ public sealed class ChargeFullEsvMigrationTests(ApiFixture fixture) : IClassFixt
             .OrderByDescending(row => row.Id)
             .FirstAsync();
         return (entry.Before!, entry.After!);
+    }
+
+    // The Settings columns this migration saw. A later migration adds columns the interceptor now
+    // snapshots too, and this migration must not change, so the reference is cut to what it knew.
+    private static readonly string[] FieldsAtThisMigration =
+    [
+        "backOnGroup3FromQuarter", "backOnGroup3FromYear", "defaultCurrency", "esvExempt", "esvRegistrationMonthPolicy",
+        "fopRegistrationDate", "locale", "paymentMode", "shiftTaxPaymentFromWeekend",
+        "taxPaymentCountsFromStatutoryDeclarationDate", "theme", "weekendDays",
+    ];
+
+    private static JsonObject AtThisMigration(string json)
+    {
+        var fields = Sorted(json);
+        foreach (var key in fields.Select(pair => pair.Key).Except(FieldsAtThisMigration).ToArray())
+        {
+            fields.Remove(key);
+        }
+
+        return fields;
     }
 
     private static JsonObject Sorted(string json) =>

@@ -45,12 +45,13 @@ public sealed record ReserveCover(long BalanceKop, long SurplusKop, long Shortfa
 public static class TaxReserve
 {
     /// <summary>
-    /// Null when Rule 8 leaves the operation out of income. A non-income kind sets aside zero. Each
-    /// receipt rounds on its own, so the receipts of a quarter can differ from its accrual by a kopeck.
+    /// Null when the operation is not group 3 income: before registration (Rule 8) or before
+    /// <see cref="FopSettingsInput.Group3Start"/>. A non-income kind sets aside zero. Each receipt
+    /// rounds on its own, so the receipts of a quarter can differ from its accrual by a kopeck.
     /// </summary>
     public static SetAside? SetAsideFor(
-        TransactionInput transaction, TaxYearConfigInput config, DateOnly registrationDate) =>
-        IncomeLedger.Exclusion(transaction, registrationDate) is not null
+        TransactionInput transaction, TaxYearConfigInput config, DateOnly group3Start) =>
+        IncomeLedger.IsBeforeGroup3(transaction, group3Start)
             ? null
             : new SetAside(
                 Money.ApplyBp(transaction.IncomeContributionKop, config.SingleTaxRateBp),

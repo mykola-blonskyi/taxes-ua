@@ -9,7 +9,9 @@ namespace TaxesUa.Engine;
 /// martial law, when holidays are business days. <c>IncomeLimitKop</c> is Rule 4's annual limit as
 /// of Jan 1, not prorated for a partial year. <c>LimitWarnThresholdsPct</c> are ascending warn
 /// thresholds strictly below 100; the 100% line itself is not configurable here because it is a
-/// tax-system-switch fact, not a UI warning.
+/// tax-system-switch fact, not a UI warning. <c>Group3ApplicationDays</c> is the calendar-day window
+/// after registration in which the group 3 application keeps group 3 from the registration date
+/// (Tax Code 298.1.2); the registration year's value applies.
 /// </summary>
 public sealed record TaxYearConfigInput(
     long MinWageKop,
@@ -22,7 +24,8 @@ public sealed record TaxYearConfigInput(
     IReadOnlyList<DateOnly> Holidays,
     long IncomeLimitKop,
     int ExcessRateBp,
-    IReadOnlyList<int> LimitWarnThresholdsPct);
+    IReadOnlyList<int> LimitWarnThresholdsPct,
+    int Group3ApplicationDays);
 
 /// <summary>
 /// The FOP settings the engine reads, mirroring the <c>Settings</c> entity. Both shifting flags are
@@ -32,6 +35,10 @@ public sealed record TaxYearConfigInput(
 /// entity and has no default, so a caller states the absence of a registration date rather than
 /// arriving at it by omission. <c>BackOnGroup3From</c> is the quarter the owner says the FOP is back on
 /// group 3 from after a limit crossing (Rule 4); a quarter not after the crossing lifts nothing.
+/// <c>Group3Since</c> is the day the owner says the DPS register has group 3 from, null for the
+/// registration date itself; a later day is the first day of a quarter (Tax Code 298.1.4), and until
+/// it the FOP is on the general system, which this engine does not compute. <c>Group3Confirmed</c>
+/// is whether the owner holds the DPS receipt for the group 3 application.
 /// </summary>
 public sealed record FopSettingsInput(
     IReadOnlyList<DayOfWeek> WeekendDays,
@@ -40,7 +47,18 @@ public sealed record FopSettingsInput(
     DateOnly? FopRegistrationDate,
     EsvRegistrationMonthPolicy EsvRegistrationMonthPolicy,
     bool EsvExempt,
-    YearQuarter? BackOnGroup3From = null);
+    YearQuarter? BackOnGroup3From = null,
+    DateOnly? Group3Since = null,
+    bool Group3Confirmed = false)
+{
+    /// <summary>
+    /// The first day of group 3: the later of the registration date and <c>Group3Since</c>. Null
+    /// without a registration date.
+    /// </summary>
+    public DateOnly? Group3Start => FopRegistrationDate is { } registered
+        ? Group3Since is { } since && since > registered ? since : registered
+        : null;
+}
 
 /// <summary>
 /// One deadline. <c>Due</c> is <c>Statutory</c> moved forward off weekends and holidays, or equal

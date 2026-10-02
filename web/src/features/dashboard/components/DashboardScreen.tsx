@@ -8,6 +8,7 @@ import { declarationHref } from "@/shared/constants/navigation";
 import { formatMoney, formatRate } from "@/shared/lib/money";
 import { formatLongDate } from "./debt";
 import { DaysLeft, DebtPeriod } from "./DebtParts";
+import { Group3Status } from "./Group3Status";
 import { HeroCard } from "./HeroCard";
 import { LimitBar } from "./LimitBar";
 import { PayDebtButton } from "./PayDebtButton";
@@ -31,6 +32,7 @@ export function DashboardScreen() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Group3Status group3={data.group3} today={today} />
       {data.limitCrossing ? <LimitCrossingWarning crossing={data.limitCrossing} /> : null}
       {needsReview > 0 ? <ReviewWarning count={needsReview} /> : null}
       {data.declaration ? <DeclarationDue due={data.declaration} today={today} /> : null}

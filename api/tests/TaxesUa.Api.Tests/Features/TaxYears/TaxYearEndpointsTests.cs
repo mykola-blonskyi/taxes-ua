@@ -34,6 +34,7 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         Assert.Equal(40, config.DeclarationDays);
         Assert.Equal(10, config.TaxPaymentDaysAfterDeclaration);
         Assert.Equal(15, config.AdvanceRecommendedDay);
+        Assert.Equal(10, config.Group3ApplicationDays);
         Assert.Empty(config.Holidays);
         Assert.False(string.IsNullOrWhiteSpace(config.Source), "the seeded row cites no legal source");
         Assert.Null(config.VerifiedAt);
@@ -97,6 +98,7 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
               "declarationDays": 41,
               "taxPaymentDaysAfterDeclaration": 11,
               "advanceRecommendedDay": 16,
+              "group3ApplicationDays": 10,
               "holidays": [],
               "source": "a test body",
               "esvMonthlyKop": 1,
@@ -185,6 +187,8 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
     [InlineData("taxPaymentDaysAfterDeclaration", -1)]
     [InlineData("limitWarnThresholdsPct", 0)]
     [InlineData("limitWarnThresholdsPct", 1_001)]
+    [InlineData("group3ApplicationDays", 0)]
+    [InlineData("group3ApplicationDays", 367)]
     public async Task Put_rejects_a_field_outside_its_bounds(string field, long value)
     {
         using var client = await SignIn();
@@ -201,6 +205,7 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
             ["declarationDays"] = 41,
             ["taxPaymentDaysAfterDeclaration"] = 11,
             ["advanceRecommendedDay"] = 16,
+            ["group3ApplicationDays"] = 10,
             ["holidays"] = Array.Empty<DateOnly>(),
             ["source"] = "a test source",
         };
@@ -406,6 +411,7 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
             declarationDays,
             taxPaymentDaysAfterDeclaration,
             advanceRecommendedDay,
+            10,
             [],
             source);
 

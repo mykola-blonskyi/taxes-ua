@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import type { PaymentKind } from "@/data/payments/usePayments";
 import { useIsOutsideGroup3 } from "@/data/periods/usePeriods";
 import { FieldWrapper } from "@/shared/ui/fields";
 import { fromPeriodValue, monthName, type PeriodValue } from "../period";
@@ -11,6 +12,7 @@ const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 export function PeriodSelect({
   id,
   year,
+  kind,
   value,
   onChange,
   hint,
@@ -18,6 +20,7 @@ export function PeriodSelect({
 }: {
   id: string;
   year: number;
+  kind: PaymentKind | null;
   value: PeriodValue;
   onChange: (value: PeriodValue) => void;
   hint?: string;
@@ -27,7 +30,7 @@ export function PeriodSelect({
   const tForm = useTranslations("payments.form");
   const locale = useLocale();
   const { periodQuarter, periodMonth } = fromPeriodValue(value);
-  const outsideGroup3 = useIsOutsideGroup3(year, periodQuarter ?? Math.ceil(periodMonth! / 3));
+  const outsideGroup3 = useIsOutsideGroup3(year, periodQuarter ?? Math.ceil(periodMonth! / 3), kind);
 
   return (
     <FieldWrapper label={tForm("period")} htmlFor={id} hint={hint} errors={errors}>

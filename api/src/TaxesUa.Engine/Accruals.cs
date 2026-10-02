@@ -19,7 +19,9 @@ public enum EsvRegistrationMonthPolicy
 /// includes Rule 4's excess tax: <c>CumulativeExcessIncomeKop</c> is the income through the quarter
 /// over the year's limit and <c>CumulativeExcessTaxKop</c> its tax at the excess rate, both zero in
 /// every quarter but the one the limit is crossed in, since no later quarter is accrued. The cumulative
-/// figures run from 1 January, or from the quarter the owner is back on group 3 from.
+/// figures run from 1 January, or from the quarter the owner is back on group 3 from. A quarter with
+/// <c>Group3</c> false is over before group 3 starts (Tax Code 298.1.4): ESV does not depend on the tax
+/// system, so it still accrues ESV from registration, but no single tax or levy and no declaration.
 /// </summary>
 public sealed record QuarterAccrual(
     QuarterIncome Income,
@@ -29,7 +31,8 @@ public sealed record QuarterAccrual(
     long CumulativeExcessTaxKop,
     long MilitaryLevyKop,
     long CumulativeMilitaryLevyKop,
-    long EsvKop)
+    long EsvKop,
+    bool Group3 = true)
 {
     public long TotalKop => SingleTaxKop + MilitaryLevyKop + EsvKop;
 }
@@ -111,14 +114,17 @@ public sealed record LimitCrossing(int Year, int Quarter)
 
 /// <summary>
 /// A year of accruals, per month and per quarter. <c>Income</c> holds every month and quarter of the
-/// year, but <c>Quarters</c> and <c>Months</c> hold only those in group 3 (Rule 4): a quarter after a
+/// year, but <c>Quarters</c> and <c>Months</c> hold only those accrued (Rule 4): a quarter after a
 /// crossing, in this year or an earlier one, belongs to a system this engine does not compute, so it has
 /// no accrual rather than a group 3 figure that would be wrong, until the owner's
-/// <see cref="FopSettingsInput.BackOnGroup3From"/>. <c>LimitCrossing</c> is the crossing that ends group 3
+/// <see cref="FopSettingsInput.BackOnGroup3From"/>. A quarter that ends before
+/// <see cref="FopSettingsInput.Group3Start"/> is accrued for its ESV only and is not
+/// <see cref="InGroup3"/>. <c>LimitCrossing</c> is the crossing that ends group 3
 /// in this year, or else the earlier one that keeps a quarter of this year out of it.
 /// <c>StoppedAtYearEnd</c> is the crossing group 3 is still stopped by after Q4, which the next year
 /// inherits. <c>EsvAnnex</c> is the year's ESV for the group 3 months, as annex 1 of the year's last
-/// group 3 declaration reports it (Rule 15); null when no month of the year owes ESV.
+/// group 3 declaration reports it (Rule 15); null when no group 3 month of the year owes ESV. The ESV of a
+/// month before group 3 is accrued and owed, but reported with the general system's declaration.
 /// </summary>
 public sealed record YearAccrual(
     int Year,
@@ -130,9 +136,18 @@ public sealed record YearAccrual(
     EsvAnnex? EsvAnnex,
     IReadOnlyList<EngineWarning> Warnings)
 {
-    public bool InGroup3(int quarter) => Quarters.Any(accrual => accrual.Income.Quarter == quarter);
+    public bool InGroup3(int quarter) => Quarters.Any(accrual => accrual.Group3 && accrual.Income.Quarter == quarter);
 
-    /// <summary>The quarter has to be in group 3.</summary>
+    /// <summary>
+    /// Whether the quarter has an accrual of <paramref name="kind"/>: ESV for every accrued quarter, the
+    /// single tax and the levy for a group 3 one only.
+    /// </summary>
+    public bool Accrues(PaymentKind kind, int quarter) =>
+        kind == PaymentKind.Esv
+            ? Quarters.Any(accrual => accrual.Income.Quarter == quarter)
+            : InGroup3(quarter);
+
+    /// <summary>The quarter has to be accrued.</summary>
     public QuarterAccrual QuarterOf(int quarter) => Quarters.Single(accrual => accrual.Income.Quarter == quarter);
 
     /// <summary>
@@ -223,6 +238,26 @@ public static class Accruals
                 continue;
             }
 
+            if (EndsBeforeGroup3(year, quarter, settings))
+            {
+                foreach (var month in income.Months.Skip(3 * quarter - 3).Take(3))
+                {
+                    months.Add(new MonthAccrual(month.Month, month.IncomeKop, 0, 0, esvByMonth[month.Month - 1].EsvKop));
+                }
+
+                quarters.Add(new QuarterAccrual(
+                    quarterIncome with { CumulativeIncomeKop = cumulativeIncomeKop },
+                    0,
+                    accruedSingleTaxKop,
+                    0,
+                    0,
+                    0,
+                    accruedMilitaryLevyKop,
+                    esvByMonth[(3 * quarter - 3)..(3 * quarter)].Sum(month => month.EsvKop),
+                    Group3: false));
+                continue;
+            }
+
             var quarterStartSingleTaxKop = accruedSingleTaxKop;
             var quarterStartMilitaryLevyKop = accruedMilitaryLevyKop;
             foreach (var month in income.Months.Skip(3 * quarter - 3).Take(3))
@@ -281,7 +316,10 @@ public static class Accruals
         EsvMonth[] esvByMonth,
         FopSettingsInput settings)
     {
-        var months = quarters
+        // The months before group 3 owe ESV too, but they go on the general system's annex, not this one
+        // (Tax Code 298.1.4).
+        var group3 = quarters.Where(quarter => quarter.Group3).ToArray();
+        var months = group3
             .SelectMany(quarter => esvByMonth[(3 * quarter.Income.Quarter - 3)..(3 * quarter.Income.Quarter)])
             .Where(month => month.BaseKop > 0)
             .ToArray();
@@ -290,16 +328,30 @@ public static class Accruals
             return null;
         }
 
-        var first = quarters[0].Income.Quarter;
-        var last = quarters[^1].Income.Quarter;
+        var first = group3[0].Income.Quarter;
+        var last = group3[^1].Income.Quarter;
         var firstDay = new DateOnly(year, 3 * first - 2, 1);
+        var group3Start = settings.Group3Start ?? registrationDate;
         return new EsvAnnex(
             year,
             last,
-            registrationDate > firstDay ? registrationDate : firstDay,
+            group3Start > firstDay ? group3Start : firstDay,
             new DateOnly(year, 3 * last, 1).AddMonths(1).AddDays(-1),
             months,
             crossing?.Quarter == last);
+    }
+
+    /// <summary>
+    /// A quarter of the FOP that is over before group 3 starts is on the general system (Tax Code
+    /// 298.1.4), whose taxes this engine does not compute. A quarter over before registration keeps its
+    /// empty group 3 accrual, as Rule 8 has it.
+    /// </summary>
+    private static bool EndsBeforeGroup3(int year, int quarter, FopSettingsInput settings)
+    {
+        var quarterEnd = new DateOnly(year, 3 * quarter, 1).AddMonths(1).AddDays(-1);
+        return settings is { FopRegistrationDate: { } registered, Group3Start: { } start }
+            && quarterEnd >= registered
+            && quarterEnd < start;
     }
 
     /// <summary>
