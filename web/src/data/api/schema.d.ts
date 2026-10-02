@@ -5558,6 +5558,7 @@ export interface components {
             /** Format: int32 */
             overdueInvoiceCount: number | string;
             group3: components["schemas"]["Group3StatusResponse"];
+            sync: null | components["schemas"]["SyncHealthResponse"];
         };
         Deadline: {
             /** Format: date */
@@ -6615,6 +6616,13 @@ export interface components {
             at: string;
             reason: components["schemas"]["SyncFailure"];
         };
+        SyncHealthResponse: {
+            state: components["schemas"]["SyncHealthState"];
+            /** Format: date-time */
+            lastSyncedAt: null | string;
+        };
+        /** @enum {string} */
+        SyncHealthState: "Healthy" | "Stale" | "TokenRejected" | "TokenUnreadable";
         TaxBurdenResponse: {
             /** Format: int64 */
             incomeKop: number | string;

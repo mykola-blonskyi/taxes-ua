@@ -39,6 +39,10 @@ public static class DashboardEndpoints
                 var loaded = await YearAccruals.LoadAsync(database, user.Id, today.Year, cancellationToken);
                 var declaration = await DeclarationDueAsync(database, user.Id, today, cancellationToken);
 
+                var sync = await SyncHealthCheck.LoadAsync(database, user.Id, time.GetUtcNow(), cancellationToken) is { } health
+                    ? new SyncHealthResponse(health.State, health.LastSyncedAt)
+                    : null;
+
                 var group3 = await Group3StatusAsync(
                     database,
                     loaded?.Viewed.Settings ?? await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken),
@@ -64,7 +68,8 @@ public static class DashboardEndpoints
                         needsReview,
                         declaration,
                         overdueInvoices,
-                        group3));
+                        group3,
+                        sync));
                 }
 
                 var settings = loaded.Viewed.Settings.ToEngineInput();
@@ -101,7 +106,8 @@ public static class DashboardEndpoints
                     needsReview,
                     declaration,
                     overdueInvoices,
-                    group3));
+                    group3,
+                    sync));
             })
             .WithTags("Dashboard")
             .RequireAuthorization()
@@ -260,6 +266,7 @@ public static class DashboardEndpoints
 /// budget payment candidates, which count nowhere until confirmed. <c>Declaration</c> is the last ended
 /// quarter's declaration while it is due and not marked filed (Rule 15). <c>OverdueInvoiceCount</c> is the
 /// number of issued invoices past their due date in Kyiv that their linked receipts do not cover (Rule 14).
+/// <c>Sync</c> is the bank sync's health, sent whenever the owner follows a monobank account (Rule 17).
 /// </summary>
 internal sealed record DashboardResponse(
     DateOnly Today,
@@ -272,7 +279,14 @@ internal sealed record DashboardResponse(
     int NeedsReviewCount,
     DeclarationDueResponse? Declaration,
     int OverdueInvoiceCount,
-    Group3StatusResponse Group3);
+    Group3StatusResponse Group3,
+    SyncHealthResponse? Sync);
+
+/// <summary>
+/// <c>LastSyncedAt</c> is the end of the oldest statement window a followed account has caught up to, null
+/// while an account is still backfilling.
+/// </summary>
+internal sealed record SyncHealthResponse(SyncHealthState State, DateTimeOffset? LastSyncedAt);
 
 /// <summary>
 /// The FOP's group 3 status with the DPS. <c>Group3Start</c> is the first day the figures count as

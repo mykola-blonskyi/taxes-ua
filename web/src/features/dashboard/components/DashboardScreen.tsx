@@ -13,6 +13,7 @@ import { HeroCard } from "./HeroCard";
 import { LimitBar } from "./LimitBar";
 import { PayDebtButton } from "./PayDebtButton";
 import { ReserveCard } from "./ReserveCard";
+import { SyncHealth } from "./SyncHealth";
 
 export function DashboardScreen() {
   const t = useTranslations("dashboard");
@@ -45,6 +46,7 @@ export function DashboardScreen() {
       ) : (
         <StateCard response={data} />
       )}
+      {data.sync ? <SyncHealth sync={data.sync} /> : null}
       {data.reserve ? (
         <ReserveCard reserve={data.reserve} today={today} limitCrossing={data.limitCrossing} />
       ) : null}

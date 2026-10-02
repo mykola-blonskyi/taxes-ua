@@ -190,6 +190,7 @@ builder.Services.AddSingleton<IEmailTransport, SmtpEmailTransport>();
 builder.Services.AddSingleton<EmailConfirmation>();
 builder.Services.AddScoped<EmailDelivery>();
 builder.Services.AddScoped<IReminderChannel, EmailReminderChannel>();
+builder.Services.AddScoped<IIncidentSource, SyncIncidentSource>();
 builder.Services.AddSingleton<ReminderSender>();
 builder.Services.AddHostedService<ReminderWorker>();
 

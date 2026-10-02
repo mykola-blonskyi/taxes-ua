@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxesUa.Api.Data;
@@ -11,9 +12,11 @@ using TaxesUa.Api.Data;
 namespace TaxesUa.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261002123552_AddIncidentToSentReminders")]
+    partial class AddIncidentToSentReminders
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -972,9 +975,6 @@ namespace TaxesUa.Api.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<DateOnly?>("LearnedValidUntil")
-                        .HasColumnType("date");
-
                     b.Property<string>("ManualIban")
                         .HasMaxLength(34)
                         .HasColumnType("character varying(34)");
@@ -990,9 +990,6 @@ namespace TaxesUa.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("ManualUpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateOnly?>("ManualValidUntil")
-                        .HasColumnType("date");
-
                     b.Property<DateTimeOffset?>("NoticeAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1007,9 +1004,9 @@ namespace TaxesUa.Api.Data.Migrations
 
                     b.ToTable("TreasuryAccounts", t =>
                         {
-                            t.HasCheckConstraint("CK_TreasuryAccounts_Learned", "(\"LearnedIban\" IS NULL) = (\"LearnedExternalId\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedPaidOn\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedAt\" IS NULL) AND (\"LearnedIban\" IS NOT NULL OR (\"LearnedRecipientName\" IS NULL AND \"LearnedRecipientCode\" IS NULL AND \"LearnedValidUntil\" IS NULL))");
+                            t.HasCheckConstraint("CK_TreasuryAccounts_Learned", "(\"LearnedIban\" IS NULL) = (\"LearnedExternalId\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedPaidOn\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedAt\" IS NULL) AND (\"LearnedIban\" IS NOT NULL OR (\"LearnedRecipientName\" IS NULL AND \"LearnedRecipientCode\" IS NULL))");
 
-                            t.HasCheckConstraint("CK_TreasuryAccounts_Manual", "(\"ManualIban\" IS NULL) = (\"ManualRecipientName\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualRecipientCode\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualUpdatedAt\" IS NULL) AND (\"ManualIban\" IS NOT NULL OR \"ManualValidUntil\" IS NULL)");
+                            t.HasCheckConstraint("CK_TreasuryAccounts_Manual", "(\"ManualIban\" IS NULL) = (\"ManualRecipientName\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualRecipientCode\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualUpdatedAt\" IS NULL)");
 
                             t.HasCheckConstraint("CK_TreasuryAccounts_Notice", "\"NoticeAt\" IS NULL OR (\"ManualIban\" IS NOT NULL AND \"LearnedIban\" IS NOT NULL)");
                         });
