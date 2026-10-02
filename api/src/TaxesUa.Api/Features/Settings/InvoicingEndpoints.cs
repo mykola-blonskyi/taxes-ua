@@ -29,8 +29,6 @@ public static partial class InvoicingEndpoints
 
     private const int MaxBankFieldLength = 200;
 
-    private const string ClientInfoMethod = "client-info";
-
     private static readonly string[] SignatureTypes = ["image/png", "image/jpeg"];
 
     private static readonly byte[] PngMagic = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -233,7 +231,7 @@ public static partial class InvoicingEndpoints
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 TokenEncryptor encryptor,
-                MonobankRateGate gate,
+                MonobankClientInfoReader reader,
                 MonobankClient client,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
@@ -244,6 +242,7 @@ public static partial class InvoicingEndpoints
                     return Results.Unauthorized();
                 }
 
+                var generation = reader.Generation(user.Id);
                 var connection = await database.MonobankConnections.AsNoTracking()
                     .FirstOrDefaultAsync(row => row.UserId == user.Id, cancellationToken);
                 if (connection is null || connection.RejectedAt is not null || !encryptor.IsConfigured)
@@ -265,12 +264,13 @@ public static partial class InvoicingEndpoints
                         title: "The stored monobank token cannot be read. Connect monobank again.");
                 }
 
-                // The accounts are the stored rows; only the name needs the bank. The slot is shared with the
-                // token save and the jar reads, and a request must not park for up to a minute on it, so a
-                // busy slot is answered at once with how long to wait.
-                if (!gate.TryTakeTurn(user.Id, ClientInfoMethod, out var retryAfter))
+                // The accounts are the stored rows; only the name needs the bank. The reader shares its answer
+                // with the token save and the jar reads, and a request must not park for up to a minute on the
+                // slot, so a busy one is answered at once with how long to wait.
+                var read = await reader.ReadAsync(client, user.Id, token, generation, cancellationToken);
+                if (read is ClientInfoRead.Waiting waiting)
                 {
-                    var seconds = (int)Math.Ceiling(retryAfter.TotalSeconds);
+                    var seconds = (int)Math.Ceiling(waiting.RetryAfter.TotalSeconds);
                     http.Response.Headers.RetryAfter = seconds.ToString(CultureInfo.InvariantCulture);
                     return Results.Problem(
                         statusCode: StatusCodes.Status429TooManyRequests,
@@ -278,15 +278,14 @@ public static partial class InvoicingEndpoints
                         detail: $"Try again in {seconds} seconds.");
                 }
 
-                var read = await client.GetClientInfoAsync(token, cancellationToken);
-                if (read is ClientInfoResult.InvalidToken)
+                if (read is ClientInfoRead.InvalidToken)
                 {
                     return Results.Problem(
                         statusCode: StatusCodes.Status409Conflict,
                         title: "monobank rejected the token. Connect monobank again.");
                 }
 
-                if (read is not ClientInfoResult.Found found)
+                if (read is not ClientInfoRead.Found found)
                 {
                     return Results.Problem(
                         statusCode: StatusCodes.Status502BadGateway,
@@ -319,7 +318,7 @@ public static partial class InvoicingEndpoints
                 }
 
                 return Results.Ok(new MonobankPrefillResponse(
-                    found.Info.Name.Trim(), [.. suggestions.OrderBy(suggestion => suggestion.Currency)]));
+                    found.Name.Trim(), [.. suggestions.OrderBy(suggestion => suggestion.Currency)]));
             })
             .Produces<MonobankPrefillResponse>()
             .Produces(StatusCodes.Status401Unauthorized)

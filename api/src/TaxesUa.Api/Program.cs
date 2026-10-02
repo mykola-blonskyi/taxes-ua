@@ -154,7 +154,7 @@ builder.Services.AddHttpClient<MonobankClient>(client =>
     client.Timeout = TimeSpan.FromSeconds(10);
 });
 builder.Services.AddSingleton<MonobankRateGate>();
-builder.Services.AddSingleton<MonobankJarReader>();
+builder.Services.AddSingleton<MonobankClientInfoReader>();
 builder.Services.AddScoped<ReserveJarService>();
 builder.Services.AddSingleton<MonobankSyncQueue>();
 builder.Services.AddScoped<MonobankStatementImport>();
