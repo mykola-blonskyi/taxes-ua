@@ -6299,6 +6299,7 @@ export interface components {
             months: null | components["schemas"]["MonthPeriodResponse"][];
             balances: null | components["schemas"]["YearBalancesResponse"];
             group3Quarters: (number | string)[];
+            esvQuarters: (number | string)[];
         };
         PeriodWarnings: {
             taxYearUnverified: boolean;
@@ -6354,6 +6355,7 @@ export interface components {
             cumulativeMilitaryLevyKop: number | string;
             deadlines: components["schemas"]["QuarterDeadlines"];
             obligations: null | components["schemas"]["QuarterObligations"];
+            group3: boolean;
         };
         /** @enum {null|string} */
         RateSource: "Nbu" | "Manual" | null;
