@@ -299,6 +299,27 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
     }
 
     [Fact]
+    public async Task A_quarter_before_group_3_starts_lists_its_esv_and_nothing_else()
+    {
+        const int year = 2069;
+        await using var application = At(year);
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year, new DateOnly(year, 8, 10), PaymentMode.Quarterly);
+        var status = new DpsStatusRequest(new DateOnly(year, 10, 1), null, false, false, false);
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings/dps-status", status, Json)).StatusCode);
+
+        var uids = Parse(await Subscribe(application, owner)).Events.Select(each => each.Uid!).ToArray();
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await owner.PutAsJsonAsync("/api/settings/dps-status", status with { Group3Since = null }, Json)).StatusCode);
+
+        Assert.Contains($"esv-{year}-q3@taxes-ua", uids);
+        Assert.DoesNotContain($"taxpayment-{year}-q3@taxes-ua", uids);
+        Assert.DoesNotContain($"declaration-{year}-q3@taxes-ua", uids);
+        Assert.Contains($"declaration-{year}-q4@taxes-ua", uids);
+    }
+
+    [Fact]
     public async Task A_year_outside_the_ledger_gets_no_advances()
     {
         const int year = 2066;

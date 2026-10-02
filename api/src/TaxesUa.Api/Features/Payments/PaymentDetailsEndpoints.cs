@@ -34,7 +34,7 @@ public static class PaymentDetailsEndpoints
                 }
 
                 var quarterOfPeriod = periodQuarter ?? (periodMonth!.Value + 2) / 3;
-                if (await NotOfferedAsync(database, user.Id, periodYear, quarterOfPeriod, cancellationToken) is { } reason)
+                if (await NotOfferedAsync(database, user.Id, kind, periodYear, quarterOfPeriod, cancellationToken) is { } reason)
                 {
                     return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: reason);
                 }
@@ -80,7 +80,7 @@ public static class PaymentDetailsEndpoints
     }
 
     private static async Task<string?> NotOfferedAsync(
-        AppDbContext database, string userId, int year, int quarter, CancellationToken cancellationToken)
+        AppDbContext database, string userId, PaymentKind kind, int year, int quarter, CancellationToken cancellationToken)
     {
         var loaded = await YearAccruals.LoadAsync(database, userId, year, cancellationToken);
         if (loaded is null)
@@ -88,9 +88,9 @@ public static class PaymentDetailsEndpoints
             return $"There is no tax configuration for {year}, so the app does not offer to pay its periods.";
         }
 
-        return loaded.Viewed.Accrual.InGroup3(quarter)
+        return loaded.Viewed.Accrual.Accrues(kind, quarter)
             ? null
-            : $"Quarter {quarter} of {year} is outside group 3, so the app does not offer to pay it.";
+            : $"Quarter {quarter} of {year} has no {kind} accrual outside group 3, so the app does not offer to pay it.";
     }
 
     private static Dictionary<string, string[]>? Validate(

@@ -200,7 +200,7 @@ public static class ReminderPlan
 
         foreach (var year in years)
         {
-            foreach (var quarter in year.Accrual.Quarters.Select(accrual => accrual.Income.Quarter))
+            foreach (var quarter in year.Accrual.Quarters.Where(accrual => accrual.Group3).Select(accrual => accrual.Income.Quarter))
             {
                 var quarterEnd = new DateOnly(year.Accrual.Year, 3 * quarter, 1).AddMonths(1).AddDays(-1);
                 if (quarterEnd < registered || filed.Contains(new YearQuarter(year.Accrual.Year, quarter)))

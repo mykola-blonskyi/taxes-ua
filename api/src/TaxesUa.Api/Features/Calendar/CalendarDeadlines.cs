@@ -70,6 +70,12 @@ internal sealed record CalendarDeadline(string Owner, CalendarDeadlineKind Kind,
                     deadlines.Add(new(owner, CalendarDeadlineKind.Esv, year, quarter, null, due.Esv.Due));
                 }
 
+                // Before group 3 starts only ESV is owed (Tax Code 298.1.4).
+                if (!accrual.Group3)
+                {
+                    continue;
+                }
+
                 deadlines.Add(new(owner, CalendarDeadlineKind.TaxPayment, year, quarter, null, due.TaxPayment.Due));
                 deadlines.Add(new(owner, CalendarDeadlineKind.Declaration, year, quarter, null, due.Declaration.Due));
             }

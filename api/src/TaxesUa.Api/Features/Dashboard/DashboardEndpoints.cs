@@ -86,7 +86,7 @@ public static class DashboardEndpoints
                 // is any next-step debt. Income outside group 3 is not group 3 income, so the bar stops
                 // where the accruals do and its excess tax is the one owed; a year with no quarter in
                 // group 3 has no bar.
-                var limit = accrual.Quarters is [.., var last]
+                var limit = accrual.Quarters.LastOrDefault(each => each.Group3) is { } last
                     ? LimitMonitor.Evaluate(last.Income.CumulativeIncomeKop, loaded.Viewed.Config.ToEngineInput())
                     : null;
 

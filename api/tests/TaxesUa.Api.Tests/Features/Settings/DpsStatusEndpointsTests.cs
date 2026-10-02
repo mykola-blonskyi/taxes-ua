@@ -8,11 +8,14 @@ using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Features.Dashboard;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Api.Tests.Features.Fx;
+using TaxesUa.Engine;
+using EsvRegistrationMonthPolicy = TaxesUa.Api.Features.Settings.EsvRegistrationMonthPolicy;
 
 namespace TaxesUa.Api.Tests.Features.Settings;
 
@@ -30,6 +33,8 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
     private static readonly DateOnly Deadline = new(2081, 10, 8);
 
     private static readonly DateOnly NextYear = new(2082, 1, 1);
+
+    private const long EsvMonthKop = 190_234;
 
     [Fact]
     public async Task Put_then_get_round_trips_the_status_and_the_fop_form_leaves_it_alone()
@@ -167,15 +172,26 @@ public sealed class DpsStatusEndpointsTests(ApiFixture fixture) : IClassFixture<
         await DeleteTransactions(owner);
         Assert.Equal(HttpStatusCode.OK, (await Put(owner, Status(NextYear))).StatusCode);
         await PostIncome(owner, new DateOnly(2081, 10, 10), 1_000_000);
+        var esvPayment = await owner.PostAsJsonAsync(
+            "/api/payments", new PaymentRequest(new DateOnly(2081, 10, 15), PaymentKind.Esv, EsvMonthKop, 2081, 3, null, null), Json);
+        Assert.Equal(HttpStatusCode.Created, esvPayment.StatusCode);
 
         var dashboard = await Dashboard(owner);
         var periods = (await owner.GetFromJsonAsync<PeriodsResponse>("/api/periods/2081", Json))!;
+        var paymentId = (await esvPayment.Content.ReadFromJsonAsync<PaymentResponse>(Json))!.Id;
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.DeleteAsync($"/api/payments/{paymentId}")).StatusCode);
 
         var stretch = new BeforeGroup3Response(Registered, new DateOnly(2081, 12, 31), 1_000_000);
         Assert.Equal(new Group3StatusResponse(NextYear, false, null, null, stretch), dashboard.Group3);
         Assert.Equal(stretch, periods.Warnings.BeforeGroup3);
-        Assert.Empty(periods.Quarters);
+        Assert.Equal(
+            [(3, false, 0L, EsvMonthKop), (4, false, 0L, 3 * EsvMonthKop)],
+            periods.Quarters.Select(quarter => (quarter.Quarter, quarter.Group3, quarter.SingleTaxKop, quarter.EsvKop)));
+        var q3Esv = periods.Quarters[0].Obligations!.Esv;
+        Assert.Equal((EsvMonthKop, EsvMonthKop, 0L, ObligationStatus.Done), (q3Esv.AccruedKop, q3Esv.PaidKop, q3Esv.RemainingKop, q3Esv.Status));
+        Assert.Empty(periods.Balances!.OutsideGroup3Payments);
         Assert.Equal([1, 2], periods.Group3Quarters);
+        Assert.Equal([1, 2, 3, 4], periods.EsvQuarters);
         Assert.Null((await owner.GetFromJsonAsync<PeriodsResponse>("/api/periods/2082", Json))!.Warnings.BeforeGroup3);
     }
 
