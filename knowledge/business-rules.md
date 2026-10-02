@@ -1028,10 +1028,11 @@ applies:
    set). Every sync stops until a new token is saved.
 2. `TokenUnreadable`: a followed account's last failure is `TokenUnreadable`, so the stored token could not
    be decrypted (the encryption key was lost or changed).
-3. `Stale`: the last successful sync is older than 3 days. The last successful sync is the oldest
-   `SyncedThrough` among the followed accounts that have finished their first import
-   (`HistoryImportedAt` set); an account still backfilling its history is not judged by age, because its
-   cursor trails by design. The 3 days are a constant (`SyncHealthCheck.StaleAfter`), not a tax
+3. `Stale`: the last progress is older than 3 days. Progress is the oldest of: the `SyncedThrough` of each
+   followed account that has finished its first import (`HistoryImportedAt` set), and for each account still
+   backfilling its latest import batch (its cursor trails by design, so it is not used), or the later of
+   the account's and the token's creation while it has no batch yet. A backfill that keeps importing windows
+   is never stale; one that stops is, and alerts once like any stale sync. The 3 days are a constant (`SyncHealthCheck.StaleAfter`), not a tax
    parameter: they outlast a missed night and a weekend bank outage, and are short enough to notice well
    before a deadline.
 4. `Healthy`.

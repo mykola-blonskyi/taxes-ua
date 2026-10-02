@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { request, type FullConfig } from "@playwright/test";
 import { ownerEmail, signIn } from "./api";
-import { startNbuStub, startStub } from "./stubs";
+import { startMonobankStub, startNbuStub, startStub } from "./stubs";
 
 const repoRoot = path.resolve(__dirname, "../../..");
 
@@ -26,7 +26,7 @@ export default async function globalSetup(config: FullConfig) {
   const { baseURL, storageState } = config.projects[0].use;
   const project = `taxesua-e2e-${process.pid}`;
   const telegram = await startStub({ ok: true, result: [] });
-  const monobank = await startStub([]);
+  const monobank = await startMonobankStub();
   const nbu = await startNbuStub();
   const env = {
     WEB_PORT: new URL(baseURL!).port,

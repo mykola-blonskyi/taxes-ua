@@ -40,12 +40,36 @@ internal static class SyncHealthCheck
             .Where(row => row.UserId == userId && row.Bank == Bank.Monobank && row.IsFop && row.IsActive)
             .ToListAsync(cancellationToken);
 
-        return accounts.Count == 0 ? null : Evaluate(connection, accounts, now);
+        if (accounts.Count == 0)
+        {
+            return null;
+        }
+
+        // A backfilling account's progress is its latest import batch: its cursor trails by design.
+        var backfilling = accounts.Where(account => account.HistoryImportedAt is null).Select(account => account.Id).ToList();
+        var batches = backfilling.Count == 0
+            ? []
+            : (await database.ImportBatches.AsNoTracking()
+                .Where(row => backfilling.Contains(row.BankAccountId))
+                .GroupBy(row => row.BankAccountId)
+                .Select(group => new { Id = group.Key, At = group.Max(row => row.CreatedAt) })
+                .ToListAsync(cancellationToken))
+                .ToDictionary(row => row.Id, row => row.At);
+
+        return Evaluate(connection, accounts, batches, now);
     }
 
-    public static SyncHealth Evaluate(MonobankConnection connection, IReadOnlyCollection<BankAccount> accounts, DateTimeOffset now)
+    /// <param name="lastBatchAt">
+    /// When each backfilling account last imported a window. An account with no entry has made no progress
+    /// yet and is judged from when it, or the token, was added.
+    /// </param>
+    public static SyncHealth Evaluate(
+        MonobankConnection connection,
+        IReadOnlyCollection<BankAccount> accounts,
+        IReadOnlyDictionary<Guid, DateTimeOffset> lastBatchAt,
+        DateTimeOffset now)
     {
-        // An account still backfilling history has a cursor that trails by design, so it is not judged by age.
+        // The shown "last sync" counts only accounts that have caught up; a backfilling cursor trails by design.
         DateTimeOffset? last = accounts
             .Where(account => account.HistoryImportedAt is not null && account.SyncedThrough is not null)
             .Select(account => account.SyncedThrough)
@@ -62,8 +86,17 @@ internal static class SyncHealthCheck
             return new SyncHealth(SyncHealthState.TokenUnreadable, last, last ?? connection.ConnectedAt);
         }
 
-        return last is { } synced && now - synced > StaleAfter
-            ? new SyncHealth(SyncHealthState.Stale, last, synced)
+        // Staleness is the oldest progress: a caught-up account's cursor, a backfilling account's latest batch.
+        var progress = accounts
+            .Select(account => account.HistoryImportedAt is not null
+                ? account.SyncedThrough
+                : lastBatchAt.TryGetValue(account.Id, out var batchAt)
+                    ? batchAt
+                    : account.CreatedAt > connection.ConnectedAt ? account.CreatedAt : connection.ConnectedAt)
+            .Min();
+
+        return progress is { } oldest && now - oldest > StaleAfter
+            ? new SyncHealth(SyncHealthState.Stale, oldest, oldest)
             : new SyncHealth(SyncHealthState.Healthy, last, last ?? connection.ConnectedAt);
     }
 }
