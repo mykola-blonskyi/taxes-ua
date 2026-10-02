@@ -5,7 +5,7 @@ export type Stub = { port: number; requests: string[]; close: () => Promise<void
 
 // A stand-in for an external service the api would otherwise call. It answers every request with the
 // given JSON and records "METHOD path", so a test can assert what the api asked for.
-export async function startStub(body: unknown | ((url: URL) => unknown)): Promise<Stub> {
+export async function startStub(body: object | ((url: URL) => object)): Promise<Stub> {
   const requests: string[] = [];
   const server = createServer((request, response) => {
     requests.push(`${request.method} ${request.url}`);
