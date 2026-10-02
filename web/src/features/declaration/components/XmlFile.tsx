@@ -123,17 +123,6 @@ export function XmlFile({ declaration, period }: { declaration: DeclarationRespo
           </ul>
         )}
       </div>
-
-      <div className="flex min-w-0 flex-col gap-2">
-        <h4 className="text-sm font-medium">{t("guide.title")}</h4>
-        <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm">
-          <li>{t("guide.open")}</li>
-          <li>{t("guide.import")}</li>
-          <li>{t("guide.check")}</li>
-          <li>{t("guide.sign")}</li>
-        </ol>
-        <p className="text-xs text-muted-foreground">{t("guide.noSend")}</p>
-      </div>
     </section>
   );
 }

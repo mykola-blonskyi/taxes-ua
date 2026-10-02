@@ -76,16 +76,7 @@ public static class DeclarationsEndpoints
                 }
 
                 // Ready means no detail is missing, so both rows and every value the header reads exist.
-                var invoicing = declaration.Invoicing!;
-                var details = declaration.Details!;
-                var header = new DeclarationHeader(
-                    invoicing.Rnokpp,
-                    details.TaxOfficeRegion!.Value,
-                    details.TaxOfficeDistrict!.Value,
-                    details.TaxOfficeName,
-                    invoicing.SellerNameUk,
-                    details.Address,
-                    details.KvedCodes);
+                var header = HeaderOf(declaration.Invoicing, declaration.Details)!;
                 var errors = DpsXml.Unwritable(header);
                 DeclarationXmlFiles? xml = null;
                 if (errors.Length == 0)
@@ -400,6 +391,7 @@ public static class DeclarationsEndpoints
 
         var fileAvailable = Declaration.FileAvailable(year, quarter, today);
         var figures = inGroup3 ? Declaration.ForQuarter(viewed.Accrual, quarter) : null;
+        var header = HeaderOf(invoicing, details);
         var deadlines = DeadlineCalendar.ForQuarter(year, quarter, config, settings);
         var response = new DeclarationResponse(
             year,
@@ -426,7 +418,8 @@ public static class DeclarationsEndpoints
             filing is null ? null : ToFiling(filing, incomeKop),
             fileAvailable ? files : [],
             fileAvailable,
-            Declaration.FileAvailableFrom(year, quarter));
+            Declaration.FileAvailableFrom(year, quarter),
+            figures is null ? [] : ToCabinet(figures, header, today));
         return (new QuarterDeclaration(response, figures, invoicing, details), null);
     }
 
@@ -435,6 +428,30 @@ public static class DeclarationsEndpoints
         DeclarationFigures? Figures,
         InvoicingDetails? Invoicing,
         DeclarationDetails? Details);
+
+    /// <summary>The header the forms print, or null while a detail is missing (Rule 15's readiness).</summary>
+    private static DeclarationHeader? HeaderOf(InvoicingDetails? invoicing, DeclarationDetails? details) =>
+        invoicing is null || details is null || DeclarationDetails.Missing(invoicing, details).Length > 0
+            ? null
+            : new DeclarationHeader(
+                invoicing.Rnokpp,
+                details.TaxOfficeRegion!.Value,
+                details.TaxOfficeDistrict!.Value,
+                details.TaxOfficeName,
+                invoicing.SellerNameUk,
+                details.Address,
+                details.KvedCodes);
+
+    // The same list the XML writers read (ADR-025), for a reporting declaration: the type is chosen in
+    // the Cabinet, and its marks are not part of the view.
+    private static CabinetFieldResponse[] ToCabinet(DeclarationFigures figures, DeclarationHeader? header, DateOnly today) =>
+    [
+        .. CabinetForm.Declaration(figures, header, DeclarationType.Reporting, today)
+            .Concat(figures.EsvAnnex is { } annex ? CabinetForm.Annex(annex, header, DeclarationType.Reporting) : [])
+            .Where(field => field.Part != CabinetPart.None)
+            .Select(field => new CabinetFieldResponse(
+                field.Part, field.Element, field.Kind, field.Line, field.Row, field.Month, field.Column, field.Entry)),
+    ];
 
     private static DateOnly QuarterStart(int year, int quarter) => new(year, 3 * quarter - 2, 1);
 
@@ -509,7 +526,25 @@ internal sealed record DeclarationResponse(
     DeclarationFilingResponse? Filed,
     DeclarationFileResponse[] Files,
     bool FileAvailable,
-    DateOnly FileAvailableFrom);
+    DateOnly FileAvailableFrom,
+    CabinetFieldResponse[] Cabinet);
+
+/// <summary>
+/// One field the Cabinet form asks for, in the form's order (ADR-025): <c>Element</c> is the XSD element,
+/// which names the label, <c>Line</c> the printed line number, <c>Row</c>, <c>Month</c> and <c>Column</c>
+/// place a table cell (0 when none), and <c>Value</c> is what the owner types: the XML's text, a date as
+/// dd.MM.yyyy, null for a field the form leaves empty or a box to tick. <c>Cabinet</c> is empty when
+/// <c>Figures</c> is; the header fields are missing until the declaration details are complete.
+/// </summary>
+internal sealed record CabinetFieldResponse(
+    CabinetPart Part,
+    string Element,
+    CabinetKind Kind,
+    string? Line,
+    int Row,
+    int Month,
+    int Column,
+    string? Value);
 
 /// <summary>
 /// The form's group 3 lines, as <see cref="DeclarationFigures"/> names them: 06, 07, 08, 09, 11, 12,

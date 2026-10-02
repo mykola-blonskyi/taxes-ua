@@ -5448,6 +5448,23 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        CabinetFieldResponse: {
+            part: components["schemas"]["CabinetPart"];
+            element: string;
+            kind: components["schemas"]["CabinetKind"];
+            line: null | string;
+            /** Format: int32 */
+            row: number | string;
+            /** Format: int32 */
+            month: number | string;
+            /** Format: int32 */
+            column: number | string;
+            value: null | string;
+        };
+        /** @enum {string} */
+        CabinetKind: "Text" | "Number" | "Amount" | "Date" | "Mark";
+        /** @enum {string} */
+        CabinetPart: "None" | "Header" | "Period" | "Declaration" | "Annex";
         CalendarFeedResponse: {
             path: null | string;
         };
@@ -5693,6 +5710,7 @@ export interface components {
             fileAvailable: boolean;
             /** Format: date */
             fileAvailableFrom: string;
+            cabinet: components["schemas"]["CabinetFieldResponse"][];
         };
         /** @enum {string} */
         DeclarationType: "Reporting" | "NewReporting" | "Clarifying";

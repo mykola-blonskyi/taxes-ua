@@ -6,6 +6,7 @@ import type { components, paths } from "@/data/api/schema";
 import { periodsQueryKey } from "@/data/periods/usePeriods";
 
 export type DeclarationResponse = components["schemas"]["DeclarationResponse"];
+export type CabinetField = components["schemas"]["CabinetFieldResponse"];
 export type DeclarationFigures = components["schemas"]["DeclarationFiguresResponse"];
 export type DeclarationReadiness = components["schemas"]["DeclarationReadinessResponse"];
 export type DeclarationFiling = components["schemas"]["DeclarationFilingResponse"];
