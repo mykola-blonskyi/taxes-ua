@@ -78,15 +78,26 @@ export function useDeletePayment() {
 }
 
 // Invalidates once, after the last payment, so a screen showing the debts does not refetch and change
-// under a batch still being recorded. A partial failure still refreshes what was recorded.
+// under a batch still being recorded. A payment that fails does not stop the rest: the answer names the
+// kinds that were saved and those that were not, so the caller never re-sends a saved one.
 export function useRecordPayments() {
   const invalidate = useInvalidatePayments();
 
   return useMutation({
     mutationFn: async (bodies: PaymentRequest[]) => {
+      const saved: PaymentKind[] = [];
+      const failed: PaymentKind[] = [];
+
       for (const body of bodies) {
-        await api.POST("/api/payments", { body });
+        try {
+          await api.POST("/api/payments", { body });
+          saved.push(body.kind);
+        } catch {
+          failed.push(body.kind);
+        }
       }
+
+      return { saved, failed };
     },
     onSettled: invalidate,
   });

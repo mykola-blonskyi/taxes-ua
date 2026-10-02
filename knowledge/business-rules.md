@@ -235,6 +235,12 @@ the quarterly deadline is the step again. Anything already overdue is the step i
 Per kind (EP, VZ, ESV) independently: accrued cumulatively minus paid = owed or overpaid. Kinds are
 never mixed: an overpayment of one kind never reduces another kind's debt.
 
+A payment the owner records (by hand, or with "mark paid" on the dashboard, which starts from today and the
+amount on the pay panel) carries the day and the sum actually paid. The api refuses a date after today in
+Kyiv (Rule 10) and an amount that is not above zero. A date before the period is allowed, because an advance is
+paid ahead; one before the FOP registration is kept and flagged. Backup import and bank candidates keep the
+dates they carry.
+
 Within a kind, money paid settles the oldest outstanding obligation first, by due date, whatever
 group 3 quarter or month the payment names (owner decision 2026-09-27; this is how the tax office credits
 payments against debt, Tax Code art. 87.9). Q1 levy 1,000.00 unpaid, Q2 levy 1,000.00 accrued and

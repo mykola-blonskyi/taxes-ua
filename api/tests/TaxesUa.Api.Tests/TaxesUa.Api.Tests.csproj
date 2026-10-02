@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <None Include="Features/Declarations/Golden/*.xml" Link="Golden/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Features/Backup/Fixtures/*.json" Link="BackupFixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
