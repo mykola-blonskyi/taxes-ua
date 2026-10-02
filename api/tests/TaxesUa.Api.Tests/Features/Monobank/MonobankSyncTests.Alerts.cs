@@ -26,6 +26,11 @@ public sealed partial class MonobankSyncTests
         "Monobank відхилив токен, синхронізацію зупинено.\n"
         + "Доходи в застосунку не оновлюються. Створіть новий токен і збережіть його в налаштуваннях.";
 
+    // The class shares one database, and every application's sender walks every owner in it, so an earlier
+    // test's owner (a linked chat, a rejected token) is alerted through this test's stub too. Each test
+    // links a chat of its own and reads only what went there.
+    private readonly long _chat = Random.Shared.NextInt64(1_000_000, 1_000_000_000_000);
+
     [Fact]
     public async Task A_stale_sync_alerts_once_recovery_clears_it_and_a_second_incident_alerts_again()
     {
@@ -33,7 +38,7 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-alert-stale", ("alert-stale-uah", 980));
         var telegram = new StubTelegramHandler();
         await using var app = CreateAlerting(At(2061, 3, 1, 10), bank, telegram);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-alert-stale");
+        using var owner = await Connect(app, _ownerEmail, "token-alert-stale");
         await LinkTelegram(app, owner, telegram);
 
         await SendAlerts(app);
@@ -74,7 +79,7 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-alert-late", ("alert-late-uah", 980));
         var telegram = new StubTelegramHandler();
         await using var app = CreateAlerting(At(2062, 3, 1, 10), bank, telegram);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-alert-late");
+        using var owner = await Connect(app, _ownerEmail, "token-alert-late");
         await LinkTelegram(app, owner, telegram);
 
         bank.StatementsFail = true;
@@ -92,7 +97,7 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-alert-revoked", ("alert-revoked-uah", 980));
         var telegram = new StubTelegramHandler();
         await using var app = CreateAlerting(At(2063, 3, 1, 10), bank, telegram);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-alert-revoked");
+        using var owner = await Connect(app, _ownerEmail, "token-alert-revoked");
         await LinkTelegram(app, owner, telegram);
 
         bank.Revoke("token-alert-revoked");
@@ -128,7 +133,7 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-alert-unreadable", ("alert-unreadable-uah", 980));
         var telegram = new StubTelegramHandler();
         await using var app = CreateAlerting(At(2064, 3, 1, 10), bank, telegram);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-alert-unreadable");
+        using var owner = await Connect(app, _ownerEmail, "token-alert-unreadable");
         await LinkTelegram(app, owner, telegram);
 
         await using (var scope = app.Factory.Services.CreateAsyncScope())
@@ -158,15 +163,13 @@ public sealed partial class MonobankSyncTests
         bank.Connect("token-alert-nochannel", ("alert-nochannel-uah", 980));
         var telegram = new StubTelegramHandler();
         await using var app = CreateAlerting(At(2065, 3, 1, 10), bank, telegram);
-        using var owner = await Connect(app, ApiFixture.AllowedEmail, "token-alert-nochannel");
-        await TelegramSteps.Reset(app.Factory);
-        await ClearClaims(app);
+        using var owner = await Connect(app, _ownerEmail, "token-alert-nochannel");
 
         bank.StatementsFail = true;
         app.Clock.Advance(TimeSpan.FromDays(4));
         await SendAlerts(app);
 
-        Assert.Empty(telegram.To("sendMessage"));
+        Assert.Empty(Alerts(telegram));
         Assert.Empty(await Incidents(app));
         Assert.Equal("Stale", (await Health(owner))!["state"]!.GetValue<string>());
     }
@@ -175,8 +178,7 @@ public sealed partial class MonobankSyncTests
     public async Task The_dashboard_has_no_sync_health_alert_without_a_connection()
     {
         await using var app = Create(At(2066, 3, 1, 10), new FakeBank());
-        using var owner = await ApiFixture.SignIn(app.Factory, ApiFixture.SecondAllowedEmail);
-        await owner.DeleteAsync("/api/monobank/connection");
+        using var owner = await ApiFixture.SignIn(app.Factory, _ownerEmail);
 
         Assert.Null(await Health(owner));
     }
@@ -209,38 +211,36 @@ public sealed partial class MonobankSyncTests
         return new SyncApp(factory, clock, handler);
     }
 
-    private static async Task LinkTelegram(SyncApp app, HttpClient owner, StubTelegramHandler telegram)
+    private async Task LinkTelegram(SyncApp app, HttpClient owner, StubTelegramHandler telegram)
     {
-        await TelegramSteps.Reset(app.Factory);
-        await ClearClaims(app);
-        await TelegramSteps.Link(app.Factory, owner, telegram);
+        await TelegramSteps.ForgetPollOffset(app.Factory);
+        var next = telegram.Updates.Count == 0 ? 10 : telegram.Updates.Max(update => update["update_id"]!.GetValue<long>()) + 1;
+        telegram.Updates.Add(StubTelegramHandler.Update(next, _chat, $"/start {TelegramSteps.CodeOf(await TelegramSteps.Connect(owner))}"));
+        await TelegramSteps.Poll(app.Factory);
+        Assert.True((await TelegramSteps.Channel(owner))["linked"]!.GetValue<bool>());
         telegram.ClearCalls();
     }
 
     private static Task SendAlerts(SyncApp app) =>
         app.Factory.Services.GetRequiredService<ReminderSender>().RunOnceAsync(CancellationToken.None);
 
-    private static List<string> Alerts(StubTelegramHandler telegram) =>
-        [.. telegram.To("sendMessage").Select(call => call.Body["text"]!.GetValue<string>())];
+    private List<string> Alerts(StubTelegramHandler telegram) =>
+        [
+            .. telegram.To("sendMessage")
+                .Where(call => call.Body["chat_id"]!.GetValue<string>() == _chat.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .Select(call => call.Body["text"]!.GetValue<string>()),
+        ];
 
     private static async Task<JsonObject?> Health(HttpClient owner) =>
         (await owner.GetFromJsonAsync<JsonObject>("/api/dashboard"))!["sync"]?.AsObject();
 
-    private static async Task<List<SentReminder>> Incidents(SyncApp app)
+    private async Task<List<SentReminder>> Incidents(SyncApp app)
     {
         await using var scope = app.Factory.Services.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var owner = database.Users.Where(user => user.Email == ApiFixture.AllowedEmail).Select(user => user.Id);
+        var owner = database.Users.Where(user => user.Email == _ownerEmail).Select(user => user.Id);
         return await database.SentReminders.AsNoTracking()
             .Where(row => owner.Contains(row.UserId) && row.Incident != string.Empty)
             .ToListAsync();
-    }
-
-    private static async Task ClearClaims(SyncApp app)
-    {
-        await using var scope = app.Factory.Services.CreateAsyncScope();
-        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var owner = database.Users.Where(user => user.Email == ApiFixture.AllowedEmail).Select(user => user.Id);
-        await database.SentReminders.Where(row => owner.Contains(row.UserId)).ExecuteDeleteAsync();
     }
 }

@@ -228,6 +228,11 @@ failure.
 A row exists for every account the token exposed, FOP or not, so settings can list an unsupported
 type without a second call to the bank. Only a `fop` account can ever have `IsActive = true`.
 
+Sync health (Rule 18) is derived from these fields and the connection's `RejectedAt`, never stored:
+`SyncedThrough` of the accounts with `HistoryImportedAt` set is the last successful sync, and
+`LastFailure = TokenUnreadable` is an unreadable token. The dashboard and the incident alerts read it
+through one function, so they cannot disagree.
+
 The token itself does not live here: see `MonobankConnection` below (#75). `EncryptedToken` moved
 off this entity because the connection — one token per owner — outlives any single account, and
 disconnecting must not touch the `BankAccount` rows a sync already created.
@@ -643,8 +648,14 @@ worker only.
 
 Fields: `UserId`, `Date` (the deadline or advance date the reminder is about), `Kinds` (flags:
 `SingleTax`, `MilitaryLevy`, `Esv`, `Declaration`, `Group3Application`), `Offset` (days from `Date`: -7, -1, 0 or 1), `Channel`
-(`NotificationChannelKind`), `ClaimedAt`, `DeliveredAt?`. Unique on (`UserId`, `Date`, `Kinds`, `Offset`,
-`Channel`).
+(`NotificationChannelKind`), `Incident` (empty for a reminder), `ClaimedAt`, `DeliveredAt?`. Unique on
+(`UserId`, `Date`, `Kinds`, `Offset`, `Channel`) among rows with no `Incident`.
+
+An incident alert (Rule 18, ADR-025) is a row of the same log: `Incident` holds its key (the kind and the
+Unix second the state began, such as `SyncStale:1790000000`), `Kinds` is none, `Offset` is `OnTheDay` and
+`Date` is the day it was claimed. It is unique on (`UserId`, `Incident`, `Channel`) among rows with an
+`Incident`, so an incident is claimed once per channel however many days it lasts, and the same delivery
+rules apply.
 
 A row is inserted before the message is sent and gets `DeliveredAt` once the channel accepts it. A
 failure that proves nothing was delivered (unreachable, rate limited, server error) deletes the row so a
