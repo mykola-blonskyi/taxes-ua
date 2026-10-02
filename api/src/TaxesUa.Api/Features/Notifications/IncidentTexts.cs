@@ -31,13 +31,19 @@ internal static class IncidentTexts
                     "Вероятно, потерян ключ шифрования. Сохраните токен в настройках заново.")
                 : ("Токен monobank не вдалося прочитати, синхронізацію зупинено.",
                     "Імовірно, втрачено ключ шифрування. Збережіть токен у налаштуваннях заново."),
+            IncidentKind.NewTaxYear => russian
+                ? ($"Налоговый {incident.Year} год: проверьте и подтвердите параметры.",
+                    "Минимальная зарплата, база и ставка ЕСВ, лимиты. Можно скопировать прошлый год и поправить цифры.")
+                : ($"Податковий {incident.Year} рік: перевірте й підтвердьте параметри.",
+                    "Мінімальна зарплата, база й ставка ЄСВ, ліміти. Можна скопіювати попередній рік і виправити цифри."),
             _ => throw new ArgumentOutOfRangeException(nameof(incident), incident.Kind, "Unknown incident kind."),
         };
 
+        var tab = incident.Kind == IncidentKind.NewTaxYear ? "taxYears" : "monobank";
         var lines = new List<string> { subject, advice };
         if (appUrl is not null)
         {
-            lines.Add($"{(russian ? "Открыть настройки" : "Відкрити налаштування")}: {appUrl}settings?tab=monobank");
+            lines.Add($"{(russian ? "Открыть настройки" : "Відкрити налаштування")}: {appUrl}settings?tab={tab}");
         }
 
         return new ReminderMessage(subject, string.Join('\n', lines));

@@ -37,4 +37,16 @@ public sealed class IncidentTextsTests
         Assert.Equal(2, message.Text.Split('\n').Length);
         Assert.DoesNotContain("http", message.Text, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("uk", "Податковий 2032 рік: перевірте й підтвердьте параметри.", "Відкрити налаштування")]
+    [InlineData("ru", "Налоговый 2032 год: проверьте и подтвердите параметры.", "Открыть настройки")]
+    public void A_new_tax_year_names_the_year_and_links_to_the_tax_years_tab(string locale, string subject, string open)
+    {
+        var message = IncidentTexts.Render(
+            new Incident("NewTaxYear:2032", IncidentKind.NewTaxYear, null, 2032), locale, "https://taxes.test/");
+
+        Assert.Equal(subject, message.Subject);
+        Assert.EndsWith($"\n{open}: https://taxes.test/settings?tab=taxYears", message.Text, StringComparison.Ordinal);
+    }
 }

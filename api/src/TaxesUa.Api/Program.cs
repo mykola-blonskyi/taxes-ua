@@ -191,6 +191,7 @@ builder.Services.AddSingleton<EmailConfirmation>();
 builder.Services.AddScoped<EmailDelivery>();
 builder.Services.AddScoped<IReminderChannel, EmailReminderChannel>();
 builder.Services.AddScoped<IIncidentSource, SyncIncidentSource>();
+builder.Services.AddScoped<IIncidentSource, NewTaxYearIncidentSource>();
 builder.Services.AddSingleton<ReminderSender>();
 builder.Services.AddHostedService<ReminderWorker>();
 

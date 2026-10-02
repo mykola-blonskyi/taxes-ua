@@ -5559,6 +5559,7 @@ export interface components {
             overdueInvoiceCount: number | string;
             group3: components["schemas"]["Group3StatusResponse"];
             sync: null | components["schemas"]["SyncHealthResponse"];
+            newTaxYear: null | components["schemas"]["NewTaxYearStatus"];
         };
         Deadline: {
             /** Format: date */
@@ -6216,6 +6217,13 @@ export interface components {
             recommendedKop: number | string;
             /** Format: date */
             recommendedDate: string;
+        };
+        /** @enum {string} */
+        NewTaxYearState: "Missing" | "Unconfirmed";
+        NewTaxYearStatus: {
+            /** Format: int32 */
+            year: number | string;
+            state: components["schemas"]["NewTaxYearState"];
         };
         NextStepResponse: {
             state: components["schemas"]["NextStepState"];

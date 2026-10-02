@@ -357,6 +357,16 @@ above), ESV payer registered, and accounts registered. Its hint says where to ch
 Every year has a `TaxYearConfig` row. If the current year has no row, or its `VerifiedAt` is
 empty, the interface shows a warning. Values are never hardcoded in the code.
 
+**A new year.** In December (Kyiv date) the owner is asked to prepare the coming year: when `TaxYearConfig`
+has no row for the next year, or its row has no `VerifiedAt`, the dashboard shows a notice and the reminder
+channels carry one alert. The notice names the minimum wage, the ESV base and rate, and the limits as what to
+check, and opens Settings, tax years, where the clone of the current year into the next is offered. The
+state is derived, never stored: it clears the moment the year is verified, and outside December it does not
+exist (the warnings above speak the rest of the year). The alert is an incident (Rule 18) keyed by the year,
+so it is sent once per channel per year, from 09:00 Kyiv like a deadline reminder, however many days of
+December it stays open. A missing next year matters from 1 January: the ledger stops at the first year
+without a row (Rule 7), so the home screen has no balance until the year is configured.
+
 ---
 
 ## Rule 10. Money and dates
@@ -1072,8 +1082,9 @@ followed account is queued or syncing: a recovery under way is not a new inciden
 shows the state. If one account then stays stale after the queue empties, it is alerted under its own,
 later key. The first rejection of a token also stays: a later 401 does not overwrite `RejectedAt`.
 
-The same mechanism will carry other incidents, such as a backup that failed (#176) and an expired Treasury
-account (#173): a new kind of incident and a source that reports it, not a new sender.
+The same mechanism carries other incidents, such as a backup that failed (#176) and an expired Treasury
+account (#173): a new kind of incident and a source that reports it, not a new sender. The first to do so is
+the December prompt to prepare the next tax year (Rule 9), keyed by the year and held until 09:00 Kyiv.
 
 A message is plain text in the owner's language: what stopped, what it means for the figures, and a link to
 the monobank tab of settings.

@@ -71,6 +71,8 @@ function NoticeView({ name, data }: { name: Notice; data: DashboardResponse }) {
       return data.limitCrossing ? <LimitCrossingWarning crossing={data.limitCrossing} /> : null;
     case "declaration":
       return data.declaration ? <DeclarationDue due={data.declaration} today={data.today} /> : null;
+    case "newTaxYear":
+      return data.newTaxYear ? <NewTaxYearNotice status={data.newTaxYear} /> : null;
     case "review":
       return <ReviewWarning count={Number(data.needsReviewCount)} />;
   }
@@ -93,6 +95,7 @@ function useNoticeTitles(data: DashboardResponse): Record<Notice, string> {
       : "",
     group3: isGroup3Unconfirmed(data.group3) ? t("group3.unconfirmedShort") : t("group3.beforeGroup3Title"),
     declaration: due ? tDeclaration("title", { quarter: Number(due.quarter), year: Number(due.year) }) : "",
+    newTaxYear: data.newTaxYear ? t("newTaxYear.title", { year: Number(data.newTaxYear.year) }) : "",
     review: t("review.title", { count: Number(data.needsReviewCount) }),
     overdueInvoices: t("overdueInvoices.title", { count: Number(data.overdueInvoiceCount) }),
   };
@@ -256,6 +259,24 @@ function DeclarationDue({ due, today }: { due: NonNullable<DashboardResponse["de
         href={declarationHref(year, quarter)}
         className="text-sm font-medium text-primary underline-offset-4 hover:underline"
       >
+        {t("cta")}
+      </Link>
+    </section>
+  );
+}
+
+function NewTaxYearNotice({ status }: { status: NonNullable<DashboardResponse["newTaxYear"]> }) {
+  const t = useTranslations("dashboard.newTaxYear");
+  const year = Number(status.year);
+
+  return (
+    <section
+      role="status"
+      className="flex min-w-0 flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-4 text-sm"
+    >
+      <h3 className="break-words font-semibold text-amber-800 dark:text-amber-300">{t("title", { year })}</h3>
+      <p className="break-words">{t(status.state === "Missing" ? "missing" : "unconfirmed", { year })}</p>
+      <Link href="/settings?tab=taxYears" className="w-fit font-medium text-primary underline-offset-4 hover:underline">
         {t("cta")}
       </Link>
     </section>

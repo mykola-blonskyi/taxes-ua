@@ -94,6 +94,51 @@ export function TaxYearTable() {
   }
 
   return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <NewYearOffer taxYears={data} />
+      <TaxYearRows taxYears={data} />
+    </div>
+  );
+}
+
+// The coming year has no parameters yet: offer the clone of this year at the top, where the owner lands from
+// the December prompt, instead of leaving the button to be found on the right row.
+function NewYearOffer({ taxYears }: { taxYears: TaxYearConfigResponse[] }) {
+  const t = useTranslations("settings");
+  const tYears = useTranslations("settings.taxYears");
+  const apiText = useApiErrorText();
+  const cloneTaxYear = useCloneTaxYear();
+  const year = new Date().getFullYear();
+  const next = year + 1;
+  const has = (value: number) => taxYears.some((taxYear) => Number(taxYear.year) === value);
+
+  if (!has(year) || has(next)) {
+    return null;
+  }
+
+  const failure = cloneTaxYear.error instanceof ApiError ? cloneTaxYear.error : null;
+
+  return (
+    <section className="flex min-w-0 flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-4 text-sm">
+      <p className="break-words">{tYears("offer.text", { year, next })}</p>
+      <Button
+        type="button"
+        size="sm"
+        className="w-fit"
+        disabled={cloneTaxYear.isPending}
+        onClick={() => cloneTaxYear.mutate({ year, next })}
+      >
+        {cloneTaxYear.isPending ? tYears("cloning") : tYears("offer.clone", { year, next })}
+      </Button>
+      {failure ? <p className="text-xs text-destructive">{apiText.withReason(t("saveFailed"), failure)}</p> : null}
+    </section>
+  );
+}
+
+function TaxYearRows({ taxYears: data }: { taxYears: TaxYearConfigResponse[] }) {
+  const tYears = useTranslations("settings.taxYears");
+
+  return (
     // `relative` makes this the containing block of the fields' sr-only labels. They are absolutely
     // positioned, so without it they escape the scroll box and widen the whole page.
     <div className="relative overflow-x-auto">
