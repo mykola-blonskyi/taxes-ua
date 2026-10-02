@@ -72,3 +72,36 @@ test("the declaration XML downloads under the DPS file name and parses as form F
     address: taxOffice.address,
   });
 });
+
+test("the declaration screen leads with the Cabinet fields and a copy button puts the exact value on the clipboard", async ({
+  page,
+  request,
+  context,
+  baseURL,
+}) => {
+  const { today } = await dashboard(request);
+  const year = endedFirstQuarterYear(today);
+  await seedDeclarationReady(request, year);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: baseURL });
+
+  await page.goto(`/declaration?year=${year}&quarter=1`);
+
+  const cabinet = page.getByRole("region", { name: uk.declaration.cabinet.title });
+  await expect(cabinet).toBeVisible();
+  // The Cabinet has no XML import, so the screen must not tell the owner to import one.
+  await expect(page.getByText("Імпортувати XML з пристрою")).toHaveCount(0);
+  // The XML card is the secondary path and sits below the fields to type.
+  const cabinetBox = await cabinet.boundingBox();
+  const xmlBox = await page.getByRole("region", { name: uk.declaration.xml.title }).boundingBox();
+  expect(cabinetBox!.y).toBeLessThan(xmlBox!.y);
+
+  const line06 = cabinet.locator("li", { has: page.getByRole("button", { name: "Копіювати: Рядок 06" }) });
+  const shown = (await line06.locator("span.font-medium").innerText()).trim();
+  expect(shown).toMatch(/^\d+\.\d{2}$/);
+  await line06.getByRole("button", { name: "Копіювати: Рядок 06" }).click();
+  await expect(line06.getByRole("status")).toHaveText(uk.declaration.cabinet.copied);
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(shown);
+
+  const api = await (await request.get(`/api/declarations/${year}/1`)).json();
+  expect(api.cabinet.find((field: { element: string }) => field.element === "R006G3").value).toBe(shown);
+});

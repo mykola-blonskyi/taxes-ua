@@ -691,8 +691,9 @@ run time.
 
 ### Decision
 
-The app prepares the file and stops there. The owner imports it in the Cabinet ("Імпортувати XML з
-пристрою"), checks it against the Declaration screen, signs it with a KEP and sends it. The app holds no
+The app prepares the file and stops there. The owner checks it against the Declaration screen, signs it
+with a KEP and sends it. (Amended by ADR-025: the Cabinet has no XML import, so the file is for M.E.Doc and
+other software, and the owner enters the declaration in the Cabinet by hand.) The app holds no
 key, no Cabinet session and no DPS credential.
 
 F0103309.xsd and common_types.xsd are vendored next to the writer, byte for byte, with their source,
@@ -792,6 +793,8 @@ local; the reminders of #108 remain the message that names what is owed.
 Date: 2026-09-30
 
 Status: Accepted
+
+(Amended by ADR-025: the Cabinet has no XML import, so the two files are for M.E.Doc and other software, and the owner enters the declaration and the annex in the Cabinet by hand.)
 
 ### Context
 
@@ -1313,6 +1316,52 @@ browser request cannot be made in the suite). That spec covers only the Next hop
 they strip would go unnoticed there. The api tests that post without headers still pass because of rule 3. A reverse
 proxy that strips `Sec-Fetch-Site` and `Origin` would silently disable the check, so the e2e spec is what
 guards that path. A cross-origin request to the monobank webhook is accepted by design.
+
+---
+
+## ADR-025. The Cabinet has no XML import: the declaration screen leads with the fields to type, built from the XML's own list
+
+Date: 2026-10-02
+
+Status: Accepted
+
+### Context
+
+ADR-016 assumed the owner imports the XML in the Electronic Cabinet. The new Cabinet has no import: the
+owner creates the form ("Введення звітності" → "Створити" → F0103309) and types it in. The 2026-10-02 audit
+(UX High 1 and 2) found the screen telling the owner to import, and its figures not copyable, so a phone
+user retyped every line.
+
+### Decision
+
+`CabinetForm` builds the F0103309 body (and annex 1's) as one ordered list of `CabinetField`: the XSD
+element, its text, where it sits on the form (`Part`), its kind, its printed line number and, for the
+annex's table, its month and column. The XML writers write that list, skipping a field with no value, and
+`GET /api/declarations/{year}/{quarter}` serves the same list as `cabinet`, so the view and the file cannot
+differ; an api test pins it for a quarter with the annex, a crossing quarter and one without.
+
+The value is the XML's text, so it is what the schema accepts: `DGdecimal2` is `-?[0-9]+\.[0-9]{2}`, a dot
+and exactly two decimals. The owner copies `1234.56` and `0.00`. A line the XML omits has a null value: the
+screen says to leave it empty. Dates are the only change, from `ddMMyyyy` to `dd.MM.yyyy`, which is how a
+Cabinet date field reads. Marks (type, period, annex boxes) are ticked, not typed. Labels live in the web's
+message catalogs, keyed by the element; the api sends no text (ADR-002). The XML card stays, retitled for
+M.E.Doc and other software.
+
+### Alternatives Considered
+
+A separate endpoint with its own mapping from the figures. Two mappings can drift, which is the failure the
+audit found in the guide. A client-side mapping of `DeclarationFigures` to lines: the web would need the
+annex's rows and the header too, and would re-decide which lines the file omits.
+
+Formatting amounts with a comma or spaces for reading. The Cabinet takes what the schema takes, and the
+copy button removes any need to read the digits.
+
+### Consequences
+
+The Cabinet's own field captions are not in the schema; the labels are the form's line names the screen
+already used, plus plain names for the header. The owner should compare the first filing with the real
+form and the labels be corrected if they differ. Whether the Cabinet recalculates lines such as 08, 12 and
+14 itself is unverified; the guide asks the owner to stop if its sums differ from the screen's.
 
 ---
 

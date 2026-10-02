@@ -52,9 +52,14 @@ The tax office the declaration is filed with, as its region code (C_REG) and dis
 on the form, with its name (HSTI) as the Cabinet shows it.
 
 ### Declaration file
-The quarterly declaration as an F0103309 XML file in windows-1251, named per DPS standard No. 729, which
-the owner imports in the Cabinet ("Імпортувати XML з пристрою"), checks, signs with a KEP and sends. In
-code: `DeclarationFile` (Rule 15).
+The quarterly declaration as an F0103309 XML file in windows-1251, named per DPS standard No. 729, for
+M.E.Doc and other software that imports it. The Electronic Cabinet has no XML import. In code:
+`DeclarationFile` (Rule 15).
+
+### Fill in the Cabinet
+The declaration screen's main path: every field of F0103309, and of annex 1 when it applies, in the form's
+order, each with the plain value to type and a copy button; the owner enters them by hand in the Cabinet
+("Введення звітності" → "Створити"), signs with a KEP and sends. In code: `CabinetField` (Rule 15, ADR-025).
 
 ### ESV annex (annex 1)
 "Відомості про суми нарахованого доходу застрахованих осіб та суми нарахованого єдиного внеску", form
