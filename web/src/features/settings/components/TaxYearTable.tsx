@@ -94,9 +94,9 @@ export function TaxYearTable() {
   return (
     // `relative` makes this the containing block of the fields' sr-only labels. They are absolutely
     // positioned, so without it they escape the scroll box and widen the whole page.
-    <div className="relative overflow-x-auto" data-scroll-strip="tax-years">
-      <table className="w-full border-collapse text-sm">
-        <thead>
+    <div className="relative overflow-x-auto">
+      <table className="block w-full border-collapse text-sm md:table">
+        <thead className="hidden md:table-header-group">
           <tr className="border-b text-left align-bottom text-xs text-muted-foreground">
             <th className="min-w-24 p-2 font-medium">{tYears("year")}</th>
             <th className="min-w-24 p-2 font-medium">{tYears("minWageKop")}</th>
@@ -127,7 +127,7 @@ export function TaxYearTable() {
             <th className="p-2 font-medium" />
           </tr>
         </thead>
-        <tbody>
+        <tbody className="flex flex-col gap-3 md:table-row-group">
           {data.map((taxYear) => (
             <TaxYearRow key={taxYear.year} taxYear={taxYear} />
           ))}
@@ -156,106 +156,110 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
   );
 
   return (
-    <tr className="border-b align-top">
-      <td className="p-2">{year}</td>
-      <td className="p-2">
+    <tr className="grid grid-cols-2 gap-3 rounded-lg border p-3 align-top md:table-row md:rounded-none md:border-0 md:border-b md:p-0">
+      <td className="col-span-2 text-base font-semibold md:table-cell md:p-2 md:text-sm md:font-normal">{year}</td>
+      <td className="md:table-cell md:p-2">
         <MoneyField
           id={`min-wage-${year}`}
           label={`${tYears("minWageKop")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           locale={locale}
           valueKop={form.minWageKop}
           onChange={(value) => setForm((current) => ({ ...current, minWageKop: value }))}
           errors={fieldErrors?.minWageKop}
         />
       </td>
-      <td className="p-2">
+      <td className="md:table-cell md:p-2">
         <RateField
           id={`single-tax-rate-${year}`}
           label={`${tYears("singleTaxRateBp")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           locale={locale}
           valueBp={form.singleTaxRateBp}
           onChange={(value) => setForm((current) => ({ ...current, singleTaxRateBp: value }))}
           errors={fieldErrors?.singleTaxRateBp}
         />
       </td>
-      <td className="p-2">
+      <td className="md:table-cell md:p-2">
         <RateField
           id={`military-levy-rate-${year}`}
           label={`${tYears("militaryLevyRateBp")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           locale={locale}
           valueBp={form.militaryLevyRateBp}
           onChange={(value) => setForm((current) => ({ ...current, militaryLevyRateBp: value }))}
           errors={fieldErrors?.militaryLevyRateBp}
         />
       </td>
-      <td className="p-2">
+      <td className="md:table-cell md:p-2">
         <RateField
           id={`esv-rate-${year}`}
           label={`${tYears("esvRateBp")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           locale={locale}
           valueBp={form.esvRateBp}
           onChange={(value) => setForm((current) => ({ ...current, esvRateBp: value }))}
           errors={fieldErrors?.esvRateBp}
         />
       </td>
-      <td className="p-2">
+      <td className="md:table-cell md:p-2">
         <RateField
           id={`excess-rate-${year}`}
           label={`${tYears("excessRateBp")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           locale={locale}
           valueBp={form.excessRateBp}
           onChange={(value) => setForm((current) => ({ ...current, excessRateBp: value }))}
           errors={fieldErrors?.excessRateBp}
         />
       </td>
-      <td className="p-2">
+      <td className="md:table-cell md:p-2">
         <ReadOnlyMoneyField
           id={`esv-monthly-${year}`}
           label={`${tYears("esvMonthlyKop")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           locale={locale}
           valueKop={Number(taxYear.esvMonthlyKop)}
         />
       </td>
-      <td className="p-2">
+      <td className="md:table-cell md:p-2">
         <NumberField
           id={`income-limit-min-wages-${year}`}
           label={`${tYears("incomeLimitMinWages")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           value={form.incomeLimitMinWages}
           onChange={(value) => setForm((current) => ({ ...current, incomeLimitMinWages: value }))}
           errors={fieldErrors?.incomeLimitMinWages}
         />
       </td>
-      <td className="p-2">
+      <td className="md:table-cell md:p-2">
         <ReadOnlyMoneyField
           id={`income-limit-${year}`}
           label={`${tYears("incomeLimitKop")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           locale={locale}
           valueKop={Number(taxYear.incomeLimitKop)}
         />
       </td>
-      <td className="p-2">
+      <td className="col-span-2 md:table-cell md:p-2">
         <TextField
+          hint={tYears("limitWarnThresholdsPctHint")}
+          hintClassName="md:hidden"
           id={`limit-warn-thresholds-${year}`}
           label={`${tYears("limitWarnThresholdsPct")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           value={form.limitWarnThresholdsPctText}
           onChange={(value) => setForm((current) => ({ ...current, limitWarnThresholdsPctText: value }))}
           errors={fieldErrors?.limitWarnThresholdsPct}
         />
       </td>
-      <td className="p-2">
+      <td className="md:table-cell md:p-2">
         <NumberField
+          hint={tYears("esvDeadlineDayHint")}
+          hintClassName="md:hidden"
           id={`esv-deadline-day-${year}`}
           label={`${tYears("esvDeadlineDay")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           min={1}
           max={28}
           value={form.esvDeadlineDay}
@@ -263,21 +267,21 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           errors={fieldErrors?.esvDeadlineDay}
         />
       </td>
-      <td className="p-2">
+      <td className="md:table-cell md:p-2">
         <NumberField
           id={`declaration-days-${year}`}
           label={`${tYears("declarationDays")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           value={form.declarationDays}
           onChange={(value) => setForm((current) => ({ ...current, declarationDays: value }))}
           errors={fieldErrors?.declarationDays}
         />
       </td>
-      <td className="p-2">
+      <td className="md:table-cell md:p-2">
         <NumberField
           id={`tax-payment-days-after-declaration-${year}`}
           label={`${tYears("taxPaymentDaysAfterDeclaration")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           value={form.taxPaymentDaysAfterDeclaration}
           onChange={(value) =>
             setForm((current) => ({ ...current, taxPaymentDaysAfterDeclaration: value }))
@@ -285,43 +289,46 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           errors={fieldErrors?.taxPaymentDaysAfterDeclaration}
         />
       </td>
-      <td className="p-2">
+      <td className="md:table-cell md:p-2">
         <NumberField
           id={`advance-recommended-day-${year}`}
           label={`${tYears("advanceRecommendedDay")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           value={form.advanceRecommendedDay}
           onChange={(value) => setForm((current) => ({ ...current, advanceRecommendedDay: value }))}
           errors={fieldErrors?.advanceRecommendedDay}
         />
       </td>
-      <td className="p-2">
+      <td className="col-span-2 md:table-cell md:p-2">
         <TextField
+          hint={tYears("holidaysHint")}
+          hintClassName="md:hidden"
           id={`holidays-${year}`}
           label={`${tYears("holidays")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           value={form.holidaysText}
           onChange={(value) => setForm((current) => ({ ...current, holidaysText: value }))}
           errors={fieldErrors?.holidays}
         />
       </td>
-      <td className="p-2">
+      <td className="col-span-2 md:table-cell md:p-2">
         <TextField
           id={`source-${year}`}
           label={`${tYears("source")} ${year}`}
-          labelClassName="sr-only"
+          labelClassName="text-xs text-muted-foreground md:sr-only"
           value={form.source}
           onChange={(value) => setForm((current) => ({ ...current, source: value }))}
           errors={fieldErrors?.source}
         />
       </td>
-      <td className="p-2 text-xs text-muted-foreground">
+      <td className="col-span-2 text-xs text-muted-foreground md:table-cell md:p-2">
+        <span className="font-medium md:hidden">{tYears("verifiedAt")}: </span>
         {taxYear.verifiedAt
           ? tYears("verified", { date: new Intl.DateTimeFormat(locale).format(new Date(taxYear.verifiedAt)) })
           : tYears("unverified")}
       </td>
-      <td className="p-2">
-        <div className="flex flex-col gap-2">
+      <td className="col-span-2 md:table-cell md:p-2">
+        <div className="grid grid-cols-2 gap-2 md:flex md:flex-col">
           <Button
             type="button"
             size="sm"
