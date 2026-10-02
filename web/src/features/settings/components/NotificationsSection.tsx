@@ -73,10 +73,12 @@ function TelegramChannel({
     return <p className="text-sm text-muted-foreground">{t("unavailable")}</p>;
   }
 
-  if (!channel.linked) {
+  // A channel restored from a backup is linked but unconfirmed: nothing is sent, and pressing Start again
+  // in Telegram confirms it, so it gets the same connect flow as no channel at all.
+  if (!channel.linked || !channel.confirmed) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">{t("intro")}</p>
+        <p className="text-sm text-muted-foreground">{t(channel.linked ? "reconfirm" : "intro")}</p>
         <div>
           <Button
             type="button"

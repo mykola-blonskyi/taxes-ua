@@ -40,4 +40,4 @@ if [ "$(jq -r '[.services.web.ports[] | select(.host_ip != "127.0.0.1")] | lengt
 else
   echo "FAIL  the local override publishes web on 127.0.0.1 only"; exit 1
 fi
-check '.services.api.environment | has("Auth__DevelopmentSignIn")' false "the deployed compose never enables the Development sign-in"
+check '.services.api.environment | keys | map(ascii_downcase) | index("auth__developmentsignin") != null' false "the deployed compose never enables the Development sign-in"

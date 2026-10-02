@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
+import { staticContentSecurityPolicy } from "./src/shared/security/csp";
 
 // Resolved at build time: rewrites are baked into the standalone server.
 const apiUrl = process.env.API_URL ?? "http://localhost:8080";
@@ -13,7 +14,7 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  // The page policy carries a per-request nonce, so src/proxy.ts sets it.
+  // The page policy carries a per-request nonce, so src/proxy.ts sets it on the routes it matches.
   { key: "Permissions-Policy", value: permissionsPolicy },
 ];
 
@@ -21,7 +22,19 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      // Exactly the paths the proxy matcher skips (a last segment with an extension), so no response
+      // carries two policies: two would both be enforced, and the static one would block the nonce'd scripts.
+      ...(process.env.NODE_ENV === "production"
+        ? [
+            {
+              source: "/:path(.*\\.[^/]+)",
+              headers: [{ key: "Content-Security-Policy", value: staticContentSecurityPolicy }],
+            },
+          ]
+        : []),
+    ];
   },
   async rewrites() {
     return {

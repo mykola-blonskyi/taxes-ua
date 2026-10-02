@@ -20,6 +20,20 @@ export function contentSecurityPolicy(nonce: string): string {
   ].join("; ");
 }
 
+// For the paths the proxy does not see: a last segment with an extension is a file or, for an unknown
+// address such as /foo.bar, the 404 page. Static pages that run script (the offline page) keep it in
+// their own files, so 'self' is all they need.
+export const staticContentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self'",
+  "img-src 'self' data:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
 export function newNonce(): string {
   return btoa(crypto.randomUUID());
 }
