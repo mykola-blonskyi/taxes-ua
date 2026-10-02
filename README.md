@@ -124,6 +124,8 @@ After changing api endpoints, with the api running on port 5241:
 pnpm --dir web gen:api
 ```
 
+CI regenerates the types from the api and fails the `Web lint & build` job when `web/src/data/api/schema.d.ts` differs.
+
 ## Tests
 
 ```bash
