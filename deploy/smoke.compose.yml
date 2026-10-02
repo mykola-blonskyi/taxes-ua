@@ -9,12 +9,14 @@ services:
       Auth__AllowedEmails: owner@example.com
       AllowedHosts: taxes.test
       Auth__Passkey__ServerDomain: taxes.test
+      # What Coolify injects at deploy time.
+      SOURCE_COMMIT: ${SOURCE_COMMIT}
     depends_on:
       db:
         condition: service_healthy
 
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: taxes_ua
       POSTGRES_USER: taxes_ua

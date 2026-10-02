@@ -308,10 +308,16 @@ if (app.Environment.IsDevelopment())
     api.MapDevelopmentSignIn();
 }
 
+// The commit this container was built from. Coolify injects SOURCE_COMMIT into the compose services;
+// the compose file must not mention it, or Coolify makes it an empty user variable. CI waits for it to
+// appear in /api/health, which is how a new release is told apart from the old one still answering.
+var release = new[] { app.Configuration["App:Release"], app.Configuration["SOURCE_COMMIT"] }
+    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "unknown";
+
 api.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
 {
     var dbOk = await db.Database.CanConnectAsync(ct);
-    var payload = new { status = dbOk ? "ok" : "degraded", database = dbOk };
+    var payload = new { status = dbOk ? "ok" : "degraded", database = dbOk, release };
     return dbOk ? Results.Ok(payload) : Results.Json(payload, statusCode: StatusCodes.Status503ServiceUnavailable);
 });
 
@@ -343,7 +349,13 @@ api.MapCalendarApi();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
-    await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
+    await MigrationDump.MigrateAsync(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        app.Configuration["Migrations:DumpDirectory"],
+        app.Configuration.GetValue("Migrations:DumpKeep", MigrationDump.DefaultKeep),
+        MigrationDump.PgDumpAsync,
+        scope.ServiceProvider.GetRequiredService<TimeProvider>(),
+        app.Logger);
 }
 
 app.Run();

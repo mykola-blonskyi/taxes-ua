@@ -6,6 +6,7 @@ cd "$(dirname "$0")/.."
 
 domain=taxes.test
 project="taxes-ua-smoke-$$"
+export SOURCE_COMMIT=0123456789abcdef
 compose=(docker compose -p "$project" -f docker-compose.yml -f deploy/smoke.compose.yml)
 trap '"${compose[@]}" down -v >/dev/null 2>&1 || true' EXIT
 
@@ -33,7 +34,8 @@ header() { local name=$1; shift; request "$@" | tr -d '\r' | grep -i "^$name:" |
 
 health=$(docker run --rm --network "${project}_default" curlimages/curl:8.10.1 -s \
   -H "Host: $domain" -H "X-Forwarded-Proto: https" http://web:3000/api/health)
-check "$health" '{"status":"ok","database":true}' "/api/health through web answers ok with the database"
+check "$health" '{"status":"ok","database":true,"release":"'"$SOURCE_COMMIT"'"}' \
+  "/api/health through web answers ok with the database and the release Coolify built"
 check "$(status -H "Host: evil.example" http://web:3000/api/health)" 400 "a foreign Host is refused"
 check "$(status -H "Host: $domain" http://web:3000/api/openapi/v1.json)" 404 "/api/openapi/v1.json is not served"
 check "$(status -H "Host: $domain" "http://web:3000/api/auth/login/development?email=owner@example.com")" 404 \
@@ -58,5 +60,9 @@ csp=$(header content-security-policy -H "Host: $domain" http://web:3000/login)
 case "$csp" in *"frame-ancestors 'none'"*) r=yes ;; *) r=no ;; esac
 check "$r" yes "/login sends a CSP with frame-ancestors 'none'"
 check "$(header x-powered-by -H "Host: $domain" http://web:3000/login)" "" "/login does not advertise the framework"
+
+# The first start migrated an empty database, so it had to dump it first with the real pg_dump.
+dumps=$("${compose[@]}" exec -T api sh -c 'ls /var/lib/taxes-ua/dumps/taxes_ua-pre-migrate-*.dump | wc -l')
+check "$(tr -d '[:space:]' <<<"$dumps")" 1 "api dumped the database before its first migration"
 
 exit "$failed"
