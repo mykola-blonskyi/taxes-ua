@@ -97,9 +97,9 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
     {
         using var client = await SignIn(ApiFixture.AllowedEmail);
         var created = (await (await client.PostAsJsonAsync(
-                "/api/payments", new PaymentRequest(new DateOnly(2033, 4, 15), PaymentKind.Esv, 190_234, 2033, 1, null, null), Json))
+                "/api/payments", new PaymentRequest(new DateOnly(2025, 4, 15), PaymentKind.Esv, 190_234, 2033, 1, null, null), Json))
             .Content.ReadFromJsonAsync<PaymentResponse>(Json))!;
-        var edit = new PaymentRequest(new DateOnly(2033, 4, 15), PaymentKind.Esv, 200_000, 2033, 1, null, "late");
+        var edit = new PaymentRequest(new DateOnly(2025, 4, 15), PaymentKind.Esv, 200_000, 2033, 1, null, "late");
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/payments/{created.Id}", edit, Json)).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/payments/{created.Id}")).StatusCode);
 

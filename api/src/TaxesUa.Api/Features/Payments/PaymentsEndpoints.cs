@@ -60,12 +60,13 @@ public static class PaymentsEndpoints
 
         payments.MapPost("", async (
                 PaymentRequest request,
+                TimeProvider time,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
-                if (Validate(request) is { } errors)
+                if (Validate(request, time.TodayInKyiv()) is { } errors)
                 {
                     return Results.ValidationProblem(errors);
                 }
@@ -93,12 +94,13 @@ public static class PaymentsEndpoints
         payments.MapPut("/{id:guid}", async (
                 Guid id,
                 PaymentRequest request,
+                TimeProvider time,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
-                if (Validate(request) is { } errors)
+                if (Validate(request, time.TodayInKyiv()) is { } errors)
                 {
                     return Results.ValidationProblem(errors);
                 }
@@ -221,7 +223,13 @@ public static class PaymentsEndpoints
         statusCode: StatusCodes.Status404NotFound,
         title: $"No payment exists with id {id}.");
 
-    internal static Dictionary<string, string[]>? Validate(PaymentRequest request)
+    /// <summary>
+    /// A payment is money already paid, so when <paramref name="today"/> (Kyiv, Rule 10) is given its date
+    /// may not lie after it. A date before the period is allowed, as an advance is paid ahead (Rule 6),
+    /// and one before the FOP registration only raises <c>BeforeRegistration</c>. Backup import and the
+    /// bank candidates pass no day: they carry dates that were true when they were written.
+    /// </summary>
+    internal static Dictionary<string, string[]>? Validate(PaymentRequest request, DateOnly? today = null)
     {
         var errors = new Dictionary<string, string[]>();
 
@@ -237,6 +245,10 @@ public static class PaymentsEndpoints
         if (!InYearRange(request.PaidOn.Year))
         {
             errors[Field(nameof(request.PaidOn))] = [YearRangeMessage("paidOn year")];
+        }
+        else if (today is { } latest && request.PaidOn > latest)
+        {
+            errors[Field(nameof(request.PaidOn))] = [$"paidOn must not be after today ({latest:yyyy-MM-dd})."];
         }
 
         if (!InYearRange(request.PeriodYear))

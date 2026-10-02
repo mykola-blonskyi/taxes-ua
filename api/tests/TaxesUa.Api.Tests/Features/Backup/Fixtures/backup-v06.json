@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 6,
+  "settings": {
+    "fopRegistrationDate": "2026-01-12",
+    "paymentMode": "Quarterly",
+    "esvRegistrationMonthPolicy": "Prorated",
+    "esvExempt": false,
+    "taxPaymentCountsFromStatutoryDeclarationDate": true,
+    "shiftTaxPaymentFromWeekend": true,
+    "weekendDays": [
+      "Saturday",
+      "Sunday"
+    ],
+    "locale": "uk",
+    "theme": "system",
+    "defaultCurrency": "UAH"
+  },
+  "clients": [
+    {
+      "id": "0f260000-0000-0000-0000-000000000001",
+      "name": "Acme GmbH",
+      "address": "1 Main St, Berlin",
+      "country": "DE",
+      "vatId": "DE123456789",
+      "email": "ap@acme.example",
+      "defaultCurrency": "EUR",
+      "notes": "Net 14"
+    },
+    {
+      "id": "0f260000-0000-0000-0000-000000000002",
+      "name": "Бета ТОВ",
+      "address": null,
+      "country": null,
+      "vatId": null,
+      "email": null,
+      "defaultCurrency": null,
+      "notes": null
+    }
+  ],
+  "transactions": [
+    {
+      "id": "1f260000-0000-0000-0000-000000000001",
+      "valueDate": "2026-02-10",
+      "amountMinor": 25000000,
+      "currency": "UAH",
+      "rateE4": 10000,
+      "rateDate": null,
+      "rateSource": null,
+      "amountUahKop": 25000000,
+      "kind": "Income",
+      "nonIncomeReason": null,
+      "clientId": "0f260000-0000-0000-0000-000000000002",
+      "refundsTransactionId": null,
+      "invoiceNumber": null,
+      "description": null,
+      "bankAccountId": "0b260000-0000-0000-0000-000000000001",
+      "externalId": "mono-op-1",
+      "bankTime": "2026-02-10T08:15:00+00:00",
+      "counterparty": "ТОВ Бета",
+      "importBatchId": "0d260000-0000-0000-0000-000000000001",
+      "reviewStatus": "Confirmed",
+      "createdAt": "2026-05-01T09:30:00+00:00",
+      "updatedAt": "2026-05-01T09:30:00+00:00"
+    },
+    {
+      "id": "1f260000-0000-0000-0000-000000000002",
+      "valueDate": "2026-03-02",
+      "amountMinor": 300000,
+      "currency": "USD",
+      "rateE4": 412345,
+      "rateDate": null,
+      "rateSource": "Manual",
+      "amountUahKop": 12370350,
+      "kind": "Income",
+      "nonIncomeReason": null,
+      "clientId": "0f260000-0000-0000-0000-000000000001",
+      "refundsTransactionId": null,
+      "invoiceNumber": "INV-2",
+      "description": null,
+      "bankAccountId": null,
+      "externalId": null,
+      "bankTime": null,
+      "counterparty": null,
+      "importBatchId": null,
+      "reviewStatus": "Confirmed",
+      "createdAt": "2026-05-01T09:30:00+00:00",
+      "updatedAt": "2026-05-01T09:30:00+00:00"
+    },
+    {
+      "id": "1f260000-0000-0000-0000-000000000004",
+      "valueDate": "2026-03-05",
+      "amountMinor": 500000,
+      "currency": "UAH",
+      "rateE4": 10000,
+      "rateDate": null,
+      "rateSource": null,
+      "amountUahKop": 500000,
+      "kind": "OwnTransfer",
+      "nonIncomeReason": "Own card",
+      "clientId": null,
+      "refundsTransactionId": null,
+      "invoiceNumber": null,
+      "description": null,
+      "bankAccountId": null,
+      "externalId": null,
+      "bankTime": null,
+      "counterparty": null,
+      "importBatchId": null,
+      "reviewStatus": "Confirmed",
+      "createdAt": "2026-05-01T09:30:00+00:00",
+      "updatedAt": "2026-05-01T09:30:00+00:00"
+    },
+    {
+      "id": "1f260000-0000-0000-0000-000000000003",
+      "valueDate": "2026-05-20",
+      "amountMinor": 50000,
+      "currency": "EUR",
+      "rateE4": 450000,
+      "rateDate": null,
+      "rateSource": "Manual",
+      "amountUahKop": 2250000,
+      "kind": "Income",
+      "nonIncomeReason": null,
+      "clientId": "0f260000-0000-0000-0000-000000000001",
+      "refundsTransactionId": null,
+      "invoiceNumber": "2026-001",
+      "description": null,
+      "bankAccountId": null,
+      "externalId": null,
+      "bankTime": null,
+      "counterparty": null,
+      "importBatchId": null,
+      "reviewStatus": "Confirmed",
+      "createdAt": "2026-05-01T09:30:00+00:00",
+      "updatedAt": "2026-05-01T09:30:00+00:00"
+    }
+  ],
+  "budgetPayments": [
+    {
+      "id": "2f260000-0000-0000-0000-000000000001",
+      "paidOn": "2026-04-15",
+      "kind": "Esv",
+      "amountKop": 570702,
+      "periodYear": 2026,
+      "periodQuarter": 1,
+      "periodMonth": null,
+      "note": null,
+      "bankAccountId": "0b260000-0000-0000-0000-000000000001",
+      "externalId": "mono-op-esv",
+      "createdAt": "2026-05-01T09:30:00+00:00",
+      "updatedAt": "2026-05-01T09:30:00+00:00"
+    },
+    {
+      "id": "2f260000-0000-0000-0000-000000000002",
+      "paidOn": "2026-05-18",
+      "kind": "SingleTax",
+      "amountKop": 1868518,
+      "periodYear": 2026,
+      "periodQuarter": 1,
+      "periodMonth": null,
+      "note": "Q1",
+      "bankAccountId": null,
+      "externalId": null,
+      "createdAt": "2026-05-01T09:30:00+00:00",
+      "updatedAt": "2026-05-01T09:30:00+00:00"
+    }
+  ],
+  "bankAccounts": [
+    {
+      "id": "0b260000-0000-0000-0000-000000000001",
+      "bank": "Monobank",
+      "externalId": "mono-uah-1",
+      "name": "Чорна картка",
+      "currencyCode": 980,
+      "iban": "UA213223130000026007233566001",
+      "accountType": "fop",
+      "isFop": true,
+      "isActive": true,
+      "createdAt": "2026-05-01T09:30:00+00:00"
+    }
+  ],
+  "importBatches": [
+    {
+      "id": "0d260000-0000-0000-0000-000000000001",
+      "source": "Monobank",
+      "bankAccountId": "0b260000-0000-0000-0000-000000000001",
+      "from": "2026-02-01T00:00:00+00:00",
+      "to": "2026-02-28T00:00:00+00:00",
+      "importedCount": 1,
+      "skippedCount": 0,
+      "createdAt": "2026-05-01T09:30:00+00:00"
+    }
+  ],
+  "budgetPaymentCandidates": [
+    {
+      "id": "4f260000-0000-0000-0000-000000000001",
+      "bankAccountId": "0b260000-0000-0000-0000-000000000001",
+      "externalId": "mono-op-esv",
+      "bankTime": "2026-04-15T09:00:00+00:00",
+      "amountKop": 570702,
+      "counterIban": "UA358999980333159998000026011",
+      "counterName": "ГУК у м.Києві",
+      "purpose": "ЄСВ",
+      "status": "Confirmed",
+      "confirmedKind": "Esv",
+      "createdAt": "2026-05-01T09:30:00+00:00",
+      "resolvedAt": "2026-05-01T09:30:00+00:00"
+    },
+    {
+      "id": "4f260000-0000-0000-0000-000000000002",
+      "bankAccountId": "0b260000-0000-0000-0000-000000000001",
+      "externalId": "mono-op-tax",
+      "bankTime": "2026-05-18T09:00:00+00:00",
+      "amountKop": 1868518,
+      "counterIban": "UA148999980313181000026007233",
+      "counterName": "ГУК у м.Києві",
+      "purpose": "Єдиний податок",
+      "status": "Pending",
+      "confirmedKind": null,
+      "createdAt": "2026-05-01T09:30:00+00:00",
+      "resolvedAt": null
+    }
+  ],
+  "invoicingDetails": {
+    "sellerNameUk": "ФОП Тест Тестович",
+    "sellerNameEn": "FOP Test Testovych",
+    "rnokpp": "1234567890",
+    "addressUk": "Київ, вул. Тестова 1",
+    "addressEn": "1 Testova St, Kyiv",
+    "acceptanceClauseEn": "Payment of this invoice constitutes acceptance of the services, which are deemed rendered in full and without claims.",
+    "acceptanceClauseUk": "Оплата цього рахунку є прийняттям послуг, які вважаються наданими в повному обсязі та без претензій.",
+    "feesClauseEn": "All bank fees and charges are borne by the payer.",
+    "feesClauseUk": "Комісії сплачує платник.",
+    "taxStatusClauseEn": "The seller is a single tax payer and is not registered for VAT.",
+    "taxStatusClauseUk": "Продавець є платником єдиного податку та не є платником ПДВ.",
+    "paymentDetails": [
+      {
+        "currency": "EUR",
+        "iban": "UA573220010000026007233566001",
+        "beneficiaryBank": "JSC Universal Bank, Kyiv",
+        "swift": "UNJSUAUKXXX",
+        "intermediaryBank": "",
+        "intermediarySwift": "",
+        "intermediaryAccount": ""
+      }
+    ],
+    "signatureImage": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
+    "signatureContentType": "image/png",
+    "signatureUpdatedAt": "2026-05-01T09:30:00+00:00"
+  },
+  "invoices": [
+    {
+      "id": "3f260000-0000-0000-0000-000000000001",
+      "clientId": "0f260000-0000-0000-0000-000000000001",
+      "status": "Issued",
+      "numberYear": 2026,
+      "numberSequence": 1,
+      "issueDate": "2026-05-01",
+      "dueDate": "2026-05-15",
+      "currency": "EUR",
+      "lines": [
+        {
+          "descriptionEn": "Software development",
+          "descriptionUk": "Розробка програмного забезпечення",
+          "unit": "Hour",
+          "quantityThousandths": 12500,
+          "rateMinor": 4000
+        }
+      ],
+      "snapshot": {
+        "seller": {
+          "nameUk": "ФОП Тест Тестович",
+          "nameEn": "FOP Test Testovych",
+          "rnokpp": "1234567890",
+          "addressUk": "Київ, вул. Тестова 1",
+          "addressEn": "1 Testova St, Kyiv"
+        },
+        "buyer": {
+          "name": "Acme GmbH",
+          "address": "1 Main St, Berlin",
+          "country": "DE",
+          "countryName": "Germany",
+          "vatId": "DE123456789",
+          "email": "ap@acme.example"
+        },
+        "payment": {
+          "iban": "UA573220010000026007233566001",
+          "beneficiaryBank": "JSC Universal Bank, Kyiv",
+          "swift": "UNJSUAUKXXX",
+          "intermediaryBank": "",
+          "intermediarySwift": "",
+          "intermediaryAccount": ""
+        },
+        "clauses": {
+          "acceptanceEn": "Payment of this invoice constitutes acceptance of the services, which are deemed rendered in full and without claims.",
+          "acceptanceUk": "Оплата цього рахунку є прийняттям послуг, які вважаються наданими в повному обсязі та без претензій.",
+          "feesEn": "All bank fees and charges are borne by the payer.",
+          "feesUk": "Усі комісії банків та збори сплачує платник.",
+          "taxStatusEn": "The seller is a single tax payer and is not registered for VAT.",
+          "taxStatusUk": "Продавець є платником єдиного податку та не є платником ПДВ."
+        }
+      },
+      "signatureImage": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
+      "signatureContentType": "image/png",
+      "cancelReason": null,
+      "issuedAt": "2026-05-01T09:30:00+00:00",
+      "cancelledAt": null,
+      "createdAt": "2026-05-01T09:30:00+00:00",
+      "updatedAt": "2026-05-01T09:30:00+00:00"
+    },
+    {
+      "id": "3f260000-0000-0000-0000-000000000002",
+      "clientId": "0f260000-0000-0000-0000-000000000001",
+      "status": "Draft",
+      "numberYear": null,
+      "numberSequence": null,
+      "issueDate": "2026-06-01",
+      "dueDate": "2026-06-15",
+      "currency": "EUR",
+      "lines": [
+        {
+          "descriptionEn": "Support",
+          "descriptionUk": "Підтримка",
+          "unit": "Month",
+          "quantityThousandths": 1000,
+          "rateMinor": 50000
+        }
+      ],
+      "snapshot": null,
+      "signatureImage": null,
+      "signatureContentType": null,
+      "cancelReason": null,
+      "issuedAt": null,
+      "cancelledAt": null,
+      "createdAt": "2026-05-02T09:30:00+00:00",
+      "updatedAt": "2026-05-02T09:30:00+00:00"
+    }
+  ]
+}
