@@ -544,7 +544,7 @@ its kind is changed (the one the account learned from, or an older one that fill
 account learns again from the latest confirmed operation of its kind still standing, or
 forgets the Learned account (and its notice) when none is left; a notice stays only while the Learned IBAN
 still differs from the Manual one. A changed kind also teaches the new kind by the same rule. A restore brings
-the accounts back as they were, including the source and any notice.
+the accounts back as they were, including the source, any notice and any end (Rule 16).
 
 ---
 
@@ -901,6 +901,34 @@ Unverified until the owner scans a Treasury payment with a real banking app: the
 `SUPP/SUPP`, and no NBU or bank text names one for budget transfers), whether a bank accepts a QR for a
 budget account at all, and whether it splits the leading `101` into the payment type field. If banks
 refuse, the QR is hidden for Treasury accounts behind one flag in the panel, with a note.
+
+An account in use may end (#173). The owner may give the Manual account an end when entering it, and may give
+the account in use an end later, in settings; an account learned from a payment carries none until the owner
+sets one, because the app cannot know whether a bank account is temporary. The end is the last day the
+account can receive a payment, and the Pay panel judges it on today in Kyiv, since the panel is used to pay
+now:
+
+- Today is after the end: the account has expired. The details answer says so (`expiry` with state `Expired`)
+  and gives no recipient, no copy fields and no QR, so no money goes to a closed account. The panel tells the
+  owner to enter the new account from the Electronic Cabinet in settings.
+- Today is on or before the end, but the period's due date is after it (the single tax and the military levy
+  share the tax payment date, the ESV has its own; a month counts as its quarter): state `ExpiresBeforeDue`.
+  The recipient, the copy fields and the QR are shown, with a note that the account works until the end, so
+  the owner pays by then or enters a new account afterwards. A Q4 2026 levy due 2027-02-19 paid in December
+  2026 into an account ending 2026-12-31 is this case; paid in February 2027 it is `Expired`.
+- Otherwise no `expiry`.
+
+The end belongs to its IBAN. Entering a Manual account keeps the end only for the same IBAN (the Manual
+account's own, or the Learned account's when it is entered over it) unless the request gives an end; a new IBAN
+starts with none, and learning a different IBAN drops the old Learned end, which is how a replaced account
+stops being flagged. Reverting to Learned drops the Manual end and brings the Learned end back.
+
+The temporary military-levy accounts used from 2026-07-01 end on 2026-12-31: Law 4908-IX of 10.06.2026 sends
+the levy to the special fund "з 1 липня 2026 року по 31 грудня 2026 року", and the Treasury opened new
+accounts for that period (https://7eminar.ua/news/3892-yak-fopu-1-2-4-grupi-jep-znaiti-raxunok-dlya, quoting
+the law; the DPS news of 2026-06 at tax.gov.ua/media-tsentr/novini/1025531.html). What applies from
+2027-01-01 is not published, so settings offers 2026-12-31 as a one-tap value for the military levy account
+and applies nothing by itself; the offer is only shown while that day has not passed and the account has no end.
 
 Once the bank operation is confirmed (#80), the debt moves as it does for any payment.
 

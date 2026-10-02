@@ -40,7 +40,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":16,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
+        """{"schemaVersion":17,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -615,6 +615,37 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task A_restore_brings_back_the_end_of_each_treasury_account_and_a_version_16_file_has_none()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Restore(owner, Baseline().ToJsonString());
+
+        var kept = JsonNode.Parse(await Backup(owner))!["treasuryAccounts"]!.AsArray();
+        Assert.Equal(
+            ("2031-12-31", "2032-06-30"),
+            (kept[0]!["manualValidUntil"]!.GetValue<string>(), kept[0]!["learnedValidUntil"]!.GetValue<string>()));
+        var single = (await owner.GetFromJsonAsync<JsonElement>("/api/settings/treasury-accounts", Json)).EnumerateArray().First();
+        Assert.Equal("2031-12-31", single.GetProperty("validUntil").GetString());
+
+        var version16 = Baseline();
+        version16["schemaVersion"] = 16;
+        foreach (var account in version16["treasuryAccounts"]!.AsArray().OfType<JsonObject>())
+        {
+            account.Remove("manualValidUntil");
+            account.Remove("learnedValidUntil");
+        }
+
+        await Restore(owner, version16.ToJsonString());
+
+        var upgraded = JsonNode.Parse(await Backup(owner))!;
+        Assert.Equal(BackupDocument.CurrentSchemaVersion, upgraded["schemaVersion"]!.GetValue<int>());
+        Assert.All(
+            upgraded["treasuryAccounts"]!.AsArray(),
+            account => Assert.Equal((null, null), (account!["manualValidUntil"], account["learnedValidUntil"])));
+    }
+
+    [Fact]
     public async Task A_restore_brings_back_treasury_accounts_with_their_source_and_notice()
     {
         await using var application = CreateApplication();
@@ -843,6 +874,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "confirmed candidate without a kind", "budgetPaymentCandidates[0].confirmedKind" },
         { "manual treasury account outside the Treasury", "treasuryAccounts[0].manualIban" },
         { "manual treasury account with a 7 digit code", "treasuryAccounts[0].manualIban" },
+        { "treasury account end without an account", "treasuryAccounts[1].manualValidUntil" },
         { "two treasury accounts of one kind", "treasuryAccounts[1].kind" },
         { "notice without a manual account", "treasuryAccounts[1].noticeAt" },
         { "learned treasury account without its operation", "treasuryAccounts[1].learnedIban" },
@@ -1239,11 +1271,12 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             ],
             [
                 new TreasuryAccountBackup(
-                    PaymentKind.SingleTax, TreasuryIban, "ГУК у м.Києві", "37993783", created,
-                    LearnedTreasuryIban, "ГУК у м.Києві/Печерс.р-н", "37993784", "op-learned", new DateOnly(2031, 4, 15), created, created),
+                    PaymentKind.SingleTax, TreasuryIban, "ГУК у м.Києві", "37993783", created, new DateOnly(2031, 12, 31),
+                    LearnedTreasuryIban, "ГУК у м.Києві/Печерс.р-н", "37993784", "op-learned", new DateOnly(2031, 4, 15), created,
+                    new DateOnly(2032, 6, 30), created),
                 new TreasuryAccountBackup(
-                    PaymentKind.Esv, null, null, null, null,
-                    LearnedTreasuryIban, null, null, "op-learned-esv", new DateOnly(2031, 4, 16), created, null),
+                    PaymentKind.Esv, null, null, null, null, null,
+                    LearnedTreasuryIban, null, null, "op-learned-esv", new DateOnly(2031, 4, 16), created, null, null),
             ],
             [new NotificationChannelBackup(NotificationChannelKind.Telegram, "424242", true, created, created)],
             new ReserveJarBackup("jar-taxes", "На податки", 12_345_00, created.AddHours(3)));
@@ -1420,6 +1453,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "manual treasury account with a 7 digit code":
                 file["treasuryAccounts"]![0]!["manualRecipientCode"] = "3799378";
+                break;
+            case "treasury account end without an account":
+                file["treasuryAccounts"]![1]!["manualValidUntil"] = "2031-12-31";
                 break;
             case "two treasury accounts of one kind":
                 file["treasuryAccounts"]![1]!["kind"] = "SingleTax";

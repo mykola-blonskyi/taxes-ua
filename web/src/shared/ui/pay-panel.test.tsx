@@ -234,6 +234,65 @@ describe("PayPanel", () => {
     });
   });
 
+  describe("an account with an end", () => {
+    const expired = detailsFor({
+      recipient: null,
+      qrContent: null,
+      amountKop: null,
+      expiry: { validUntil: "2026-12-31", state: "Expired" },
+    });
+
+    it("says the account is closed, links to the settings and shows no details, copy button or QR", () => {
+      renderApp(panel({ details: expired }));
+
+      expect(screen.getByText("Рахунок діяв до 31.12.2026. Введіть новий рахунок з Електронного кабінету.")).toBeVisible();
+      expect(screen.getByRole("link", { name: "Ввести новий рахунок в налаштуваннях" })).toHaveAttribute(
+        "href",
+        "/settings?tab=treasury",
+      );
+      expect(screen.queryByRole("button", { name: /Копіювати/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+      expect(screen.queryByText(recipient.iban)).not.toBeInTheDocument();
+    });
+
+    it("says the same in Russian", () => {
+      renderApp(panel({ details: expired }), { locale: "ru" });
+
+      expect(screen.getByText("Счёт действовал до 31.12.2026. Введите новый счёт из Электронного кабинета.")).toBeVisible();
+      expect(screen.getByRole("link", { name: "Ввести новый счёт в настройках" })).toBeVisible();
+      expect(screen.queryByRole("button", { name: /Копировать/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    });
+
+    it("still shows the details and the QR, with a note, while the account ends before the due date", () => {
+      renderApp(panel({ details: detailsFor({ expiry: { validUntil: "2026-12-31", state: "ExpiresBeforeDue" } }) }));
+
+      expect(
+        screen.getByText("Рахунок діє до 31.12.2026. Сплатіть до цієї дати або після неї введіть новий рахунок."),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "Копіювати: IBAN" })).toBeVisible();
+      expect(screen.getByRole("img", { name: "QR-код для оплати" })).toBeVisible();
+    });
+
+    it("says the warning in Russian too", () => {
+      renderApp(panel({ details: detailsFor({ expiry: { validUntil: "2026-12-31", state: "ExpiresBeforeDue" } }) }), {
+        locale: "ru",
+      });
+
+      expect(
+        screen.getByText("Счёт действует до 31.12.2026. Оплатите до этой даты или после неё введите новый счёт."),
+      ).toBeVisible();
+      expect(screen.getByRole("button", { name: "Копировать: IBAN" })).toBeVisible();
+    });
+
+    it("shows nothing about an end when there is none", () => {
+      renderApp(panel({ details: detailsFor({ expiry: null }) }));
+
+      expect(screen.queryByText(/діє до/)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Копіювати: IBAN" })).toBeVisible();
+    });
+  });
+
   describe("before the details are known", () => {
     it("says it is loading while the first answer is awaited", () => {
       renderApp(panel({ details: undefined, loading: true }));

@@ -20,6 +20,8 @@ public sealed class TreasuryAccountsEndpointsTests(ApiFixture fixture) : IClassF
 
     private const string Iban = "UA358999980333159998000026011";
 
+    private const string ShopTreasuryIban = "UA678999980313191000026007234";
+
     private const string ShopIban = "UA753220010000026001234567891";
 
     private static readonly JsonSerializerOptions Json =
@@ -99,6 +101,88 @@ public sealed class TreasuryAccountsEndpointsTests(ApiFixture fixture) : IClassF
         var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Json);
         Assert.Contains(rejectedField, problem.GetProperty("errors").EnumerateObject().Select(property => property.Name));
         Assert.Equal(TreasuryAccountSource.None, (await Accounts(owner)).Single(row => row.Kind == PaymentKind.SingleTax).Source);
+    }
+
+    private static readonly DateOnly LevyEnd = new(2026, 12, 31);
+
+    [Fact]
+    public async Task A_manual_account_keeps_its_end_for_the_same_iban_and_a_new_iban_starts_without_one()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        var first = await Put(owner, new TreasuryAccountRequest(Iban, "ГУК у м.Києві", "37993783", LevyEnd));
+        Assert.Equal(LevyEnd, first.ValidUntil);
+
+        var sameIban = await Put(owner, new TreasuryAccountRequest(Iban, "ГУК у м.Києві (нова назва)", "37993783"));
+        Assert.Equal(LevyEnd, sameIban.ValidUntil);
+
+        var newIban = await Put(owner, new TreasuryAccountRequest(ShopTreasuryIban, "ГУК у м.Києві", "37993783"));
+        Assert.Equal((ShopTreasuryIban, null), (newIban.Iban, newIban.ValidUntil));
+
+        var explicitEnd = await Put(owner, new TreasuryAccountRequest(Iban, "ГУК у м.Києві", "37993783", new DateOnly(2027, 6, 30)));
+        Assert.Equal(new DateOnly(2027, 6, 30), explicitEnd.ValidUntil);
+    }
+
+    [Fact]
+    public async Task A_learned_account_edited_with_the_same_iban_keeps_its_end_and_reverting_drops_the_manual_one()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+        await SeedLearned(ApiFixture.AllowedEmail, PaymentKind.MilitaryLevy, LevyEnd);
+
+        var edited = await Put(owner, new TreasuryAccountRequest(Iban, "ГУК у м.Києві", "37993783"));
+        Assert.Equal((TreasuryAccountSource.Manual, LevyEnd), (edited.Source, edited.ValidUntil));
+
+        var other = await Put(owner, new TreasuryAccountRequest(ShopTreasuryIban, "ГУК у м.Києві", "37993783", new DateOnly(2027, 6, 30)));
+        Assert.Equal(new DateOnly(2027, 6, 30), other.ValidUntil);
+
+        var reverted = await owner.PostAsync("/api/settings/treasury-accounts/MilitaryLevy/revert", null);
+        Assert.Equal(HttpStatusCode.OK, reverted.StatusCode);
+        var learned = (await reverted.Content.ReadFromJsonAsync<TreasuryAccountResponse>(Json))!;
+        Assert.Equal((TreasuryAccountSource.Learned, Iban, LevyEnd), (learned.Source, learned.Iban, learned.ValidUntil));
+    }
+
+    private static async Task<TreasuryAccountResponse> Put(HttpClient owner, TreasuryAccountRequest request)
+    {
+        var response = await owner.PutAsJsonAsync("/api/settings/treasury-accounts/MilitaryLevy", request, Json);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<TreasuryAccountResponse>(Json))!;
+    }
+
+    private async Task SeedLearned(string email, PaymentKind kind, DateOnly validUntil)
+    {
+        await using var scope = fixture.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userId = await database.Users.Where(user => user.Email == email).Select(user => user.Id).SingleAsync();
+        database.TreasuryAccounts.Add(new TreasuryAccount
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Kind = kind,
+            LearnedIban = Iban,
+            LearnedRecipientName = "ГУК у м.Києві",
+            LearnedRecipientCode = null,
+            LearnedExternalId = "op-1",
+            LearnedPaidOn = new DateOnly(2026, 7, 1),
+            LearnedAt = DateTimeOffset.UtcNow,
+            LearnedValidUntil = validUntil,
+        });
+        await database.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task An_end_outside_the_supported_years_is_refused()
+    {
+        await using var app = fixture.CreateApplication(_ => { });
+        using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
+
+        var response = await owner.PutAsJsonAsync(
+            "/api/settings/treasury-accounts/MilitaryLevy",
+            new TreasuryAccountRequest(Iban, "ГУК у м.Києві", "37993783", new DateOnly(1999, 12, 31)),
+            Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("validUntil", await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
