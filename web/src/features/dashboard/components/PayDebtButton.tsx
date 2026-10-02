@@ -8,7 +8,17 @@ import { Button } from "@/shared/ui/button";
 import { PayPanel } from "@/shared/ui/pay-panel";
 import { DebtPeriod } from "./DebtParts";
 
-export function PayDebtButton({ debt, className }: { debt: KindDebt; className?: string }) {
+// `onAmountChange` reports the amount on the panel, so the screen that holds this button can start
+// "mark paid" from it.
+export function PayDebtButton({
+  debt,
+  className,
+  onAmountChange,
+}: {
+  debt: KindDebt;
+  className?: string;
+  onAmountChange?: (amountKop: number | null) => void;
+}) {
   const t = useTranslations("pay");
   const tKinds = useTranslations("payments.kinds");
   const [open, setOpen] = useState(false);
@@ -26,6 +36,7 @@ export function PayDebtButton({ debt, className }: { debt: KindDebt; className?:
         className={className}
         onClick={() => {
           setAmountKop(startKop);
+          onAmountChange?.(startKop);
           setOpen(true);
         }}
       >
@@ -40,7 +51,10 @@ export function PayDebtButton({ debt, className }: { debt: KindDebt; className?:
           </>
         }
         initialAmountKop={startKop}
-        onAmountChange={setAmountKop}
+        onAmountChange={(next) => {
+          setAmountKop(next);
+          onAmountChange?.(next);
+        }}
         details={details.data}
         loading={details.isFetching}
         failed={details.isError && !notComputed}

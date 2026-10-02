@@ -208,6 +208,12 @@ A restore from backup is not the owner's edits, so it writes one summary entry
 save as the rows it inserts. A save that carries that summary gets no per-row entries. The log is
 history, not state: a backup does not carry it and a restore does not replace it.
 
+Every backup schema version from 2 up has a fixture in `api/tests/TaxesUa.Api.Tests/Features/Backup/Fixtures/`
+and `BackupSchemaVersionsTests` restores each. Raising `BackupDocument.CurrentSchemaVersion` fails that suite
+until the new version's fixture exists. `UpgradeFromPreviousReleaseTests` migrates a database from an older
+release's schema, filled with an owner's year, to head and reads the API over it. Move its `PreviousRelease` forward, and extend its seed, whenever a release's
+migrations rewrite existing rows. The current version's fixture must also export back unchanged.
+
 A prototype import (`POST /api/import/prototype`) merges rather than replaces, so it takes the
 ordinary path: one `Create` entry per inserted row. It shares the restore's per-owner advisory lock,
 and its dry run is the same code in a transaction that is rolled back.
