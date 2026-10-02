@@ -8,14 +8,15 @@ the web lint and build, both image builds and the deploy checks pass (see "Autom
 Facts this runbook relies on, established in #3 and #20:
 
 - Domain `taxes.blonskyi.dev`. The VPS is reached with `ssh blonskyi`; `<vps-ip>` below is its
-  public address.
+  public address. This file writes neither the address nor any container id down (the repository is
+  public, and the address defeats the Cloudflare proxy); look them up on the VPS or in Coolify.
 - `blonskyi.dev` is on Cloudflare with one proxied `A` record per subdomain, all pointing at
-  `<vps-ip>` (23.88.118.219). There is no wildcard. Traefik obtains certificates through the
+  `<vps-ip>`. There is no wildcard. Traefik obtains certificates through the
   Cloudflare DNS challenge, so none of this needs HTTP to reach the VPS.
 - Google sign-in uses the OAuth client shared with the owner's other projects, with a secret
   rotated before production (step 4).
 - The database is a new role and database in Coolify's `shared-database` resource (ADR-006): the
-  container `3p9qjnulllqn3bcjqokir0wq`, PostgreSQL 18, admin role `postgres`, on the `coolify`
+  container `<pg-container>` (its name is on the resource's page in Coolify, and `docker ps` on the VPS shows it), PostgreSQL 18, admin role `postgres`, on the `coolify`
   network. It already holds `fitness`, `todo`, `hub`, `plane` and `login`.
 
 What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
@@ -45,8 +46,8 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
   owner signed in (ADR-010).
 - `api` answers only for `ALLOWED_HOSTS`, as forwarded by `web`, plus its own internal names for
   the healthcheck and the rewrite. A foreign host gets 400.
-- Every response carries HSTS, `nosniff`, `X-Frame-Options: DENY` and a referrer policy, and pages
-  carry a Content-Security-Policy.
+- Every response carries HSTS, `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a
+  Permissions-Policy, and pages carry a nonce-based Content-Security-Policy.
 
 ## 0. The PostgreSQL instance
 
@@ -60,7 +61,7 @@ MinIO). Step 8 depends on the answer. On 2026-09-27 it had none.
 **Check.** The instance answers:
 
 ```bash
-ssh blonskyi 'docker exec 3p9qjnulllqn3bcjqokir0wq psql -U postgres -Atc "select version()"'
+ssh blonskyi 'docker exec <pg-container> psql -U postgres -Atc "select version()"'
 ```
 
 ## 1. DNS
@@ -96,7 +97,7 @@ error`), so if `CREATE ROLE` fails, for example because the role already exists,
 lands in the server log. To change the password later, use
 `ALTER ROLE taxes_ua_app PASSWORD '<password>';`, which carries the same risk if it fails.
 
-**Check.** In CloudBeaver, create a connection with host `3p9qjnulllqn3bcjqokir0wq`, port `5432`,
+**Check.** In CloudBeaver, create a connection with host `<pg-container>`, port `5432`,
 database `taxes_ua`, user `taxes_ua_app` and the password, and click Test. It connects. A
 connection over `127.0.0.1` inside the container proves nothing here: the image trusts local
 connections without a password.
@@ -109,7 +110,7 @@ The instance is on the `coolify` network, so the `api` container reaches it by c
 The connection string is Npgsql's format, not a URL:
 
 ```
-Host=3p9qjnulllqn3bcjqokir0wq;Port=5432;Database=taxes_ua;Username=taxes_ua_app;Password=<password from step 2>
+Host=<pg-container>;Port=5432;Database=taxes_ua;Username=taxes_ua_app;Password=<password from step 2>
 ```
 
 **Check.** Deferred to step 7, where `/api/health` reports `"database":true` only if this works.
@@ -281,7 +282,7 @@ It was set up on 2026-09-28. Redo these steps only if it is gone.
    `mc` inside the MinIO container. The policy limits the key to that one bucket. Open a shell:
 
    ```bash
-   ssh -t blonskyi "docker exec -it minio-3jhjnrvkwf0oozjqo3sz0vsr-150204880600 sh"
+   ssh -t blonskyi "docker exec -it <minio-container> sh"
    ```
 
    and paste:
@@ -310,7 +311,7 @@ It was set up on 2026-09-28. Redo these steps only if it is gone.
 The newest dump is intact and contains `taxes_ua`:
 
 ```bash
-ssh blonskyi 'docker run --rm -v /data/coolify/backups/databases/root-team-0/shared-database-3p9qjnulllqn3bcjqokir0wq:/b:ro alpine:3 sh -c "f=\$(ls -t /b/*.gz | head -1); gzip -t \$f && zcat \$f | grep -c \"connect taxes_ua\""'
+ssh blonskyi 'docker run --rm -v /data/coolify/backups/databases/<team>/shared-database-<pg-container>:/b:ro alpine:3 sh -c "f=\$(ls -t /b/*.gz | head -1); gzip -t \$f && zcat \$f | grep -c \"connect taxes_ua\""'
 ```
 
 It prints a non-zero count.
@@ -364,7 +365,7 @@ fails at its 15-minute timeout. Read the `api` log in Coolify, fix the cause (di
    survive. Nothing here touches `taxes_ua` yet.
 
    ```bash
-   P='docker exec -i 3p9qjnulllqn3bcjqokir0wq'
+   P='docker exec -i <pg-container>'
    ssh blonskyi "$P psql -U postgres -c 'DROP DATABASE IF EXISTS taxes_ua_restore' -c 'CREATE DATABASE taxes_ua_restore OWNER taxes_ua_app'"
    ssh blonskyi "docker run --rm -v $V:/d:ro alpine:3 cat /d/<file>.dump" \
      | ssh blonskyi "$P pg_restore -U postgres --no-owner --role=taxes_ua_app --single-transaction --exit-on-error -d taxes_ua_restore"
@@ -402,7 +403,7 @@ does today): EF runs each migration in a transaction, so the database is still o
 then drop what step 2 created. This deletes the data:
 
 ```bash
-ssh blonskyi 'docker exec 3p9qjnulllqn3bcjqokir0wq psql -U postgres -c "DROP DATABASE taxes_ua" -c "DROP ROLE taxes_ua_app"'
+ssh blonskyi 'docker exec <pg-container> psql -U postgres -c "DROP DATABASE taxes_ua" -c "DROP ROLE taxes_ua_app"'
 ```
 
 **Ending every session.** A stolen session cookie cannot be revoked one by one (ADR-009). Rotate

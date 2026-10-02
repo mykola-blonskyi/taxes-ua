@@ -32,3 +32,12 @@ for service in api web; do
   check ".services.$service.logging.options[\"max-size\"] != null and .services.$service.logging.options[\"max-file\"] != null" true \
     "$service rotates its logs"
 done
+
+# The local override is not deployed, but it serves the Development sign-in, so it must stay on loopback.
+local_config=$(docker compose -f docker-compose.yml -f docker-compose.local.yml config --format json)
+if [ "$(jq -r '[.services.web.ports[] | select(.host_ip != "127.0.0.1")] | length' <<<"$local_config")" = 0 ]; then
+  echo "ok    the local override publishes web on 127.0.0.1 only"
+else
+  echo "FAIL  the local override publishes web on 127.0.0.1 only"; exit 1
+fi
+check '.services.api.environment | has("Auth__DevelopmentSignIn")' false "the deployed compose never enables the Development sign-in"

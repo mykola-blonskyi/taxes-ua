@@ -318,7 +318,9 @@ Other: HTTPS via Traefik. `ALLOWED_HOSTS` pins the host the Google redirect URI 
 the api refuses to start in Production without it. Host filtering sees the host the container was
 addressed by, so outside Development it also accepts `api` and `localhost`; the pin to the domain is
 `ForwardedHeadersOptions.AllowedHosts`, and a forwarded host outside it gets 400. `web/next.config.ts`
-sends HSTS, `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a Content-Security-Policy; the
+sends HSTS, `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a Permissions-Policy (camera, microphone, location,
+payment and USB off; passkeys untouched). `web/src/proxy.ts` sets the Content-Security-Policy on every page with a nonce per
+request, so `script-src` has no `'unsafe-inline'` (styles keep it, since React writes style attributes). The
 api sends the same headers except the CSP on `/api/*`, which Next passes through untouched. `PASSKEY_SERVER_DOMAIN` pins the WebAuthn Relying
 Party ID rather than letting Identity infer it from the host header, and the api refuses to start
 without it too; a passkey is bound to the RP ID it was registered against. The OpenAPI document is

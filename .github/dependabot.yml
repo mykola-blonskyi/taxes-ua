@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Actions are pinned by commit SHA with a version comment; Dependabot moves both together.
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/setup-web
+    schedule:
+      interval: weekly
+  - package-ecosystem: nuget
+    directory: /api
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly

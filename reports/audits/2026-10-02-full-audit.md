@@ -405,7 +405,7 @@ None found.
 - **Where:** `docs/deploy.md:13`, introduced in commit `2cb68a4` (2026-09-28, #70).
 - **Evidence:** The line says the "proxied `A` record per subdomain, all pointing at `<vps-ip>`" and
   then gives the literal IP. The same file names the shared PostgreSQL container
-  (`3p9qjnulllqn3bcjqokir0wq`), the MinIO container, the S3 endpoint and the other projects on the
+  (its id, since scrubbed), the MinIO container, the S3 endpoint and the other projects on the
   host.
 - **Impact:** This defeats the point of the Cloudflare proxy. Anyone can reach Traefik directly,
   skipping Cloudflare's WAF, rate limiting and DDoS absorption, and scan the VPS. The step 7 check

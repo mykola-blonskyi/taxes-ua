@@ -59,6 +59,10 @@ done
 csp=$(header content-security-policy -H "Host: $domain" http://web:3000/login)
 case "$csp" in *"frame-ancestors 'none'"*) r=yes ;; *) r=no ;; esac
 check "$r" yes "/login sends a CSP with frame-ancestors 'none'"
+script_src=$(tr ';' '\n' <<<"$csp" | grep -E '^ ?script-src')
+case "$script_src" in *"'unsafe-inline'"*) r=no ;; *"'nonce-"*) r=yes ;; *) r=no ;; esac
+check "$r" yes "/login's script-src carries a nonce and no 'unsafe-inline'"
+check "$(header permissions-policy -H "Host: $domain" http://web:3000/login | grep -c 'camera=()')" 1 "/login sends a Permissions-Policy"
 check "$(header x-powered-by -H "Host: $domain" http://web:3000/login)" "" "/login does not advertise the framework"
 
 # The first start migrated an empty database, so it had to dump it first with the real pg_dump.
