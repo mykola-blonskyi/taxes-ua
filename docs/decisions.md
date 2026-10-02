@@ -1230,3 +1230,67 @@ checklist ticks. They are served by their own endpoint, so the FOP settings form
 settings request, cannot wipe them. The backup goes to schema 16. The reminder kinds gain
 `Group3Application`. An owner who records a later start loses the single tax and levy of the quarters
 before it. That is the intent: those figures were wrong, not provisional.
+
+---
+
+## ADR-024. Refuse an unsafe request a browser sent from another origin
+
+Date: 2026-10-02
+
+Status: Accepted
+
+### Context
+
+The audit (Security M1, Architecture H1) found that `docs/architecture.md` claimed an `X-Requested-With`
+check that no code made. The only defence was `SameSite=Lax`, which stops other sites but not sibling
+subdomains of `blonskyi.dev` (`todo`, `hub`, `plane`, and others), and many state-changing POSTs take no
+body, so a cross-origin `fetch` sends them without a CORS preflight. A compromised sibling could verify tax
+parameters, rotate the calendar feed, force syncs and send test messages with the owner's cookie.
+
+### Decision
+
+`CrossSiteGuard` runs after `UseForwardedHeaders` and before authentication. For POST, PUT, PATCH and
+DELETE:
+
+1. `Sec-Fetch-Site` present: the request passes only if it is `same-origin`.
+2. Otherwise `Origin` present: it must equal `{scheme}://{host}` as the browser saw it, which
+   `UseForwardedHeaders` restores from `X-Forwarded-*` (the host is pinned by `ALLOWED_HOSTS`).
+3. Neither header: the request passes.
+
+A refusal is a 403 ProblemDetails with type `https://taxes-ua/problems/cross-site-request` and
+`code: cross_site_request`.
+
+Rule 3 is the decision to read carefully. Every browser that can attach the owner's cookie to an unsafe
+request sends `Sec-Fetch-Site` (Chrome 76, Firefox 90, Safari 16.4) or at least `Origin` (all of them, on any
+non-GET). A request with neither is not a browser, so it is a script, `curl` or a provider's server, and a
+web page cannot make one of those carry the owner's cookie. Refusing it would break the e2e API calls and
+the owner's own scripts and protect nothing. The residual hole is a browser too old to send either header,
+which the app's own sign-in and CSP already do not support.
+
+The only exempt path is the monobank webhook (`/api/monobank/webhook/{secret}`, ADR-012): the bank's server
+posts to it, and the secret in the path is its credential. Nothing else needs it. The calendar feed and the
+health check are GET, the Google and development sign-in callbacks are GET redirects, there is no inbound
+Telegram webhook (the bot long-polls), and a passkey sign-in is a POST from the app's own page, so it
+passes the check like any other.
+
+### Alternatives considered
+
+An `X-Requested-With` header set by the fetch wrapper and checked in the api. It works, but it is a
+convention every future caller has to remember, and a request the wrapper does not make (a form, a link)
+would fail in a way the browser's own headers never do.
+
+Antiforgery tokens. They need a cookie, a header and a fetch-wrapper change for one owner and one origin.
+
+Refusing a request with neither header. Stricter, but it blocks non-browser clients for no gain, see above.
+
+Tightening `SameSite` to `Strict`. It does not stop a sibling subdomain, which is same-site.
+
+### Consequences
+
+The web client needed no change: the browser sets the headers, and the Next rewrite passes them to the api
+untouched, which `web/e2e/cross-site.spec.ts` proves against the real stack by sending the headers a
+browser would (Chromium refuses a cross-origin loopback request before sending it, so a real cross-site
+browser request cannot be made in the suite). That spec covers only the Next hop; Traefik and Cloudflare in front of it are not exercised, and a header
+they strip would go unnoticed there. The api tests that post without headers still pass because of rule 3. A reverse
+proxy that strips `Sec-Fetch-Site` and `Origin` would silently disable the check, so the e2e spec is what
+guards that path. A cross-origin request to the monobank webhook is accepted by design.
