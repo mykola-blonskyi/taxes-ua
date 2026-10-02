@@ -43,7 +43,7 @@ dependencies). Run `snippets/frontier.sh` for the live frontier instead of readi
 - **#33 blank-screen fix. Closed.** PR #34. Every non-401 failure of `/api/auth/me` rendered an empty
   page with a clean console.
 - **Verification is now a committed tool.** `.claude/skills/verify-taxes-ua/` plus
-  `scripts/measure-screens.mjs` and `scripts/verify-passkey.mjs`. Every UI ticket drives a real browser
+  `scripts/verify-passkey.mjs`; the 375 px measurement became the `web/e2e/layout.spec.ts` check (#154). Every UI ticket drives a real browser
   through the Development-only sign-in seam instead of asserting a screen works. Note its limit: it
   checks overflow, not usability. #4's first build measured clean while squeezing every number input
   in the tax-year table to a few pixels.
