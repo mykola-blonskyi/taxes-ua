@@ -78,7 +78,6 @@ public sealed class DeclarationFileQuarterEndTests(ApiFixture fixture) : IClassF
         using var client = await ApiFixture.SignIn(running, ApiFixture.AllowedEmail);
 
         Assert.Equal(HttpStatusCode.Conflict, (await client.GetAsync($"/api/declarations/{year}/3/files/Reporting")).StatusCode);
-        Assert.Equal(HttpStatusCode.Conflict, (await client.GetAsync($"/api/declarations/{year}/3/files/Reporting/annex")).StatusCode);
         Assert.Empty((await Get(client, year, 3)).Files);
         await using var scope = running.Services.CreateAsyncScope();
         var stored = await scope.ServiceProvider.GetRequiredService<AppDbContext>().DeclarationFiles
@@ -120,6 +119,18 @@ public sealed class DeclarationFileQuarterEndTests(ApiFixture fixture) : IClassF
 
         Assert.Single((await Get(owner, year, 3)).Files);
         Assert.Equal(HttpStatusCode.OK, (await owner.GetAsync($"/api/declarations/{year}/3/files/Reporting")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10000)]
+    public async Task A_year_no_file_can_have_is_not_found_on_download(int year)
+    {
+        await using var application = At(new FakeTimeProvider(new DateTimeOffset(2094, 5, 5, 9, 0, 0, TimeSpan.Zero)));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+
+        Assert.Equal(HttpStatusCode.NotFound, (await owner.GetAsync($"/api/declarations/{year}/1/files/Reporting")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await owner.GetAsync($"/api/declarations/{year}/4/files/Reporting/annex")).StatusCode);
     }
 
     private WebApplicationFactory<Program> At(FakeTimeProvider clock) =>

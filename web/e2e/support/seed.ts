@@ -63,10 +63,11 @@ export async function seedInvoicingDetails(owner: APIRequestContext) {
 
 export const taxOffice = { region: 26, district: 1, name: "Тестова ДПС", address: "м. Київ, вул. Тестова, 1" };
 
-// Brings the owner to the point where the declaration for any quarter of the current year is ready: a
-// verified tax year, the invoicing identity and the declaration's tax office, address and KVED code.
-export async function seedDeclarationReady(owner: APIRequestContext) {
-  const { year } = await seedRegisteredOwner(owner);
+// Brings the owner to the point where the declaration for any quarter of `targetYear` (the current year by
+// default) is ready: a verified tax year, the invoicing identity and the declaration's tax office,
+// address and KVED code.
+export async function seedDeclarationReady(owner: APIRequestContext, targetYear?: number) {
+  const { year } = await seedRegisteredOwner(owner, targetYear);
   expect((await owner.post(`/api/tax-years/${year}/verify`)).ok()).toBe(true);
   await seedInvoicingDetails(owner);
   const saved = await owner.put("/api/settings/declaration", {

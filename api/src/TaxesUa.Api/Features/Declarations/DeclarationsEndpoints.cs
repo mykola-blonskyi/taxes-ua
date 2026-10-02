@@ -260,12 +260,6 @@ public static class DeclarationsEndpoints
             return Results.Unauthorized();
         }
 
-        // A file stored before the quarter ended is refused too: its figures were incomplete (Rule 15).
-        if (QuarterNotEnded(year, quarter, time.TodayInKyiv()) is { } notEnded)
-        {
-            return notEnded;
-        }
-
         var file = await database.DeclarationFiles.AsNoTracking()
             .FirstOrDefaultAsync(
                 row => row.UserId == user.Id && row.Year == year && row.Quarter == quarter && row.Type == type,
@@ -273,6 +267,12 @@ public static class DeclarationsEndpoints
         if (file is null || pick(file) is not (string fileName, byte[] content))
         {
             return Results.NotFound();
+        }
+
+        // Checked after the lookup: a year no row can hold is a 404, not an out-of-range date.
+        if (QuarterNotEnded(year, quarter, time.TodayInKyiv()) is { } notEnded)
+        {
+            return notEnded;
         }
 
         if (IsStale(file.GeneratedAt, year, quarter))
