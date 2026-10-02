@@ -1425,7 +1425,7 @@ fact; a constant is easier to test and to change in one place.
 
 One migration adds the column and swaps the unique index for two filtered ones. The dashboard response
 gains a nullable `sync`. An account still backfilling is judged by its last progress, its latest
-import batch (#199), or by when it or the token was added while it has none, against the same 3 days, so a
+import batch (#199), or by `BackfillStartedAt` (added, followed again or reset by a restore), whichever is later, against the same 3 days, so a
 backfill that keeps failing without a token error goes stale and alerts once like any other incident. A
 stale or unreadable-token incident is held back while any followed account is queued or syncing, so a
 recovery under way (accounts recover one at a time and move the oldest cursor) does not re-key it; if an

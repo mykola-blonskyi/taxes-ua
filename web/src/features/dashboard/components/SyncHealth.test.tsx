@@ -33,7 +33,7 @@ describe("SyncHealth", () => {
 
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent("Дані з банку застаріли");
-    expect(alert).toHaveTextContent("Останній успішний обмін: 2 жовт. 2026 р., 03:05.");
+    expect(alert).toHaveTextContent("Оновлень із банку немає з 2 жовт. 2026 р., 03:05.");
     expect(screen.getByRole("link", { name: "Відкрити налаштування monobank" })).toHaveAttribute(
       "href",
       "/settings?tab=monobank",
@@ -65,7 +65,7 @@ describe("SyncHealth", () => {
 
     renderSync({ state: "Stale", lastSyncedAt }, "ru");
     expect(screen.getByRole("alert")).toHaveTextContent("Данные из банка устарели");
-    expect(screen.getByRole("alert")).toHaveTextContent("Последний успешный обмен: 2 окт. 2026 г., 03:05.");
+    expect(screen.getByRole("alert")).toHaveTextContent("Обновлений из банка нет с 2 окт. 2026 г., 03:05.");
     expect(screen.getByRole("link", { name: "Открыть настройки monobank" })).toHaveAttribute(
       "href",
       "/settings?tab=monobank",

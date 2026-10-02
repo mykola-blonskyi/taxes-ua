@@ -1036,8 +1036,9 @@ applies:
    be decrypted (the encryption key was lost or changed).
 3. `Stale`: the last progress is older than 3 days. Progress is the oldest of: the `SyncedThrough` of each
    followed account that has finished its first import (`HistoryImportedAt` set), and for each account still
-   backfilling its latest import batch (its cursor trails by design, so it is not used), or the later of
-   the account's and the token's creation while it has no batch yet. A backfill that keeps importing windows
+   backfilling its latest import batch (its cursor trails by design, so it is not used), or the
+   account's `BackfillStartedAt` (added, followed again, or reset by a restore), whichever is later, so a
+   restarted backfill gets its own 3 days. The alert and the card say "no updates since", not "last successful sync". A backfill that keeps importing windows
    is never stale; one that stops is, and alerts once like any stale sync. The 3 days are a constant (`SyncHealthCheck.StaleAfter`), not a tax
    parameter: they outlast a missed night and a weekend bank outage, and are short enough to notice well
    before a deadline.
@@ -1055,7 +1056,7 @@ where the fix is (a new token, or the sync button). No request goes to the bank 
 switched on, at most once per incident and channel, with the same claim log and the same retry rule as a
 reminder (Rule 17): claimed before sending, given back after a failure that proves nothing arrived, kept
 otherwise. Its key is the kind and the moment the state began: the rejection's own time for
-`TokenRejected`, the last good sync for `Stale` and `TokenUnreadable`. A recovery moves the last good sync
+`TokenRejected`, the last progress for `Stale` and `TokenUnreadable`. A recovery moves the last progress
 forward, so the next incident has another key and alerts again; nothing needs deleting. While an incident
 stays open it is never repeated. A sync that recovers and stops again, or a token rejected again after
 being replaced, is a new incident. An alert needs no particular hour: unlike a deadline reminder, it is

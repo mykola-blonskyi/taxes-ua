@@ -120,6 +120,8 @@ export async function seedRejectedMonobankToken(owner: APIRequestContext) {
   await expect
     .poll(async () => ((await (await owner.get("/api/dashboard")).json()) as { sync: { state: string } | null }).sync?.state, {
       message: "the sync did not stop on the rejected token",
+      // The api's rate gate holds the statement slot for a minute after the connection check.
+      timeout: 75_000,
     })
     .toBe("TokenRejected");
 }

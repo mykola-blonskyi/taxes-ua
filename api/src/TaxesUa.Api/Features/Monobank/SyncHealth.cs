@@ -15,7 +15,7 @@ internal enum SyncHealthState
 /// How trustworthy the bank-synced figures are right now (Rule 17). <c>LastSyncedAt</c> is the oldest
 /// cursor among the followed accounts that have caught up, null while none has. <c>Since</c> is the
 /// moment the current state began, which keys an incident: a rejection's own time, otherwise the last
-/// good sync, which moves on with every recovery, so a second incident never reuses the first's key.
+/// progress (a caught-up cursor, a backfill's latest batch or its start), which moves on with every recovery, so a second incident never reuses the first's key.
 /// </summary>
 internal sealed record SyncHealth(SyncHealthState State, DateTimeOffset? LastSyncedAt, DateTimeOffset Since);
 
@@ -61,7 +61,8 @@ internal static class SyncHealthCheck
 
     /// <param name="lastBatchAt">
     /// When each backfilling account last imported a window. An account with no entry has made no progress
-    /// yet and is judged from when it, or the token, was added.
+    /// yet and is judged from <see cref="BankAccount.BackfillStartedAt"/>; a batch older than that start belongs to a
+    /// backfill since reset.
     /// </param>
     public static SyncHealth Evaluate(
         MonobankConnection connection,
@@ -90,9 +91,9 @@ internal static class SyncHealthCheck
         var progress = accounts
             .Select(account => account.HistoryImportedAt is not null
                 ? account.SyncedThrough
-                : lastBatchAt.TryGetValue(account.Id, out var batchAt)
+                : lastBatchAt.TryGetValue(account.Id, out var batchAt) && batchAt > account.BackfillStartedAt
                     ? batchAt
-                    : account.CreatedAt > connection.ConnectedAt ? account.CreatedAt : connection.ConnectedAt)
+                    : account.BackfillStartedAt)
             .Min();
 
         return progress is { } oldest && now - oldest > StaleAfter

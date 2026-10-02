@@ -94,7 +94,7 @@ public static class MonobankEndpoints
 
                     case ClientInfoResult.Found found:
                         await SaveConnectionAsync(
-                            database, encryptor, user.Id, request.Token, found.Info, cancellationToken);
+                            database, encryptor, time, user.Id, request.Token, found.Info, cancellationToken);
                         await EnqueueFollowedAsync(database, queue, user.Id, cancellationToken);
                         webhooks.Reconcile(user.Id);
                         // This call spent the client-info slot; its answer serves the next minute's jar reads and prefill.
@@ -156,6 +156,10 @@ public static class MonobankEndpoints
                     if (follow && !account.IsActive)
                     {
                         newlyFollowed.Add(account.Id);
+                        if (account.HistoryImportedAt is null)
+                        {
+                            account.BackfillStartedAt = time.GetUtcNow();
+                        }
                     }
 
                     account.IsActive = follow;
@@ -314,6 +318,7 @@ public static class MonobankEndpoints
     private static async Task SaveConnectionAsync(
         AppDbContext database,
         TokenEncryptor encryptor,
+        TimeProvider time,
         string userId,
         string token,
         MonobankClientInfo info,
@@ -328,7 +333,7 @@ public static class MonobankEndpoints
 
         connection.EncryptedToken = encryptor.Encrypt(token);
         connection.MonobankClientId = info.ClientId;
-        connection.ConnectedAt = DateTimeOffset.UtcNow;
+        connection.ConnectedAt = time.GetUtcNow();
         connection.RejectedAt = null;
         connection.WebhookSecret = MonobankWebhooks.NewSecret();
         connection.WebhookFailedAt = null;
@@ -382,7 +387,8 @@ public static class MonobankEndpoints
                     // FOP accounts are preselected for sync, per #75; every other type is offered but
                     // starts (and, via MapPut("/accounts"), stays) unfollowed.
                     IsActive = isFop,
-                    CreatedAt = DateTimeOffset.UtcNow,
+                    CreatedAt = time.GetUtcNow(),
+                    BackfillStartedAt = time.GetUtcNow(),
                 });
             }
         }

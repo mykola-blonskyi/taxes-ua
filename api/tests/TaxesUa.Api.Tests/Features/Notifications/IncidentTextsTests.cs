@@ -14,12 +14,12 @@ public sealed class IncidentTextsTests
         var uk = IncidentTexts.Render(incident, "uk", "https://taxes.test/");
         var ru = IncidentTexts.Render(incident, "ru", "https://taxes.test/");
 
-        Assert.Equal("Monobank: синхронізація не працює, остання успішна 04.05.2031.", uk.Subject);
+        Assert.Equal("Monobank: синхронізація не працює, оновлень немає з 04.05.2031.", uk.Subject);
         Assert.Equal(
             uk.Subject + "\nДоходи в застосунку можуть бути неповними. Перевірте підключення monobank."
             + "\nВідкрити налаштування: https://taxes.test/settings?tab=monobank",
             uk.Text);
-        Assert.Equal("Monobank: синхронизация не работает, последняя успешная 04.05.2031.", ru.Subject);
+        Assert.Equal("Monobank: синхронизация не работает, обновлений нет с 04.05.2031.", ru.Subject);
         Assert.EndsWith("\nОткрыть настройки: https://taxes.test/settings?tab=monobank", ru.Text, StringComparison.Ordinal);
     }
 
