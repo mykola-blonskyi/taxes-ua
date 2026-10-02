@@ -1316,7 +1316,7 @@ guards that path. A cross-origin request to the monobank webhook is accepted by 
 
 ---
 
-## ADR-025. Alert on a stalled sync or a bad token, once per incident, through the reminder channels
+## ADR-026. Alert on a stalled sync or a bad token, once per incident, through the reminder channels
 
 Date: 2026-10-02
 
