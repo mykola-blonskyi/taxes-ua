@@ -39,6 +39,12 @@ Full spec: `/Users/mykola/Documents/obsidian-notes/tsxes-ua/SPEC.md` (outside th
 | Database | PostgreSQL 16+ | Owner's preference. Already running on the VPS. |
 | Deploy | Coolify on the `blonskyi-dev` VPS, Docker Compose from the repository | Traefik with auto-TLS, existing PostgreSQL instance, backups. |
 
+**PWA.** The service worker (`web/service-worker/sw.ts`) precaches the build's static files and
+`public/offline.html`, nothing else. Pages and `/api` responses always go to the network, so no stale
+tax data is ever served; a failed navigation gets the static offline page (uk/ru by the `locale`
+cookie). A new worker waits until the owner accepts the "new version" prompt (`UpdatePrompt`), then
+the tab reloads, so chunks of two builds never mix and a half-filled form is never reloaded.
+
 ---
 
 ## Components

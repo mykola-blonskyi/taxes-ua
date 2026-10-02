@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import type { AuditedEntity } from "@/data/audit/useAuditLog";
@@ -23,6 +24,12 @@ function parseEntity(value: string | string[] | undefined): AuditedEntity | unde
 
 function parseId(value: string | string[] | undefined): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("audit");
+
+  return { title: t("title") };
 }
 
 export default async function HistoryPage({

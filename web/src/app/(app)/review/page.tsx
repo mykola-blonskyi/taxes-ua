@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { PaymentCandidates } from "@/features/payments";
 import { ReviewScreen } from "@/features/transactions";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("transactions.review");
+
+  return { title: t("title") };
+}
 
 export default async function ReviewPage() {
   const t = await getTranslations("transactions.review");
