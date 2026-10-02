@@ -26,7 +26,6 @@ internal sealed record NotificationChannelBackup(
             ("address", new Issue(ProblemCodes.InvalidValue, "A Telegram address must be a chat id.")),
         NotificationChannelKind.Email when !EmailTexts.TryNormalize(Address, out _) =>
             ("address", new Issue(ProblemCodes.InvalidValue, "An email address must be a plain address such as name@example.com.")),
-        NotificationChannelKind.Telegram when ConfirmedAt is null => ("confirmedAt", new Issue(ProblemCodes.InvalidValue, "A Telegram channel is always confirmed.")),
         _ when Enabled && ConfirmedAt is null => ("enabled", new Issue(ProblemCodes.InvalidValue, "A channel cannot be enabled before it is confirmed.")),
         _ => null,
     };
@@ -37,10 +36,11 @@ internal sealed record NotificationChannelBackup(
         UserId = userId,
         Kind = Kind,
         Address = Address,
-        // A file proves nothing about a mailbox, so an email address comes back unconfirmed and off, and
-        // the owner sends the link again (ADR-022). A Telegram chat id is only ever linked by pressing Start.
-        Enabled = Kind != NotificationChannelKind.Email && Enabled,
+        // A file proves nothing about a mailbox or a chat, so every channel comes back unconfirmed and off,
+        // and the owner links it again: the confirmation mail (ADR-022), or Start in Telegram. A tampered
+        // file therefore cannot point reminders at a chat of its choosing.
+        Enabled = false,
         LinkedAt = LinkedAt.ToUniversalTime(),
-        ConfirmedAt = Kind == NotificationChannelKind.Email ? null : ConfirmedAt?.ToUniversalTime(),
+        ConfirmedAt = null,
     };
 }

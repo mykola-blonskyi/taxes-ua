@@ -218,6 +218,42 @@ public sealed class StartupTests(ApiFixture fixture) : IClassFixture<ApiFixture>
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    // The seam needs the flag as well as the environment: a Development process that was started without
+    // docker-compose.local.yml or a launch profile must not publish it.
+    [Theory]
+    [InlineData("yes")]
+    [InlineData("false")]
+    [InlineData("")]
+    public async Task Development_without_the_flag_does_not_serve_the_development_sign_in(string flag)
+    {
+        using var application = fixture.CreateApplication(builder => builder.UseSetting("Auth:DevelopmentSignIn", flag));
+        using var client = ApiFixture.CreateClient(application);
+
+        var response = await client.GetAsync($"/api/auth/login/development?email={ApiFixture.AllowedEmail}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    // The flag alone does not open it: a deployment that copied the local environment variable is still
+    // Production.
+    [Fact]
+    public async Task Production_with_the_flag_does_not_serve_the_development_sign_in()
+    {
+        using var application = fixture.CreateApplication(builder =>
+        {
+            Deployed(builder);
+            builder.UseSetting("Auth:DevelopmentSignIn", "true");
+        });
+        using var client = application.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri($"https://{DeployedHost}"),
+        });
+
+        var response = await client.GetAsync($"/api/auth/login/development?email={ApiFixture.AllowedEmail}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     private static void Deployed(IWebHostBuilder builder)
     {
         builder.UseEnvironment(Environments.Production);

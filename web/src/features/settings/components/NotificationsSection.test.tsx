@@ -209,4 +209,42 @@ describe("NotificationsSection: Telegram", () => {
     expect(await screen.findByRole("button", { name: "Подключить Telegram" })).toBeVisible();
     expect(screen.getByText("Почта недоступна: на этом сервере не заданы настройки SMTP.")).toBeVisible();
   });
+
+  it.each([
+    ["uk", "Підключити Telegram", "Відключити"],
+    ["ru", "Подключить Telegram", "Отключить"],
+  ] as const)("offers %s Connect and Disconnect for a restored, unconfirmed chat, and Disconnect deletes it", async (locale, connectLabel, disconnectLabel) => {
+    let stored: NotificationChannel = { ...linked, confirmed: false, enabled: false };
+    const api = stubFetch({
+      [channels]: () => [stored, email],
+      [disconnect]: () => {
+        stored = unlinked;
+        return reply(204);
+      },
+    });
+    const { user } = renderSection(locale);
+
+    expect(await screen.findByRole("button", { name: connectLabel })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: disconnectLabel }));
+
+    await waitFor(() => expect(api.requestsTo(disconnect)).toHaveLength(1));
+    expect(await screen.findByText(/^(Підключіть|Подключите) Telegram, /)).toBeVisible();
+  });
+
+  it.each([
+    ["uk", /^Після відновлення з копії чат потрібно підтвердити ще раз/, "Підключити Telegram", "Надсилати нагадування в Telegram"],
+    ["ru", /^После восстановления из копии чат нужно подтвердить ещё раз/, "Подключить Telegram", "Отправлять напоминания в Telegram"],
+  ] as const)(
+    "asks in %s to press Start again for a restored, unconfirmed chat, and offers no enable or test",
+    async (locale, notice, connectLabel, enableLabel) => {
+      stubFetch({ [channels]: [{ ...linked, confirmed: false, enabled: false }, email], [connect]: link });
+      const { user } = renderSection(locale);
+
+      expect(await screen.findByText(notice)).toBeVisible();
+      expect(screen.queryByRole("checkbox", { name: enableLabel })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /тестов/i })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: connectLabel }));
+      expect(await screen.findByRole("link")).toHaveAttribute("href", link.url);
+    },
+  );
 });

@@ -2,13 +2,18 @@ services:
   web:
     ports:
       # WEB_PORT lets the end-to-end suite publish its own stack beside a developer's one on 3000.
-      - "${WEB_PORT:-3000}:3000"
+      # Loopback only: the stack serves the Development sign-in, which must not be reachable from a
+      # shared network.
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
 
   api:
     environment:
       # A local stack has no pinned domain. Development is the environment where the api accepts any
       # host and serves the OpenAPI document `pnpm gen:api` reads.
       ASPNETCORE_ENVIRONMENT: Development
+      # The Development sign-in exists only with this flag as well (#180). Behind web's rewrite the api
+      # sees a container address, so the flag, not the caller's IP, is what enables it.
+      Auth__DevelopmentSignIn: "true"
       ConnectionStrings__Default: Host=db;Port=5432;Database=taxes_ua;Username=taxes_ua;Password=taxes_ua
       # docker-compose.yml always sets this from PASSKEY_SERVER_DOMAIN, so a local run without a
       # .env hands the container an empty value, and an empty environment variable outranks
