@@ -104,7 +104,7 @@ public class AccrualsTests
     [InlineData("2026-03-10", EsvRegistrationMonthPolicy.Prorated, 135_005)]
     [InlineData("2026-01-31", EsvRegistrationMonthPolicy.FullMonth, 570_702)]
     [InlineData("2026-01-31", EsvRegistrationMonthPolicy.Prorated, 386_605)]
-    public void The_month_of_registration_costs_a_full_month_or_its_active_days(
+    public void The_month_of_registration_costs_a_full_month_or_under_the_prorated_option_its_active_days(
         string registrationDate,
         EsvRegistrationMonthPolicy policy,
         long expectedEsvKop)
@@ -172,7 +172,7 @@ public class AccrualsTests
     }
 
     [Fact]
-    public void Registration_on_the_last_day_of_a_leap_february_prorates_by_its_true_length()
+    public void Under_the_prorated_option_a_registration_on_the_last_day_of_a_leap_february_prorates_by_its_true_length()
     {
         var settings = Settings(Date("2028-02-29")) with
         {
@@ -185,7 +185,7 @@ public class AccrualsTests
     }
 
     [Fact]
-    public void Registration_on_the_second_of_the_month_is_prorated_not_charged_a_full_month()
+    public void Under_the_prorated_option_a_registration_on_the_second_of_the_month_is_prorated_not_charged_a_full_month()
     {
         var settings = Settings(Date("2026-02-02")) with
         {

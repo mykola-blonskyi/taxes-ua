@@ -791,10 +791,14 @@ internal sealed record SettingsBackup(
         settings.DefaultCurrency,
         settings.BackOnGroup3From);
 
+    // A file cannot tell the old, wrong Prorated default from a deliberate choice, so restore never brings
+    // it back (ADR-018 amendment).
     public SettingsRequest ToRequest() => new(
         FopRegistrationDate,
         PaymentMode,
-        EsvRegistrationMonthPolicy,
+        EsvRegistrationMonthPolicy == EsvRegistrationMonthPolicy.Prorated
+            ? EsvRegistrationMonthPolicy.FullMonth
+            : EsvRegistrationMonthPolicy,
         EsvExempt,
         TaxPaymentCountsFromStatutoryDeclarationDate,
         ShiftTaxPaymentFromWeekend,

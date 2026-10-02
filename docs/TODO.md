@@ -40,7 +40,7 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 
 - [ ] EP/VZ payment deadline: counted from the declaration's statutory date, shifted off a
       weekend.
-- [ ] ESV in the registration month: full amount or prorated.
+- [x] ESV in the registration month: the full minimum, by law (#171, Rule 3).
 - [ ] Is there official employment with an employer paying ESV.
 - [ ] Replace the shadcn neutral palette in `web/src/app/globals.css` with the prototype's colour
       tokens. The prototype is an Obsidian note outside the repository, so #3 shipped the default.

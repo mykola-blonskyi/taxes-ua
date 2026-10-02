@@ -27,8 +27,8 @@ public sealed record TaxYearConfigInput(
 /// <summary>
 /// The FOP settings the engine reads, mirroring the <c>Settings</c> entity. Both shifting flags are
 /// unconfirmed readings of Rule 5, so both values of each stay reachable.
-/// <c>EsvRegistrationMonthPolicy</c> is a confirmed reading of Rule 3 (prorated by default), but
-/// <c>FullMonth</c> stays available as a setting. <c>FopRegistrationDate</c> is nullable like the
+/// <c>EsvRegistrationMonthPolicy</c> is <c>FullMonth</c> in the law's reading of Rule 3; <c>Prorated</c>
+/// stays available as a setting that does not match it. <c>FopRegistrationDate</c> is nullable like the
 /// entity and has no default, so a caller states the absence of a registration date rather than
 /// arriving at it by omission. <c>BackOnGroup3From</c> is the quarter the owner says the FOP is back on
 /// group 3 from after a limit crossing (Rule 4); a quarter not after the crossing lifts nothing.

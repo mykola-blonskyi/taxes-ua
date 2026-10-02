@@ -1,10 +1,10 @@
 namespace TaxesUa.Engine;
 
 /// <summary>
-/// What ESV the month of registration costs. Rule 3 calls the full amount the default and leaves the
-/// alternative to be confirmed, so <c>Prorated</c> charges the month by its active days. The owner
-/// still has to settle that: ESV for oneself is a fixed monthly sum, so a part-month accrual leaves
-/// Rule 7 with a balance no payment clears, and the alternative may be a month charged at zero.
+/// What ESV the month of registration costs. The law has no part-month minimum and the DPS charges the
+/// full monthly minimum for the month a FOP registers (Rule 3), so <c>FullMonth</c> is the reading that
+/// matches it. <c>Prorated</c>, the month by its active days, is kept only as a setting that does not
+/// match the law.
 /// </summary>
 public enum EsvRegistrationMonthPolicy
 {
@@ -51,9 +51,9 @@ public sealed record MonthAccrual(
 }
 
 /// <summary>
-/// One month's ESV for oneself (Rule 3): <c>BaseKop</c> is the minimum wage, or in the month of
-/// registration under <see cref="EsvRegistrationMonthPolicy.Prorated"/> its share for the active days,
-/// and the ESV is the rate on it, so annex 1's column 4 is column 2 times column 3.
+/// One month's ESV for oneself (Rule 3): <c>BaseKop</c> is the minimum wage, or, only under the
+/// non-statutory <see cref="EsvRegistrationMonthPolicy.Prorated"/>, its share for the registration
+/// month's active days, and the ESV is the rate on it, so annex 1's column 4 is column 2 times column 3.
 /// </summary>
 public sealed record EsvMonth(int Month, long BaseKop, int RateBp)
 {

@@ -2,6 +2,9 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
@@ -214,6 +217,29 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         finally
         {
             await DeleteTransactions(client, year);
+            await ResetSettings(client);
+        }
+    }
+
+    // The registration month owes the full minimum (190_234 kop), not the 19_023 its three active days would
+    // give. The owner's row is removed first so the policy comes from the defaults, not an earlier test.
+    [Fact]
+    public async Task The_default_policy_charges_the_full_month_of_esv_for_a_registration_on_28_september_2026()
+    {
+        using var client = await SignIn();
+        try
+        {
+            await DeleteStoredSettings(ApiFixture.AllowedEmail);
+            var defaults = await SetRegistrationDate(client, Date("2026-09-28"));
+            Assert.Equal(EsvRegistrationMonthPolicy.FullMonth, defaults.EsvRegistrationMonthPolicy);
+
+            var periods = await client.GetFromJsonAsync<PeriodsResponse>("/api/periods/2026", Json);
+
+            Assert.Equal(190_234, Assert.Single(periods!.Quarters, quarter => quarter.Quarter == 3).EsvKop);
+            Assert.Equal(3 * 190_234, Assert.Single(periods.Quarters, quarter => quarter.Quarter == 4).EsvKop);
+        }
+        finally
+        {
             await ResetSettings(client);
         }
     }
@@ -457,6 +483,14 @@ public sealed class PeriodsEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
             DefaultCurrency: "UAH");
 
         await client.PutAsJsonAsync("/api/settings", defaults, Json);
+    }
+
+    private async Task DeleteStoredSettings(string email)
+    {
+        await using var scope = fixture.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userId = await database.Users.Where(user => user.Email == email).Select(user => user.Id).SingleAsync();
+        await database.Settings.Where(row => row.UserId == userId).ExecuteDeleteAsync();
     }
 
     private async Task<HttpClient> SignIn()

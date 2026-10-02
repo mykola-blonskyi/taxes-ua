@@ -470,7 +470,7 @@
       "paymentModeMonthlyAdvance": "Ежемесячный аванс",
       "esvRegistrationMonthPolicy": "Месяц регистрации ЕСВ",
       "esvRegistrationMonthPolicyFullMonth": "Полный месяц",
-      "esvRegistrationMonthPolicyProrated": "Пропорционально",
+      "esvRegistrationMonthPolicyProrated": "Пропорционально (не по закону)",
       "esvExempt": "Освобождение от ЕСВ за себя",
       "taxPaymentCountsFromStatutoryDeclarationDate": "Срок уплаты считать от установленной даты декларации",
       "shiftTaxPaymentFromWeekend": "Переносить уплату налога с выходного дня",

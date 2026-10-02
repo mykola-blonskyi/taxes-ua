@@ -191,6 +191,8 @@ public sealed class ApiFixture : IAsyncLifetime
         return client;
     }
 
+    public string ConnectionString => _database.GetConnectionString();
+
     public AsyncServiceScope CreateScope() => _application.Services.CreateAsyncScope();
 
     private sealed class ExternalSignInStub : IStartupFilter
