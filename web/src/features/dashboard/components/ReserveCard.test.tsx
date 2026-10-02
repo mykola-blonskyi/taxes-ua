@@ -51,7 +51,7 @@ describe("ReserveCard", () => {
 
     expect(screen.getByRole("heading", { name: "Скільки відкласти на податки" })).toBeVisible();
     expect(screen.getByText("650,00 ₴")).toBeVisible();
-    expect(screen.getByText(/^До \d+ \D+$/)).toBeVisible();
+    expect(screen.getByText(/^До 19 \D+$/)).toBeVisible();
     expect(screen.getByText("500,00 ₴")).toBeVisible();
     expect(screen.getByText("100,00 ₴")).toBeVisible();
     expect(screen.getByText("50,00 ₴")).toBeVisible();
@@ -85,7 +85,7 @@ describe("ReserveCard", () => {
 
       expect(screen.getByText("Скарбничка «Податки»")).toBeVisible();
       expect(screen.getByText("400,00 ₴")).toBeVisible();
-      expect(screen.getByText(/^Поповніть на 250,00 ₴ до \d+ \D+\.$/)).toBeVisible();
+      expect(screen.getByText(/^Поповніть на 250,00 ₴ до 19 \D+\.$/)).toBeVisible();
       expect(screen.queryByText(/Загалом не вистачає/)).not.toBeInTheDocument();
       expect(screen.queryByText(/Вистачає/)).not.toBeInTheDocument();
     });
@@ -94,7 +94,7 @@ describe("ReserveCard", () => {
       stubFetch({});
       renderCard(reserve({ ...covering, shortfallKop: 60_000, topUpBy: "2026-10-19", topUpKop: 25_000 }));
 
-      expect(screen.getByText(/^Поповніть на 250,00 ₴ до /)).toBeVisible();
+      expect(screen.getByText(/^Поповніть на 250,00 ₴ до 19 /)).toBeVisible();
       expect(screen.getByText("Загалом не вистачає 600,00 ₴.")).toBeVisible();
     });
 
@@ -158,7 +158,7 @@ describe("ReserveCard", () => {
 
       expect(screen.getByRole("heading", { name: "Сколько отложить на налоги" })).toBeVisible();
       expect(screen.getByText("Копилка «Податки»")).toBeVisible();
-      expect(screen.getByText(/^Пополните на 250,00 ₴ до /)).toBeVisible();
+      expect(screen.getByText(/^Пополните на 250,00 ₴ до 19 /)).toBeVisible();
       expect(screen.getByText("Всего не хватает 600,00 ₴.")).toBeVisible();
       expect(screen.getByRole("button", { name: "Обновить баланс" })).toBeVisible();
     });

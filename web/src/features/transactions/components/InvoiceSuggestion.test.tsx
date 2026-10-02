@@ -66,7 +66,7 @@ describe("InvoiceSuggestion", () => {
     expect(screen.getByText("INV-7")).toBeVisible();
     expect(screen.getByText("Acme Ltd")).toBeVisible();
     expect(screen.getByText("120,00 ₴")).toBeVisible();
-    expect(screen.getByText(/^Оплатити до /)).toBeVisible();
+    expect(screen.getByText(/^Оплатити до .*\b30\b/)).toBeVisible();
     expect(api.requests).toHaveLength(0);
 
     await user.click(screen.getByRole("button", { name: `Підтвердити оплату INV-7: ${rowName}` }));
@@ -154,7 +154,7 @@ describe("InvoiceSuggestion", () => {
 
     expect(screen.getByText("Похоже, это оплата инвойса")).toBeVisible();
     expect(screen.getByRole("note")).toHaveTextContent("Плательщик отличается от клиента инвойса");
-    expect(screen.getByText(/^Оплатить до /)).toBeVisible();
+    expect(screen.getByText(/^Оплатить до .*\b30\b/)).toBeVisible();
     expect(screen.getByRole("button", { name: `Не привязывать: ${rowName}` })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: `Подтвердить оплату INV-8: ${rowName}` }));

@@ -85,6 +85,11 @@ describe("NotificationsSection: Telegram", () => {
     expect(api.requestsTo(channels).length).toBeGreaterThan(reads);
     expect(screen.getByRole("checkbox", { name: "Надсилати нагадування в Telegram" })).toBeChecked();
     expect(screen.queryByRole("link", { name: "Відкрити бота в Telegram" })).not.toBeInTheDocument();
+
+    // Linked, the channel is no longer polled.
+    const readsWhenLinked = api.requestsTo(channels).length;
+    await timers.advance(9_000);
+    expect(api.requestsTo(channels)).toHaveLength(readsWhenLinked);
   });
 
   it("says the link could not be made", async () => {
