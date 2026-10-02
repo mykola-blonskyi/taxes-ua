@@ -30,8 +30,11 @@ test("the declaration XML downloads under the DPS file name and parses as form F
   ];
   expect(file.suggestedFilename()).toBe(`${parts.join("")}.xml`);
 
-  // The file is windows-1251, which is what the Electronic Cabinet reads.
-  const xml = new TextDecoder("windows-1251").decode(await readFile(await file.path()));
+  // The file is windows-1251, which is what the Electronic Cabinet reads: the prolog says so, and the
+  // Cyrillic header values only read back right when the bytes are decoded as that.
+  const bytes = await readFile(await file.path());
+  expect(bytes.subarray(0, 60).toString("latin1")).toContain('<?xml version="1.0" encoding="windows-1251"?>');
+  const xml = new TextDecoder("windows-1251").decode(bytes);
   const parsed = await page.evaluate((text) => {
     const document = new DOMParser().parseFromString(text, "application/xml");
     const read = (tag: string) => document.querySelector(tag)?.textContent ?? null;
@@ -45,6 +48,8 @@ test("the declaration XML downloads under the DPS file name and parses as form F
       year: read("PERIOD_YEAR"),
       periodType: read("PERIOD_TYPE"),
       periodMonth: read("PERIOD_MONTH"),
+      taxOfficeName: read("HSTI"),
+      address: read("HLOC"),
     };
   }, xml);
 
@@ -58,5 +63,7 @@ test("the declaration XML downloads under the DPS file name and parses as form F
     year: String(year),
     periodType: "2",
     periodMonth: String(quarter * 3),
+    taxOfficeName: taxOffice.name,
+    address: taxOffice.address,
   });
 });

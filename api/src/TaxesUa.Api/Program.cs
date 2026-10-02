@@ -137,7 +137,9 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<FxRates>();
 builder.Services.AddHttpClient<NbuRateClient>(client =>
 {
-    client.BaseAddress = new Uri(builder.Configuration["Nbu:BaseUrl"] ?? "https://bank.gov.ua/");
+    // Empty means the real NBU: the local Compose file passes it through, empty unless a stub is wanted.
+    var baseUrl = builder.Configuration["Nbu:BaseUrl"];
+    client.BaseAddress = new Uri((string.IsNullOrWhiteSpace(baseUrl) ? "https://bank.gov.ua" : baseUrl).TrimEnd('/') + "/");
     client.Timeout = TimeSpan.FromSeconds(5);
 });
 

@@ -61,7 +61,7 @@ export async function seedInvoicingDetails(owner: APIRequestContext) {
   expect(saved.ok(), `invoicing details answered ${saved.status()}`).toBe(true);
 }
 
-export const taxOffice = { region: 26, district: 1 };
+export const taxOffice = { region: 26, district: 1, name: "Тестова ДПС", address: "м. Київ, вул. Тестова, 1" };
 
 // Brings the owner to the point where the declaration for any quarter of the current year is ready: a
 // verified tax year, the invoicing identity and the declaration's tax office, address and KVED code.
@@ -73,9 +73,9 @@ export async function seedDeclarationReady(owner: APIRequestContext) {
     data: {
       taxOfficeRegion: taxOffice.region,
       taxOfficeDistrict: taxOffice.district,
-      taxOfficeName: "Тестова ДПС",
+      taxOfficeName: taxOffice.name,
       kvedCodes: ["62.01"],
-      address: "м. Київ, вул. Тестова, 1",
+      address: taxOffice.address,
     },
   });
   expect(saved.ok(), `declaration details answered ${saved.status()}`).toBe(true);

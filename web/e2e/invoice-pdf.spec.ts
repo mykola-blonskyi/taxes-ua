@@ -15,8 +15,10 @@ test("an issued invoice downloads as a PDF that carries its number and seller", 
 
   expect(file.suggestedFilename()).toBe(invoice.pdfFileName);
   const bytes = await readFile(await file.path());
-  // The text is in compressed streams under subset fonts, which only a PDF library reads back. The
-  // document information dictionary is plain, and it is written from the invoice's own number and seller.
+  // This covers the download and the file's identity, not its body: the text is in compressed streams under
+  // subset fonts, which only a PDF library reads back, and the API's own tests (InvoicePdfTests, with
+  // PdfPig) assert the body. The information dictionary is plain and is written from the invoice's number
+  // and seller, so it ties the file to this invoice.
   const raw = bytes.toString("latin1");
   expect(raw.startsWith("%PDF-")).toBe(true);
   expect(raw.trimEnd().endsWith("%%EOF")).toBe(true);

@@ -33,13 +33,19 @@ test("the pay panel for an obligation shows the Treasury account, the purpose an
   await expect(panel.getByText("1234.56", { exact: true })).toBeVisible();
   await expect(panel.getByText(details.purpose, { exact: true })).toBeVisible();
   // The payload behind the QR names the same recipient, account and purpose the panel prints.
-  // The QR is a bank.gov.ua link whose last segment is the base64url payload.
-  const payload = Buffer.from(details.qrContent.split("/").pop()!, "base64url").toString("utf8");
-  expect(payload).toContain(esv.recipientName);
-  expect(payload).toContain(esv.iban);
-  expect(payload).toContain(`UAH1234.56`);
-  expect(payload).toContain(esv.recipientCode);
-  expect(payload).toContain(details.purpose);
+  // The QR is the NBU start code followed by the base64url of seventeen LF-separated fields (format 003,
+  // NbuQr.cs); the image itself is not decoded.
+  const startCode = "https://qr.bank.gov.ua/";
+  expect(details.qrContent.startsWith(startCode)).toBe(true);
+  const fields = Buffer.from(details.qrContent.slice(startCode.length), "base64url").toString("utf8").split("\n");
+  expect(fields).toHaveLength(17);
+  expect(fields[0]).toBe("BCD");
+  expect(fields[1]).toBe("003");
+  expect(fields[5]).toBe(esv.recipientName);
+  expect(fields[6]).toBe(esv.iban);
+  expect(fields[7]).toBe("UAH1234.56");
+  expect(fields[8]).toBe(esv.recipientCode);
+  expect(fields[11]).toBe(details.purpose);
   await expect(panel.getByRole("img", { name: uk.pay.qrLabel })).toBeVisible();
   await expect(panel.getByText(uk.pay.qrUpdating)).toBeHidden();
 });
