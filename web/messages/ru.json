@@ -45,6 +45,7 @@
     "title": "Главная",
     "loading": "Загрузка…",
     "loadFailed": "Не удалось загрузить следующий шаг.",
+    "attention": "Требует внимания ({count})",
     "payBy": "Оплатить до",
     "overdueSince": "Просрочено с",
     "pay": "Оплатить: {kinds}",
@@ -1458,6 +1459,11 @@
       "unavailable": "monobank сейчас недоступен.",
       "failed": "Не удалось выполнить запрос."
     }
+  },
+  "loadState": {
+    "loading": "Загрузка…",
+    "retry": "Повторить",
+    "retrying": "Повторяем…"
   },
   "apiErrors": {
     "validation_failed": "Проверьте выделенные поля.",

@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import { usePayments, type PaymentResponse } from "@/data/payments/usePayments";
 import { usePeriods } from "@/data/periods/usePeriods";
 import { useTaxYears } from "@/data/tax-years/useTaxYears";
@@ -23,7 +24,8 @@ function defaultYear(configuredYears: number[]): number | undefined {
 
 export function PaymentsScreen() {
   const t = useTranslations("payments");
-  const { data: taxYears, isLoading: taxYearsLoading, isError: taxYearsFailed } = useTaxYears();
+  const taxYearsQuery = useTaxYears();
+  const { data: taxYears } = taxYearsQuery;
   const configuredYears = useMemo(
     () => (taxYears ?? []).map((taxYear) => Number(taxYear.year)).sort((a, b) => a - b),
     [taxYears],
@@ -36,12 +38,8 @@ export function PaymentsScreen() {
   const periods = usePeriods(year);
   const payments = usePayments(year);
 
-  if (taxYearsLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (taxYearsFailed) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (taxYearsQuery.isLoading || taxYearsQuery.isError) {
+    return <LoadState query={taxYearsQuery} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   if (year === undefined) {
@@ -83,10 +81,9 @@ export function PaymentsScreen() {
         </select>
       </div>
 
-      {payments.isLoading || periods.isLoading ? (
-        <p className="text-sm text-muted-foreground">{t("loading")}</p>
+      {payments.isLoading || periods.isLoading || payments.isError || periods.isError ? (
+        <LoadState query={[payments, periods]} loading={t("loading")} failed={t("loadFailed")} />
       ) : null}
-      {payments.isError || periods.isError ? <p className="text-sm text-destructive">{t("loadFailed")}</p> : null}
 
       {periods.data?.balances ? <BalancesPanel year={year} balances={periods.data.balances} /> : null}
 

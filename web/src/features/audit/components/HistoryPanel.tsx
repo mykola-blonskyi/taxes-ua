@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useAuditLog, type AuditedEntity, type AuditEntryResponse } from "@/data/audit/useAuditLog";
 import { formatInstantInKyiv } from "@/shared/lib/dates";
+import { LoadState } from "@/data/api/LoadState";
 import { formatFieldValue, orderFields } from "../fields";
 
 // Field and kind names come from the API's snapshot data, not a fixed literal set known at compile
@@ -16,14 +17,11 @@ function asDynamic(t: object): DynamicTranslator {
 
 export function HistoryPanel({ entity, id }: { entity?: AuditedEntity; id?: string }) {
   const t = useTranslations("audit");
-  const { data, isLoading, isError } = useAuditLog({ entity, id });
+  const query = useAuditLog({ entity, id });
+  const { data } = query;
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (query.isLoading || query.isError) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   if (!data || data.length === 0) {

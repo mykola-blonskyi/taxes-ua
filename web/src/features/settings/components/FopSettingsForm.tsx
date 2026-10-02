@@ -8,6 +8,7 @@ import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useSaveSettings, useSettings, type SettingsRequest } from "@/data/settings/useSettings";
 import { locales } from "@/i18n/locales";
 import { Button } from "@/shared/ui/button";
+import { LoadState } from "@/data/api/LoadState";
 import { CheckboxField, SelectField, TextField } from "@/shared/ui/fields";
 
 type PaymentMode = SettingsRequest["paymentMode"];
@@ -86,14 +87,11 @@ function toRequest({ backOnGroup3FromYear, backOnGroup3FromQuarter, ...form }: F
 
 export function FopSettingsForm() {
   const t = useTranslations("settings");
-  const { data, isLoading, isError } = useSettings();
+  const query = useSettings();
+  const { data } = query;
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError || !data) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (query.isError || !data) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   return <SettingsFormBody initial={data} />;

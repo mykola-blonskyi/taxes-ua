@@ -1567,3 +1567,46 @@ failure messages, and the tests assert codes. The backup and import file errors 
 (`id_not_unique`, `unknown_reference`, `inconsistent_fields`, `duplicate_value`) beside the field path the screen
 prints, since the owner reads them as a list of places in a file, not as prose. The declaration screen no longer
 lists the XML schema checker's own messages: they are English diagnostics, which the api still sends in `errors` for the logs.
+
+---
+
+## ADR-029. The pay hero leads the dashboard, one banner at most above it, and every data screen shares one loading and failure state
+
+Date: 2026-10-02
+
+Status: Accepted
+
+### Context
+
+The audit (UX Medium 6, 9) found that up to four notices (limit crossing, review, declaration due, overdue
+invoices) rendered above the pay hero, so on a phone "what do I pay" could fall below the fold. It also found
+that loading and failure were a bare `<p>` per screen: not announced to assistive technology, and with no way
+to try again except in `AuthGate`.
+
+### Decision
+
+1. **The hero comes first; the notices are ranked.** `web/src/features/dashboard/components/notices.ts` lists
+   the notices in priority order and `activeNotices` returns the ones that apply. The first is the only banner
+   above the hero; the rest fold into one closed "Needs attention (N)" `<details>` under it. The order, most
+   urgent first:
+   1. Debts and overdue items. A debt is the hero itself (red when overdue), so it takes no banner; the overdue
+      invoices notice is the item that does.
+   2. Sync health: a stalled or rejected bank feed leaves every figure short of the truth (ADR-026). The quiet
+      "last exchange" line for a healthy feed is not a notice and stays under the hero.
+   3. Group 3 status: an unconfirmed registration, or a stretch before it, makes figures provisional (ADR-023).
+   4. Treasury account expiry. It is shown inside the hero's pay panel, where the account is used, so it never
+      takes a banner slot; it is listed to keep the ranking complete.
+   5. The others, in order: limit crossing, declaration due, transactions waiting for review.
+2. **One loading and failure component.** `LoadState` (`web/src/data/api/LoadState.tsx`) takes a TanStack query
+   (or several the screen needs together). Loading is a polite `role="status"`. A failure is a `role="alert"`
+   worded as the screen's own "could not load" followed by the api's coded reason when this build has words for
+   it (`useApiErrorText`, ADR-028), with a retry button that refetches the failed queries and is disabled while
+   it does. Texts are in `loadState` of `uk.json` and `ru.json`; a screen may pass its own loading and failure
+   sentences. It lives in `@/data/api` because it reads the api error contract and `@/shared` may not import
+   `@/data`.
+
+### Consequences
+
+A new data screen renders `LoadState` instead of writing its own `<p>`. A new dashboard notice is added to
+`noticePriority` at its rank, with a case in `NoticeView`. The banner above the hero is chosen by rank alone, so
+a lower-ranked notice never displaces a higher one, and the hero is never pushed down by more than one banner.

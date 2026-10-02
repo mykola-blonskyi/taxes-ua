@@ -14,6 +14,7 @@ import {
   type TaxYearConfigResponse,
 } from "@/data/tax-years/useTaxYears";
 import { Button } from "@/shared/ui/button";
+import { LoadState } from "@/data/api/LoadState";
 import { MoneyField, NumberField, RateField, ReadOnlyMoneyField, TextField } from "@/shared/ui/fields";
 
 type FormState = {
@@ -81,14 +82,11 @@ function toRequest(form: FormState): TaxYearConfigRequest {
 export function TaxYearTable() {
   const t = useTranslations("settings");
   const tYears = useTranslations("settings.taxYears");
-  const { data, isLoading, isError } = useTaxYears();
+  const query = useTaxYears();
+  const { data } = query;
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError || !data) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (query.isError || !data) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   if (data.length === 0) {

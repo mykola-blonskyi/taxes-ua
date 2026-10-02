@@ -258,6 +258,9 @@ for (const locale of locales) {
         test.setTimeout(60_000);
         await open(page, route, locale);
         if (route === "/") {
+          // The seeded owner also has an overdue invoice, which outranks the bank warning for the one banner
+          // above the pay card, so the warning sits in the folded "needs attention" list. Open it to measure it.
+          await page.locator("main details > summary").click();
           await expect(
             page.getByRole("alert").filter({ hasText: catalogs[locale].dashboard.sync.tokenRejected.title }),
             "the dashboard should show the rejected-token card",

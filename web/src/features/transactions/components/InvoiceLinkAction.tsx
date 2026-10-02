@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import { ApiError } from "@/data/api/client";
 import { useLinkReceipt, usePayableInvoices, useUnlinkReceipt } from "@/data/invoices/useInvoices";
 import type { TransactionResponse } from "@/data/transactions/useTransactions";
@@ -17,7 +18,8 @@ export function InvoiceLinkAction({ transaction, rowName }: { transaction: Trans
   const unlinkReceipt = useUnlinkReceipt();
   const [picking, setPicking] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const { data: options, isLoading, isError } = usePayableInvoices(transaction.id, picking);
+  const optionsQuery = usePayableInvoices(transaction.id, picking);
+  const { data: options } = optionsQuery;
 
   function report(error: unknown) {
     setFailure(error instanceof ApiError && error.status === 409 ? t("conflict") : t("failed"));
@@ -63,8 +65,9 @@ export function InvoiceLinkAction({ transaction, rowName }: { transaction: Trans
       {picking ? (
         <div className="flex w-full basis-full flex-col gap-2 rounded-lg border p-3">
           <p className="text-sm font-medium">{t("pick")}</p>
-          {isLoading ? <p className="text-xs text-muted-foreground">{t("loading")}</p> : null}
-          {isError ? <p className="text-xs text-destructive">{t("failed")}</p> : null}
+          {optionsQuery.isLoading || optionsQuery.isError ? (
+            <LoadState query={optionsQuery} loading={t("loading")} failed={t("failed")} />
+          ) : null}
           {options && options.length === 0 ? <p className="text-xs text-muted-foreground">{t("none")}</p> : null}
           {options && options.length > 0 ? (
             <ul className="flex flex-col gap-2">

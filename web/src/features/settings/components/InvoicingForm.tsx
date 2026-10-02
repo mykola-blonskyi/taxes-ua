@@ -13,6 +13,7 @@ import {
 } from "@/data/invoicing/useInvoicing";
 import { useMonobankConnection } from "@/data/monobank/useMonobank";
 import { Button } from "@/shared/ui/button";
+import { LoadState } from "@/data/api/LoadState";
 import { TextAreaField, TextField } from "@/shared/ui/fields";
 import { InvoicingMonobankPrefill } from "./InvoicingMonobankPrefill";
 import { InvoicingSignature } from "./InvoicingSignature";
@@ -32,14 +33,11 @@ const clauses = ["acceptance", "fees", "taxStatus"] as const satisfies readonly 
 
 export function InvoicingForm() {
   const t = useTranslations("settings");
-  const { data, isLoading, isError } = useInvoicingDetails();
+  const query = useInvoicingDetails();
+  const { data } = query;
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError || !data) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (query.isError || !data) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   return <InvoicingFormBody details={data} />;

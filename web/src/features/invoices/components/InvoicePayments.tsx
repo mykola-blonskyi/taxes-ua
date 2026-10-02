@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import { ApiError } from "@/data/api/client";
 import {
   useLinkReceipt,
@@ -23,7 +24,8 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceResponse }) {
 
   const paid = invoice.standing === "Paid";
   const canLink = invoice.status === "Issued" && !paid;
-  const { data: options, isLoading, isError } = useReceiptOptions(invoice.id, canLink && picking);
+  const optionsQuery = useReceiptOptions(invoice.id, canLink && picking);
+  const { data: options } = optionsQuery;
   const format = (amountMinor: number | string) => formatAmount(Number(amountMinor), invoice.currency, locale);
 
   function report(error: unknown) {
@@ -105,8 +107,9 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceResponse }) {
       {canLink && picking ? (
         <div className="flex flex-col gap-2 rounded-lg border p-3">
           <p className="text-sm font-medium">{t("pick")}</p>
-          {isLoading ? <p className="text-sm text-muted-foreground">{t("loadingOptions")}</p> : null}
-          {isError ? <p className="text-sm text-destructive">{t("failed")}</p> : null}
+          {optionsQuery.isLoading || optionsQuery.isError ? (
+            <LoadState query={optionsQuery} loading={t("loadingOptions")} failed={t("failed")} />
+          ) : null}
           {options && options.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("noOptions")}</p>
           ) : null}

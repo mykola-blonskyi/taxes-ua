@@ -13,6 +13,7 @@ import {
 } from "@/data/treasury/useTreasuryAccounts";
 import { formatDateOnly } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
+import { LoadState } from "@/data/api/LoadState";
 import { TextField } from "@/shared/ui/fields";
 import { TreasuryValidUntil } from "./TreasuryValidUntil";
 
@@ -24,14 +25,11 @@ type FormState = { iban: string; recipientName: string; recipientCode: string };
 
 export function TreasuryAccountsSection() {
   const t = useTranslations("settings.treasury");
-  const { data, isLoading, isError } = useTreasuryAccounts();
+  const query = useTreasuryAccounts();
+  const { data } = query;
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError || !data) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (query.isError || !data) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   return (

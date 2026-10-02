@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import { useTaxYears } from "@/data/tax-years/useTaxYears";
 import { usePeriods } from "@/data/periods/usePeriods";
 import { currentYearInKyiv } from "@/shared/lib/dates";
@@ -22,7 +23,8 @@ function defaultYear(configuredYears: number[]): number | undefined {
 
 export function PeriodsScreen() {
   const t = useTranslations("periods");
-  const { data: taxYears, isLoading: taxYearsLoading, isError: taxYearsFailed } = useTaxYears();
+  const taxYearsQuery = useTaxYears();
+  const { data: taxYears } = taxYearsQuery;
   const configuredYears = useMemo(
     () => (taxYears ?? []).map((taxYear) => Number(taxYear.year)).sort((a, b) => a - b),
     [taxYears],
@@ -30,14 +32,11 @@ export function PeriodsScreen() {
   const [selectedYear, setSelectedYear] = useState<number | undefined>(undefined);
   const year = selectedYear ?? defaultYear(configuredYears);
 
-  const { data: periods, isLoading: periodsLoading, isError } = usePeriods(year);
+  const periodsQuery = usePeriods(year);
+  const { data: periods, isLoading: periodsLoading, isError } = periodsQuery;
 
-  if (taxYearsLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (taxYearsFailed) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (taxYearsQuery.isLoading || taxYearsQuery.isError) {
+    return <LoadState query={taxYearsQuery} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   if (configuredYears.length === 0) {
@@ -71,8 +70,9 @@ export function PeriodsScreen() {
         </select>
       </div>
 
-      {periodsLoading ? <p className="text-sm text-muted-foreground">{t("loading")}</p> : null}
-      {isError ? <p className="text-sm text-destructive">{t("loadFailed")}</p> : null}
+      {periodsLoading || isError ? (
+        <LoadState query={periodsQuery} loading={t("loading")} failed={t("loadFailed")} />
+      ) : null}
 
       {!periodsLoading && !isError && periods ? (
         <PeriodWarnings year={Number(periods.year)} warnings={periods.warnings} limitCrossing={periods.limitCrossing} />

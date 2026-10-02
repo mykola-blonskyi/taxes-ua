@@ -10,34 +10,29 @@ import { formatLongDate } from "./debt";
 import { DaysLeft, DebtPeriod } from "./DebtParts";
 import { Group3Status } from "./Group3Status";
 import { HeroCard } from "./HeroCard";
+import { LoadState } from "@/data/api/LoadState";
 import { LimitBar } from "./LimitBar";
+import { activeNotices, type Notice } from "./notices";
 import { PayDebtButton } from "./PayDebtButton";
 import { ReserveCard } from "./ReserveCard";
 import { SyncHealth } from "./SyncHealth";
 
 export function DashboardScreen() {
   const t = useTranslations("dashboard");
-  const { data, isLoading, isError, isFetching } = useDashboard();
+  const query = useDashboard();
+  const { data, isFetching } = query;
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError || !data) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (query.isLoading || query.isError || !data) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   const { nextStep, today } = data;
-  const needsReview = Number(data.needsReviewCount);
-  const overdueInvoices = Number(data.overdueInvoiceCount);
+  const [banner, ...folded] = activeNotices(data);
+  const notice = (name: Notice) => <NoticeView key={name} name={name} data={data} />;
 
   return (
     <div className="flex flex-col gap-6">
-      <Group3Status group3={data.group3} today={today} />
-      {data.limitCrossing ? <LimitCrossingWarning crossing={data.limitCrossing} /> : null}
-      {needsReview > 0 ? <ReviewWarning count={needsReview} /> : null}
-      {data.declaration ? <DeclarationDue due={data.declaration} today={today} /> : null}
-      {overdueInvoices > 0 ? <OverdueInvoicesNotice count={overdueInvoices} /> : null}
+      {banner ? notice(banner) : null}
       {nextStep.state === "Pay" ? (
         <>
           <HeroCard now={nextStep.now} today={today} busy={isFetching} />
@@ -46,7 +41,8 @@ export function DashboardScreen() {
       ) : (
         <StateCard response={data} />
       )}
-      {data.sync ? <SyncHealth sync={data.sync} /> : null}
+      {folded.length > 0 ? <FoldedNotices count={folded.length}>{folded.map(notice)}</FoldedNotices> : null}
+      {data.sync?.state === "Healthy" ? <SyncHealth sync={data.sync} /> : null}
       {data.reserve ? (
         <ReserveCard reserve={data.reserve} today={today} limitCrossing={data.limitCrossing} />
       ) : null}
@@ -55,6 +51,37 @@ export function DashboardScreen() {
       {data.limit ? <LimitBar limit={data.limit} /> : null}
       <InvoicesLink />
     </div>
+  );
+}
+
+function NoticeView({ name, data }: { name: Notice; data: DashboardResponse }) {
+  switch (name) {
+    case "overdueInvoices":
+      return <OverdueInvoicesNotice count={Number(data.overdueInvoiceCount)} />;
+    case "sync":
+      return data.sync ? <SyncHealth sync={data.sync} /> : null;
+    case "group3":
+      return <Group3Status group3={data.group3} today={data.today} />;
+    case "limitCrossing":
+      return data.limitCrossing ? <LimitCrossingWarning crossing={data.limitCrossing} /> : null;
+    case "declaration":
+      return data.declaration ? <DeclarationDue due={data.declaration} today={data.today} /> : null;
+    case "review":
+      return <ReviewWarning count={Number(data.needsReviewCount)} />;
+  }
+}
+
+// Everything but the single banner waits here, under the hero, until the owner opens it.
+function FoldedNotices({ count, children }: { count: number; children: ReactNode }) {
+  const t = useTranslations("dashboard");
+
+  return (
+    <details className="group rounded-lg border">
+      <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-medium">
+        {t("attention", { count })}
+      </summary>
+      <div className="flex flex-col gap-3 p-3 pt-0">{children}</div>
+    </details>
   );
 }
 

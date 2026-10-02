@@ -18,18 +18,18 @@ const base = {
 } as const;
 
 describe("DashboardScreen sync health", () => {
-  it("sits under the pay card and below the group 3 banner, not above it", async () => {
+  it("takes the one banner slot above the pay card, ahead of the group 3 notice, which folds below", async () => {
     stubFetch({
       "GET /api/dashboard": { ...base, sync: { state: "Stale", lastSyncedAt: "2026-09-28T00:05:00Z" } },
     });
     renderApp(<DashboardScreen />);
 
-    const group3 = await screen.findByText(/Групу 3 ще не підтверджено/);
+    const sync = await screen.findByRole("heading", { name: "Дані з банку застаріли" });
     const done = screen.getByRole("heading", { name: "Усе сплачено" });
-    const sync = screen.getByRole("heading", { name: "Дані з банку застаріли" });
+    const group3 = screen.getByText(/Групу 3 ще не підтверджено/);
 
-    expect(group3.compareDocumentPosition(sync) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(done.compareDocumentPosition(sync) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sync.compareDocumentPosition(done) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(done.compareDocumentPosition(group3) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("shows nothing about the bank for an owner who follows no account", async () => {
@@ -40,5 +40,18 @@ describe("DashboardScreen sync health", () => {
 
     expect(screen.queryByText(/Банк:/)).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the healthy line quiet under the pay card", async () => {
+    stubFetch({
+      "GET /api/dashboard": { ...base, sync: { state: "Healthy", lastSyncedAt: "2026-10-02T06:00:00Z" } },
+    });
+    renderApp(<DashboardScreen />);
+
+    const done = await screen.findByRole("heading", { name: "Усе сплачено" });
+    const line = screen.getByText(/Банк: останній успішний обмін/);
+
+    expect(done.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(/Потребує уваги/)).not.toBeInTheDocument();
   });
 });
