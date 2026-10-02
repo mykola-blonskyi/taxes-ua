@@ -795,6 +795,10 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
                 [.. accounts.Select(account => (account.Id, "fop", account.CurrencyCode, $"UA{account.Id}"))]);
         }
 
+        // The name client-info reports for a token, in place of the one every token shares.
+        public void Name(string token, string name) =>
+            _clientInfo[token] = _clientInfo[token].Replace("\"name\":\"Test FOP\"", $"\"name\":\"{name}\"", StringComparison.Ordinal);
+
         public void Revoke(string token) => _clientInfo.TryRemove(token, out _);
 
         public void RateLimit(int calls, TimeSpan? retryAfter)

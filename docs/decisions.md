@@ -1026,8 +1026,9 @@ savings, names and balances would sit in the database and the backup for no use.
 ### Consequences
 
 A refresh within a minute of another `client-info` call gets the earlier balance, or a `429` when the slot
-was spent without an answer to keep (a refused token save), and the screen shows the time of the balance
-either way. The invoicing prefill shares the same answer, so a prefill right after connecting monobank
+was spent without an answer to keep: a refused token save, a bank that was unavailable, a token the bank
+rejected, or a read that was discarded because the token changed or cancelled before it answered. The
+screen shows the time of the balance either way. The invoicing prefill shares the same answer, so a prefill right after connecting monobank
 needs no bank call. A balance is at most a sync run old plus whatever the slot skipped. The answer lives in process memory,
 so it needs the single api instance the queue and the gate already need.
 

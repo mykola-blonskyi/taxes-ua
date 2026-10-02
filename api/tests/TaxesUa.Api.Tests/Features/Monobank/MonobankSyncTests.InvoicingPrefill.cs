@@ -66,23 +66,23 @@ public sealed partial class MonobankSyncTests
         using var patience = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 
         // The token save's minute: every path is served from its answer.
-        await owner.PostAsync(PrefillUrl, null, patience.Token);
-        await owner.GetAsync("/api/monobank/jars", patience.Token);
+        await Ok(owner.PostAsync(PrefillUrl, null, patience.Token));
+        await Ok(owner.GetAsync("/api/monobank/jars", patience.Token));
         await Choose(owner, TaxesJar);
-        await Refresh(owner);
+        await Ok(Refresh(owner));
         app.Clock.Advance(TimeSpan.FromSeconds(30));
-        await owner.PostAsync(PrefillUrl, null, patience.Token);
+        await Ok(owner.PostAsync(PrefillUrl, null, patience.Token));
         Assert.Single(bank.ClientInfoCalls(app.Handler));
 
         // The next minute: whichever path reads first makes the one call, and the others share it.
         app.Clock.Advance(TimeSpan.FromSeconds(31));
-        await owner.PostAsync(PrefillUrl, null, patience.Token);
-        await Refresh(owner);
-        await owner.GetAsync("/api/monobank/jars", patience.Token);
+        await Ok(owner.PostAsync(PrefillUrl, null, patience.Token));
+        await Ok(Refresh(owner));
+        await Ok(owner.GetAsync("/api/monobank/jars", patience.Token));
         app.Clock.Advance(TimeSpan.FromSeconds(30));
-        await owner.PostAsync(PrefillUrl, null, patience.Token);
+        await Ok(owner.PostAsync(PrefillUrl, null, patience.Token));
         app.Clock.Advance(TimeSpan.FromSeconds(31));
-        await Refresh(owner);
+        await Ok(Refresh(owner));
 
         var calls = bank.ClientInfoCalls(app.Handler);
         Assert.Equal(3, calls.Length);
@@ -114,11 +114,13 @@ public sealed partial class MonobankSyncTests
     }
 
     [Fact]
-    public async Task A_prefill_in_flight_when_the_token_is_replaced_is_discarded()
+    public async Task A_prefill_in_flight_when_the_token_is_replaced_is_discarded_and_never_cached()
     {
         var bank = new FakeBank();
         bank.Connect("token-prefill-race-a", ("prefill-race-fop", 980));
+        bank.Name("token-prefill-race-a", "Old FOP");
         bank.Connect("token-prefill-race-b", ("prefill-race-fop", 980));
+        bank.Name("token-prefill-race-b", "New FOP");
         await using var app = Create(At(2095, 6, 15, 10), bank);
         using var owner = await ConnectAtOnce(app, ApiFixture.AllowedEmail, "token-prefill-race-a");
         app.Clock.Advance(MonobankRateGate.Interval + TimeSpan.FromSeconds(1));
@@ -129,10 +131,15 @@ public sealed partial class MonobankSyncTests
         var replaced = await owner.PutAsJsonAsync("/api/monobank/connection", new { token = "token-prefill-race-b" });
         bank.ReleaseClientInfo();
         var late = await inFlight;
+        var spent = bank.ClientInfoCalls(app.Handler).Length;
+        var next = await owner.PostAsync(PrefillUrl, null);
 
         Assert.Equal(HttpStatusCode.OK, replaced.StatusCode);
         Assert.Equal(HttpStatusCode.BadGateway, late.StatusCode);
-        Assert.DoesNotContain("Test FOP", await late.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Old FOP", await late.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
+        Assert.Equal("New FOP", (await next.Content.ReadFromJsonAsync<MonobankPrefillResponse>(Json))!.SellerNameUk);
+        Assert.Equal(spent, bank.ClientInfoCalls(app.Handler).Length);
     }
 
     [Fact]
@@ -152,4 +159,7 @@ public sealed partial class MonobankSyncTests
         Assert.Contains("Connect monobank again", body, StringComparison.Ordinal);
         Assert.DoesNotContain("token-prefill-rejected", body, StringComparison.Ordinal);
     }
+
+    private static async Task Ok(Task<HttpResponseMessage> request) =>
+        Assert.Equal(HttpStatusCode.OK, (await request).StatusCode);
 }

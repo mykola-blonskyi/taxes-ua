@@ -138,6 +138,7 @@ internal sealed class ReserveJarService(
     // Listed holds the UAH jars only.
     private async Task<JarOutcome> ReadAsync(string ownerId, CancellationToken cancellationToken)
     {
+        var generation = reader.Generation(ownerId);
         var connection = await database.MonobankConnections.AsNoTracking()
             .FirstOrDefaultAsync(row => row.UserId == ownerId, cancellationToken);
         if (connection is null || connection.RejectedAt is not null || !encryptor.IsConfigured)
@@ -156,9 +157,9 @@ internal sealed class ReserveJarService(
             return new JarOutcome.Unavailable("The stored monobank token cannot be read.");
         }
 
-        return await reader.ReadAsync(client, ownerId, token, cancellationToken) switch
+        return await reader.ReadAsync(client, ownerId, token, generation, cancellationToken) switch
         {
-            ClientInfoRead.Found found => new JarOutcome.Listed(Offered(found.Info.Jars), found.At),
+            ClientInfoRead.Found found => new JarOutcome.Listed(Offered(found.Jars), found.At),
             ClientInfoRead.Waiting waiting => new JarOutcome.Waiting(waiting.RetryAfter),
             ClientInfoRead.InvalidToken => new JarOutcome.InvalidToken(),
             ClientInfoRead.Unavailable unavailable => new JarOutcome.Unavailable(unavailable.Reason),

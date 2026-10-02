@@ -242,6 +242,7 @@ public static partial class InvoicingEndpoints
                     return Results.Unauthorized();
                 }
 
+                var generation = reader.Generation(user.Id);
                 var connection = await database.MonobankConnections.AsNoTracking()
                     .FirstOrDefaultAsync(row => row.UserId == user.Id, cancellationToken);
                 if (connection is null || connection.RejectedAt is not null || !encryptor.IsConfigured)
@@ -266,7 +267,7 @@ public static partial class InvoicingEndpoints
                 // The accounts are the stored rows; only the name needs the bank. The reader shares its answer
                 // with the token save and the jar reads, and a request must not park for up to a minute on the
                 // slot, so a busy one is answered at once with how long to wait.
-                var read = await reader.ReadAsync(client, user.Id, token, cancellationToken);
+                var read = await reader.ReadAsync(client, user.Id, token, generation, cancellationToken);
                 if (read is ClientInfoRead.Waiting waiting)
                 {
                     var seconds = (int)Math.Ceiling(waiting.RetryAfter.TotalSeconds);
@@ -317,7 +318,7 @@ public static partial class InvoicingEndpoints
                 }
 
                 return Results.Ok(new MonobankPrefillResponse(
-                    found.Info.Name.Trim(), [.. suggestions.OrderBy(suggestion => suggestion.Currency)]));
+                    found.Name.Trim(), [.. suggestions.OrderBy(suggestion => suggestion.Currency)]));
             })
             .Produces<MonobankPrefillResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
