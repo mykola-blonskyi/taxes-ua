@@ -1,5 +1,6 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
@@ -20,7 +21,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }, [router, unauthenticated]);
 
   if (isPending || unauthenticated) {
-    return null;
+    return (
+      <div
+        role="status"
+        className="flex min-h-full flex-1 flex-col items-center justify-center gap-3 px-4 py-8 text-center text-sm text-muted-foreground"
+      >
+        <Loader2 aria-hidden className="size-6 animate-spin" />
+        <p>{t("loading")}</p>
+      </div>
+    );
   }
 
   if (!data) {
