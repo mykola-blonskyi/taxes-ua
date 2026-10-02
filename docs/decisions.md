@@ -831,8 +831,10 @@ part-month minimum, and the DPS says the full monthly minimum is due for the mon
 instead of 1,902.34, with annex 1's September base and line 21 short by the same 1,712.11.
 
 `FullMonth` is now the default. A migration moves every owner on `Prorated` to `FullMonth`, because
-nobody chose `Prorated` against the law knowingly: it was the default or the confirmed reading. Its
-Down does nothing, since a row moved cannot be told from one that was always `FullMonth`.
+nobody chose `Prorated` against the law knowingly: it was the default or the confirmed reading. In the
+same statement it writes, for each owner moved, the settings update the audit interceptor would have
+logged, so the switch shows in the owner's change history. Its Down does nothing, since a row moved
+cannot be told from one that was always `FullMonth`.
 
 A backup file of schema version 15 cannot tell the old default from a deliberate choice, so a restore
 reads `Prorated` as `FullMonth`. A restore is then no longer byte for byte for an owner who picks

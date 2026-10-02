@@ -51,7 +51,7 @@ Formula: `AmountUahKop = roundHalfUp(AmountMinor × RateE4 / 10000)`.
   https://7eminar.ua/news/6368-ci-platit-fop-jesv-jedinii-podatok-ta-viiskovii-zbir-u.
 - Until 2026-10-02 the default was `Prorated`, recorded as confirmed by the owner on 2026-09-27. That
   rested on the premise that the law allows a part-month minimum, which it does not. A migration moved
-  every owner on `Prorated` to `FullMonth`, and a restore from backup reads `Prorated` as `FullMonth`
+  every owner on `Prorated` to `FullMonth` and logged the change in each owner's history, and a restore from backup reads `Prorated` as `FullMonth`
   (ADR-018, amendment of 2026-10-02).
 - `Prorated` stays as a setting the interface labels as not matching the law. It prorates the base,
   the minimum wage times active days over the month's days, rounded once; the ESV is the rate on that

@@ -24,7 +24,7 @@ public class EsvAnnexTests
     [Theory]
     [InlineData(EsvRegistrationMonthPolicy.Prorated, 613_658, 135_005)]
     [InlineData(EsvRegistrationMonthPolicy.FullMonth, MinWageKop, EsvMonthKop)]
-    public void A_first_year_starts_at_registration_and_prorates_the_base_of_its_month(
+    public void A_first_year_starts_at_registration_with_its_month_in_full_or_under_the_prorated_option_its_active_days(
         EsvRegistrationMonthPolicy policy, long marchBaseKop, long marchEsvKop)
     {
         var settings = Settings(Date("2026-03-10")) with { EsvRegistrationMonthPolicy = policy };
