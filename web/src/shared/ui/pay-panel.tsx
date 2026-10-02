@@ -29,6 +29,8 @@ type PayDetails = {
   recipient: { iban: string; name: string; code: string } | null;
   missing: string[];
   qrContent: string | null;
+  // The request for the amount's QR has not answered yet, so a null qrContent does not mean "cannot be encoded".
+  qrPending: boolean;
   amountKop: number | string | null;
 };
 
@@ -186,11 +188,15 @@ function QrBlock({ details, amountKop }: { details: PayDetails; amountKop: numbe
   if (!qrForTreasuryAccounts) {
     return <p className="text-sm text-muted-foreground">{t("qrTreasuryOff")}</p>;
   }
+  // Without an amount nothing was asked for, so a null qrContent is not a failure to encode.
+  if (amountKop === null || (details.qrContent === null && details.qrPending)) {
+    return <p className="text-sm text-muted-foreground">{t("qrUpdating")}</p>;
+  }
   if (details.qrContent === null || encodeNbuQr(details.qrContent) === null) {
     return <p className="text-sm text-muted-foreground">{t("qrUnavailable")}</p>;
   }
   // keepPreviousData keeps the old amount's details on screen while the new ones load.
-  if (amountKop === null || details.amountKop === null || Number(details.amountKop) !== amountKop) {
+  if (details.amountKop === null || Number(details.amountKop) !== amountKop) {
     return <p className="text-sm text-muted-foreground">{t("qrUpdating")}</p>;
   }
 

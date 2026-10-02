@@ -72,8 +72,10 @@ export function usePaymentDetails(target: PaymentTarget, amountKop: number | nul
   });
 
   const qr = withAmount.data;
+  // A null qrContent alone does not say whether the amount's answer is still coming or came without a QR.
+  const qrPending = amountKop !== null && amountKop > 0 && qr === undefined && !withAmount.isError;
   const data = base.data
-    ? { ...base.data, amountKop: qr?.amountKop ?? null, qrContent: qr?.qrContent ?? null }
+    ? { ...base.data, amountKop: qr?.amountKop ?? null, qrContent: qr?.qrContent ?? null, qrPending }
     : undefined;
 
   return {
