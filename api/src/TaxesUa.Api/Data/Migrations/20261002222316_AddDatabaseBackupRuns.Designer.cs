@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxesUa.Api.Data;
@@ -11,9 +12,11 @@ using TaxesUa.Api.Data;
 namespace TaxesUa.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261002222316_AddDatabaseBackupRuns")]
+    partial class AddDatabaseBackupRuns
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1058,21 +1061,9 @@ namespace TaxesUa.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("FullName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.PrimitiveCollection<string[]>("KvedCodes")
                         .IsRequired()
                         .HasColumnType("text[]");
-
-                    b.Property<string>("Phone")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ReportEmail")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<int?>("TaxOfficeDistrict")
                         .HasColumnType("integer");
