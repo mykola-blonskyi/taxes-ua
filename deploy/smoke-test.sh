@@ -121,7 +121,10 @@ done
 # The owner's recovery key, not the check identity, must open what the primary bucket holds.
 read_dump='name=$(rclone lsf SMOKE:taxes-ua-backups/daily/ | head -n 1)
 rclone cat "SMOKE:taxes-ua-backups/daily/$name" | age -d -i <(printf "%s\n" "$OWNER_IDENTITY") | pg_restore --list'
-if s3 -e OWNER_IDENTITY="$owner_identity" backup bash -c "$read_dump" | grep -q 'TABLE DATA'; then r=yes; else r=no; fi
+# Read the whole listing before grepping it: grep -q would close the pipe at the first match, and docker
+# compose exec, still writing the rest, then exits 255, which pipefail turns into a false 'no'.
+listing=$(s3 -e OWNER_IDENTITY="$owner_identity" backup bash -c "$read_dump") || true
+if grep -q 'TABLE DATA' <<<"$listing"; then r=yes; else r=no; fi
 check "$r" yes "the stored dump decrypts with the owner's recovery key and pg_restore lists it"
 
 logs="$("${compose[@]}" logs backup 2>&1)$backup_out$check_out"
