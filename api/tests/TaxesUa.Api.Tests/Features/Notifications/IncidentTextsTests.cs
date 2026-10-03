@@ -37,4 +37,32 @@ public sealed class IncidentTextsTests
         Assert.Equal(2, message.Text.Split('\n').Length);
         Assert.DoesNotContain("http", message.Text, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("uk", "Резервні копії: перевірка відновлення не проходить, остання успішна 04.05.2031.",
+        "Відновити базу з копій може бути неможливо. Перегляньте журнал сервісу backup у Coolify.")]
+    [InlineData("ru", "Резервные копии: проверка восстановления не проходит, последняя успешная 04.05.2031.",
+        "Восстановить базу из копий может быть невозможно. Посмотрите журнал сервиса backup в Coolify.")]
+    public void A_failing_restore_check_names_the_last_success_and_has_no_link_even_with_the_address_known(
+        string locale, string subject, string advice)
+    {
+        var message = IncidentTexts.Render(
+            new Incident("RestoreCheckFailed:1", IncidentKind.RestoreCheckFailed, Since), locale, "https://taxes.test/");
+
+        Assert.Equal(subject, message.Subject);
+        Assert.Equal(subject + "\n" + advice, message.Text);
+    }
+
+    [Theory]
+    [InlineData("uk", "Резервні копії: перевірка відновлення ще жодного разу не пройшла.")]
+    [InlineData("ru", "Резервные копии: проверка восстановления ещё ни разу не прошла.")]
+    public void A_restore_check_that_never_passed_says_so_instead_of_a_date(string locale, string subject)
+    {
+        var message = IncidentTexts.Render(
+            new Incident("RestoreCheckFailed:1", IncidentKind.RestoreCheckFailed, null), locale, "https://taxes.test/");
+
+        Assert.Equal(subject, message.Subject);
+        Assert.DoesNotContain("http", message.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain('?', message.Text);
+    }
 }
