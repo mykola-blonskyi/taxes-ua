@@ -26,8 +26,8 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
 - `api` runs as `Production` and refuses to start while `DATABASE_URL`, `GOOGLE_CLIENT_ID`,
   `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `ALLOWED_HOSTS` or `PASSKEY_SERVER_DOMAIN` is empty.
   Its log names the missing variables, and the container exits instead of staying up unhealthy.
-- Both services restart `unless-stopped`, are memory-limited (`api` 512 MB, `web` 384 MB) and rotate
-  their logs (10 MB, 5 files). `api` dumps the database to the `migration-dumps` volume before it runs a
+- Every service restarts `unless-stopped`, is memory-limited (`api` 512 MB, `web` 384 MB, `backup`
+  256 MB) and rotates its logs (10 MB, 5 files). `api` dumps the database to the `migration-dumps` volume before it runs a
   pending migration, and does not migrate if that fails (ADR-027, "Rollback").
 - `MONOBANK_TOKEN_ENCRYPTION_KEY` is the one secret that is *not* required to start (ADR-011): left
   empty, the api still comes up and the monobank settings section answers "not configured" instead
@@ -44,6 +44,13 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
   one process may poll a bot, so a local stack must not be given the production token.
 - The data-protection key ring lives in the `dataprotection-keys` volume, so a redeploy keeps the
   owner signed in (ADR-010).
+- The `backup` service publishes no port and backs up `taxes_ua` each night, encrypted, to the MinIO on the
+  VPS and, when configured, to a second target off the VPS. It proves a restore every Sunday (ADR-031,
+  step 8). The smoke test runs one backup and one restore check against S3-compatible storage and asserts
+  that both succeed, that the owner's recovery key decrypts the stored file, and that no secret reaches
+  the log. With its variables empty, the service still starts and each nightly run records a failed
+  backup. The first Sunday's restore check then fails too, and that alerts the owner at once. Configure
+  step 8b before the first Sunday 01:00 UTC after this deploys, or expect that alert.
 - `api` answers only for `ALLOWED_HOSTS`, as forwarded by `web`, plus its own internal names for
   the healthcheck and the rewrite. A foreign host gets 400.
 - Every response carries HSTS, `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a
@@ -145,7 +152,7 @@ is disabled.
 
    | Variable | Value |
    | --- | --- |
-   | `DATABASE_URL` | the connection string from step 3 |
+   | `DATABASE_URL` | the connection string from step 3. The `backup` service reads it too. It accepts spaces around keys and values, and a value in single or double quotes may hold `;` and `=` (a doubled quote inside stands for one), as in Npgsql |
    | `GOOGLE_CLIENT_ID` | from step 4 |
    | `GOOGLE_CLIENT_SECRET` | from step 4 |
    | `ALLOWED_EMAILS` | the owner's email |
@@ -155,14 +162,23 @@ is disabled.
    | `MONOBANK_PUBLIC_BASE_URL` | `https://taxes.blonskyi.dev`, or empty to run without the webhook (ADR-012) |
    | `TELEGRAM_BOT_TOKEN` | the token @BotFather gives, see "Telegram bot" below, or empty to run without Telegram (ADR-015) |
    | `SMTP_HOST`, `SMTP_PORT`, `SMTP_TLS`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | the mail server, see "Email" below, or all empty to run without email (ADR-022) |
+   | `BACKUP_AGE_RECIPIENT` | the recovery public key, `age1...`, step 8b |
+   | `BACKUP_CHECK_AGE_IDENTITY` | the check private key, `AGE-SECRET-KEY-1...`, step 8b |
+   | `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY`, `BACKUP_S3_SECRET_KEY` | the MinIO bucket and key, step 8b |
+   | `BACKUP_OFFSITE_S3_ENDPOINT`, `BACKUP_OFFSITE_S3_BUCKET`, `BACKUP_OFFSITE_S3_ACCESS_KEY`, `BACKUP_OFFSITE_S3_SECRET_KEY`, `BACKUP_OFFSITE_S3_REGION` | empty for now; an optional off-VPS bucket, step 8b |
 
    Set these only in Coolify. Never put the domain in a local `.env`: `docker-compose.local.yml`
    overrides only the environment name and the connection string, so a local run would inherit it
    and refuse to start.
 
-**Check.** Persistent Storage lists the `dataprotection-keys` volume. The `api` service has no
-domain. The six required variables have values; the two `MONOBANK_*` ones, `TELEGRAM_BOT_TOKEN` and the
-six `SMTP_*` ones may stay empty.
+Coolify 4.2.0 can refuse to save the General form while a compose service has no entry in the resource's
+`docker_compose_domains`. The workaround is the same as for `api`: give `backup` an entry with no domain,
+`"backup":{"domain":null}`, next to the existing ones.
+
+**Check.** Persistent Storage lists the `dataprotection-keys` volume. The `api` and `backup` services
+have no domain. The six required variables have values. The two `MONOBANK_*` ones, `TELEGRAM_BOT_TOKEN`
+and the six `SMTP_*` ones may stay empty. The `BACKUP_*` ones may stay empty until step 8b, and every
+night without them is a failed backup.
 
 ### Telegram bot
 
@@ -272,6 +288,18 @@ the session survives the redeploy. Tick the matching boxes on #20.
 
 ## 8. Backups
 
+Two backups run, and they protect against different things:
+
+- **The instance dump (8a).** Coolify dumps every database on `shared-database` once a day. The copies are
+  on the VPS disk and in MinIO, on the same disk. They survive a broken or wiped database. They do not
+  survive losing the server, and restoring one brings back every project at once.
+- **The app backup (8b).** The `backup` service dumps `taxes_ua` alone each night at 01:00 UTC. It
+  encrypts the dump and sends it to MinIO and, when configured, to a bucket off the VPS. Every Sunday it
+  restores the newest copy into a scratch database to prove that the copy works (ADR-031). This is the one
+  to use when the server is lost, once it has an off-VPS bucket; until then it shares the VPS disk.
+
+### 8a. The instance dump
+
 Coolify backs up the whole `shared-database` instance with `pg_dumpall`. The dumps go to local storage on the VPS
 and to the owner's MinIO. This covers `taxes_ua` along with every other project on the instance.
 It was set up on 2026-09-28. Redo these steps only if it is gone.
@@ -317,7 +345,115 @@ ssh blonskyi 'docker run --rm -v /data/coolify/backups/databases/<team>/shared-d
 It prints a non-zero count.
 
 MinIO runs on the same VPS and disk as the database. These dumps survive a broken or wiped
-database, but not the loss of the server. For that, copy `coolify-backups` off the VPS.
+database, but not the loss of the server. Section 8b covers that.
+
+### 8b. The app backup and its weekly restore check
+
+The `backup` service needs two age keys and a MinIO bucket. A bucket off the VPS is optional and is not
+set up for now (owner's decision, 2026-10-03): with its five variables empty, the service skips it. Every
+item is done by the owner. Nothing here is in the repository.
+
+1. **Keys.** On the laptop, with `age` installed (`brew install age`):
+
+   ```bash
+   age-keygen -o taxes-ua-recovery.key      # prints "Public key: age1..."
+   age-keygen -o taxes-ua-check.key
+   ```
+
+   Store `taxes-ua-recovery.key` in the password manager. It is the **recovery key**, and it never goes to
+   the server: a restore after losing the server needs it, so keep it where losing the server cannot take
+   it. Its public line (`age1...`) is `BACKUP_AGE_RECIPIENT`. The line of `taxes-ua-check.key` that starts
+   with `AGE-SECRET-KEY-1` is `BACKUP_CHECK_AGE_IDENTITY`. The weekly check decrypts with it, so it lives in
+   Coolify. Store it in the password manager too, then delete both files from the laptop.
+2. **MinIO bucket and key.** In the MinIO console (`https://s3-console.blonskyi.dev`), create the bucket
+   `taxes-ua-backups`. Create a key limited to it with `mc`, in the shell from 8a's item 2:
+
+   ```sh
+   mc alias set root http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null
+   cat > /tmp/taxes-ua-backups.json <<'EOF'
+   {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::taxes-ua-backups"]},{"Effect":"Allow","Action":["s3:PutObject","s3:GetObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::taxes-ua-backups/*"]}]}
+   EOF
+   mc admin accesskey create root --name taxes-ua-backups --policy /tmp/taxes-ua-backups.json
+   rm -f /tmp/taxes-ua-backups.json; mc alias remove root >/dev/null; exit
+   ```
+
+   In Coolify set `BACKUP_S3_ENDPOINT` to `https://s3.blonskyi.dev`, `BACKUP_S3_BUCKET` to
+   `taxes-ua-backups`, and `BACKUP_S3_ACCESS_KEY` and `BACKUP_S3_SECRET_KEY` to the two keys it printed.
+3. **The off-VPS bucket (optional, skip for now).** Until this is done, the copies live on the VPS disk
+   only, so losing the server still loses them; the recovery key in the password manager survives, but there
+   is nothing for it to open. To add it later, use any S3-compatible provider outside the VPS's provider and account, for
+   example Backblaze B2 or Cloudflare R2. Create a private bucket and a key limited to it. The key needs
+   list, read, write and delete, because retention deletes old copies. If the provider offers versioning or
+   object lock, turn it on with a retention of at least 14 days, so a leaked key cannot erase the history.
+   In Coolify set `BACKUP_OFFSITE_S3_ENDPOINT` (the provider's S3 endpoint URL),
+   `BACKUP_OFFSITE_S3_BUCKET`, `BACKUP_OFFSITE_S3_ACCESS_KEY` and `BACKUP_OFFSITE_S3_SECRET_KEY`. Set
+   `BACKUP_OFFSITE_S3_REGION` when the provider wants one: B2 wants the region in its endpoint, such as
+   `us-west-004`, and R2 wants `auto`. Empty means `us-east-1`. Leave all five empty to run without an
+   off-VPS copy, as now. Setting only some of them is a failed backup that names the missing ones.
+4. **Keys into Coolify.** Set `BACKUP_AGE_RECIPIENT` and `BACKUP_CHECK_AGE_IDENTITY`, then Redeploy.
+
+**Check.** Run one backup and one check by hand, then read what they recorded:
+
+```bash
+B=$(ssh blonskyi "docker ps -qf name='^backup-tpx1vnmef2rgcbjjpqlbvour'")
+ssh blonskyi "docker exec $B backup-db backup"
+ssh blonskyi "docker exec $B backup-db check"
+P='docker exec -i 3p9qjnulllqn3bcjqokir0wq'
+ssh blonskyi "$P psql -U postgres -d taxes_ua -Atc 'select \"Job\", \"FinishedAt\", \"Succeeded\", \"Detail\" from \"DatabaseBackupRuns\" order by \"Id\" desc limit 5'"
+```
+
+Both commands exit 0, and the two newest rows are a successful `Backup` and `RestoreCheck`. Then prove
+the recovery key, which the weekly check cannot do. On the laptop, download the newest object from MinIO
+(or the off-VPS bucket, once there is one), put the recovery key from the password manager in a file, and run:
+
+```bash
+age -d -i taxes-ua-recovery.key taxes_ua-<time>.dump.age | pg_restore --list | head
+```
+
+It lists the tables. Delete the key file afterwards. Repeat this after changing either key.
+
+**What runs and what is kept.** Each night at 01:00 UTC, one dump goes to `daily/` on every target, plus a
+copy to `weekly/` on Sundays. Retention keeps 14 days of `daily/` and 8 weeks of `weekly/` on each target.
+It deletes only after that night's upload to the target succeeded. On Sundays, after the backup, the
+restore check runs. For each target, it restores the newest copy into a scratch database inside the
+container with `--single-transaction --exit-on-error`. It checks the last `__EFMigrationsHistory` row and
+that the restored tables hold rows, then drops the scratch database. A copy older than 48 hours fails the
+check.
+
+**Alerts.** If the newest check failed, or no check has succeeded for 8 days, the owner is alerted once
+through every switched-on channel (Telegram, email), like a stalled sync (ADR-026). The next successful
+check clears it. Whatever the alert says, read the `backup` service's log in Coolify, or the rows above.
+The `Detail` of a failed row names the target and the tool's last error line. Common causes are an empty
+`BACKUP_*` variable (the row names it), a rotated bucket key, a full bucket, and a check key that differs
+from the one the backups were encrypted to. After changing `BACKUP_CHECK_AGE_IDENTITY`, run a backup by
+hand before the next check, or it fails.
+
+### Restoring from the app backup
+
+Use this when the server is lost, or when no pre-migration dump fits (see "Rollback" for those).
+
+1. Get the copy. Download the newest `daily/taxes_ua-<time>.dump.age` from MinIO, or from the off-VPS
+   bucket if one is set up and the VPS is gone. Any S3 client works.
+2. Decrypt it on the laptop with the recovery key from the password manager:
+
+   ```bash
+   age -d -i taxes-ua-recovery.key -o taxes_ua.dump taxes_ua-<time>.dump.age
+   ```
+
+3. On the new or existing instance, make sure the role from step 2 exists, then restore into a fresh
+   `taxes_ua_restore` as `postgres`, as in "Rollback" step 3:
+
+   ```bash
+   P='docker exec -i 3p9qjnulllqn3bcjqokir0wq'
+   ssh blonskyi "$P psql -U postgres -c 'DROP DATABASE IF EXISTS taxes_ua_restore' -c 'CREATE DATABASE taxes_ua_restore OWNER taxes_ua_app'"
+   ssh blonskyi "$P pg_restore -U postgres --no-owner --role=taxes_ua_app --single-transaction --exit-on-error -d taxes_ua_restore" < taxes_ua.dump
+   ```
+
+4. Verify it and swap it in with "Rollback" steps 3 and 4. On a new server `taxes_ua` does not exist yet,
+   so rename `taxes_ua_restore` to `taxes_ua` directly. Then deploy as in steps 5 to 7. The monobank token
+   decrypts only with the same `MONOBANK_TOKEN_ENCRYPTION_KEY`, so take that from the password manager
+   too. The owner signs in again, because the key ring volume was on the lost server.
+5. Delete `taxes_ua.dump` and the key file from the laptop.
 
 ## 9. Checks that need the real domain
 
@@ -339,7 +475,9 @@ the documented path for the Compose build pack: Coolify builds whatever `main` h
 **A bad release with a migration.** Migrations run when `api` starts and only move forward, so the
 old code may not run against the new schema. Before each migration `api` dumps this database alone
 to the `migration-dumps` volume (ADR-027), so there is always a dump to go back to. The instance-wide
-dumps from step 8 are no substitute: they restore every project on the instance at once.
+dumps from step 8a are no substitute: they restore every project on the instance at once. The nightly app
+backup from step 8b restores this database alone. It is older than the pre-migration dump, so it loses
+more, but it is there when the volume is not ("Restoring from the app backup").
 
 Where the dumps are: the compose volume `migration-dumps`, mounted in `api` at
 `/var/lib/taxes-ua/dumps`. The newest 10 are kept, named

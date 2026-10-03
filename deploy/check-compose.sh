@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Asserts what the production compose file promises docs/deploy.md: Traefik reaches only `web`,
-# every service restarts, is memory-limited and rotates its logs, and `api` keeps its key ring across redeploys and exits when a startup guard throws.
+# every service restarts, is memory-limited and rotates its logs, `api` keeps its key ring across redeploys and exits when a startup guard throws,
+# and `backup` publishes nothing, reads the api's database variable and lists every setting the backup script needs.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -25,7 +26,20 @@ check '[.services.api.volumes[] | select(.source == "migration-dumps") | .target
 check '.services.api.environment | has("SOURCE_COMMIT") or has("App__Release")' false \
   "compose leaves SOURCE_COMMIT to Coolify, which turns a mention into an empty user variable"
 check '.services.api.healthcheck.start_period' 5m0s "api may take five minutes to dump and migrate before it counts as unhealthy"
-for service in api web; do
+check '.services.backup.ports // [] | length' 0 "backup publishes no port"
+check '.services.backup.init' true "backup runs under an init process"
+check '.services.backup.environment.DATABASE_URL' "${DATABASE_URL:-}" \
+  "backup reads DATABASE_URL, the variable that feeds the api's ConnectionStrings__Default"
+check '.services.api.environment.ConnectionStrings__Default' "$(jq -r '.services.backup.environment.DATABASE_URL' <<<"$config")" \
+  "backup and api get the same connection string"
+check '.services.backup.environment | has("SOURCE_COMMIT") or has("App__Release")' false \
+  "backup leaves SOURCE_COMMIT to Coolify as well"
+for variable in BACKUP_AGE_RECIPIENT BACKUP_CHECK_AGE_IDENTITY \
+  BACKUP_S3_ENDPOINT BACKUP_S3_BUCKET BACKUP_S3_ACCESS_KEY BACKUP_S3_SECRET_KEY \
+  BACKUP_OFFSITE_S3_ENDPOINT BACKUP_OFFSITE_S3_BUCKET BACKUP_OFFSITE_S3_ACCESS_KEY BACKUP_OFFSITE_S3_SECRET_KEY BACKUP_OFFSITE_S3_REGION; do
+  check ".services.backup.environment | has(\"$variable\")" true "backup lists $variable, so Coolify offers it as a variable"
+done
+for service in api web backup; do
   check ".services.$service.restart" unless-stopped "$service has a restart policy"
   check ".services.$service.mem_limit | tonumber > 0" true "$service has a memory limit"
   check ".services.$service.logging.driver" json-file "$service logs through json-file"
