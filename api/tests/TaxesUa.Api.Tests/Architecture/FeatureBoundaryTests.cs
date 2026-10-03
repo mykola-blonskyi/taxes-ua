@@ -121,6 +121,41 @@ public sealed class FeatureBoundaryTests
         Assert.Null(Allowed.Keys.Select(CycleFrom).FirstOrDefault(found => found is not null));
     }
 
+    [Fact]
+    public void The_dependency_graph_document_shows_the_listed_edges()
+    {
+        string[] rows =
+        [
+            "| Feature | Layer | Reaches |",
+            "| --- | --- | --- |",
+            .. Allowed.Keys
+                .OrderBy(feature => Layer(feature, []))
+                .ThenBy(feature => feature, StringComparer.Ordinal)
+                .Select(feature => $"| {feature} | {Layer(feature, [])} | {(Allowed[feature] is [] ? "nothing" : string.Join(", ", Allowed[feature]))} |"),
+        ];
+        var table = string.Join('\n', rows);
+        var document = File.ReadAllText(DependenciesDocument()).ReplaceLineEndings("\n");
+
+        Assert.True(document.Contains(table, StringComparison.Ordinal), $"Replace the table in graph/dependencies.md with:\n{table}");
+    }
+
+    private static int Layer(string feature, HashSet<string> seen) =>
+        seen.Add(feature) ? Allowed[feature].Select(to => Layer(to, [.. seen])).DefaultIfEmpty(-1).Max() + 1 : 0;
+
+    private static string DependenciesDocument()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            var path = Path.Combine(directory.FullName, "graph", "dependencies.md");
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+
+        throw new InvalidOperationException("graph/dependencies.md is not above the test binaries.");
+    }
+
     // TaxesUa.Api and TaxesUa.Api.Data hold what every feature may use (Problems, TextRules, Incident,
     // OwnerLock). A feature reached from there would let one feature reach another unseen. AppDbContext
     // maps every feature's entities, so it is the exception.

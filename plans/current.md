@@ -15,6 +15,14 @@ mirror in `.scratch/mvp/`. Below is each ticket unpacked into steps:
 files, types, verification commands. Order follows the dependency graph (native GitHub
 dependencies). Run `snippets/frontier.sh` for the live frontier instead of reading the order here.
 
+## Status, 2026-10-04
+
+Stage 1 is done: every MVP ticket (#2–#18, #20) is closed and the app runs on Coolify. Stage 2 (monobank
+sync #71, reminders and the calendar feed #104) and the invoice and declaration parts of Stage 3 (#89,
+#109) are done too. Of the 2026-10-02 audit's tickets (#170), #171–#185 and #187–#190 are done; #186,
+splitting the largest API files, is the one left. The sections below are the MVP plan as it ran, kept
+as the record.
+
 ## Progress
 
 - **#2 set up CI. Done**, closed. `.github/workflows/ci.yml` on `main`, green.
@@ -117,13 +125,9 @@ dependencies). Run `snippets/frontier.sh` for the live frontier instead of readi
 
 ## What remains
 
-- The owner's deploy: DNS for `taxes.blonskyi.dev`, the Coolify resource, a dedicated Google OAuth
-  client with a rotated secret, the database role/database on the VPS Postgres, and the first
-  release — all in `docs/deploy.md`, none of it in this repository's automation.
-- Three post-deploy checks against the production domain, all blocked on that deploy:
-  - #15: the owner's own check of the prototype import against a real export.
-  - #16: passkey registration and sign-in on iOS Safari and Android Chrome.
-  - #18: PWA install and standalone launch on iOS and Android.
+- #186: split the largest API files (`BackupDocument.cs`, `InvoicesEndpoints.cs`,
+  `TransactionsEndpoints.cs`, `InvoicingEndpoints.cs`).
+- Stage 3's yearly document archive, in [backlog.md](backlog.md).
 
 ## Two chains, not one
 
@@ -145,10 +149,10 @@ test early, which is where a wrong answer costs the owner a real penalty rather 
 **Backend layout follows ADR-008.** `TaxesUa.Api` organizes by feature, not by technical type:
 `api/src/TaxesUa.Api/Features/<Name>/` holds that feature's EF entity, its DTOs, and a
 `<Name>Endpoints.cs` static class exposing one `Map<Name>Api` extension method called from
-`Program.cs`. `Data/AppDbContext.cs` only aggregates `DbSet<T>`; it owns no logic. Entities and
-feature-internal types are `internal`, so the compiler — not eslint — enforces that features don't
-reach into each other. `TaxesUa.Engine` stays a separate project (ADR-002), referenced by whichever
-feature needs a computation, never duplicated.
+`Program.cs`. `Data/AppDbContext.cs` only aggregates `DbSet<T>`; it owns no logic. `internal` does not
+keep features apart, since the whole api is one assembly; `FeatureBoundaryTests` does, from an
+allow-list of the edges between features (ADR-008's amendment, #185). `TaxesUa.Engine` stays a
+separate project (ADR-002), referenced by whichever feature needs a computation, never duplicated.
 
 **Deployment is deliberately last.** Every ticket up through #18 is built and verified against
 the local Docker Compose stack (`docker compose -f docker-compose.yml -f docker-compose.local.yml

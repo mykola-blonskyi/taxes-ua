@@ -5,26 +5,21 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 
 ## Backlog
 
-- [ ] Stage 2. Bank import, reminders.
-- [ ] Stage 3. Invoices, XML declarations, archiving.
+- [ ] Stage 3. The yearly document archive (invoices and the XML declaration are done, below).
 
 ---
 
 ## Planned
 
-- [ ] MVP tickets #4–#18, then #20 (VPS deploy, last).
+- [ ] #186 Split the largest API files (the last ticket of the 2026-10-02 audit, #170).
 
 ---
 
 ## In Progress
 
-- [ ] #2 Set up CI.
-
 ---
 
 ## Review
-
-- [ ] #3 Google sign-in and interface shell.
 
 ---
 
@@ -35,6 +30,11 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
       layer boundaries (PR #19).
 - [x] MVP spec and 17 tickets published to GitHub Issues (#1–#18).
 - [x] Agent skills configured: GitHub tracker with local mirror, triage labels, domain docs.
+- [x] MVP tickets #2–#18 and #20, the deploy to Coolify (closed by 2026-09-28).
+- [x] Stage 2. monobank sync (#71), reminders in Telegram and email and the calendar feed (#104).
+- [x] Stage 3. Bilingual PDF invoices (#89), declaration readiness and the F0103309 XML (#109).
+- [x] The 2026-10-02 audit (#170): #171–#185 and #187–#190. #185 added the API's feature boundary
+      test and corrected these docs.
 
 ## Open questions for the owner
 
