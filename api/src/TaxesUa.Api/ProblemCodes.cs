@@ -145,6 +145,7 @@ internal static class ProblemCodes
     public const string TaxOfficePairIncomplete = "tax_office_pair_incomplete";
     public const string KvedFormatInvalid = "kved_format_invalid";
     public const string KvedDuplicate = "kved_duplicate";
+    public const string KvedUnknown = "kved_unknown";
     public const string KvedTooMany = "kved_too_many";
     public const string TokenRejected = "token_rejected";
     public const string UnknownJar = "unknown_jar";

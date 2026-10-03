@@ -15,6 +15,7 @@ export type DeclarationType = components["schemas"]["DeclarationType"];
 export type DeclarationDetailField = DeclarationReadiness["missingDetails"][number];
 export type DeclarationDetailsRequest = components["schemas"]["DeclarationDetailsRequest"];
 export type DeclarationDetailsResponse = components["schemas"]["DeclarationDetailsResponse"];
+export type KvedClass = components["schemas"]["KvedClassResponse"];
 
 // Nested under the periods key like the dashboard: the readiness counts the same receipts, payments,
 // candidates and settings, so every write that invalidates the periods refreshes the declaration too.
@@ -108,6 +109,26 @@ export function useDeclarationDetails() {
 
       return data;
     },
+  });
+}
+
+const kvedClassesQueryKey = ["kved-classes"] as const;
+
+// Code to Держстат's name. The classifier is the api's and never changes while the app runs.
+function namesByCode(classes: KvedClass[] | undefined): Map<string, string> {
+  return new Map((classes ?? []).map(({ code, name }) => [code, name]));
+}
+
+export function useKvedClasses() {
+  return useQuery({
+    queryKey: kvedClassesQueryKey,
+    queryFn: async () => {
+      const { data } = await api.GET("/api/settings/declaration/kved-classes");
+
+      return data;
+    },
+    staleTime: Infinity,
+    select: namesByCode,
   });
 }
 
