@@ -121,8 +121,12 @@ public static partial class DeclarationDetailsEndpoints
         };
     }
 
-    /// <summary>Validates a request already passed through <see cref="Normalize"/>.</summary>
-    internal static FieldErrors? Validate(DeclarationDetailsRequest request)
+    /// <summary>
+    /// Validates a request already passed through <see cref="Normalize"/>. A restored backup passes
+    /// <paramref name="requireKnownKved"/> false: a code the classifier does not know is then kept as stored
+    /// and the declaration's readiness reports it.
+    /// </summary>
+    internal static FieldErrors? Validate(DeclarationDetailsRequest request, bool requireKnownKved = true)
     {
         var errors = new FieldErrors();
 
@@ -183,7 +187,7 @@ public static partial class DeclarationDetailsEndpoints
                     ProblemCodes.KvedFormatInvalid,
                     "A KVED code is two digits, a dot and two digits, such as 62.01.");
             }
-            else if (Kved.Name(code) is null)
+            else if (requireKnownKved && Kved.Name(code) is null)
             {
                 errors.Set($"kvedCodes[{i}]", ProblemCodes.KvedUnknown, "A KVED code must be a class of КВЕД ДК 009:2010.");
             }
@@ -256,7 +260,8 @@ public static partial class DeclarationDetailsEndpoints
         details.Phone,
         details.ReportEmail,
         confirmedEmail,
-        DeclarationDetails.Missing(invoicing, details));
+        DeclarationDetails.Missing(invoicing, details),
+        DeclarationDetails.UnknownKvedCodes(details));
 
     [GeneratedRegex("^[0-9]{2}\\.[0-9]{2}$")]
     private static partial Regex KvedPattern();
@@ -285,7 +290,8 @@ internal sealed record DeclarationDetailsRequest(
 /// <c>Name</c> and <c>Rnokpp</c> are read-only here: they are the invoicing details' own
 /// <c>SellerNameUk</c> and <c>Rnokpp</c>, sent so the form can show where they come from.
 /// <c>ConfirmedEmail</c> is the email channel's confirmed address, which the form offers for
-/// <c>ReportEmail</c> while that is empty.
+/// <c>ReportEmail</c> while that is empty. <c>UnknownKvedCodes</c> are the stored codes the classifier does
+/// not know; they keep the declaration from being ready, and the form words them under the code.
 /// </summary>
 internal sealed record DeclarationDetailsResponse(
     string Name,
@@ -299,7 +305,8 @@ internal sealed record DeclarationDetailsResponse(
     string Phone,
     string ReportEmail,
     string? ConfirmedEmail,
-    DeclarationDetailField[] MissingDetails);
+    DeclarationDetailField[] MissingDetails,
+    string[] UnknownKvedCodes);
 
 /// <summary>One class of КВЕД ДК 009:2010 with Держстат's name, always in Ukrainian.</summary>
 internal sealed record KvedClassResponse(string Code, string Name);
