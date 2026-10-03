@@ -39,6 +39,18 @@ public sealed class IncidentTextsTests
     }
 
     [Theory]
+    [InlineData("uk", "Параметри 2032 року не задано, баланс недоступний.", "Відкрити налаштування")]
+    [InlineData("ru", "Параметры 2032 года не заданы, баланс недоступен.", "Открыть настройки")]
+    public void A_missing_tax_year_names_the_year_and_links_to_the_tax_years_tab(string locale, string subject, string open)
+    {
+        var message = IncidentTexts.Render(
+            new Incident("MissingTaxYear:2032", IncidentKind.MissingTaxYear, null, 2032), locale, "https://taxes.test/");
+
+        Assert.Equal(subject, message.Subject);
+        Assert.EndsWith($"\n{open}: https://taxes.test/settings?tab=taxYears", message.Text, StringComparison.Ordinal);
+    }
+
+    [Theory]
     [InlineData("uk", "Податковий 2032 рік: перевірте й підтвердьте параметри.", "Відкрити налаштування")]
     [InlineData("ru", "Налоговый 2032 год: проверьте и подтвердите параметры.", "Открыть настройки")]
     public void A_new_tax_year_names_the_year_and_links_to_the_tax_years_tab(string locale, string subject, string open)
