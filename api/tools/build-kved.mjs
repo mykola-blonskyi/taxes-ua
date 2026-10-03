@@ -34,8 +34,10 @@ const entities = { quot: '"', amp: "&", lt: "<", gt: ">", apos: "'", nbsp: " " }
 function text(html) {
   return html
     .replace(/<[^>]+>/g, "")
-    .replace(/&(#\d+|[a-z]+);/g, (entity, name) =>
-      name.startsWith("#") ? String.fromCharCode(Number(name.slice(1))) : (entities[name] ?? entity),
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entity, name) =>
+      name.startsWith("#")
+        ? String.fromCodePoint(name[1].toLowerCase() === "x" ? parseInt(name.slice(2), 16) : Number(name.slice(1)))
+        : (entities[name.toLowerCase()] ?? entity),
     )
     .replace(/\s+/g, " ")
     .trim();
@@ -68,6 +70,11 @@ const classes = await mapLimited([...new Set(classPaths)].sort(), 4, async (path
   }
   return { code: `${division}.${cls}`, name: names[0] };
 });
+
+const divisionCount = new Set(classes.map(({ code }) => code.slice(0, 2))).size;
+if (classes.length !== 615 || divisionCount !== 88) {
+  throw new Error(`КВЕД ДК 009:2010 has 615 classes in 88 divisions; the site gave ${classes.length} in ${divisionCount}`);
+}
 
 const csharp = (value) => `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 
