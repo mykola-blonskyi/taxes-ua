@@ -25,11 +25,13 @@ internal static class DeclarationReadiness
         PaymentLedger? ledger)
     {
         var missingDetails = DeclarationDetails.Missing(invoicing, details);
+        var unknownKvedCodes = DeclarationDetails.UnknownKvedCodes(details);
         var ready = receiptsToReview == 0
             && pendingPaymentCandidates == 0
             && taxYearVerified
             && registrationDateSet
             && missingDetails.Length == 0
+            && unknownKvedCodes.Length == 0
             && !outsideGroup3
             && !beforeGroup3;
 
@@ -39,6 +41,7 @@ internal static class DeclarationReadiness
             taxYearVerified,
             registrationDateSet,
             missingDetails,
+            unknownKvedCodes,
             outsideGroup3,
             beforeGroup3,
             group3Confirmed,
@@ -57,7 +60,7 @@ internal static class DeclarationReadiness
 
 /// <summary>
 /// Every item but <c>Unpaid</c> and <c>Group3Confirmed</c> blocks <c>Ready</c>: receipts or payment
-/// candidates left to review, an unverified tax year, no registration date, a missing detail, a quarter
+/// candidates left to review, an unverified tax year, no registration date, a missing detail, a stored KVED code the classifier does not know, a quarter
 /// after the one the limit was crossed in, which has no group 3 declaration (Rule 4), and a quarter that
 /// ends before group 3 starts, which is on the general system (<c>BeforeGroup3</c>, Tax Code 298.1.4).
 /// The crossing quarter itself does not block: its 15% lines are filled. <c>Group3Confirmed</c> false
@@ -74,6 +77,7 @@ internal sealed record DeclarationReadinessResponse(
     bool TaxYearVerified,
     bool RegistrationDateSet,
     DeclarationDetailField[] MissingDetails,
+    string[] UnknownKvedCodes,
     bool OutsideGroup3,
     bool BeforeGroup3,
     bool Group3Confirmed,

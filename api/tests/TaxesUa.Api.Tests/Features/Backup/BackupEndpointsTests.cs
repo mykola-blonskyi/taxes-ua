@@ -501,6 +501,39 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
+    public async Task A_restore_keeps_a_KVED_code_the_classifier_does_not_know_and_the_readiness_reports_it()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await Wipe(owner);
+        var file = Baseline();
+        file["declarationDetails"]!["kvedCodes"] = new JsonArray("62.01", "12.34");
+
+        await Restore(owner, file.ToJsonString());
+
+        var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>("/api/settings/declaration", Json);
+        Assert.Equal(["62.01", "12.34"], details!.KvedCodes);
+        Assert.Equal(["12.34"], details.UnknownKvedCodes);
+        Assert.Empty(details.MissingDetails);
+        Assert.Contains("12.34", JsonNode.Parse(await Backup(owner))!["declarationDetails"]!["kvedCodes"]!.ToJsonString());
+    }
+
+    [Fact]
+    public async Task A_restore_with_a_malformed_KVED_code_is_refused_as_a_format_error()
+    {
+        await using var application = CreateApplication();
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        var file = Baseline();
+        file["declarationDetails"]!["kvedCodes"] = new JsonArray("62.01", "6201");
+
+        var response = await Post(owner, file.ToJsonString());
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        ProblemAssert.FieldIs(problem.RootElement, "declarationDetails.kvedCodes[1]", ProblemCodes.KvedFormatInvalid);
+    }
+
+    [Fact]
     public async Task A_restore_brings_back_the_declaration_files_byte_for_byte()
     {
         await using var application = CreateApplication();

@@ -14,6 +14,7 @@ const readiness: DeclarationReadiness = {
   taxYearVerified: true,
   registrationDateSet: true,
   missingDetails: [],
+  unknownKvedCodes: [],
   outsideGroup3: false,
   beforeGroup3: false,
   group3Confirmed: false,

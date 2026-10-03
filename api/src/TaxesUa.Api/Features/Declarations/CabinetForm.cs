@@ -93,7 +93,8 @@ internal static class CabinetForm
                 fields.Add(new("T1RXXXXG1S", header.KvedCodes[i], CabinetPart.Header, Row: i + 1));
             }
 
-            // A code the classifier list does not hold gets an empty name, which the column's type allows.
+            // Readiness holds back a code the classifier does not know, so every name is found; the empty
+            // fallback only keeps a direct caller from throwing.
             for (var i = 0; i < header.KvedCodes.Count; i++)
             {
                 fields.Add(new("T1RXXXXG2S", Kved.Name(header.KvedCodes[i]) ?? string.Empty, CabinetPart.Header, Row: i + 1));

@@ -433,9 +433,11 @@ public static class DeclarationsEndpoints
         InvoicingDetails? Invoicing,
         DeclarationDetails? Details);
 
-    /// <summary>The header the forms print, or null while a detail is missing (Rule 15's readiness).</summary>
+    /// <summary>The header the forms print, or null while a detail is missing or a KVED code is unknown (Rule 15's readiness).</summary>
     private static DeclarationHeader? HeaderOf(InvoicingDetails? invoicing, DeclarationDetails? details) =>
-        invoicing is null || details is null || DeclarationDetails.Missing(invoicing, details).Length > 0
+        invoicing is null || details is null
+            || DeclarationDetails.Missing(invoicing, details).Length > 0
+            || DeclarationDetails.UnknownKvedCodes(details).Length > 0
             ? null
             : new DeclarationHeader(
                 invoicing.Rnokpp,
