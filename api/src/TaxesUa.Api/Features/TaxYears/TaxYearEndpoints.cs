@@ -51,7 +51,7 @@ public static class TaxYearEndpoints
             {
                 var config = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
 
-                return config is null ? Missing(year) : Results.Ok(ToResponse(config));
+                return config is null ? Problems.TaxYearNotFound(year) : Results.Ok(ToResponse(config));
             })
             .Produces<TaxYearConfigResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -102,7 +102,7 @@ public static class TaxYearEndpoints
                 var config = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
                 if (config is null)
                 {
-                    return Missing(year);
+                    return Problems.TaxYearNotFound(year);
                 }
 
                 config.VerifiedAt = DateTimeOffset.UtcNow;
@@ -128,7 +128,7 @@ public static class TaxYearEndpoints
                 var source = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
                 if (source is null)
                 {
-                    return Missing(year);
+                    return Problems.TaxYearNotFound(year);
                 }
 
                 if (await database.TaxYearConfigs.AnyAsync(config => config.Year == next, cancellationToken))
@@ -153,11 +153,6 @@ public static class TaxYearEndpoints
 
         return routes;
     }
-
-    private static IResult Missing(int year) => Problems.Create(
-        StatusCodes.Status404NotFound,
-        ProblemCodes.TaxYearNotFound,
-        $"No tax year configuration exists for {year}.");
 
     // A write invalidates the verification, which attested to the numbers that were stored before it.
     private static void Apply(TaxYearConfig config, TaxYearConfigRequest request)

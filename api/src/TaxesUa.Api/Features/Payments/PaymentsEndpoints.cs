@@ -110,12 +110,12 @@ public static class PaymentsEndpoints
 
                 // Under the owner's lock, as a confirm is, so a candidate is never read half-changed.
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.BudgetPayments
                     .FirstOrDefaultAsync(p => p.Id == id && p.UserId == user.Id, cancellationToken);
                 if (row is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.PaymentNotFound, "payment", id);
                 }
 
                 var now = DateTimeOffset.UtcNow;
@@ -147,12 +147,12 @@ public static class PaymentsEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.BudgetPayments
                     .FirstOrDefaultAsync(p => p.Id == id && p.UserId == user.Id, cancellationToken);
                 if (row is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.PaymentNotFound, "payment", id);
                 }
 
                 database.BudgetPayments.Remove(row);
@@ -215,11 +215,6 @@ public static class PaymentsEndpoints
     // the owner just gets flagged to double-check the date.
     private static bool IsBeforeRegistration(BudgetPayment row, SettingsEntity settings) =>
         settings.FopRegistrationDate is { } registrationDate && row.PaidOn < registrationDate;
-
-    private static IResult Missing(Guid id) => Problems.Create(
-        StatusCodes.Status404NotFound,
-        ProblemCodes.PaymentNotFound,
-        $"No payment exists with id {id}.");
 
     /// <summary>
     /// A payment is money already paid, so when <paramref name="today"/> (Kyiv, Rule 10) is given its date

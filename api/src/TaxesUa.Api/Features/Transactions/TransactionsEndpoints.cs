@@ -158,13 +158,13 @@ public static class TransactionsEndpoints
 
                 var lookup = await LookUpRateAsync(request, rates, cancellationToken);
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.Transactions
                     .Include(t => t.BankAccount)
                     .FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.Id, cancellationToken);
                 if (row is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.TransactionNotFound, "transaction", id);
                 }
 
                 if (await ValidateLinksAsync(database, user.Id, row, request, cancellationToken) is { } linkErrors)
@@ -221,12 +221,12 @@ public static class TransactionsEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.Transactions
                     .FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.Id, cancellationToken);
                 if (row is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.TransactionNotFound, "transaction", id);
                 }
 
                 if (await database.Transactions.AnyAsync(
@@ -284,7 +284,7 @@ public static class TransactionsEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.Transactions
                     .Include(t => t.Client)
                     .Include(t => t.RefundsTransaction)
@@ -292,7 +292,7 @@ public static class TransactionsEndpoints
                     .FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.Id, cancellationToken);
                 if (row is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.TransactionNotFound, "transaction", id);
                 }
 
                 // A sync may have moved the suggestion since the owner read it; confirming then would save
@@ -390,16 +390,6 @@ public static class TransactionsEndpoints
 
         return routes;
     }
-
-    // The lock the sync, restore and prototype import take, so a sync's re-suggestion of an unreviewed
-    // row cannot land between an owner's read and write of it.
-    private static Task LockOwnerAsync(AppDbContext database, string userId, CancellationToken cancellationToken) =>
-        database.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
-
-    private static IResult Missing(Guid id) => Problems.Create(
-        StatusCodes.Status404NotFound,
-        ProblemCodes.TransactionNotFound,
-        $"No transaction exists with id {id}.");
 
     // Asks the same Rule 8 decision `IncomeLedger.ForYear` makes, so a row's flag and the list's total
     // cannot disagree.

@@ -221,8 +221,7 @@ internal sealed class MonobankStatementImport(
         // rows as it goes, so this also has to run before anything is changed in the context.
         var saleRates = await LookUpSaleRatesAsync(ownerId, account, statement, cancellationToken);
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        await database.Database.ExecuteSqlAsync(
-            $"SELECT pg_advisory_xact_lock(hashtext({ownerId}))", cancellationToken);
+        await OwnerLock.AcquireAsync(database, ownerId, cancellationToken);
         // Rows an earlier window of this walk left tracked would otherwise stand in for what the owner
         // has since confirmed or edited; nothing is pending here, so dropping them loses nothing.
         database.ChangeTracker.Clear();

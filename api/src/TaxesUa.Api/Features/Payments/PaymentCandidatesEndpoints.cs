@@ -84,12 +84,12 @@ public static class PaymentCandidatesEndpoints
 
                 // The sync inserts candidates under the same lock, and a second confirm must see the first.
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var candidate = await database.BudgetPaymentCandidates
                     .FirstOrDefaultAsync(row => row.Id == id && row.UserId == user.Id, cancellationToken);
                 if (candidate is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.CandidateNotFound, "payment candidate", id);
                 }
 
                 if (candidate.Status != CandidateStatus.Pending)
@@ -183,12 +183,12 @@ public static class PaymentCandidatesEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var candidate = await database.BudgetPaymentCandidates
                     .FirstOrDefaultAsync(row => row.Id == id && row.UserId == user.Id, cancellationToken);
                 if (candidate is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.CandidateNotFound, "payment candidate", id);
                 }
 
                 if (candidate.Status == CandidateStatus.Confirmed)
@@ -291,14 +291,6 @@ public static class PaymentCandidatesEndpoints
             await TreasuryAccountsEndpoints.RelearnAsync(database, candidate, previous, now, cancellationToken);
         }
     }
-
-    internal static Task LockOwnerAsync(AppDbContext database, string userId, CancellationToken cancellationToken) =>
-        database.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
-
-    private static IResult Missing(Guid id) => Problems.Create(
-        StatusCodes.Status404NotFound,
-        ProblemCodes.CandidateNotFound,
-        $"No payment candidate exists with id {id}.");
 
     private static IResult Conflict(string code, string title) =>
         Problems.Create(StatusCodes.Status409Conflict, code, title);

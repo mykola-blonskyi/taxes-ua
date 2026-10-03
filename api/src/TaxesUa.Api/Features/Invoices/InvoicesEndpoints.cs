@@ -85,7 +85,7 @@ public static class InvoicesEndpoints
 
                 var invoice = await FindAsync(database, user.Id, id, cancellationToken);
 
-                return invoice is null ? Missing(id) : Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
+                return invoice is null ? Problems.NotFound(ProblemCodes.InvoiceNotFound, "invoice", id) : Results.Ok(await ResponseAsync(database, invoice, time, cancellationToken));
             })
             .Produces<InvoiceResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -158,11 +158,11 @@ public static class InvoicesEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var invoice = await FindAsync(database, user.Id, id, cancellationToken);
                 if (invoice is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.InvoiceNotFound, "invoice", id);
                 }
 
                 if (invoice.Status != InvoiceStatus.Draft)
@@ -203,11 +203,11 @@ public static class InvoicesEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var invoice = await FindAsync(database, user.Id, id, cancellationToken);
                 if (invoice is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.InvoiceNotFound, "invoice", id);
                 }
 
                 if (invoice.Status != InvoiceStatus.Draft)
@@ -243,7 +243,7 @@ public static class InvoicesEndpoints
                 var source = await FindAsync(database, user.Id, id, cancellationToken);
                 if (source is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.InvoiceNotFound, "invoice", id);
                 }
 
                 // Dated today with the source's payment term, which is what a monthly invoice wants.
@@ -290,11 +290,11 @@ public static class InvoicesEndpoints
                 // The lock makes max-plus-one safe: a second issue of the same owner waits here until
                 // this one's number is committed, then reads it.
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var invoice = await FindAsync(database, user.Id, id, cancellationToken);
                 if (invoice is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.InvoiceNotFound, "invoice", id);
                 }
 
                 switch (invoice.Status)
@@ -367,11 +367,11 @@ public static class InvoicesEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var invoice = await FindAsync(database, user.Id, id, cancellationToken);
                 if (invoice is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.InvoiceNotFound, "invoice", id);
                 }
 
                 switch (invoice.Status)
@@ -426,7 +426,7 @@ public static class InvoicesEndpoints
                 var invoice = await FindAsync(database, user.Id, id, cancellationToken, tracked: false);
                 if (invoice is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.InvoiceNotFound, "invoice", id);
                 }
 
                 InvoicePdfModel model;
@@ -472,18 +472,18 @@ public static class InvoicesEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var invoice = await FindAsync(database, user.Id, id, cancellationToken);
                 if (invoice is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.InvoiceNotFound, "invoice", id);
                 }
 
                 var receipt = await database.Transactions
                     .FirstOrDefaultAsync(row => row.Id == receiptId && row.UserId == user.Id, cancellationToken);
                 if (receipt is null)
                 {
-                    return MissingReceipt(receiptId);
+                    return Problems.NotFound(ProblemCodes.TransactionNotFound, "transaction", receiptId);
                 }
 
                 if (receipt.InvoiceId != invoice.Id)
@@ -529,18 +529,18 @@ public static class InvoicesEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var invoice = await FindAsync(database, user.Id, id, cancellationToken);
                 if (invoice is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.InvoiceNotFound, "invoice", id);
                 }
 
                 var receipt = await database.Transactions
                     .FirstOrDefaultAsync(row => row.Id == receiptId && row.UserId == user.Id, cancellationToken);
                 if (receipt is null)
                 {
-                    return MissingReceipt(receiptId);
+                    return Problems.NotFound(ProblemCodes.TransactionNotFound, "transaction", receiptId);
                 }
 
                 if (receipt.InvoiceId == invoice.Id)
@@ -577,7 +577,7 @@ public static class InvoicesEndpoints
                 var invoice = await FindAsync(database, user.Id, id, cancellationToken, tracked: false);
                 if (invoice is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.InvoiceNotFound, "invoice", id);
                 }
 
                 if (invoice.Status != InvoiceStatus.Issued)
@@ -627,7 +627,7 @@ public static class InvoicesEndpoints
                     .FirstOrDefaultAsync(row => row.Id == receiptId && row.UserId == user.Id, cancellationToken);
                 if (receipt is null)
                 {
-                    return MissingReceipt(receiptId);
+                    return Problems.NotFound(ProblemCodes.TransactionNotFound, "transaction", receiptId);
                 }
 
                 if (receipt is not { Kind: TransactionKind.Income, InvoiceId: null })
@@ -747,11 +747,6 @@ public static class InvoicesEndpoints
         database.InvoicingPaymentDetails.AsNoTracking()
             .FirstOrDefaultAsync(row => row.UserId == userId && row.Currency == currency, cancellationToken);
 
-    private static IResult Missing(Guid id) => Problems.Create(
-        StatusCodes.Status404NotFound,
-        ProblemCodes.InvoiceNotFound,
-        $"No invoice exists with id {id}.");
-
     private static IResult UnknownClient() =>
         Problems.Validation("clientId", ProblemCodes.UnknownClient, "clientId must be one of your clients.");
 
@@ -762,11 +757,6 @@ public static class InvoicesEndpoints
             + (invoice.Status == InvoiceStatus.Issued ? " Cancel it with a reason, or duplicate it as a new draft." : string.Empty));
 
     private static string ClientName(Invoice invoice) => invoice.Snapshot?.Buyer.Name ?? invoice.Client?.Name ?? string.Empty;
-
-    private static IResult MissingReceipt(Guid id) => Problems.Create(
-        StatusCodes.Status404NotFound,
-        ProblemCodes.TransactionNotFound,
-        $"No transaction exists with id {id}.");
 
     private static async Task<InvoiceResponse> ResponseAsync(
         AppDbContext database, Invoice invoice, TimeProvider time, CancellationToken cancellationToken)

@@ -73,7 +73,7 @@ public static class TreasuryAccountsEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await FindOrAddAsync(database, user.Id, kind, cancellationToken);
                 var (previousManualIban, previousManualEnd) = (row.ManualIban, row.ManualValidUntil);
                 row.ManualIban = normalized.Iban;
@@ -114,7 +114,7 @@ public static class TreasuryAccountsEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.TreasuryAccounts
                     .FirstOrDefaultAsync(account => account.UserId == user.Id && account.Kind == kind, cancellationToken);
                 if (row is not { LearnedIban: not null })
@@ -166,7 +166,7 @@ public static class TreasuryAccountsEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.TreasuryAccounts
                     .FirstOrDefaultAsync(account => account.UserId == user.Id && account.Kind == kind, cancellationToken);
                 if (row is null || InUse(row).Source == TreasuryAccountSource.None)
@@ -216,7 +216,7 @@ public static class TreasuryAccountsEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.TreasuryAccounts
                     .FirstOrDefaultAsync(account => account.UserId == user.Id && account.Kind == kind, cancellationToken);
                 if (row is { NoticeAt: not null })

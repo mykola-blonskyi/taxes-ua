@@ -117,7 +117,7 @@ public static class ClientsEndpoints
                     .FirstOrDefaultAsync(row => row.Id == id && row.UserId == user.Id, cancellationToken);
                 if (client is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.ClientNotFound, "client", id);
                 }
 
                 if (await NameTaken(database, user.Id, normalized.Name, except: id, cancellationToken))
@@ -163,7 +163,7 @@ public static class ClientsEndpoints
                     .FirstOrDefaultAsync(row => row.Id == id && row.UserId == user.Id, cancellationToken);
                 if (client is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.ClientNotFound, "client", id);
                 }
 
                 var receiptCount = await database.Transactions.CountAsync(row => row.ClientId == id, cancellationToken);
@@ -204,11 +204,6 @@ public static class ClientsEndpoints
 
     private static IResult DuplicateNameProblem() =>
         Problems.Validation("name", ProblemCodes.NameTaken, DuplicateName);
-
-    private static IResult Missing(Guid id) => Problems.Create(
-        StatusCodes.Status404NotFound,
-        ProblemCodes.ClientNotFound,
-        $"No client exists with id {id}.");
 
     private static ClientResponse ToResponse(Client client, int receiptCount) => new(
         client.Id,
