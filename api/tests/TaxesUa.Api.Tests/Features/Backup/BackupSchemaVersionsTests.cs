@@ -11,7 +11,7 @@ namespace TaxesUa.Api.Tests.Features.Backup;
 
 // A backup is a file the owner keeps for years, so a build must restore the file of every schema it ever wrote,
 // not only what its own exporter writes today. Fixtures/backup-vNN.json is one small owner's file as schema
-// NN wrote it: v17 is the real exporter's output for that owner, and each older file is that file cut down to
+// NN wrote it: v18 is the real exporter's output for that owner, and each older file is that file cut down to
 // the shape the schema's changelog (the comment on BackupDocument.CurrentSchemaVersion) says it had, with the
 // default the owner then lived with where a field was added later (Prorated before version 16).
 // Adding a version means adding its fixture; the first test fails until it exists.
@@ -131,6 +131,7 @@ public sealed class BackupSchemaVersionsTests(ApiFixture fixture) : IClassFixtur
         Version14(version, backup);
         Version16(version, backup);
         Version17(version, backup);
+        Version18(version, backup);
     }
 
     // The payments' bank operation and the payment candidates.
@@ -255,7 +256,7 @@ public sealed class BackupSchemaVersionsTests(ApiFixture fixture) : IClassFixtur
 
     // The notification channels, and from version 15 the time each was confirmed (a Telegram chat is confirmed
     // when it is linked, so a file from before that gets the link time). A restore brings every channel back
-    // unconfirmed and off (#180), so the owner's export after it holds no confirmation: the v17 fixture is that
+    // unconfirmed and off (#180), so the owner's export after it holds no confirmation: the v17 and later fixtures are that
     // export, and it is why its Telegram channel is off.
     private static void Version11(int version, JsonObject backup)
     {
@@ -345,6 +346,20 @@ public sealed class BackupSchemaVersionsTests(ApiFixture fixture) : IClassFixtur
         Assert.Equal(
             version < 17 ? ((string?)null, (string?)null) : ("2026-12-31", "2027-06-30"),
             (account["manualValidUntil"]?.GetValue<string>(), account["learnedValidUntil"]?.GetValue<string>()));
+    }
+
+    // The full name, phone and email the declaration's header prints; an older file restores them empty.
+    private static void Version18(int version, JsonObject backup)
+    {
+        if (version < 7)
+        {
+            return;
+        }
+
+        var details = backup["declarationDetails"]!;
+        Assert.Equal(
+            version < 18 ? ("", "", "") : ("Тестенко Тест Тестович", "+380501234567", "fop@example.com"),
+            (details["fullName"]!.GetValue<string>(), details["phone"]!.GetValue<string>(), details["reportEmail"]!.GetValue<string>()));
     }
 
     private static string[] Names(JsonObject backup, string array, string field) =>

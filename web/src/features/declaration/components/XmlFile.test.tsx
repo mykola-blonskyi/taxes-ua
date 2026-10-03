@@ -95,7 +95,7 @@ describe("XmlFile", () => {
       stubFetch({ "POST /api/declarations/{year}/{quarter}/files": withAnnex });
       const { user } = renderXml(declaration(), "ru");
 
-      expect(screen.getByRole("heading", { name: "XML для M.E.Doc и другого ПО" })).toBeVisible();
+      expect(screen.getByRole("heading", { name: "Файл декларации (XML)" })).toBeVisible();
       await user.click(screen.getByRole("button", { name: "Скачать XML" }));
       await until(() => downloads.length === 1);
       await timers.advance(500);

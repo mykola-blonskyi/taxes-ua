@@ -131,6 +131,7 @@ internal static class ProblemCodes
     public const string SwiftInvalid = "swift_invalid";
     public const string RecipientCodeInvalid = "recipient_code_invalid";
     public const string EmailInvalid = "email_invalid";
+    public const string PhoneInvalid = "phone_invalid";
     public const string CountryInvalid = "country_invalid";
     public const string NameTaken = "name_taken";
     public const string CurrencyDuplicate = "currency_duplicate";

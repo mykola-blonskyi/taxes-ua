@@ -123,7 +123,7 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
   ],
   NotificationChannel: ["kind", "enabled", "linkedAt", "confirmedAt"],
   Backup: ["clients", "transactions", "budgetPayments"],
-  DeclarationDetails: ["taxOfficeRegion", "taxOfficeDistrict", "taxOfficeName", "kvedCodes", "address"],
+  DeclarationDetails: ["taxOfficeRegion", "taxOfficeDistrict", "taxOfficeName", "kvedCodes", "address", "fullName", "phone", "reportEmail"],
   DeclarationFiling: ["year", "quarter", "filedOn", "type", "filedIncomeKop"],
 };
 
