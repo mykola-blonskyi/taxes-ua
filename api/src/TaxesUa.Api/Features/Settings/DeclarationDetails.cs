@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Declarations;
 
 namespace TaxesUa.Api.Features.Settings;
 
@@ -41,7 +42,8 @@ internal sealed class DeclarationDetails
 
     /// <summary>
     /// What the declaration still lacks, in the order of the form's header. Saving an incomplete set
-    /// is allowed; completeness only decides the declaration's readiness (Rule 15).
+    /// is allowed; completeness only decides the declaration's readiness (Rule 15). A stored KVED code the
+    /// classifier does not know counts as missing, so no declaration is built with an empty name.
     /// </summary>
     public static DeclarationDetailField[] Missing(InvoicingDetails? invoicing, DeclarationDetails? details)
     {
@@ -61,7 +63,7 @@ internal sealed class DeclarationDetails
             missing.Add(DeclarationDetailField.TaxOffice);
         }
 
-        if (details is null || details.KvedCodes.Length == 0)
+        if (details is null || details.KvedCodes.Length == 0 || details.KvedCodes.Any(code => Kved.Name(code) is null))
         {
             missing.Add(DeclarationDetailField.Kved);
         }

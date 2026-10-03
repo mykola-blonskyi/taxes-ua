@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Notifications;
 
 namespace TaxesUa.Api.Features.Settings;
@@ -82,6 +83,11 @@ public static partial class DeclarationDetailsEndpoints
             })
             .Produces<DeclarationDetailsResponse>()
             .ProducesFieldProblem()
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        declaration.MapGet("/kved-classes", () =>
+                Results.Ok(Kved.Classes.Select(pair => new KvedClassResponse(pair.Key, pair.Value)).ToArray()))
+            .Produces<KvedClassResponse[]>()
             .Produces(StatusCodes.Status401Unauthorized);
 
         return routes;
@@ -176,6 +182,10 @@ public static partial class DeclarationDetailsEndpoints
                     $"kvedCodes[{i}]",
                     ProblemCodes.KvedFormatInvalid,
                     "A KVED code is two digits, a dot and two digits, such as 62.01.");
+            }
+            else if (Kved.Name(code) is null)
+            {
+                errors.Set($"kvedCodes[{i}]", ProblemCodes.KvedUnknown, "A KVED code must be a class of КВЕД ДК 009:2010.");
             }
             else if (request.KvedCodes.Take(i).Contains(code))
             {
@@ -290,3 +300,6 @@ internal sealed record DeclarationDetailsResponse(
     string ReportEmail,
     string? ConfirmedEmail,
     DeclarationDetailField[] MissingDetails);
+
+/// <summary>One class of КВЕД ДК 009:2010 with Держстат's name, always in Ukrainian.</summary>
+internal sealed record KvedClassResponse(string Code, string Name);

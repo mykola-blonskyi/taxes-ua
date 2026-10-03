@@ -9,5 +9,8 @@ internal static partial class Kved
 {
     public static int Count => Names.Count;
 
+    /// <summary>Every class in code order.</summary>
+    public static IEnumerable<KeyValuePair<string, string>> Classes => Names.OrderBy(pair => pair.Key, StringComparer.Ordinal);
+
     public static string? Name(string code) => Names.GetValueOrDefault(code);
 }

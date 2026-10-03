@@ -103,6 +103,7 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         { "KVED in Arabic-Indic digits", "kvedCodes[0]" },
         { "blank KVED", "kvedCodes[0]" },
         { "repeated KVED", "kvedCodes[1]" },
+        { "KVED outside the classifier", "kvedCodes[1]" },
         { "21 KVED codes", "kvedCodes" },
         { "address over 500 characters", "address" },
         { "NUL in the address", "address" },
@@ -134,6 +135,7 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
             "KVED in Arabic-Indic digits" => valid with { KvedCodes = ["٦٢.٠١"] },
             "blank KVED" => valid with { KvedCodes = [" "] },
             "repeated KVED" => valid with { KvedCodes = ["62.01", " 62.01"] },
+            "KVED outside the classifier" => valid with { KvedCodes = ["62.01", "12.34"] },
             "21 KVED codes" => valid with { KvedCodes = [.. Enumerable.Range(10, 21).Select(n => $"{n}.01")] },
             "address over 500 characters" => valid with { Address = new string('а', 501) },
             "NUL in the address" => valid with { Address = "Київ\u0000" },
@@ -300,6 +302,46 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         Assert.Equal(AuditAction.Update, entry.Action);
         Assert.Equal(2, entry.After!["kvedCodes"].GetArrayLength());
         Assert.Equal("Львів", entry.After["address"].GetString());
+    }
+
+    [Fact]
+    public async Task An_unknown_code_is_refused_as_unknown_and_a_malformed_one_as_malformed()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+
+        var response = await owner.PutAsJsonAsync(
+            Url,
+            new DeclarationDetailsRequest(26, 5, "ГУ ДПС у м. Києві", ["62.01", "12.34", "6201"], "Київ"),
+            Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        ProblemAssert.FieldIs(problem.RootElement, "kvedCodes[1]", ProblemCodes.KvedUnknown);
+        ProblemAssert.FieldIs(problem.RootElement, "kvedCodes[2]", ProblemCodes.KvedFormatInvalid);
+    }
+
+    [Fact]
+    public async Task The_classifier_lists_every_class_by_code_for_a_signed_in_owner_only()
+    {
+        using var owner = await SignIn(ApiFixture.SecondAllowedEmail);
+        using var visitor = fixture.CreateClient();
+
+        var classes = await owner.GetFromJsonAsync<KvedClassResponse[]>($"{Url}/kved-classes", Json);
+
+        Assert.Equal(615, classes!.Length);
+        Assert.Equal(classes.OrderBy(entry => entry.Code, StringComparer.Ordinal).Select(entry => entry.Code), classes.Select(entry => entry.Code));
+        Assert.Equal("Комп'ютерне програмування", classes.Single(entry => entry.Code == "62.01").Name);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await visitor.GetAsync($"{Url}/kved-classes")).StatusCode);
+    }
+
+    [Fact]
+    public void A_stored_code_the_classifier_does_not_know_counts_as_a_missing_KVED()
+    {
+        var known = new DeclarationDetails { KvedCodes = ["62.01"] };
+        var unknown = new DeclarationDetails { KvedCodes = ["62.01", "12.34"] };
+
+        Assert.DoesNotContain(DeclarationDetailField.Kved, DeclarationDetails.Missing(null, known));
+        Assert.Contains(DeclarationDetailField.Kved, DeclarationDetails.Missing(null, unknown));
     }
 
     private async Task<HttpClient> SignIn(string email)

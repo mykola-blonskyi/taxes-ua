@@ -330,14 +330,17 @@ public sealed partial class F0103309Tests
     }
 
     [Fact]
-    public void A_KVED_code_outside_the_list_is_written_with_an_empty_name()
+    public void Every_KVED_is_written_with_its_name_whatever_the_class()
     {
         var (figures, type, filledOn, _, _) = Cases["2026-q3"];
 
-        var files = F0103309.Write(figures, Header with { KvedCodes = ["62.01", "01.11"] }, type, filledOn);
+        var files = F0103309.Write(figures, Header with { KvedCodes = ["01.11", "96.09"] }, type, filledOn);
         var text = Windows1251.GetString(files.Declaration.Content);
 
-        Assert.Contains("<T1RXXXXG2S ROWNUM=\"2\"></T1RXXXXG2S>", text);
+        Assert.Contains(
+            "<T1RXXXXG2S ROWNUM=\"1\">Вирощування зернових культур (крім рису), бобових культур і насіння олійних культур</T1RXXXXG2S>"
+            + "<T1RXXXXG2S ROWNUM=\"2\">Надання інших індивідуальних послуг, н.в.і.у.</T1RXXXXG2S>",
+            text);
         Assert.Empty(F0103309.SchemaErrors(files.Declaration.Content));
     }
 
@@ -350,14 +353,19 @@ public sealed partial class F0103309Tests
         Assert.Contains("<HFILL>20102026</HFILL>", text);
     }
 
+    [Fact]
+    public void The_classifier_holds_every_class_of_KVED_DK_009_2010() => Assert.Equal(615, Kved.Count);
+
     [Theory]
-    [InlineData("63.99", "Надання інших інформаційних послуг, н.в.і.у.")]
-    [InlineData("74.90", "Інша професійна, наукова та технічна діяльність, н.в.і.у.")]
-    [InlineData("82.99", "Надання інших допоміжних комерційних послуг, н.в.і.у.")]
-    [InlineData("85.59", "Інші види освіти, н.в.і.у.")]
     [InlineData("62.01", "Комп'ютерне програмування")]
+    [InlineData("63.99", "Надання інших інформаційних послуг, н.в.і.у.")]
+    [InlineData("85.59", "Інші види освіти, н.в.і.у.")]
+    [InlineData("47.91", "Роздрібна торгівля, що здійснюється фірмами поштового замовлення або через мережу Інтернет")]
     public void A_KVED_name_is_written_as_the_classifier_spells_it(string code, string name) =>
         Assert.Equal(name, Kved.Name(code));
+
+    [Fact]
+    public void A_code_the_classifier_does_not_hold_has_no_name() => Assert.Null(Kved.Name("12.34"));
 
     [Theory]
     [InlineData("Іваненко Іван Іванович", "Іван ІВАНЕНКО")]
