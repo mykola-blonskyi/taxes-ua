@@ -16,7 +16,16 @@ import { TextAreaField, TextField } from "@/shared/ui/fields";
 
 const maxKvedCodes = 20;
 
-type FormState = { region: string; district: string; officeName: string; kvedCodes: string[]; address: string };
+type FormState = {
+  region: string;
+  district: string;
+  officeName: string;
+  kvedCodes: string[];
+  address: string;
+  fullName: string;
+  phone: string;
+  reportEmail: string;
+};
 
 function twoDigits(value: number | string | null): string {
   return value === null ? "" : String(value).padStart(2, "0");
@@ -29,6 +38,9 @@ function toFormState(details: DeclarationDetailsResponse): FormState {
     officeName: details.taxOfficeName,
     kvedCodes: details.kvedCodes.length > 0 ? details.kvedCodes : [""],
     address: details.address,
+    fullName: details.fullName,
+    phone: details.phone,
+    reportEmail: details.reportEmail || (details.confirmedEmail ?? ""),
   };
 }
 
@@ -55,6 +67,7 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
   const failure = save.error instanceof ApiError ? save.error : null;
   const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
   const missing = details.missingDetails;
+  const emailPrefilled = details.reportEmail === "" && details.confirmedEmail !== null && form.reportEmail === details.confirmedEmail;
   const sentKved = form.kvedCodes.flatMap((code, index) => (code.trim() === "" ? [] : [index]));
 
   function fieldErrors(key: string): string[] | undefined {
@@ -95,6 +108,9 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
           taxOfficeName: form.officeName,
           kvedCodes: sentKved.map((index) => form.kvedCodes[index].trim()),
           address: form.address,
+          fullName: form.fullName,
+          phone: form.phone,
+          reportEmail: form.reportEmail,
         });
       }}
     >
@@ -124,6 +140,15 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
           </div>
         </dl>
         <p className="text-xs text-muted-foreground">{tDeclaration("fromInvoicing")}</p>
+        <TextField
+          id="declaration-full-name"
+          label={tDeclaration("fullName")}
+          hint={tDeclaration("fullNameHint")}
+          autoComplete="name"
+          value={form.fullName}
+          onChange={(fullName) => setForm((current) => ({ ...current, fullName }))}
+          errors={fieldErrors("fullName")}
+        />
       </section>
 
       <fieldset className="flex min-w-0 flex-col gap-2">
@@ -213,6 +238,33 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
         onChange={(address) => setForm((current) => ({ ...current, address }))}
         errors={fieldErrors("address")}
       />
+
+      <fieldset className="flex min-w-0 flex-col gap-3">
+        <legend className="text-base font-semibold">{tDeclaration("contacts")}</legend>
+        <div className="max-w-xs">
+          <TextField
+            id="declaration-phone"
+            label={tDeclaration("phone")}
+            hint={tDeclaration("phoneHint")}
+            type="tel"
+            autoComplete="tel"
+            placeholder="+380"
+            value={form.phone}
+            onChange={(phone) => setForm((current) => ({ ...current, phone }))}
+            errors={fieldErrors("phone")}
+          />
+        </div>
+        <TextField
+          id="declaration-report-email"
+          label={tDeclaration("reportEmail")}
+          hint={emailPrefilled ? tDeclaration("reportEmailPrefilled") : tDeclaration("reportEmailHint")}
+          type="email"
+          autoComplete="email"
+          value={form.reportEmail}
+          onChange={(reportEmail) => setForm((current) => ({ ...current, reportEmail }))}
+          errors={fieldErrors("reportEmail")}
+        />
+      </fieldset>
 
       {failure && !rejected ? (
         <p className="text-sm text-destructive">{apiText.withReason(t("saveFailed"), failure)}</p>

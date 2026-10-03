@@ -73,7 +73,7 @@ test("the declaration XML downloads under the DPS file name and parses as form F
   });
 });
 
-test("the declaration screen leads with the Cabinet fields and a copy button puts the exact value on the clipboard", async ({
+test("the declaration screen leads with the XML file and a copy button puts the exact value on the clipboard", async ({
   page,
   request,
   context,
@@ -88,12 +88,14 @@ test("the declaration screen leads with the Cabinet fields and a copy button put
 
   const cabinet = page.getByRole("region", { name: uk.declaration.cabinet.title });
   await expect(cabinet).toBeVisible();
-  // The Cabinet has no XML import, so the screen must not tell the owner to import one.
-  await expect(page.getByText("Імпортувати XML з пристрою")).toHaveCount(0);
-  // The XML card is the secondary path and sits below the fields to type.
+  // The Cabinet imports the XML, so the guide starts with the download and the upload.
+  const guide = cabinet.getByRole("list", { name: uk.declaration.cabinet.guide.title });
+  await expect(guide.getByRole("listitem").first()).toHaveText(uk.declaration.cabinet.guide.download);
+  await expect(guide).toContainText(uk.declaration.cabinet.guide.upload);
+  // The download sits above the guide that points up to it; the field list below is the cross-check.
   const cabinetBox = await cabinet.boundingBox();
   const xmlBox = await page.getByRole("region", { name: uk.declaration.xml.title }).boundingBox();
-  expect(cabinetBox!.y).toBeLessThan(xmlBox!.y);
+  expect(xmlBox!.y).toBeLessThan(cabinetBox!.y);
 
   const line06 = cabinet.locator("li", { has: page.getByRole("button", { name: "Копіювати: Рядок 06" }) });
   const shown = (await line06.locator("span.font-medium").innerText()).trim();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderApp, reply, screen, stubFetch } from "@/test/harness";
+import { renderApp, reply, screen, stubFetch, waitFor } from "@/test/harness";
 import { DeclarationDetailsForm } from "./DeclarationDetailsForm";
 
 const read = "GET /api/settings/declaration" as const;
@@ -13,8 +13,89 @@ const details = {
   taxOfficeName: "ГУ ДПС",
   kvedCodes: ["62.01", "62.02"],
   address: "Київ",
+  fullName: "",
+  phone: "",
+  reportEmail: "",
+  confirmedEmail: null as string | null,
   missingDetails: [],
-} as const;
+};
+
+describe("DeclarationDetailsForm contacts", () => {
+  it("offers the confirmed notification address while no report email is stored, and saves the three fields", async () => {
+    const api = stubFetch({
+      [read]: { ...details, confirmedEmail: "fop@example.com" },
+      [write]: { ...details, fullName: "Тестенко Тест Тестович", phone: "+380501234567", reportEmail: "fop@example.com" },
+    });
+    const { user } = renderApp(<DeclarationDetailsForm />);
+
+    const email = await screen.findByLabelText("Пошта для звітності");
+    expect(email).toHaveValue("fop@example.com");
+    expect(email).toHaveAttribute("type", "email");
+    expect(screen.getByText(/Підставлено адресу для сповіщень/)).toBeVisible();
+    const phone = screen.getByLabelText("Телефон");
+    expect(phone).toHaveAttribute("type", "tel");
+    expect(phone).toHaveAttribute("autocomplete", "tel");
+    expect(screen.getByText("Формат +380 XX XXX XX XX.")).toBeVisible();
+
+    await user.type(screen.getByLabelText("Повне ім’я для декларації"), "Тестенко Тест Тестович");
+    await user.type(phone, "050 123 45 67");
+    await user.click(screen.getByRole("button", { name: "Зберегти" }));
+
+    await waitFor(() => expect(api.requestsTo(write)).toHaveLength(1));
+    expect(api.requestsTo(write)[0].body).toMatchObject({
+      fullName: "Тестенко Тест Тестович",
+      phone: "050 123 45 67",
+      reportEmail: "fop@example.com",
+    });
+    expect(await screen.findByText("Збережено.")).toBeVisible();
+    expect(screen.getByText("Друкується в шапці декларації.")).toBeVisible();
+  });
+
+  it("keeps the stored report email over the notification address", async () => {
+    stubFetch({
+      [read]: { ...details, fullName: "Тестенко Тест Тестович", phone: "+380501234567", reportEmail: "reports@example.com", confirmedEmail: "fop@example.com" },
+    });
+    renderApp(<DeclarationDetailsForm />);
+
+    const email = await screen.findByLabelText("Пошта для звітності");
+    expect(email).toHaveValue("reports@example.com");
+    expect(screen.getByText("Друкується в шапці декларації.")).toBeVisible();
+    expect(screen.getByLabelText("Телефон")).toHaveValue("+380501234567");
+    expect(screen.getByLabelText("Повне ім’я для декларації")).toHaveValue("Тестенко Тест Тестович");
+  });
+
+  it("leaves the email empty when there is no confirmed address", async () => {
+    stubFetch({ [read]: details });
+    renderApp(<DeclarationDetailsForm />);
+
+    expect(await screen.findByLabelText("Пошта для звітності")).toHaveValue("");
+  });
+
+  it("words a rejected phone by its code and ties the message to the input", async () => {
+    stubFetch({
+      [read]: details,
+      [write]: reply(400, { code: "validation_failed", errorCodes: { phone: ["phone_invalid"] } }),
+    });
+    const { user } = renderApp(<DeclarationDetailsForm />);
+
+    await user.type(await screen.findByLabelText("Телефон"), "12345");
+    await user.click(screen.getByRole("button", { name: "Зберегти" }));
+
+    expect(await screen.findByText("Вкажіть український номер у форматі +380 XX XXX XX XX.")).toBeVisible();
+  });
+
+  it("words a rejected phone in Russian", async () => {
+    stubFetch({
+      [read]: details,
+      [write]: reply(400, { code: "validation_failed", errorCodes: { phone: ["phone_invalid"] } }),
+    });
+    const { user } = renderApp(<DeclarationDetailsForm />, { locale: "ru" });
+
+    await user.click(await screen.findByRole("button", { name: "Сохранить" }));
+
+    expect(await screen.findByText("Укажите украинский номер в формате +380 XX XXX XX XX.")).toBeVisible();
+  });
+});
 
 describe("DeclarationDetailsForm rejection", () => {
   it("words each rejected field by its code, including a KVED by its position", async () => {
