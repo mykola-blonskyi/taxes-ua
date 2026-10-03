@@ -469,7 +469,7 @@ internal sealed record BackupDocument(
 
         if (DeclarationDetails is { } declaration)
         {
-            Merge("declarationDetails", DeclarationDetailsEndpoints.Validate(declaration.ToRequest()));
+            Merge("declarationDetails", DeclarationDetailsEndpoints.Validate(declaration.ToRequest(), requireKnownKved: false));
         }
 
         if (ReserveJar?.Error(now) is var (jarKey, jarIssue))

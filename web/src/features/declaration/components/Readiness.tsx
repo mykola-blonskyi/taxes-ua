@@ -56,6 +56,12 @@ export function Readiness({ year, readiness }: { year: number; readiness: Declar
           : t("detailsUnmet", { fields: missing.map((field) => tFields(field)).join(", ") }),
       fix: { href: "/settings?tab=declaration", label: t("detailsCta") },
     },
+    ...readiness.unknownKvedCodes.map((code) => ({
+      key: `kved-${code}`,
+      met: false,
+      text: t("kvedUnknown", { code }),
+      fix: { href: "/settings?tab=declaration", label: t("kvedUnknownCta") },
+    })),
     readiness.beforeGroup3
       ? {
           key: "group3",

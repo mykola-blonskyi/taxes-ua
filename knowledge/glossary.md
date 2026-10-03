@@ -45,7 +45,8 @@ Unpaid taxes are a warning, not a blocker (Rule 15).
 
 ### KVED
 The classifier of economic activities (KVED, DK 009). A code such as `62.01`; the first of the
-owner's codes is the main activity.
+owner's codes is the main activity. The API holds all 615 classes of КВЕД ДК 009:2010 with Держстат's names,
+and the declaration prints each code's name beside it.
 
 ### Tax office code (Kod DPI)
 The tax office the declaration is filed with, as its region code (C_REG) and district code (C_RAJ)

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Declarations;
 
 namespace TaxesUa.Api.Features.Settings;
 
@@ -73,6 +74,13 @@ internal sealed class DeclarationDetails
 
         return [.. missing];
     }
+
+    /// <summary>
+    /// The stored codes the classifier does not know, which only a restored backup can hold. They block the
+    /// declaration (Rule 15) so no file or Cabinet list is built with an empty class name.
+    /// </summary>
+    public static string[] UnknownKvedCodes(DeclarationDetails? details) =>
+        [.. details?.KvedCodes.Where(code => Kved.Name(code) is null) ?? []];
 }
 
 internal enum DeclarationDetailField
