@@ -366,6 +366,32 @@ const runs = [
   { locale: "uk", scheme: "dark" },
 ] as const;
 
+// The bottom nav truncates its labels with an ellipsis, which the overflow gate cannot see, so measure each
+// label against its own box in both languages and both themes.
+for (const locale of ["uk", "ru"] as const) {
+  for (const scheme of ["light", "dark"] as const) {
+    test.describe(`the bottom nav at 375 px in ${locale} in the ${scheme} theme`, () => {
+      test.use({ viewport, isMobile: true, hasTouch: true, colorScheme: scheme });
+
+      test("shows every label whole", async ({ page, context, baseURL }) => {
+        await context.addCookies([{ name: "locale", value: locale, url: baseURL! }]);
+        await open(page, "/", locale);
+        const links = page.getByRole("navigation", { name: catalogs[locale].nav.label }).getByRole("link");
+        await expect(links).toHaveCount(5);
+        const labels = await links.evaluateAll((anchors) =>
+          anchors.map((anchor) => {
+            const label = anchor.querySelector("span") as HTMLElement;
+            return { text: label.textContent, scrollWidth: label.scrollWidth, clientWidth: label.clientWidth, height: anchor.getBoundingClientRect().height };
+          }),
+        );
+        const truncated = labels.filter((label) => label.scrollWidth > label.clientWidth);
+        expect(truncated, `bottom-nav labels cut off: ${JSON.stringify(truncated)}`).toEqual([]);
+        expect(labels.filter((label) => label.height < 44), "bottom-nav targets under 44 px").toEqual([]);
+      });
+    });
+  }
+}
+
 for (const { locale, scheme } of runs) {
   test.describe(`at 375 px in ${locale}${scheme === "dark" ? " in the dark theme" : ""}`, () => {
     // The old script emulated a touch phone below 768 px, and the app may branch on it.
