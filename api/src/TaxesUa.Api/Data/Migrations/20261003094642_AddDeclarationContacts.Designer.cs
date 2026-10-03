@@ -12,7 +12,7 @@ using TaxesUa.Api.Data;
 namespace TaxesUa.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261003092026_AddDeclarationContacts")]
+    [Migration("20261003094642_AddDeclarationContacts")]
     partial class AddDeclarationContacts
     {
         /// <inheritdoc />
@@ -316,6 +316,37 @@ namespace TaxesUa.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("CalendarFeeds");
+                });
+
+            modelBuilder.Entity("TaxesUa.Api.Features.DatabaseBackups.DatabaseBackupRun", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Detail")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset>("FinishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Job")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<bool>("Succeeded")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Job", "FinishedAt");
+
+                    b.ToTable("DatabaseBackupRuns");
                 });
 
             modelBuilder.Entity("TaxesUa.Api.Features.Declarations.DeclarationFile", b =>

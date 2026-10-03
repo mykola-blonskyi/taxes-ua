@@ -791,7 +791,9 @@ The declaration is ready when nothing below blocks it. These block:
   and RNOKPP (read from the invoicing details, never stored twice), the tax office (its region and
   district codes and its name), at least one KVED code (the first is the main activity), and the address
   as in the register. The phone and the email for reports are optional: the form's field 6 is left empty
-  without them;
+  without them. An empty full name does not block either (the owner has not decided whether it should),
+  but the readiness list warns that the declaration goes with the invoicing name, possibly without the
+  patronymic, and links to the field;
 - a quarter outside group 3 after a crossing, as above. The crossing quarter itself does not block,
   since its lines 07 and 09 are filled.
 
@@ -810,8 +812,10 @@ from the day after the quarter ends through its due date (Rule 5), until it is m
 
 Filing through the Cabinet (#222, ADR-025). The main path is the XML file: in the Electronic Cabinet the
 owner opens "Введення звітності", creates the form ("Створити") or opens a draft, presses "Завантажити",
-picks the declaration file (and the annex beside it), checks the fields, sets the filing date to the day
-of sending, signs with a KEP and sends. The declaration screen also lists every field of F0103309 in the
+picks the declaration file, checks the fields, sets the filing date to the day of sending, signs with a
+KEP and sends. Whether the Cabinet takes annex 1 as a second file of the same report is unverified: if it
+offers to add the annex file, the owner loads it the same way, and otherwise fills annex 1 from the list
+below. The declaration screen also lists every field of F0103309 in the
 form's order, and of annex 1 when the quarter has one, each with its printed line number, the plain value
 and a copy button: a cross-check of what the Cabinet shows after the import, and the way to type the form
 in by hand if an import fails. The list
@@ -842,7 +846,7 @@ ready quarter with figures the owner downloads the declaration as an F0103309 XM
   KVED codes in table 1 with their class names from КВЕД ДК 009:2010 (a checked-in list of the classes an
   IT FOP usually registers; a code outside it gets an empty name), the lines above with two decimals, and
   HBOS, the signature line "власне ім'я та прізвище", as the given name and the surname in capitals
-  ("Іван ІВАНЕНКО", the name's first two words swapped). Lines 07 and 09 are
+  ("Іван ІВАНЕНКО", the name's first two words swapped; a single word is taken for the surname and capitalised). Lines 07 and 09 are
   written only when nonzero; line 21 only with annex 1, below; every other line is left out;
 - the name, per standard No. 729: C_REG and C_RAJ (two digits each), the TIN padded to 10, F01, 033,
   C_DOC_VER as two digits, C_DOC_STAN, C_DOC_TYPE as two digits, C_DOC_CNT as seven, PERIOD_TYPE,

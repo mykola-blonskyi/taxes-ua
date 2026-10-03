@@ -40,7 +40,7 @@ function toFormState(details: DeclarationDetailsResponse): FormState {
     address: details.address,
     fullName: details.fullName,
     phone: details.phone,
-    reportEmail: details.reportEmail || (details.confirmedEmail ?? ""),
+    reportEmail: details.reportEmail,
   };
 }
 
@@ -67,7 +67,7 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
   const failure = save.error instanceof ApiError ? save.error : null;
   const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
   const missing = details.missingDetails;
-  const emailPrefilled = details.reportEmail === "" && details.confirmedEmail !== null && form.reportEmail === details.confirmedEmail;
+  const suggestedEmail = form.reportEmail === "" ? details.confirmedEmail : null;
   const sentKved = form.kvedCodes.flatMap((code, index) => (code.trim() === "" ? [] : [index]));
 
   function fieldErrors(key: string): string[] | undefined {
@@ -257,13 +257,22 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
         <TextField
           id="declaration-report-email"
           label={tDeclaration("reportEmail")}
-          hint={emailPrefilled ? tDeclaration("reportEmailPrefilled") : tDeclaration("reportEmailHint")}
+          hint={tDeclaration("reportEmailHint")}
           type="email"
           autoComplete="email"
           value={form.reportEmail}
           onChange={(reportEmail) => setForm((current) => ({ ...current, reportEmail }))}
           errors={fieldErrors("reportEmail")}
         />
+        {suggestedEmail ? (
+          <button
+            type="button"
+            className="self-start break-all text-left text-sm font-medium text-primary underline-offset-4 hover:underline"
+            onClick={() => setForm((current) => ({ ...current, reportEmail: suggestedEmail }))}
+          >
+            {tDeclaration("reportEmailSuggest", { email: suggestedEmail })}
+          </button>
+        ) : null}
       </fieldset>
 
       {failure && !rejected ? (

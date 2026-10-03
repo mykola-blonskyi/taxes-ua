@@ -21,7 +21,7 @@ const details = {
 };
 
 describe("DeclarationDetailsForm contacts", () => {
-  it("offers the confirmed notification address while no report email is stored, and saves the three fields", async () => {
+  it("leaves the report email empty, offers the notification address in one click, and saves the three fields", async () => {
     const api = stubFetch({
       [read]: { ...details, confirmedEmail: "fop@example.com" },
       [write]: { ...details, fullName: "Тестенко Тест Тестович", phone: "+380501234567", reportEmail: "fop@example.com" },
@@ -29,9 +29,11 @@ describe("DeclarationDetailsForm contacts", () => {
     const { user } = renderApp(<DeclarationDetailsForm />);
 
     const email = await screen.findByLabelText("Пошта для звітності");
-    expect(email).toHaveValue("fop@example.com");
+    expect(email).toHaveValue("");
     expect(email).toHaveAttribute("type", "email");
-    expect(screen.getByText(/Підставлено адресу для сповіщень/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Взяти адресу для сповіщень: fop@example.com" }));
+    expect(email).toHaveValue("fop@example.com");
+    expect(screen.queryByRole("button", { name: /Взяти адресу для сповіщень/ })).not.toBeInTheDocument();
     const phone = screen.getByLabelText("Телефон");
     expect(phone).toHaveAttribute("type", "tel");
     expect(phone).toHaveAttribute("autocomplete", "tel");
@@ -60,6 +62,7 @@ describe("DeclarationDetailsForm contacts", () => {
     const email = await screen.findByLabelText("Пошта для звітності");
     expect(email).toHaveValue("reports@example.com");
     expect(screen.getByText("Друкується в шапці декларації.")).toBeVisible();
+    expect(screen.queryByRole("button", { name: /Взяти адресу для сповіщень/ })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Телефон")).toHaveValue("+380501234567");
     expect(screen.getByLabelText("Повне ім’я для декларації")).toHaveValue("Тестенко Тест Тестович");
   });
@@ -69,6 +72,7 @@ describe("DeclarationDetailsForm contacts", () => {
     renderApp(<DeclarationDetailsForm />);
 
     expect(await screen.findByLabelText("Пошта для звітності")).toHaveValue("");
+    expect(screen.queryByRole("button", { name: /Взяти адресу для сповіщень/ })).not.toBeInTheDocument();
   });
 
   it("words a rejected phone by its code and ties the message to the input", async () => {

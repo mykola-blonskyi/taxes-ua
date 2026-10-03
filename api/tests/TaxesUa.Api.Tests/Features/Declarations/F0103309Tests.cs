@@ -351,10 +351,19 @@ public sealed partial class F0103309Tests
     }
 
     [Theory]
+    [InlineData("63.99", "Надання інших інформаційних послуг, н.в.і.у.")]
+    [InlineData("74.90", "Інша професійна, наукова та технічна діяльність, н.в.і.у.")]
+    [InlineData("82.99", "Надання інших допоміжних комерційних послуг, н.в.і.у.")]
+    [InlineData("85.59", "Інші види освіти, н.в.і.у.")]
+    [InlineData("62.01", "Комп'ютерне програмування")]
+    public void A_KVED_name_is_written_as_the_classifier_spells_it(string code, string name) =>
+        Assert.Equal(name, Kved.Name(code));
+
+    [Theory]
     [InlineData("Іваненко Іван Іванович", "Іван ІВАНЕНКО")]
     [InlineData("Іваненко Іван", "Іван ІВАНЕНКО")]
     [InlineData("Мар'яненко-Їжак Єва Ґалиївна", "Єва МАР'ЯНЕНКО-ЇЖАК")]
-    [InlineData("Іваненко", "Іваненко")]
+    [InlineData("Іваненко", "ІВАНЕНКО")]
     public void The_signature_is_the_given_name_and_the_surname_in_capitals(string name, string expected) =>
         Assert.Equal(expected, DpsXml.Signature(name));
 

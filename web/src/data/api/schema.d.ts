@@ -5709,6 +5709,7 @@ export interface components {
             outsideGroup3: boolean;
             beforeGroup3: boolean;
             group3Confirmed: boolean;
+            fullNameSet: boolean;
             unpaid: components["schemas"]["UnpaidResponse"];
             ready: boolean;
         };

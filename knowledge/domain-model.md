@@ -111,7 +111,7 @@ first the main activity); `Address` (as in the register, at most 500 characters)
 given name and patronymic as in the registration documents, at most 200 characters, HNAME; empty means
 the invoicing name); `Phone` (HTEL, stored as `+380` and nine digits, typed with spaces, brackets or dashes,
 or from `0XXXXXXXXX`; empty leaves it out); `ReportEmail` (HEMAIL, empty leaves it out; its own setting,
-which the form only offers to fill from the confirmed email channel). The RNOKPP and the invoicing name
+which stays empty until saved; the form offers the confirmed email channel's address as a one-click suggestion). The RNOKPP and the invoicing name
 are not stored here: they are `InvoicingDetails.SellerNameUk` and `Rnokpp`, and `GET
 /api/settings/declaration` echoes them read-only, with the confirmed email channel's address as
 `ConfirmedEmail`. An incomplete set saves; completeness is a readiness

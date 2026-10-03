@@ -106,6 +106,17 @@ export function Readiness({ year, readiness }: { year: number; readiness: Declar
           </li>
         ))}
       </ul>
+      {readiness.fullNameSet || missing.includes("Name") ? null : (
+        <p className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
+          <span className="min-w-0 break-words">{t("fullNameUnset")}</span>
+          <Link
+            href="/settings?tab=declaration"
+            className="shrink-0 font-medium text-primary underline-offset-4 hover:underline"
+          >
+            {t("fullNameCta")}
+          </Link>
+        </p>
+      )}
       <Unpaid unpaid={readiness.unpaid} />
     </section>
   );

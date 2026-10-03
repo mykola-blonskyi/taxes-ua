@@ -75,13 +75,13 @@ internal static partial class DpsXml
     /// <summary>
     /// HBOS, which the form captions "власне ім'я та прізвище": the given name, then the surname in
     /// capitals, as DPS forms sign. <paramref name="name"/> is surname first, so its first two words are
-    /// swapped; a single word is printed as it is.
+    /// swapped; a single word is taken for the surname.
     /// </summary>
     public static string Signature(string name)
     {
         var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return words.Length < 2
-            ? name
+            ? name.ToUpper(Ukrainian)
             : $"{words[1]} {words[0].ToUpper(Ukrainian)}";
     }
 

@@ -42,6 +42,7 @@ internal static class DeclarationReadiness
             outsideGroup3,
             beforeGroup3,
             group3Confirmed,
+            !string.IsNullOrEmpty(details?.FullName),
             new UnpaidResponse(
                 Remaining(ledger?.SingleTax),
                 Remaining(ledger?.MilitaryLevy),
@@ -61,6 +62,8 @@ internal static class DeclarationReadiness
 /// ends before group 3 starts, which is on the general system (<c>BeforeGroup3</c>, Tax Code 298.1.4).
 /// The crossing quarter itself does not block: its 15% lines are filled. <c>Group3Confirmed</c> false
 /// is a warning only: the DPS may not have the group 3 record yet, but the declaration is still due.
+/// <c>FullNameSet</c> false is a warning too: the form prints the invoicing name, which may lack the
+/// patronymic the registration documents carry.
 /// <c>ReceiptsToReview</c> counts the year's imports through the quarter's end;
 /// <c>PendingPaymentCandidates</c> counts the pending ones whose payment date in Kyiv falls in the
 /// quarter.
@@ -74,6 +77,7 @@ internal sealed record DeclarationReadinessResponse(
     bool OutsideGroup3,
     bool BeforeGroup3,
     bool Group3Confirmed,
+    bool FullNameSet,
     UnpaidResponse Unpaid,
     bool Ready);
 

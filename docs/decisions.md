@@ -794,7 +794,7 @@ Date: 2026-09-30
 
 Status: Accepted
 
-(ADR-025 assumed the Cabinet had no XML import. Its amendment of 2026-10-03 corrects that: the owner imports the two files in the Cabinet with "Завантажити", as below.)
+(ADR-025 assumed the Cabinet had no XML import. Its amendment of 2026-10-03 corrects that: the owner imports the declaration in the Cabinet with "Завантажити". Whether the Cabinet takes annex 1 as a second file of the same report is unverified; if it does not offer to, the owner fills annex 1 from the screen's list.)
 
 ### Context
 
@@ -1369,8 +1369,10 @@ form and the labels be corrected if they differ. Whether the Cabinet recalculate
 The premise above was wrong. The Cabinet's "Введення звітності" editor has a "Завантажити" button: the owner
 created the Q3 2026 group 3 declaration by importing the file this app generated, and found four header
 gaps only after the import. The main path is the file again: "Введення звітності" → "Створити" (or open a
-draft) → "Завантажити" → pick the XML (and annex 1 beside it) → check → sign → send. The screen leads with
-it, for the Cabinet and for M.E.Doc alike.
+draft) → "Завантажити" → pick the XML → check → sign → send. The screen leads with it, for the Cabinet and
+for M.E.Doc alike. Unverified: whether the Cabinet takes annex 1 as a second file of the same report. The
+screen says to load it the same way if the Cabinet offers to add the file, and otherwise to fill annex 1
+from the list.
 
 The field list stays, for two jobs: a cross-check of what the Cabinet shows after the import, and the way to
 type the form in if an import fails. Since the imported file is what the owner signs, the gaps that matter
