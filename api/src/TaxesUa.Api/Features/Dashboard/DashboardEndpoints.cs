@@ -8,6 +8,7 @@ using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
+using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Engine;
 using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
@@ -38,6 +39,7 @@ public static class DashboardEndpoints
                 var overdueInvoices = await InvoicePayments.CountOverdueAsync(database, user.Id, today, cancellationToken);
                 var loaded = await YearAccruals.LoadAsync(database, user.Id, today.Year, cancellationToken);
                 var declaration = await DeclarationDueAsync(database, user.Id, today, cancellationToken);
+                var newTaxYear = await NewTaxYearCheck.LoadAsync(database, today, cancellationToken);
 
                 var sync = await SyncHealthCheck.LoadAsync(database, user.Id, time.GetUtcNow(), cancellationToken) is { } health
                     ? new SyncHealthResponse(health.State, health.LastSyncedAt)
@@ -69,7 +71,8 @@ public static class DashboardEndpoints
                         declaration,
                         overdueInvoices,
                         group3,
-                        sync));
+                        sync,
+                        newTaxYear));
                 }
 
                 var settings = loaded.Viewed.Settings.ToEngineInput();
@@ -107,7 +110,8 @@ public static class DashboardEndpoints
                     declaration,
                     overdueInvoices,
                     group3,
-                    sync));
+                    sync,
+                    newTaxYear));
             })
             .WithTags("Dashboard")
             .RequireAuthorization()
@@ -280,7 +284,8 @@ internal sealed record DashboardResponse(
     DeclarationDueResponse? Declaration,
     int OverdueInvoiceCount,
     Group3StatusResponse Group3,
-    SyncHealthResponse? Sync);
+    SyncHealthResponse? Sync,
+    NewTaxYearStatus? NewTaxYear);
 
 /// <summary>
 /// <c>LastSyncedAt</c> is the end of the oldest statement window a followed account has caught up to, null

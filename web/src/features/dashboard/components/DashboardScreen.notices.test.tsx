@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DashboardResponse } from "@/data/dashboard/useDashboard";
-import { renderApp, reply, screen, stubFetch } from "@/test/harness";
+import { renderApp, reply, screen, stubFetch, within } from "@/test/harness";
 import { DashboardScreen } from "./DashboardScreen";
 import { activeNotices, mostSevere, noticePriority } from "./notices";
 
@@ -124,7 +124,7 @@ describe.each(locales)("Dashboard notices in $locale", ({ locale, banner, overdu
 describe("Dashboard notice priority", () => {
   const withNotices = (patch: object) => asData({ ...quiet, ...patch });
 
-  it("ranks by consequence: broken sync, limit crossing, group 3, declaration, stale sync, review, overdue invoices", () => {
+  it("ranks by consequence: broken sync, limit crossing, group 3, declaration, new tax year, stale sync, review, overdue invoices", () => {
     const stale = { ...everything, sync: { state: "Stale", lastSyncedAt: "2026-09-28T00:05:00Z" } };
 
     expect(activeNotices(asData(everything))).toEqual([
@@ -148,10 +148,32 @@ describe("Dashboard notice priority", () => {
       "limitCrossing",
       "group3",
       "declaration",
+      "newTaxYear",
       "syncStale",
       "review",
       "overdueInvoices",
     ]);
+  });
+
+  it("ranks the new tax year under a declaration and over a stale sync, and never promotes it", () => {
+    const newTaxYear = { year: 2027, state: "Missing" };
+    const stale = { ...everything, sync: { state: "Stale", lastSyncedAt: "2026-09-28T00:05:00Z" }, newTaxYear };
+
+    expect(activeNotices(asData(stale))).toEqual([
+      "limitCrossing",
+      "group3",
+      "declaration",
+      "newTaxYear",
+      "syncStale",
+      "review",
+      "overdueInvoices",
+    ]);
+    expect(activeNotices(withNotices({ newTaxYear, declaration: everything.declaration }))).toEqual([
+      "declaration",
+      "newTaxYear",
+    ]);
+    expect(activeNotices(withNotices({ newTaxYear, needsReviewCount: 2 }))).toEqual(["newTaxYear", "review"]);
+    expect(mostSevere(["newTaxYear", "review"])).toBe("warning");
   });
 
   it("puts an unreadable token with the rejected one, and a client's overdue invoice last", () => {
@@ -247,5 +269,59 @@ describe("DashboardScreen load failure", () => {
     await screen.findByText(/17/);
     expect(calls).toBe(2);
     expect(screen.queryByText(text)).not.toBeInTheDocument();
+  });
+});
+
+const newYear = {
+  uk: {
+    title: "Новий податковий рік 2027",
+    missing: /Параметри 2027 року ще не задано\./,
+    unconfirmed: /Параметри 2027 року ще не підтверджено\./,
+    cta: "Відкрити податкові роки",
+  },
+  ru: {
+    title: "Новый налоговый год 2027",
+    missing: /Параметры 2027 года ещё не заданы\./,
+    unconfirmed: /Параметры 2027 года ещё не подтверждены\./,
+    cta: "Открыть налоговые годы",
+  },
+} as const;
+
+describe.each(["uk", "ru"] as const)("Dashboard new tax year notice in %s", (locale) => {
+  const words = newYear[locale];
+
+  it("is the banner above the hero when nothing outranks it, and opens the tax years tab", async () => {
+    stubFetch({ "GET /api/dashboard": { ...quiet, newTaxYear: { year: 2027, state: "Missing" } } });
+    renderApp(<DashboardScreen />, { locale });
+
+    const title = await screen.findByRole("heading", { name: words.title });
+    const notice = title.closest("section")!;
+
+    expect(before(title, hero())).toBe(true);
+    expect(notice).toHaveTextContent(words.missing);
+    expect(within(notice).getByRole("link", { name: words.cta })).toHaveAttribute("href", "/settings?tab=taxYears");
+    expect(document.querySelector("details")).toBeNull();
+  });
+
+  it("says the year is unconfirmed when a copy exists", async () => {
+    stubFetch({ "GET /api/dashboard": { ...quiet, newTaxYear: { year: 2027, state: "Unconfirmed" } } });
+    renderApp(<DashboardScreen />, { locale });
+
+    const title = await screen.findByRole("heading", { name: words.title });
+
+    expect(title.closest("section")).toHaveTextContent(words.unconfirmed);
+  });
+
+  it("folds under the hero and names itself in the summary when a declaration is the banner", async () => {
+    stubFetch({
+      "GET /api/dashboard": { ...quiet, declaration: everything.declaration, newTaxYear: { year: 2027, state: "Missing" } },
+    });
+    renderApp(<DashboardScreen />, { locale });
+
+    await screen.findByText(/17/);
+    const folded = document.querySelector("details")!;
+
+    expect(folded.querySelector("summary")).toHaveTextContent(words.title);
+    expect(before(hero(), folded)).toBe(true);
   });
 });

@@ -11,15 +11,18 @@ internal enum IncidentKind
     SyncStale,
     TokenRejected,
     TokenUnreadable,
+    NewTaxYear,
+    MissingTaxYear,
     RestoreCheckFailed,
 }
 
 /// <summary>
 /// Something wrong that stays wrong until fixed. <c>Key</c> names this occurrence: it is claimed per
 /// channel in <see cref="SentReminder"/> so it is alerted once, and a later occurrence of the same kind
-/// has another key. <c>Since</c> is the instant the text mentions, when the source has one.
+/// has another key. <c>Since</c> is the instant the text mentions, when the source has one; <c>Year</c>
+/// is the tax year it is about, when it is about one.
 /// </summary>
-internal sealed record Incident(string Key, IncidentKind Kind, DateTimeOffset? Since);
+internal sealed record Incident(string Key, IncidentKind Kind, DateTimeOffset? Since, int? Year = null);
 
 /// <summary>
 /// A place incidents come from. The sender asks each source for what is open for an owner right now; a

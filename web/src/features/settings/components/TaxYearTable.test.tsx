@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TaxYearConfigResponse } from "@/data/tax-years/useTaxYears";
-import { renderApp, screen, stubFetch, within } from "@/test/harness";
+import { renderApp, reply, screen, stubFetch, useFakeTimers, within } from "@/test/harness";
 import { TaxYearTable } from "./TaxYearTable";
 
 const list = "GET /api/tax-years" as const;
@@ -165,5 +165,97 @@ describe("TaxYearTable verified year", () => {
 
     const row = (await screen.findByLabelText("Джерело 2025")).closest("tr")!;
     expect(within(row).getByRole("button", { name: "Позначити перевіреним" })).toBeDisabled();
+  });
+});
+
+const offer = {
+  uk: {
+    text: /Параметри 2027 року ще не задано\. Клонуйте 2026 рік/,
+    clone: "Клонувати 2026 у 2027",
+  },
+  ru: {
+    text: /Параметры 2027 года ещё не заданы\. Клонируйте 2026 год/,
+    clone: "Клонировать 2026 в 2027",
+  },
+} as const;
+
+describe.each(["uk", "ru"] as const)("TaxYearTable offer of the coming year in %s", (locale) => {
+  const words = offer[locale];
+
+  beforeEach(() => {
+    useFakeTimers(["Date"]);
+    vi.setSystemTime(new Date("2026-12-05T10:00:00Z"));
+  });
+
+  it("offers to clone this year into the next when the next has no parameters", async () => {
+    const api = stubFetch({ [list]: [year2026], [clone]: year2026 });
+    const { user } = renderApp(<TaxYearTable />, { locale });
+
+    expect(await screen.findByText(words.text)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: words.clone }));
+
+    expect(api.requestsTo(clone)[0].path).toBe("/api/tax-years/2026/clone-to/2027");
+  });
+
+  it("offers nothing once the next year has its row", async () => {
+    stubFetch({ [list]: [year2026, { ...year2026, year: 2027 }] });
+    renderApp(<TaxYearTable />, { locale });
+
+    await screen.findByLabelText(/2027/, { selector: "#min-wage-2027" });
+    expect(screen.queryByText(words.text)).not.toBeInTheDocument();
+  });
+
+  it("offers nothing before December while the current year is configured", async () => {
+    vi.setSystemTime(new Date("2026-11-30T10:00:00Z"));
+    stubFetch({ [list]: [year2026] });
+    renderApp(<TaxYearTable />, { locale });
+
+    await screen.findByLabelText(/2026/, { selector: "#min-wage-2026" });
+    expect(screen.queryByText(words.text)).not.toBeInTheDocument();
+  });
+
+  it("reads December and the year in Kyiv, not in the browser's zone", async () => {
+    vi.setSystemTime(new Date("2026-11-30T22:30:00Z"));
+    stubFetch({ [list]: [year2026] });
+    renderApp(<TaxYearTable />, { locale });
+
+    expect(await screen.findByText(words.text)).toBeVisible();
+  });
+
+  it("on the first of January with the new year missing offers to clone the latest year into it", async () => {
+    vi.setSystemTime(new Date("2026-12-31T22:30:00Z"));
+    const api = stubFetch({ [list]: [year2026], [clone]: year2026 });
+    const { user } = renderApp(<TaxYearTable />, { locale });
+
+    await user.click(await screen.findByRole("button", { name: words.clone }));
+
+    expect(api.requestsTo(clone)[0].path).toBe("/api/tax-years/2026/clone-to/2027");
+  });
+
+  it("on the first of January offers the gap year first when two years are missing", async () => {
+    vi.setSystemTime(new Date("2028-01-01T10:00:00Z"));
+    stubFetch({ [list]: [year2026] });
+    renderApp(<TaxYearTable />, { locale });
+
+    expect(await screen.findByText(words.text)).toBeVisible();
+  });
+
+  it("offers nothing when the latest year is already past next year", async () => {
+    vi.setSystemTime(new Date("2026-12-05T10:00:00Z"));
+    stubFetch({ [list]: [{ ...year2026, year: 2027 }, year2026] });
+    renderApp(<TaxYearTable />, { locale });
+
+    await screen.findByLabelText(/2027/, { selector: "#min-wage-2027" });
+    expect(screen.queryByText(words.text)).not.toBeInTheDocument();
+  });
+
+  it("words a refused clone and keeps the offer", async () => {
+    stubFetch({ [list]: [year2026], [clone]: reply(409, { code: "tax_year_already_exists", title: "Exists" }) });
+    const { user } = renderApp(<TaxYearTable />, { locale });
+
+    await user.click(await screen.findByRole("button", { name: words.clone }));
+
+    await screen.findByText(/./, { selector: "p.text-destructive" });
+    expect(screen.getByRole("button", { name: words.clone })).toBeEnabled();
   });
 });

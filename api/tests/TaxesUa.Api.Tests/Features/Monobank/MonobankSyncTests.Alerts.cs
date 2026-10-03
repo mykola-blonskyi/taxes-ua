@@ -4,7 +4,9 @@ using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using TaxesUa.Api.Features.TaxYears;
 using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
@@ -432,8 +434,22 @@ public sealed partial class MonobankSyncTests
         return new SyncApp(factory, clock, handler);
     }
 
+    // A current year without parameters is an incident of its own (Rule 9), which these tests are not about.
+    private static async Task EnsureTaxYear(SyncApp app, HttpClient owner)
+    {
+        var year = app.Clock.GetUtcNow().KyivDate().Year;
+        if ((await owner.GetAsync($"/api/tax-years/{year}")).IsSuccessStatusCode)
+        {
+            return;
+        }
+
+        var parameters = new TaxYearConfigRequest(800_000, 500, 100, 2_200, 1_500, 1_000, [85], 19, 40, 10, 15, 10, [], "a test source");
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync($"/api/tax-years/{year}", parameters, Json)).StatusCode);
+    }
+
     private async Task LinkTelegram(SyncApp app, HttpClient owner, StubTelegramHandler telegram)
     {
+        await EnsureTaxYear(app, owner);
         await TelegramSteps.ForgetPollOffset(app.Factory);
         var next = telegram.Updates.Count == 0 ? 10 : telegram.Updates.Max(update => update["update_id"]!.GetValue<long>()) + 1;
         telegram.Updates.Add(StubTelegramHandler.Update(next, _chat, $"/start {TelegramSteps.CodeOf(await TelegramSteps.Connect(owner))}"));
@@ -449,7 +465,9 @@ public sealed partial class MonobankSyncTests
         [
             .. telegram.To("sendMessage")
                 .Where(call => call.Body["chat_id"]!.GetValue<string>() == _chat.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .Select(call => call.Body["text"]!.GetValue<string>()),
+                .Select(call => call.Body["text"]!.GetValue<string>())
+                // The tax year the owner needs (see EnsureTaxYear) also brings deadline reminders; only alerts count here.
+                .Where(text => !text.StartsWith("Податки:", StringComparison.Ordinal)),
         ];
 
     private static async Task<JsonObject?> Health(HttpClient owner) =>

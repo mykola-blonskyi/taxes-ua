@@ -13,6 +13,7 @@ import {
   type TaxYearConfigRequest,
   type TaxYearConfigResponse,
 } from "@/data/tax-years/useTaxYears";
+import { todayInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
 import { LoadState } from "@/data/api/LoadState";
 import { MoneyField, NumberField, RateField, ReadOnlyMoneyField, TextField } from "@/shared/ui/fields";
@@ -92,6 +93,56 @@ export function TaxYearTable() {
   if (data.length === 0) {
     return <p className="text-sm text-muted-foreground">{tYears("empty")}</p>;
   }
+
+  return (
+    <div className="flex min-w-0 flex-col gap-4">
+      <NewYearOffer taxYears={data} />
+      <TaxYearRows taxYears={data} />
+    </div>
+  );
+}
+
+// The next year is due and has no parameters: offer to clone the latest configured year into it, at the top,
+// where the owner lands from the dashboard notice and the channel alert. It is due in December (Kyiv), or
+// when the current Kyiv year itself has no row (the rollover); earlier than that an unverified copy would
+// nag for months and extend the ledger (Rule 9).
+function NewYearOffer({ taxYears }: { taxYears: TaxYearConfigResponse[] }) {
+  const t = useTranslations("settings");
+  const tYears = useTranslations("settings.taxYears");
+  const apiText = useApiErrorText();
+  const cloneTaxYear = useCloneTaxYear();
+  const today = todayInKyiv();
+  const current = Number(today.slice(0, 4));
+  const years = taxYears.map((taxYear) => Number(taxYear.year));
+  const year = Math.max(...years);
+  const next = year + 1;
+  const due = today.slice(5, 7) === "12" || !years.includes(current);
+
+  if (!due || next > current + 1) {
+    return null;
+  }
+
+  const failure = cloneTaxYear.error instanceof ApiError ? cloneTaxYear.error : null;
+
+  return (
+    <section className="flex min-w-0 flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-4 text-sm">
+      <p className="break-words">{tYears("offer.text", { year, next })}</p>
+      <Button
+        type="button"
+        size="sm"
+        className="w-fit"
+        disabled={cloneTaxYear.isPending}
+        onClick={() => cloneTaxYear.mutate({ year, next })}
+      >
+        {cloneTaxYear.isPending ? tYears("cloning") : tYears("offer.clone", { year, next })}
+      </Button>
+      {failure ? <p className="text-xs text-destructive">{apiText.withReason(t("saveFailed"), failure)}</p> : null}
+    </section>
+  );
+}
+
+function TaxYearRows({ taxYears: data }: { taxYears: TaxYearConfigResponse[] }) {
+  const tYears = useTranslations("settings.taxYears");
 
   return (
     // `relative` makes this the containing block of the fields' sr-only labels. They are absolutely
