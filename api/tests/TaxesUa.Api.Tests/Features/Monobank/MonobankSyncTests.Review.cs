@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Clients;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Settings;

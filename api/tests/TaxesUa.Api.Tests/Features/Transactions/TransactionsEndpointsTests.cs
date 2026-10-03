@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Clients;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Transactions;
 using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;

@@ -1,4 +1,4 @@
-namespace TaxesUa.Api.Features.Declarations;
+namespace TaxesUa.Api.Features.Settings;
 
 /// <summary>
 /// The classes of КВЕД ДК 009:2010 and their official names as Держстат publishes them, so the

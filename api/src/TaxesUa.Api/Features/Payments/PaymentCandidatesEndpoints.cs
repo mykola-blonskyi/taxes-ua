@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
-using TaxesUa.Api.Features.Monobank;
+using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Engine;
 

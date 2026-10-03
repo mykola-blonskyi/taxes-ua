@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TaxesUa.Api.Features.Auth;
-using TaxesUa.Api.Features.Declarations;
 
 namespace TaxesUa.Api.Features.Settings;
 

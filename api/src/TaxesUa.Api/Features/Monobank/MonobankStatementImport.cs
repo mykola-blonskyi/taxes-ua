@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Transactions;

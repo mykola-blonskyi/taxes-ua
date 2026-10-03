@@ -5,7 +5,6 @@ using Microsoft.Net.Http.Headers;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
-using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.Transactions;
 

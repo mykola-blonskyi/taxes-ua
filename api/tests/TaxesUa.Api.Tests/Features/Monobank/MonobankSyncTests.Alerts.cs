@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.TaxYears;
 using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Data;

@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using TaxesUa.Engine;
 
-namespace TaxesUa.Api.Features.Monobank;
+namespace TaxesUa.Api.Features.Banking;
 
 /// <summary>
 /// Recognises a payment to the State Treasury and suggests its kind (Rule 12). The kind is not in the

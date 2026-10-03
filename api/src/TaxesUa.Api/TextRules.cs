@@ -1,10 +1,14 @@
+using System.Text.RegularExpressions;
+using MimeKit;
+
 namespace TaxesUa.Api;
 
 /// <summary>
 /// The one place every free-text field is checked for characters that have no legitimate place in
-/// one, so a request and a restored backup enforce the same rule instead of each reimplementing it.
+/// one, and an email address for its form, so a request and a restored backup enforce the same rule
+/// instead of each reimplementing it.
 /// </summary>
-internal static class TextRules
+internal static partial class TextRules
 {
     /// <summary>
     /// True if <paramref name="value"/> contains a NUL or another disallowed control character (C0,
@@ -29,4 +33,23 @@ internal static class TextRules
 
         return false;
     }
+
+    // A mailbox that is only an address: no name, no angle brackets, no list, no control characters.
+    public static bool TryNormalizeEmail(string? input, out string address)
+    {
+        address = string.Empty;
+        var trimmed = input?.Trim() ?? string.Empty;
+        if (trimmed.Length is 0 or > 254 || !PlainAddress().IsMatch(trimmed) || !MailboxAddress.TryParse(trimmed, out var parsed)
+            || parsed is not { } mailbox || mailbox.Address != trimmed)
+        {
+            return false;
+        }
+
+        address = trimmed;
+
+        return true;
+    }
+
+    [GeneratedRegex(@"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$")]
+    private static partial Regex PlainAddress();
 }

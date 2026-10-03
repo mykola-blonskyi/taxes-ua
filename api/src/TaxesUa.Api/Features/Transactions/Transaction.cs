@@ -1,6 +1,5 @@
+using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Fx;
-using TaxesUa.Api.Features.Invoices;
-using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Features.Transactions;
@@ -42,8 +41,6 @@ internal sealed class Transaction
     // Set only by linking the receipt to one of the owner's issued invoices, which also writes the
     // invoice's number into InvoiceNumber (Rule 14).
     public Guid? InvoiceId { get; set; }
-
-    public Invoice? Invoice { get; set; }
 
     public string? InvoiceNumber { get; set; }
 

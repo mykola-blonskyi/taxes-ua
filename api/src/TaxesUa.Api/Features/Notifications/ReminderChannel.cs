@@ -1,3 +1,6 @@
+using TaxesUa.Api.Features.Settings;
+
+
 namespace TaxesUa.Api.Features.Notifications;
 
 /// <summary>The reminder as a channel sends it. <c>Subject</c> is the first line of <c>Text</c>.</summary>

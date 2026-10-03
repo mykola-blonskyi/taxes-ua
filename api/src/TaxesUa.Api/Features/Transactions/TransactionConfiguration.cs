@@ -33,12 +33,6 @@ internal sealed class TransactionConfiguration : IEntityTypeConfiguration<Transa
             .HasForeignKey(transaction => transaction.RefundsTransactionId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // An invoice with a receipt linked is issued, and an issued invoice is never deleted.
-        builder.HasOne(transaction => transaction.Invoice)
-            .WithMany()
-            .HasForeignKey(transaction => transaction.InvoiceId)
-            .OnDelete(DeleteBehavior.Restrict);
-
         builder.HasOne(transaction => transaction.BankAccount)
             .WithMany()
             .HasForeignKey(transaction => transaction.BankAccountId)

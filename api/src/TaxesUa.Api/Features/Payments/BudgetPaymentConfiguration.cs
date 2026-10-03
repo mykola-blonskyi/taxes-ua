@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TaxesUa.Api.Features.Auth;
-using TaxesUa.Api.Features.Monobank;
+using TaxesUa.Api.Features.Banking;
 
 namespace TaxesUa.Api.Features.Payments;
 

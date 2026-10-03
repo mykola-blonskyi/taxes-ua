@@ -2,10 +2,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
-using TaxesUa.Api.Features.Periods;
+using TaxesUa.Api.Features.Payments;
 using TaxesUa.Engine;
 
-namespace TaxesUa.Api.Features.Payments;
+namespace TaxesUa.Api.Features.Periods;
 
 public static class PaymentDetailsEndpoints
 {

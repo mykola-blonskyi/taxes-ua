@@ -3,7 +3,7 @@
 // Rerun the script instead of editing this file.
 // </auto-generated>
 
-namespace TaxesUa.Api.Features.Declarations;
+namespace TaxesUa.Api.Features.Settings;
 
 internal static partial class Kved
 {

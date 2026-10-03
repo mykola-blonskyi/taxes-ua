@@ -11,6 +11,7 @@ using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Notifications;
 using static TaxesUa.Api.Tests.Features.Notifications.TelegramSteps;
+using TaxesUa.Api.Features.Settings;
 
 namespace TaxesUa.Api.Tests.Features.Notifications;
 

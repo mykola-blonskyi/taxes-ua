@@ -4,8 +4,9 @@ using Npgsql;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Transactions;
 
-namespace TaxesUa.Api.Features.Transactions;
+namespace TaxesUa.Api.Features.Clients;
 
 public static class ClientsEndpoints
 {

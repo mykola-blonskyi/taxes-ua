@@ -1,6 +1,6 @@
 using TaxesUa.Api.Data;
 
-namespace TaxesUa.Api.Features.Notifications;
+namespace TaxesUa.Api;
 
 /// <summary>
 /// What an alert is about. A new kind (a failed backup, an expired Treasury account) is a member here,

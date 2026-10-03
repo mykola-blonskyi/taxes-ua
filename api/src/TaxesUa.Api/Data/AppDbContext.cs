@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Calendar;
 using TaxesUa.Api.Features.DatabaseBackups;
 using TaxesUa.Api.Features.Declarations;

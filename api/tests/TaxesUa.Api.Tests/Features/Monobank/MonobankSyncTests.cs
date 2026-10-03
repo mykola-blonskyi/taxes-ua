@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Features.Audit;
+using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Settings;

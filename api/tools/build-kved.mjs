@@ -5,7 +5,7 @@
 import { writeFile } from "node:fs/promises";
 
 const origin = "https://kved.ukrstat.gov.ua";
-const output = new URL("../src/TaxesUa.Api/Features/Declarations/KvedClasses.g.cs", import.meta.url);
+const output = new URL("../src/TaxesUa.Api/Features/Settings/KvedClasses.g.cs", import.meta.url);
 const decoder = new TextDecoder("windows-1251");
 
 async function page(path) {
@@ -86,7 +86,7 @@ await writeFile(
     "// Rerun the script instead of editing this file.",
     "// </auto-generated>",
     "",
-    "namespace TaxesUa.Api.Features.Declarations;",
+    "namespace TaxesUa.Api.Features.Settings;",
     "",
     "internal static partial class Kved",
     "{",

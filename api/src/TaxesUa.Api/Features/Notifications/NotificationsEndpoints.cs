@@ -167,7 +167,7 @@ public static class NotificationsEndpoints
                     return Results.Unauthorized();
                 }
 
-                if (!EmailTexts.TryNormalize(request.Address, out var address))
+                if (!TextRules.TryNormalizeEmail(request.Address, out var address))
                 {
                     return Problems.Validation(
                         "address", ProblemCodes.EmailInvalid, "Enter an email address such as name@example.com.");
