@@ -287,12 +287,14 @@ imports` in eslint.
 ## Deployment
 
 - Host: VPS `blonskyi-dev`, Ubuntu 24.04, 4 vCPU, 7.7 GB RAM, Docker 29, Coolify with Traefik v3.
-- Application: a Coolify Docker Compose resource built from the GitHub repository, services `web`
-  and `api`. The domain points at `web`. `api` is not published externally.
+- Application: a Coolify Docker Compose resource built from the GitHub repository, services `web`,
+  `api` and `backup`. The domain points at `web`. `api` and `backup` are not published externally.
 - Database: Coolify's `shared-database` PostgreSQL instance, already running on the VPS, is
   reused. The login role `taxes_ua_app` owns the database `taxes_ua`, the convention every
   project on that instance follows ([ADR-006](decisions.md)). Backups: Coolify's daily
-  instance-wide dump, kept on the VPS and in the owner's MinIO.
+  instance-wide dump, kept on the VPS and in the owner's MinIO, and the `backup` service's nightly
+  encrypted dump of `taxes_ua` alone to MinIO and an optional bucket off the VPS, with a weekly restore
+  check that alerts the owner when it fails ([ADR-031](decisions.md)).
 - Cron: hosted services inside `api`. No external scheduler is needed.
 - Secrets: Coolify environment variables. `.env.example` in the repository holds no values, and
   the api refuses to start outside Development while a required one is empty.

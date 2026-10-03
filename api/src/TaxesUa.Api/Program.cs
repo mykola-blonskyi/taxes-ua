@@ -12,6 +12,7 @@ using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Backup;
 using TaxesUa.Api.Features.Calendar;
 using TaxesUa.Api.Features.Dashboard;
+using TaxesUa.Api.Features.DatabaseBackups;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Export;
 using TaxesUa.Api.Features.Fx;
@@ -195,6 +196,7 @@ builder.Services.AddScoped<EmailDelivery>();
 builder.Services.AddScoped<IReminderChannel, EmailReminderChannel>();
 builder.Services.AddScoped<IIncidentSource, SyncIncidentSource>();
 builder.Services.AddScoped<IIncidentSource, NewTaxYearIncidentSource>();
+builder.Services.AddScoped<IIncidentSource, RestoreCheckIncidentSource>();
 builder.Services.AddSingleton<ReminderSender>();
 builder.Services.AddHostedService<ReminderWorker>();
 
