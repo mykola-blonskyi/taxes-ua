@@ -73,7 +73,7 @@ cd web && pnpm e2e e2e/layout.spec.ts
 Development seam, against seeded data so tables and cards hold rows. For each route, and for each tab
 of a route, it asserts that the page does not scroll sideways (`scrollWidth <= clientWidth`), that the
 disclaimer from `web/messages/<locale>.json` is in the rendered text, and that `html lang` is the locale.
-A failure names the route, the locale, the tab and the offending element. CI runs it in the `e2e` job.
+A failure names the route, the locale, the tab and the offending element. It also runs axe-core on each state (serious and critical violations fail) and measures every control against 44 px, because the context is a touch phone (`pointer: coarse`). CI runs it in the `e2e` job.
 
 It discovers routes by walking `web/src/app/**/page.tsx` and fails if
 `web/src/shared/constants/navigation.ts` links a route with no page, so a screen added by a later ticket

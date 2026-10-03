@@ -143,7 +143,7 @@ describe("PayPanel", () => {
 
       expect(onAmountChange).toHaveBeenLastCalledWith(null);
       expect(screen.getByText("Введіть суму більше нуля, наприклад 1234,56.")).toBeVisible();
-      expect(screen.getByText("Оновлюємо QR-код…")).toBeVisible();
+      expect(screen.getByText("Введіть суму, щоб отримати QR-код.")).toBeVisible();
       expect(screen.getByRole("button", { name: "Копіювати: Сума" })).toBeDisabled();
 
       await user.type(amount, "0");
@@ -163,7 +163,36 @@ describe("PayPanel", () => {
       renderApp(panel({ initialAmountKop: null, details: detailsFor({ qrContent: null, amountKop: null }) }));
 
       expect(screen.queryByText(/не вміщуються в формат QR-коду НБУ/)).not.toBeInTheDocument();
-      expect(screen.getByText("Введіть суму більше нуля, наприклад 1234,56.")).toBeVisible();
+      expect(screen.queryByText("Оновлюємо QR-код…")).not.toBeInTheDocument();
+    });
+
+    it.each([
+      ["uk", "Введіть суму, щоб отримати QR-код."],
+      ["ru", "Введите сумму, чтобы получить QR-код."],
+    ] as const)("asks for the amount, not an endless update, when none is entered, in %s", (locale, prompt) => {
+      renderApp(panel({ initialAmountKop: null, details: detailsFor({ qrContent: null, amountKop: null }) }), { locale });
+
+      expect(screen.getByText(prompt)).toBeVisible();
+    });
+
+    it.each([
+      ["uk", "Сума, ₴", "Введіть суму більше нуля, наприклад 1234,56."],
+      ["ru", "Сумма, ₴", "Введите сумму больше нуля, например 1234,56."],
+    ] as const)("shows no error on an empty amount the owner has not touched, in %s", async (locale, label, message) => {
+      const { user } = renderApp(panel({ initialAmountKop: null, details: detailsFor({ qrContent: null, amountKop: null }) }), {
+        locale,
+      });
+
+      const amount = screen.getByLabelText(label);
+      expect(screen.queryByText(message)).not.toBeInTheDocument();
+      expect(amount).not.toHaveAttribute("aria-invalid");
+
+      await user.click(amount);
+      await user.tab();
+
+      expect(screen.getByText(message)).toBeVisible();
+      expect(amount).toHaveAttribute("aria-invalid", "true");
+      expect(amount).toHaveAccessibleDescription(message);
     });
 
     it("says in Russian that the code is updating, not unavailable, while the request is pending", () => {

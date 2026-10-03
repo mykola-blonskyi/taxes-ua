@@ -52,7 +52,7 @@ export function TransactionsScreen() {
             <ChevronRight aria-hidden="true" />
           </Button>
         </div>
-        <Link href="/invoices" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+        <Link href="/invoices" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
           {t("invoicesLink")}
         </Link>
       </div>
@@ -77,7 +77,7 @@ export function TransactionsScreen() {
               <p className="text-sm text-muted-foreground">{t("registrationWarning.message")}</p>
               <Link
                 href="/settings"
-                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
               >
                 {t("registrationWarning.cta")}
               </Link>

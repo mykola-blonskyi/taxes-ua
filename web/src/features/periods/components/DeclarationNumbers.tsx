@@ -73,7 +73,7 @@ export function DeclarationNumbers({ year, quarters }: { year: number; quarters:
       rowHeader={(quarter) => (
         <Link
           href={declarationHref(year, Number(quarter.quarter))}
-          className="text-primary underline-offset-4 hover:underline"
+          className="text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
         >
           {declarationPeriodLabel(t, Number(quarter.quarter))}
         </Link>

@@ -7,7 +7,7 @@ export function ChannelStatusBadge({ on, children }: { on: boolean; children: Re
     <span
       className={
         on
-          ? "rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+          ? "rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"
           : "rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground"
       }
     >
