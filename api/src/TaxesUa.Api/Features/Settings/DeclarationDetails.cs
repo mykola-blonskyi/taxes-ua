@@ -42,8 +42,7 @@ internal sealed class DeclarationDetails
 
     /// <summary>
     /// What the declaration still lacks, in the order of the form's header. Saving an incomplete set
-    /// is allowed; completeness only decides the declaration's readiness (Rule 15). A stored KVED code the
-    /// classifier does not know counts as missing, so no declaration is built with an empty name.
+    /// is allowed; completeness only decides the declaration's readiness (Rule 15).
     /// </summary>
     public static DeclarationDetailField[] Missing(InvoicingDetails? invoicing, DeclarationDetails? details)
     {
@@ -63,7 +62,7 @@ internal sealed class DeclarationDetails
             missing.Add(DeclarationDetailField.TaxOffice);
         }
 
-        if (details is null || details.KvedCodes.Length == 0 || details.KvedCodes.Any(code => Kved.Name(code) is null))
+        if (details is null || details.KvedCodes.Length == 0)
         {
             missing.Add(DeclarationDetailField.Kved);
         }
@@ -75,6 +74,13 @@ internal sealed class DeclarationDetails
 
         return [.. missing];
     }
+
+    /// <summary>
+    /// The stored codes the classifier does not know, which only a restored backup can hold. They block the
+    /// declaration (Rule 15) so no file or Cabinet list is built with an empty class name.
+    /// </summary>
+    public static string[] UnknownKvedCodes(DeclarationDetails? details) =>
+        [.. details?.KvedCodes.Where(code => Kved.Name(code) is null) ?? []];
 }
 
 internal enum DeclarationDetailField

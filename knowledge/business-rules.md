@@ -807,7 +807,8 @@ The declaration is ready when nothing below blocks it. These block:
 - a missing detail: the name (the full name from the declaration details, or else the invoicing name)
   and RNOKPP (read from the invoicing details, never stored twice), the tax office (its region and
   district codes and its name), at least one KVED code that is a class of КВЕД ДК 009:2010 (the first is the main activity), and the address
-  as in the register. The phone and the email for reports are optional: the form's field 6 is left empty
+  as in the register. A stored KVED code outside the classifier is not a missing detail but its own blocking
+  item listing the codes (`UnknownKvedCodes`): saving refuses such a code, a backup restore keeps it. The phone and the email for reports are optional: the form's field 6 is left empty
   without them. An empty full name does not block either (the owner has not decided whether it should),
   but the readiness list warns that the declaration goes with the invoicing name, possibly without the
   patronymic, and links to the field;
@@ -861,8 +862,8 @@ ready quarter with figures the owner downloads the declaration as an F0103309 XM
   documents) or else the invoicing details' Ukrainian name, without a leading "ФОП", HLOC the address,
   HEMAIL and HTEL the email for reports and the phone (`+380` and nine digits) when set, HNACTL 0, the
   KVED codes in table 1 with their class names from КВЕД ДК 009:2010 (the checked-in table of all 615 classes,
-  built by `api/tools/build-kved.mjs` from Держстат; a stored code outside it counts as a missing KVED
-  detail, so no file is built with an empty name), the lines above with two decimals, and
+  built by `api/tools/build-kved.mjs` from Держстат; a stored code outside it, which only a restored backup
+  can hold, is a separate readiness item that blocks the declaration, so no file is built with an empty name), the lines above with two decimals, and
   HBOS, the signature line "власне ім'я та прізвище", as the given name and the surname in capitals
   ("Іван ІВАНЕНКО", the name's first two words swapped; a single word is taken for the surname and capitalised). Lines 07 and 09 are
   written only when nonzero; line 21 only with annex 1, below; every other line is left out;

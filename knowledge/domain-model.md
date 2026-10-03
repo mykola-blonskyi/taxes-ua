@@ -116,7 +116,9 @@ are not stored here: they are `InvoicingDetails.SellerNameUk` and `Rnokpp`, and 
 /api/settings/declaration` echoes them read-only, with the confirmed email channel's address as
 `ConfirmedEmail`. An incomplete set saves; completeness is a readiness
 item (`MissingDetails: Name | Rnokpp | TaxOffice | Kved | Address`; `TaxOffice` covers the codes and
-the name; a stored code the classifier does not know also reports `Kved`). `GET /api/settings/declaration/kved-classes`
+the name). A stored code the classifier does not know, which only a restored backup can hold, is its own
+readiness item (`UnknownKvedCodes`, also on `GET /api/settings/declaration`) and blocks the declaration; the
+backup restore accepts it, the settings form refuses to save it. `GET /api/settings/declaration/kved-classes`
 serves the classifier, code and Держстат's Ukrainian name, for the form to show the name under each code.
 
 Audited as `DeclarationDetails`. Relationships: belongs to `User`.

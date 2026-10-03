@@ -467,6 +467,32 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
         Assert.Equal((year, quarter), (entry?.Year, entry?.Quarter));
     }
 
+    [Fact]
+    public async Task A_stored_KVED_code_the_classifier_does_not_know_blocks_the_declaration_and_its_file()
+    {
+        const int year = 2086;
+        await using var application = At(new DateOnly(year, 4, 20));
+        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        await SetUp(owner, year);
+        await PostIncome(owner, new DateOnly(year, 1, 20), 12_345_678);
+        await using (var scope = fixture.CreateScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var row = await database.DeclarationDetails.SingleAsync(
+                details => database.Users.Any(user => user.Id == details.UserId && user.Email == ApiFixture.AllowedEmail));
+            row.KvedCodes = ["62.01", "12.34"];
+            await database.SaveChangesAsync();
+        }
+
+        var declaration = await Get(owner, year, 1);
+        var file = await owner.PostAsJsonAsync($"/api/declarations/{year}/1/files", new DeclarationFileRequest(DeclarationType.Reporting), Json);
+
+        Assert.Equal(["12.34"], declaration.Readiness.UnknownKvedCodes);
+        Assert.Empty(declaration.Readiness.MissingDetails);
+        Assert.False(declaration.Readiness.Ready);
+        Assert.Equal(HttpStatusCode.Conflict, file.StatusCode);
+    }
+
     private WebApplicationFactory<Program> At(DateOnly today) =>
         fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
             services.AddSingleton<TimeProvider>(

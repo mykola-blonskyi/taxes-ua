@@ -335,13 +335,16 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
     }
 
     [Fact]
-    public void A_stored_code_the_classifier_does_not_know_counts_as_a_missing_KVED()
+    public void A_stored_code_the_classifier_does_not_know_is_listed_apart_from_the_missing_details()
     {
         var known = new DeclarationDetails { KvedCodes = ["62.01"] };
-        var unknown = new DeclarationDetails { KvedCodes = ["62.01", "12.34"] };
+        var unknown = new DeclarationDetails { KvedCodes = ["62.01", "12.34", "99.99"] };
 
-        Assert.DoesNotContain(DeclarationDetailField.Kved, DeclarationDetails.Missing(null, known));
-        Assert.Contains(DeclarationDetailField.Kved, DeclarationDetails.Missing(null, unknown));
+        Assert.Empty(DeclarationDetails.UnknownKvedCodes(known));
+        Assert.Empty(DeclarationDetails.UnknownKvedCodes(null));
+        Assert.Equal(["12.34", "99.99"], DeclarationDetails.UnknownKvedCodes(unknown));
+        Assert.DoesNotContain(DeclarationDetailField.Kved, DeclarationDetails.Missing(null, unknown));
+        Assert.Contains(DeclarationDetailField.Kved, DeclarationDetails.Missing(null, new DeclarationDetails()));
     }
 
     private async Task<HttpClient> SignIn(string email)
