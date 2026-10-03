@@ -692,8 +692,8 @@ run time.
 ### Decision
 
 The app prepares the file and stops there. The owner checks it against the Declaration screen, signs it
-with a KEP and sends it. (Amended by ADR-025: the Cabinet has no XML import, so the file is for M.E.Doc and
-other software, and the owner enters the declaration in the Cabinet by hand.) The app holds no
+with a KEP and sends it. (ADR-025 assumed the Cabinet had no XML import; its amendment of 2026-10-03
+restores the import as the main path.) The app holds no
 key, no Cabinet session and no DPS credential.
 
 F0103309.xsd and common_types.xsd are vendored next to the writer, byte for byte, with their source,
@@ -794,7 +794,7 @@ Date: 2026-09-30
 
 Status: Accepted
 
-(Amended by ADR-025: the Cabinet has no XML import, so the two files are for M.E.Doc and other software, and the owner enters the declaration and the annex in the Cabinet by hand.)
+(ADR-025 assumed the Cabinet had no XML import. Its amendment of 2026-10-03 corrects that: the owner imports the declaration in the Cabinet with "Завантажити". Whether the Cabinet takes annex 1 as a second file of the same report is unverified; if it does not offer to, the owner fills annex 1 from the screen's list.)
 
 ### Context
 
@@ -1320,11 +1320,11 @@ guards that path. A cross-origin request to the monobank webhook is accepted by 
 
 ---
 
-## ADR-025. The Cabinet has no XML import: the declaration screen leads with the fields to type, built from the XML's own list
+## ADR-025. The declaration screen lists the form's fields to copy, built from the XML's own list
 
 Date: 2026-10-02
 
-Status: Accepted
+Status: Accepted, amended 2026-10-03 (the Cabinet does import XML, see the amendment)
 
 ### Context
 
@@ -1363,6 +1363,24 @@ The Cabinet's own field captions are not in the schema; the labels are the form'
 already used, plus plain names for the header. The owner should compare the first filing with the real
 form and the labels be corrected if they differ. Whether the Cabinet recalculates lines such as 08, 12 and
 14 itself is unverified; the guide asks the owner to stop if its sums differ from the screen's.
+
+### Amendment, 2026-10-03: the Cabinet imports the XML (#222)
+
+The premise above was wrong. The Cabinet's "Введення звітності" editor has a "Завантажити" button: the owner
+created the Q3 2026 group 3 declaration by importing the file this app generated, and found four header
+gaps only after the import. The main path is the file again: "Введення звітності" → "Створити" (or open a
+draft) → "Завантажити" → pick the XML → check → sign → send. The screen leads with it, for the Cabinet and
+for M.E.Doc alike. Unverified: whether the Cabinet takes annex 1 as a second file of the same report. The
+screen says to load it the same way if the Cabinet offers to add the file, and otherwise to fill annex 1
+from the list.
+
+The field list stays, for two jobs: a cross-check of what the Cabinet shows after the import, and the way to
+type the form in if an import fails. Since the imported file is what the owner signs, the gaps that matter
+are in the file, and #222 fills them: HEMAIL and HTEL from new declaration details, HNAME the full name with
+the patronymic, the KVED class names, and HBOS as the given name and the surname in capitals. The list gains
+a `Footer` part with HFILL and HBOS. HFILL (and D_FILL) stay the day the file is written, in Kyiv, because
+the writer is a pure function of that date; the screen tells the owner to set the filing date in the
+Cabinet to the day they send, when that is another day.
 
 ---
 

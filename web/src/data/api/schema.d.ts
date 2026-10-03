@@ -5464,7 +5464,7 @@ export interface components {
         /** @enum {string} */
         CabinetKind: "Text" | "Number" | "Amount" | "Date" | "Mark";
         /** @enum {string} */
-        CabinetPart: "None" | "Header" | "Period" | "Declaration" | "Annex";
+        CabinetPart: "None" | "Header" | "Period" | "Declaration" | "Footer" | "Annex";
         CalendarFeedResponse: {
             path: null | string;
         };
@@ -5575,6 +5575,9 @@ export interface components {
             taxOfficeName: string;
             kvedCodes: string[];
             address: string;
+            fullName: string;
+            phone: string;
+            reportEmail: string;
         };
         DeclarationDetailsRequest: {
             /** Format: int32 */
@@ -5584,6 +5587,12 @@ export interface components {
             taxOfficeName: string;
             kvedCodes: string[];
             address: string;
+            /** @default  */
+            fullName: string;
+            /** @default  */
+            phone: string;
+            /** @default  */
+            reportEmail: string;
         };
         DeclarationDetailsResponse: {
             name: string;
@@ -5595,6 +5604,10 @@ export interface components {
             taxOfficeName: string;
             kvedCodes: string[];
             address: string;
+            fullName: string;
+            phone: string;
+            reportEmail: string;
+            confirmedEmail: null | string;
             missingDetails: ("Name" | "Rnokpp" | "TaxOffice" | "Kved" | "Address")[];
         };
         DeclarationDueResponse: {
@@ -5697,6 +5710,7 @@ export interface components {
             outsideGroup3: boolean;
             beforeGroup3: boolean;
             group3Confirmed: boolean;
+            fullNameSet: boolean;
             unpaid: components["schemas"]["UnpaidResponse"];
             ready: boolean;
         };

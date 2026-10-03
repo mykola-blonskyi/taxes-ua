@@ -48,8 +48,9 @@ internal sealed record BackupDocument(
     // files' annexFileName and annexContent (#112); 14 added reserveJar (#102); 15 added the notification
     // channels' confirmedAt, which email needs because an address waits for its link (#107); 16 added the
     // settings' group3Since, group3Confirmation and the three DPS registration ticks (#172); 17 added the
-    // treasury accounts' manualValidUntil and learnedValidUntil (#173). An older file is upgraded to this shape one version at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 17;
+    // treasury accounts' manualValidUntil and learnedValidUntil (#173); 18 added the declaration details' fullName,
+    // phone and reportEmail (#222). An older file is upgraded to this shape one version at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 18;
 
     private const int MaxExternalIdLength = 200;
 
@@ -176,6 +177,11 @@ internal sealed record BackupDocument(
         if (version <= 16)
         {
             UpgradeFromVersion16(root);
+        }
+
+        if (version <= 17)
+        {
+            UpgradeFromVersion17(root);
         }
     }
 
@@ -388,7 +394,7 @@ internal sealed record BackupDocument(
     // A version 16 file predates the end of a Treasury account: none had one.
     private static void UpgradeFromVersion16(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 17;
         if (root["treasuryAccounts"] is JsonArray accounts)
         {
             foreach (var account in accounts.OfType<JsonObject>())
@@ -396,6 +402,18 @@ internal sealed record BackupDocument(
                 account["manualValidUntil"] = null;
                 account["learnedValidUntil"] = null;
             }
+        }
+    }
+
+    // A version 17 file predates the full name, phone and email the declaration's header prints: none was set.
+    private static void UpgradeFromVersion17(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        if (root["declarationDetails"] is JsonObject details)
+        {
+            details["fullName"] = string.Empty;
+            details["phone"] = string.Empty;
+            details["reportEmail"] = string.Empty;
         }
     }
 
@@ -1697,13 +1715,18 @@ internal sealed record DeclarationDetailsBackup(
     int? TaxOfficeDistrict,
     string TaxOfficeName,
     string[] KvedCodes,
-    string Address)
+    string Address,
+    string FullName,
+    string Phone,
+    string ReportEmail)
 {
     public static DeclarationDetailsBackup From(DeclarationDetails details) => new(
-        details.TaxOfficeRegion, details.TaxOfficeDistrict, details.TaxOfficeName, details.KvedCodes, details.Address);
+        details.TaxOfficeRegion, details.TaxOfficeDistrict, details.TaxOfficeName, details.KvedCodes, details.Address,
+        details.FullName, details.Phone, details.ReportEmail);
 
     public DeclarationDetailsRequest ToRequest() => DeclarationDetailsEndpoints.Normalize(
-        new DeclarationDetailsRequest(TaxOfficeRegion, TaxOfficeDistrict, TaxOfficeName, KvedCodes, Address));
+        new DeclarationDetailsRequest(
+            TaxOfficeRegion, TaxOfficeDistrict, TaxOfficeName, KvedCodes, Address, FullName, Phone, ReportEmail));
 
     public DeclarationDetails ToEntity(string userId)
     {

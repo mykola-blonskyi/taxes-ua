@@ -17,6 +17,7 @@ const readiness: DeclarationReadiness = {
   outsideGroup3: false,
   beforeGroup3: false,
   group3Confirmed: false,
+  fullNameSet: true,
   unpaid: { singleTaxKop: 0, militaryLevyKop: 0, esvKop: 0 },
   ready: true,
 };

@@ -23,8 +23,15 @@ const header: CabinetField[] = [
   field("HSTI", "ГУ ДПС у м. Києві", "Header", "Text"),
   field("HNAME", "Тест Тестович", "Header", "Text"),
   field("HLOC", "Київ, вул. Тестова 1", "Header", "Text"),
+  field("HEMAIL", "fop@example.com", "Header", "Text"),
+  field("HTEL", "+380501234567", "Header", "Text"),
   field("HTIN", "1234567890", "Header", "Text"),
   field("T1RXXXXG1S", "62.01", "Header", "Text", { row: 1 }),
+  field("T1RXXXXG2S", "Комп’ютерне програмування", "Header", "Text", { row: 1 }),
+];
+const footer: CabinetField[] = [
+  field("HFILL", "03.10.2026", "Footer", "Date"),
+  field("HBOS", "Тест ТЕСТЕНКО", "Footer", "Text"),
 ];
 const period: CabinetField[] = [
   field("H1KV", "1", "Period", "Mark"),
@@ -59,7 +66,7 @@ const annex: CabinetField[] = [
 ];
 
 function declaration(overrides: { cabinet?: CabinetField[]; confirmed?: boolean; fileAvailable?: boolean; ready?: boolean } = {}) {
-  const { cabinet = [...period, ...header, ...lines], confirmed = true, fileAvailable = true, ready = true } = overrides;
+  const { cabinet = [...period, ...header, ...lines, ...footer], confirmed = true, fileAvailable = true, ready = true } = overrides;
 
   return {
     year: 2026,
@@ -112,12 +119,62 @@ describe("FillInCabinet", () => {
     expect(screen.queryByRole("button", { name: "Копіювати: Рядок 07" })).not.toBeInTheDocument();
   });
 
-  it("makes manual entry the way in and never claims the Cabinet imports the file", () => {
+  it("leads the guide with importing the file and keeps typing by hand as the fallback", () => {
     renderApp(<FillInCabinet declaration={declaration()} />);
 
-    expect(screen.getByText(/«Введення звітності» → «Створити»/)).toBeVisible();
-    expect(screen.getByText(/Електронний кабінет не імпортує XML/)).toBeVisible();
-    expect(screen.queryByText(/Імпортувати XML з пристрою/)).not.toBeInTheDocument();
+    const steps = within(screen.getByRole("list", { name: "Як подати" })).getAllByRole("listitem").map((step) => step.textContent);
+    expect(steps[0]).toBe("Завантажте файл декларації (XML) у розділі вище.");
+    expect(steps[1]).toMatch(/«Введення звітності» → «Створити»/);
+    expect(steps[2]).toMatch(/«Завантажити»/);
+    expect(steps).toContain("Поставте дату заповнення: день, коли справді подаєте декларацію.");
+    expect(screen.getByText(/Якщо кабінет не прийняв файл, створіть форму F0103309 за I квартал 2026/)).toBeVisible();
+    expect(screen.queryByText(/не імпортує/)).not.toBeInTheDocument();
+  });
+
+  it("lists the contacts and the KVED name in the header, in the form's order", async () => {
+    const { user } = renderApp(<FillInCabinet declaration={declaration()} />);
+
+    const names = screen
+      .getAllByRole("button", { name: /^Копіювати: / })
+      .map((button) => button.getAttribute("aria-label"))
+      .filter((name) => /Адреса|Електронна пошта|Телефон|РНОКПП|КВЕД/.test(name ?? ""));
+    expect(names).toEqual([
+      "Копіювати: Адреса",
+      "Копіювати: Електронна пошта",
+      "Копіювати: Телефон",
+      "Копіювати: РНОКПП",
+      "Копіювати: КВЕД",
+      "Копіювати: Назва КВЕД",
+    ]);
+    await user.click(screen.getByRole("button", { name: "Копіювати: Телефон" }));
+    expect(await navigator.clipboard.readText()).toBe("+380501234567");
+  });
+
+  it("numbers the KVED names by row and skips a name the lookup does not know", () => {
+    const kveds = [
+      field("T1RXXXXG1S", "62.01", "Header", "Text", { row: 1 }),
+      field("T1RXXXXG1S", "99.99", "Header", "Text", { row: 2 }),
+      field("T1RXXXXG2S", "Комп’ютерне програмування", "Header", "Text", { row: 1 }),
+      field("T1RXXXXG2S", "", "Header", "Text", { row: 2 }),
+    ];
+    renderApp(<FillInCabinet declaration={declaration({ cabinet: [...period, ...kveds, ...lines] })} />);
+
+    expect(screen.getByRole("button", { name: "Копіювати: Назва КВЕД, рядок 1" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Копіювати: КВЕД, рядок 2" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Копіювати: Назва КВЕД, рядок 2" })).not.toBeInTheDocument();
+  });
+
+  it("puts the filing date and the signature after the lines and asks for the day of submission", async () => {
+    const { user } = renderApp(<FillInCabinet declaration={declaration({ cabinet: [...period, ...header, ...lines, ...footer, ...annex] })} />);
+
+    const headings = screen.getAllByRole("heading", { level: 4 }).map((heading) => heading.textContent);
+    expect(headings.indexOf("Дата й підпис")).toBeGreaterThan(headings.indexOf("Рядки декларації"));
+    expect(headings.indexOf("Дата й підпис")).toBeLessThan(headings.indexOf("Додаток 1: єдиний внесок"));
+    expect(screen.getByText(/У кабінеті поставте день, коли справді подаєте декларацію\./)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Копіювати: Дата заповнення" }));
+    expect(await navigator.clipboard.readText()).toBe("03.10.2026");
+    await user.click(screen.getByRole("button", { name: "Копіювати: Підпис: власне ім’я та ПРІЗВИЩЕ" }));
+    expect(await navigator.clipboard.readText()).toBe("Тест ТЕСТЕНКО");
   });
 
   it("says the figures are not final and gives no copy buttons while the declaration is not ready", () => {
@@ -164,14 +221,14 @@ describe("FillInCabinet", () => {
     renderApp(<FillInCabinet declaration={declaration()} />);
 
     expect(screen.queryByRole("heading", { name: "Додаток 1: єдиний внесок" })).not.toBeInTheDocument();
-    expect(screen.queryByText(/Додаток 1 \(єдиний внесок\) подається/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/файл додатка 1 \(єдиний внесок\)/)).not.toBeInTheDocument();
   });
 
   it("shows the annex lines with their months and copies them", async () => {
     const { user } = renderApp(<FillInCabinet declaration={declaration({ cabinet: [...period, ...header, ...lines, ...annex] })} />);
 
     expect(screen.getByRole("heading", { name: "Додаток 1: єдиний внесок" })).toBeVisible();
-    expect(screen.getByText(/Додаток 1 \(єдиний внесок\) подається/)).toBeVisible();
+    expect(screen.getByText(/файл додатка 1 \(єдиний внесок\)/)).toBeVisible();
     expect(screen.getByText("Позначте: Додаток 1 (єдиний внесок)")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Копіювати: Січень: ставка, %" }));
     expect(await navigator.clipboard.readText()).toBe("22.00");
@@ -217,12 +274,14 @@ describe("FillInCabinet", () => {
 
   describe("in Russian", () => {
     it("words the guide and the buttons in Russian, keeps the form's line names and copies the same values", async () => {
-      const { user } = renderApp(<FillInCabinet declaration={declaration({ cabinet: [...period, ...header, ...lines, ...annex] })} />, {
+      const { user } = renderApp(<FillInCabinet declaration={declaration({ cabinet: [...period, ...header, ...lines, ...footer, ...annex] })} />, {
         locale: "ru",
       });
 
       expect(screen.getByRole("region", { name: "Заполните в Электронном кабинете" })).toBeVisible();
-      expect(screen.getByText(/Электронный кабинет не импортирует XML/)).toBeVisible();
+      expect(screen.getByText(/Проще всего импортировать XML-файл в кабинет/)).toBeVisible();
+      expect(screen.getByText("Дата и подпись")).toBeVisible();
+      expect(screen.getByText(/В кабинете поставьте день, когда вы на самом деле подаёте декларацию\./)).toBeVisible();
       expect(screen.getByText(/^06\. Обсяг доходу, що оподатковується за ставкою 5\s%$/)).toBeVisible();
       expect(screen.getByText(/Строки 07, 09, 21 оставьте пустыми\. Другие строки, которых нет в списке, оставьте пустыми\./)).toBeVisible();
       expect(screen.getByText("Отметьте: период «I квартал»")).toBeVisible();
