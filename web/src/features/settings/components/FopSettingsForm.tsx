@@ -9,7 +9,7 @@ import { useSaveSettings, useSettings, type SettingsRequest } from "@/data/setti
 import { locales } from "@/i18n/locales";
 import { Button } from "@/shared/ui/button";
 import { LoadState } from "@/data/api/LoadState";
-import { CheckboxField, SelectField, TextField } from "@/shared/ui/fields";
+import { CheckboxField, FieldErrors, SelectField, TextField, FieldForm } from "@/shared/ui/fields";
 
 type PaymentMode = SettingsRequest["paymentMode"];
 type EsvRegistrationMonthPolicy = SettingsRequest["esvRegistrationMonthPolicy"];
@@ -120,7 +120,7 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
   }
 
   return (
-    <form
+    <FieldForm quietErrors={Boolean(rejectedFields)}
       className="flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
@@ -128,7 +128,7 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
       }}
     >
       {rejectedFields ? (
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {t("validationError")}
         </p>
       ) : null}
@@ -226,7 +226,10 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
         />
       </div>
 
-      <fieldset className="flex flex-col gap-2">
+      <fieldset
+        className="flex flex-col gap-2"
+        aria-describedby={fieldErrors?.weekendDays?.length ? "weekend-days-error" : undefined}
+      >
         <legend className="text-sm font-medium">{tFop("weekendDays")}</legend>
         <div className="flex flex-wrap gap-4">
           {weekdayOptions.map((day) => (
@@ -239,16 +242,13 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
             />
           ))}
         </div>
-        {fieldErrors?.weekendDays && fieldErrors.weekendDays.length > 0 ? (
-          <ul className="text-xs text-destructive">
-            {fieldErrors.weekendDays.map((message) => (
-              <li key={message}>{message}</li>
-            ))}
-          </ul>
-        ) : null}
+        <FieldErrors id="weekend-days-error" errors={fieldErrors?.weekendDays} />
       </fieldset>
 
-      <fieldset className="flex flex-col gap-2">
+      <fieldset
+        className="flex flex-col gap-2"
+        aria-describedby={fieldErrors?.backOnGroup3From?.length ? "back-on-group-3-error" : undefined}
+      >
         <legend className="text-sm font-medium">{tFop("backOnGroup3")}</legend>
         <p className="text-xs text-muted-foreground">{tFop("backOnGroup3Hint")}</p>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -271,13 +271,7 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
             ]}
           />
         </div>
-        {fieldErrors?.backOnGroup3From && fieldErrors.backOnGroup3From.length > 0 ? (
-          <ul className="text-xs text-destructive">
-            {fieldErrors.backOnGroup3From.map((message) => (
-              <li key={message}>{message}</li>
-            ))}
-          </ul>
-        ) : null}
+        <FieldErrors id="back-on-group-3-error" errors={fieldErrors?.backOnGroup3From} />
       </fieldset>
 
       {failure && !rejectedFields ? (
@@ -292,6 +286,6 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
           <Link href="/history?entity=Settings">{tFop("history")}</Link>
         </Button>
       </div>
-    </form>
+    </FieldForm>
   );
 }

@@ -233,7 +233,7 @@ function ReviewWarning({ count }: { count: number }) {
     <section className="flex flex-col gap-2 rounded-lg border bg-muted p-4">
       <h3 className="text-sm font-semibold text-destructive">{t("title", { count })}</h3>
       <p className="text-sm text-muted-foreground">{t("text", { count })}</p>
-      <Link href="/review" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+      <Link href="/review" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
         {t("cta")}
       </Link>
     </section>
@@ -257,7 +257,7 @@ function DeclarationDue({ due, today }: { due: NonNullable<DashboardResponse["de
       </p>
       <Link
         href={declarationHref(year, quarter)}
-        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+        className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
       >
         {t("cta")}
       </Link>
@@ -289,7 +289,7 @@ function OverdueInvoicesNotice({ count }: { count: number }) {
   return (
     <section className="flex flex-col gap-2 rounded-lg border bg-muted p-4">
       <h3 className="text-sm font-semibold text-destructive">{t("title", { count })}</h3>
-      <Link href="/invoices" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+      <Link href="/invoices" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
         {t("cta")}
       </Link>
     </section>
@@ -300,7 +300,7 @@ function SettingsLink() {
   const t = useTranslations("dashboard");
 
   return (
-    <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+    <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
       {t("settingsCta")}
     </Link>
   );
@@ -313,7 +313,7 @@ function InvoicesLink() {
     <section className="flex flex-col gap-2 rounded-xl border bg-card p-4">
       <h3 className="text-base font-semibold">{t("title")}</h3>
       <p className="text-sm text-muted-foreground">{t("text")}</p>
-      <Link href="/invoices" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+      <Link href="/invoices" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
         {t("cta")}
       </Link>
     </section>

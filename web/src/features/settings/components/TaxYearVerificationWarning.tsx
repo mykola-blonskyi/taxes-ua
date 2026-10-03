@@ -35,7 +35,7 @@ export function TaxYearVerificationWarning() {
     <section className="flex flex-col gap-2 rounded-lg border bg-muted p-4">
       <h3 className="text-sm font-semibold text-destructive">{t("title")}</h3>
       <p className="text-sm text-muted-foreground">{t("message", { years: sortedYears.join(", ") })}</p>
-      <Link href="/settings?tab=taxYears" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+      <Link href="/settings?tab=taxYears" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
         {t("cta")}
       </Link>
     </section>

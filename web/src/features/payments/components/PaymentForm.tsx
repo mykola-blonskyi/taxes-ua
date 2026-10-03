@@ -15,7 +15,7 @@ import {
 import { todayInKyiv } from "@/shared/lib/dates";
 import { formatMoney, parseHryvnia } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
-import { SelectField, TextField } from "@/shared/ui/fields";
+import { SelectField, TextField, FieldForm } from "@/shared/ui/fields";
 import { fromPeriodValue, toPeriodValue, type PeriodValue } from "../period";
 import { PeriodSelect } from "./PeriodSelect";
 
@@ -108,7 +108,7 @@ export function PaymentForm({
   }
 
   return (
-    <form
+    <FieldForm quietErrors={Boolean(rejectedFields)}
       className="flex flex-col gap-4 rounded-lg border p-4"
       onSubmit={(event) => {
         event.preventDefault();
@@ -118,7 +118,7 @@ export function PaymentForm({
       <h3 className="text-sm font-semibold">{editing ? tForm("editTitle") : tForm("newTitle")}</h3>
 
       {rejectedFields ? (
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {tForm("validationError")}
         </p>
       ) : null}
@@ -195,6 +195,6 @@ export function PaymentForm({
           </Button>
         ) : null}
       </div>
-    </form>
+    </FieldForm>
   );
 }

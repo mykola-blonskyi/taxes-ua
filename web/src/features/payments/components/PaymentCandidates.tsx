@@ -122,7 +122,7 @@ function NoticeCard({ notice, onClose }: { notice: ConfirmedNotice; onClose: () 
         >
           {t("dismiss")}
         </Button>
-        <Link href="/settings?tab=treasury" className="text-sm text-primary underline-offset-4 hover:underline">
+        <Link href="/settings?tab=treasury" className="text-sm text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
           {t("settings")}
         </Link>
       </div>

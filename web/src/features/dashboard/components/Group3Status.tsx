@@ -38,7 +38,7 @@ function UnconfirmedBanner({ group3, today }: { group3: Group3; today: string })
           <DaysLeft days={Number(group3.applicationDaysLeft)} />
         </p>
       ) : null}
-      <Link href="/settings?tab=dps" className="w-fit font-medium text-primary underline-offset-4 hover:underline">
+      <Link href="/settings?tab=dps" className="w-fit font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
         {t("checkStatus")}
       </Link>
     </section>

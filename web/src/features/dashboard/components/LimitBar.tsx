@@ -22,6 +22,7 @@ export function LimitBar({ limit }: { limit: LimitStatus }) {
       <h3 className="text-base font-semibold">{t("title")}</h3>
       <div
         role="progressbar"
+        aria-label={t("title")}
         aria-valuenow={fillPercent}
         aria-valuemin={0}
         aria-valuemax={100}

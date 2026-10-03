@@ -18,7 +18,7 @@ import {
 import { formatDateOnly, formatNumericDate, todayInKyiv } from "@/shared/lib/dates";
 import { formatAmount, formatMinor, formatMoney, parseHryvnia, parseRate, toUahKop } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
-import { SelectField, TextField } from "@/shared/ui/fields";
+import { SelectField, TextField, FieldForm } from "@/shared/ui/fields";
 import { isNonIncomeKind, kindOptions } from "../kinds";
 
 function kopecksToAmountText(kopecks: number): string {
@@ -233,7 +233,7 @@ export function TransactionForm({
   }
 
   return (
-    <form
+    <FieldForm quietErrors={Boolean(rejectedFields)}
       className="flex flex-col gap-4 rounded-lg border p-4"
       onSubmit={(event) => {
         event.preventDefault();
@@ -243,7 +243,7 @@ export function TransactionForm({
       <h3 className="text-sm font-semibold">{editing ? t("editTitle") : t("newTitle")}</h3>
 
       {rejectedFields ? (
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {t("validationError")}
         </p>
       ) : null}
@@ -398,6 +398,6 @@ export function TransactionForm({
           </Button>
         ) : null}
       </div>
-    </form>
+    </FieldForm>
   );
 }

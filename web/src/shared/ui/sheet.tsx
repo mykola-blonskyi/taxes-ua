@@ -29,7 +29,7 @@ export function Sheet({
             <Dialog.Title className="min-w-0 text-lg font-semibold">{title}</Dialog.Title>
             <Dialog.Close
               aria-label={closeLabel}
-              className="-m-1 shrink-0 rounded-lg p-1 text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="-m-1 shrink-0 rounded-lg p-1 pointer-coarse:m-0 pointer-coarse:flex pointer-coarse:size-11 pointer-coarse:items-center pointer-coarse:justify-center text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring"
             >
               <XIcon className="size-5" />
             </Dialog.Close>

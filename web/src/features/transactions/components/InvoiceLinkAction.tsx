@@ -83,7 +83,7 @@ export function InvoiceLinkAction({ transaction, rowName }: { transaction: Trans
                         { onSuccess: () => setPicking(false), onError: report },
                       );
                     }}
-                    className="flex w-full min-w-0 flex-col gap-1 rounded-lg border p-3 text-left text-sm hover:bg-muted focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
+                    className="flex w-full min-w-0 flex-col gap-1 rounded-lg border p-3 text-left text-sm hover:bg-muted focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring disabled:opacity-50"
                   >
                     <span className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                       <span className="break-words font-medium">{invoice.number ?? ""}</span>
