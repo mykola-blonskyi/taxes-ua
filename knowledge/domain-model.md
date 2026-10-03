@@ -658,7 +658,8 @@ Fields: `UserId`, `Date` (the deadline or advance date the reminder is about), `
 
 An incident alert (Rule 18, ADR-026) is a row of the same log: `Incident` holds its key (the kind and the
 Unix second the state began, such as `SyncStale:1790000000`), `Kinds` is none, `Offset` is `OnTheDay` and
-`Date` is the day it was claimed. It is unique on (`UserId`, `Incident`, `Channel`) among rows with an
+`Date` is the day it was claimed. The December prompt for a new tax year (Rule 9) is such a row, keyed
+`NewTaxYear:<year>`. It is unique on (`UserId`, `Incident`, `Channel`) among rows with an
 `Incident`, so an incident is claimed once per channel however many days it lasts, and the same delivery
 rules apply.
 

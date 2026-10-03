@@ -11,9 +11,12 @@ import type { DashboardResponse } from "@/data/dashboard/useDashboard";
 //  2. Limit crossing. The regime changes for the quarters it names.
 //  3. Group 3 unconfirmed, or the application deadline. Missing the deadline cannot be undone (Rule 8).
 //  4. Declaration due.
-//  5. Sync stale. Figures may be incomplete, but the feed still works.
-//  6. Transactions waiting for review.
-//  7. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
+//  5. New tax year (December, next year's parameters missing or unconfirmed). It has a month of runway, but
+//     from January a missing year stops the ledger and the balance with it (Rule 9); it still ranks under a
+//     declaration, which has a legal date.
+//  6. Sync stale. Figures may be incomplete, but the feed still works.
+//  7. Transactions waiting for review.
+//  8. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
 //
 // A debt is the hero itself (red when overdue), so it needs no banner. Treasury account expiry is shown
 // inside the hero's pay panel, where the account is used, so it never takes a banner slot here.
@@ -25,6 +28,7 @@ export const noticePriority = [
   "limitCrossing",
   "group3",
   "declaration",
+  "newTaxYear",
   "syncStale",
   "review",
   "overdueInvoices",
@@ -40,6 +44,7 @@ export const noticeSeverity: Record<Notice, Severity> = {
   limitCrossing: "alert",
   group3: "warning",
   declaration: "warning",
+  newTaxYear: "warning",
   syncStale: "warning",
   review: "info",
   overdueInvoices: "info",
@@ -61,6 +66,7 @@ export function activeNotices(data: DashboardResponse): Notice[] {
     limitCrossing: data.limitCrossing != null,
     group3: isGroup3Unconfirmed(data.group3) || data.group3.beforeGroup3 != null,
     declaration: data.declaration != null,
+    newTaxYear: data.newTaxYear != null,
     syncStale: syncState === "Stale",
     review: Number(data.needsReviewCount) > 0,
     overdueInvoices: Number(data.overdueInvoiceCount) > 0,
@@ -73,6 +79,7 @@ export function activeNotices(data: DashboardResponse): Notice[] {
       data.group3.applicationDaysLeft != null &&
       Number(data.group3.applicationDaysLeft) <= URGENT_DAYS,
     declaration: data.declaration != null && Number(data.declaration.daysLeft) <= URGENT_DAYS,
+    newTaxYear: false,
     syncStale: false,
     review: false,
     overdueInvoices: false,

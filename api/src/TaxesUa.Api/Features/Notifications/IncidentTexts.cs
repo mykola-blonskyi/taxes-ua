@@ -11,6 +11,8 @@ internal static class IncidentTexts
 {
     private const string MonobankTab = "monobank";
 
+    private const string TaxYearsTab = "taxYears";
+
     public static ReminderMessage Render(Incident incident, string locale, string? appUrl)
     {
         var russian = locale == "ru";
@@ -44,6 +46,16 @@ internal static class IncidentTexts
                         : $"Резервні копії: перевірка відновлення не проходить, остання успішна {since}.",
                     "Відновити базу з копій може бути неможливо. Перегляньте журнал сервісу backup у Coolify.",
                     null),
+            IncidentKind.NewTaxYear => russian
+                ? ($"Налоговый {incident.Year} год: проверьте и подтвердите параметры.",
+                    "Минимальная зарплата, база и ставка ЕСВ, лимиты. Можно клонировать прошлый год и поправить цифры.", TaxYearsTab)
+                : ($"Податковий {incident.Year} рік: перевірте й підтвердьте параметри.",
+                    "Мінімальна зарплата, база й ставка ЄСВ, ліміти. Можна клонувати попередній рік і виправити цифри.", TaxYearsTab),
+            IncidentKind.MissingTaxYear => russian
+                ? ($"Параметры {incident.Year} года не заданы, баланс недоступен.",
+                    "Клонируйте прошлый год на вкладке налоговых лет, поправьте цифры и отметьте год проверенным.", TaxYearsTab)
+                : ($"Параметри {incident.Year} року не задано, баланс недоступний.",
+                    "Клонуйте попередній рік на вкладці податкових років, виправте цифри й позначте рік перевіреним.", TaxYearsTab),
             _ => throw new ArgumentOutOfRangeException(nameof(incident), incident.Kind, "Unknown incident kind."),
         };
 

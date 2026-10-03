@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.DatabaseBackups;
 using TaxesUa.Api.Features.Notifications;
+using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Tests.Features.Notifications;
 
 namespace TaxesUa.Api.Tests.Features.DatabaseBackups;
@@ -149,6 +151,11 @@ public sealed class RestoreCheckAlertTests(ApiFixture fixture) : IClassFixture<A
             }
 
             using var owner = await ApiFixture.SignIn(app, test._ownerEmail);
+            // A current year without parameters is an incident of its own (Rule 9), which these tests are not about.
+            var year = new TaxYearConfigRequest(800_000, 500, 100, 2_200, 1_500, 1_000, [85], 19, 40, 10, 15, 10, [], "a test source");
+            Assert.Equal(
+                System.Net.HttpStatusCode.OK,
+                (await owner.PutAsJsonAsync($"/api/tax-years/{Start.Year}", year, TelegramSteps.Json)).StatusCode);
             await TelegramSteps.ForgetPollOffset(app);
             var next = telegram.Updates.Count == 0 ? 10 : telegram.Updates.Max(update => update["update_id"]!.GetValue<long>()) + 1;
             telegram.Updates.Add(StubTelegramHandler.Update(next, test._chat, $"/start {TelegramSteps.CodeOf(await TelegramSteps.Connect(owner))}"));

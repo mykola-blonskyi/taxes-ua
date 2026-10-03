@@ -357,6 +357,23 @@ above), ESV payer registered, and accounts registered. Its hint says where to ch
 Every year has a `TaxYearConfig` row. If the current year has no row, or its `VerifiedAt` is
 empty, the interface shows a warning. Values are never hardcoded in the code.
 
+**A new year.** In December (Kyiv date) the owner is asked to prepare the coming year: when `TaxYearConfig`
+has no row for the next year, or its row has no `VerifiedAt`, the dashboard shows a notice and the reminder
+channels carry one alert. The notice names the minimum wage, the ESV base and rate, and the limits as what to
+check, and opens Settings, tax years, where the clone of the latest year into the next is offered. The
+state is derived, never stored: it clears the moment the year is verified, and outside December it does not
+exist (the warnings above speak the rest of the year). The alert is an incident (Rule 18) keyed by the year,
+so it is sent once per channel per year, from 09:00 Kyiv like a deadline reminder, however many days of
+December it stays open. A missing next year matters from 1 January: the ledger stops at the first year
+without a row (Rule 7), so the home screen has no balance until the year is configured.
+
+The offer to clone appears only when the next year is due: in December, or when the current Kyiv year has
+no row (the rollover, when the latest year is cloned into the first missing one). An earlier copy would be
+an unverified row that warns for months and extends the ledger. The year-level warning above speaks only of
+years up to the current one, so next year is raised by the December notice alone. From 1 January, while the
+current year has no row, a `MissingTaxYear:<year>` incident takes over: the same alert, once per channel,
+until the year is configured.
+
 ---
 
 ## Rule 10. Money and dates
@@ -1078,9 +1095,10 @@ otherwise. Its key is the kind and the moment the state began: the rejection's o
 `TokenRejected`, the last progress for `Stale` and `TokenUnreadable`. A recovery moves the last progress
 forward, so the next incident has another key and alerts again; nothing needs deleting. While an incident
 stays open it is never repeated. A sync that recovers and stops again, or a token rejected again after
-being replaced, is a new incident. An alert needs no particular hour: unlike a deadline reminder, it is
-sent on the first run that finds the incident, and a run without a switched-on channel claims nothing, so
-connecting a channel later still delivers the incident if it is still open.
+being replaced, is a new incident. Each kind says when it may go out: a sync incident needs no particular
+hour and is sent on the first run that finds it, while the tax-year incidents wait for 09:00 Kyiv. A run
+without a switched-on channel claims nothing, so connecting a channel later still delivers the incident if
+it is still open.
 
 Two accounts with different cursors share one `Stale` incident keyed by the oldest. The key moves as
 accounts recover one at a time, so a `Stale` or `TokenUnreadable` incident is not reported while any
@@ -1089,10 +1107,13 @@ shows the state. If one account then stays stale after the queue empties, it is 
 later key. The first rejection of a token also stays: a later 401 does not overwrite `RejectedAt`.
 
 The same mechanism carries other incidents: a new kind of incident and a source that reports it, not a new
-sender. An unproven backup is one (below), and an expired Treasury account (#173) will be another.
+sender. An unproven backup is one (below), the December prompt to prepare the next tax year and the alert for
+a current year with no parameters (both Rule 9, keyed by the year and held until 09:00 Kyiv) are others, and
+an expired Treasury account (#173) will be another.
 
-A message is plain text in the owner's language: what stopped, what it means for the figures, and a link to
-the monobank tab of settings.
+A message is plain text in the owner's language: what is wrong, what it means for the figures, and a link to
+the settings tab that fixes it (monobank for a sync incident, tax years for a tax-year one; none when nothing
+in the app fixes it).
 
 **Unproven backup.** The database is backed up each night and a restore of the newest copy is tried each
 week (ADR-031). Every run is recorded in `DatabaseBackupRuns`. `RestoreCheckFailed` is open when the newest

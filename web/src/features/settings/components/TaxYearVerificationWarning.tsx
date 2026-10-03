@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useTaxYears } from "@/data/tax-years/useTaxYears";
+import { currentYearInKyiv } from "@/shared/lib/dates";
 
 export function TaxYearVerificationWarning() {
   const t = useTranslations("settings.verificationWarning");
@@ -12,9 +13,12 @@ export function TaxYearVerificationWarning() {
     return null;
   }
 
-  const currentYear = new Date().getFullYear();
+  // Next year is the dashboard notice's to raise, from December (Rule 9); this one speaks of years up to now.
+  const currentYear = currentYearInKyiv();
   const yearsNeedingVerification = new Set(
-    data.filter((taxYear) => taxYear.verifiedAt === null).map((taxYear) => Number(taxYear.year)),
+    data
+      .filter((taxYear) => taxYear.verifiedAt === null && Number(taxYear.year) <= currentYear)
+      .map((taxYear) => Number(taxYear.year)),
   );
 
   if (!data.some((taxYear) => Number(taxYear.year) === currentYear)) {
@@ -31,7 +35,7 @@ export function TaxYearVerificationWarning() {
     <section className="flex flex-col gap-2 rounded-lg border bg-muted p-4">
       <h3 className="text-sm font-semibold text-destructive">{t("title")}</h3>
       <p className="text-sm text-muted-foreground">{t("message", { years: sortedYears.join(", ") })}</p>
-      <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
+      <Link href="/settings?tab=taxYears" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
         {t("cta")}
       </Link>
     </section>

@@ -1451,6 +1451,14 @@ recovery under way (accounts recover one at a time and move the oldest cursor) d
 account is still stale once the queue empties it is alerted under its own key. `RejectedAt` is set only
 while null, so a repeat 401 cannot re-key a rejection. An alert can arrive at any hour.
 
+Amendment (#178): the first non-sync source is `NewTaxYearIncidentSource`, the December prompt to prepare
+the next tax year (Rule 9). Its key is `NewTaxYear:<year>`, so it is alerted once per channel per year, and
+`Incident` gained an optional `Year` for the text. It is the one source that waits for 09:00 Kyiv: a month
+of runway does not justify a message at midnight, and unlike a bad token it has a date to anchor to. The
+dashboard card and the alert read one predicate, `NewTaxYearCheck`, so they cannot disagree. Tax years are
+not per owner, so every owner with a channel is told. A second kind, `MissingTaxYear:<year>`, stays open
+while the current Kyiv year has no row, so the alert survives the rollover when December's incident closes.
+
 ---
 
 ## ADR-027. Dump the database before a migration runs, and make CI wait for the new release
@@ -1614,9 +1622,13 @@ to try again except in `AuthGate`.
    2. Limit crossing. The regime changes for the quarters it names.
    3. Group 3 unconfirmed, or its application deadline. Missing the deadline cannot be undone (Rule 8, ADR-023).
    4. Declaration due.
-   5. Sync stale. Figures may be incomplete, but the feed still works.
-   6. Transactions waiting for review.
-   7. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
+   5. New tax year: in December, next year's parameters missing or unconfirmed (Rule 9, #178). It warns a
+      month ahead, with nothing lost yet, but from January a missing year stops the ledger and with it the
+      balance, so it ranks above a stale feed. It stays under a declaration, which has a legal date, and is
+      never promoted: its only deadline is the new year, and a month is time enough to act.
+   6. Sync stale. Figures may be incomplete, but the feed still works.
+   7. Transactions waiting for review.
+   8. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
 
    A debt is the hero itself (red when overdue), so it takes no banner. Treasury account expiry is shown inside
    the hero's pay panel, where the account is used, so it never takes a banner slot. The quiet "last exchange"
