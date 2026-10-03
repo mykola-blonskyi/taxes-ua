@@ -85,7 +85,7 @@ export function HeroCard({ now, today, busy }: { now: KindDebt[]; today: string;
           href={electronicCabinetUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-sm font-medium hover:bg-muted"
+          className="inline-flex h-8 pointer-coarse:h-11 items-center justify-center rounded-lg border border-border bg-background px-2.5 text-sm font-medium hover:bg-muted"
         >
           {t("openCabinet")}
         </a>
@@ -96,7 +96,16 @@ export function HeroCard({ now, today, busy }: { now: KindDebt[]; today: string;
 
 // `debts` is what the form records. After a partial failure it is only the debts that were not saved, and
 // `retry` keeps the form open when a refetch has already moved the step on.
-type Draft = { step: string; debts: KindDebt[]; paidOn: string; amounts: Record<string, string>; retry: boolean };
+// `touched` holds the fields the owner has edited. A form that opens untouched shows no error; once any
+// field is edited and the form is invalid, every wrong field says so, so a wrong field is never silent.
+type Draft = {
+  step: string;
+  debts: KindDebt[];
+  paidOn: string;
+  amounts: Record<string, string>;
+  retry: boolean;
+  touched: Set<string>;
+};
 
 function MarkPaid({
   now,
@@ -132,6 +141,7 @@ function MarkPaid({
       step,
       debts: now,
       retry: false,
+      touched: new Set(),
       paidOn: today,
       amounts: Object.fromEntries(
         now.map((debt) => [debtKey(debt), formatPlainAmount(edited[debtKey(debt)] ?? Number(debt.amountKop))]),
@@ -193,8 +203,8 @@ function MarkPaid({
             min={earliestPaidOn}
             max={today}
             value={open.paidOn}
-            onChange={(paidOn) => setDraft({ ...open, paidOn })}
-            errors={dateValid ? undefined : [t("paidOnInvalid")]}
+            onChange={(paidOn) => setDraft({ ...open, paidOn, touched: new Set(open.touched).add("paidOn") })}
+            errors={dateValid || open.touched.size === 0 ? undefined : [t("paidOnInvalid")]}
           />
           {debts.map((debt, index) => (
             <TextField
@@ -204,8 +214,14 @@ function MarkPaid({
               inputMode="decimal"
               autoComplete="off"
               value={open.amounts[debtKey(debt)] ?? ""}
-              onChange={(text) => setDraft({ ...open, amounts: { ...open.amounts, [debtKey(debt)]: text } })}
-              errors={amountsKop[index] !== null && amountsKop[index]! > 0 ? undefined : [t("paidAmountInvalid")]}
+              onChange={(text) =>
+                setDraft({ ...open, amounts: { ...open.amounts, [debtKey(debt)]: text }, touched: new Set(open.touched).add(debtKey(debt)) })
+              }
+              errors={
+                (amountsKop[index] !== null && amountsKop[index]! > 0) || open.touched.size === 0
+                  ? undefined
+                  : [t("paidAmountInvalid")]
+              }
             />
           ))}
           <div className="flex flex-wrap gap-2">

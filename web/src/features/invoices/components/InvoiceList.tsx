@@ -70,7 +70,7 @@ export function InvoiceList({ onOpen, onNew }: { onOpen: (id: string) => void; o
               <button
                 type="button"
                 onClick={() => onOpen(invoice.id)}
-                className="flex w-full min-w-0 flex-col gap-1 rounded-lg border p-3 text-left hover:bg-muted focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="flex w-full min-w-0 flex-col gap-1 rounded-lg border p-3 text-left hover:bg-muted focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring"
               >
                 <span className="flex min-w-0 flex-wrap items-center justify-between gap-2">
                   <span className="break-words font-medium">{invoice.number ?? t("list.draftNumber")}</span>

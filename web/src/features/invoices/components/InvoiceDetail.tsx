@@ -177,7 +177,7 @@ export function InvoiceDetail({
         ) : null}
         <Link
           href={`/history?entity=Invoice&id=${invoice.id}`}
-          className="text-sm text-primary underline-offset-4 hover:underline"
+          className="text-sm text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
         >
           {t("history")}
         </Link>

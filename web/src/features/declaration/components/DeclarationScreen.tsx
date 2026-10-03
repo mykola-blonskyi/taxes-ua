@@ -40,7 +40,7 @@ export function DeclarationScreen({ year, quarter }: { year?: string; quarter?: 
       {error instanceof ApiError && error.status === 404 ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground">{t("unavailable")}</p>
-          <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
             {t("unavailableCta")}
           </Link>
         </div>
@@ -60,7 +60,7 @@ function QuarterLink({ period, label, direction }: { period: Period; label: stri
     <Link
       href={declarationHref(period.year, period.quarter)}
       className={cn(
-        "inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline",
+        "inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center",
         direction === "next" && "ml-auto",
       )}
     >

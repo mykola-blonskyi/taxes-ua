@@ -14,7 +14,7 @@ import {
 import { useMonobankConnection } from "@/data/monobank/useMonobank";
 import { Button } from "@/shared/ui/button";
 import { LoadState } from "@/data/api/LoadState";
-import { TextAreaField, TextField } from "@/shared/ui/fields";
+import { TextAreaField, TextField, FieldForm } from "@/shared/ui/fields";
 import { InvoicingMonobankPrefill } from "./InvoicingMonobankPrefill";
 import { InvoicingSignature } from "./InvoicingSignature";
 import {
@@ -96,7 +96,7 @@ function InvoicingFormBody({ details }: { details: InvoicingDetailsResponse }) {
   }
 
   return (
-    <form
+    <FieldForm quietErrors={Boolean(rejected)}
       className="flex min-w-0 flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault();
@@ -104,7 +104,7 @@ function InvoicingFormBody({ details }: { details: InvoicingDetailsResponse }) {
       }}
     >
       {rejected ? (
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {t("validationError")}
         </p>
       ) : null}
@@ -275,6 +275,6 @@ function InvoicingFormBody({ details }: { details: InvoicingDetailsResponse }) {
           <Link href="/history?entity=InvoicingDetails">{t("fop.history")}</Link>
         </Button>
       </div>
-    </form>
+    </FieldForm>
   );
 }

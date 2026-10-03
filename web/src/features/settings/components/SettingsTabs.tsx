@@ -44,7 +44,7 @@ export function SettingsTabs({ initialTab, confirmEmailToken }: { initialTab?: s
             <Tabs.Trigger
               key={name}
               value={name}
-              className="shrink-0 whitespace-nowrap px-3 py-2 text-sm text-muted-foreground data-[state=active]:border-b-2 data-[state=active]:border-foreground data-[state=active]:text-foreground"
+              className="shrink-0 whitespace-nowrap px-3 py-2 pointer-coarse:min-h-11 text-sm text-muted-foreground data-[state=active]:border-b-2 data-[state=active]:border-foreground data-[state=active]:text-foreground"
             >
               {t(`tabs.${name}`)}
               {name === "treasury" && treasuryNotice ? (
@@ -53,7 +53,7 @@ export function SettingsTabs({ initialTab, confirmEmailToken }: { initialTab?: s
             </Tabs.Trigger>
           ))}
         </Tabs.List>
-        <Link href="/history" className="shrink-0 text-sm text-primary underline-offset-4 hover:underline">
+        <Link href="/history" className="shrink-0 text-sm text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
           {t("changeLog")}
         </Link>
       </div>
