@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTransactions, type TransactionResponse } from "@/data/transactions/useTransactions";
 import { currentYearInKyiv } from "@/shared/lib/dates";
@@ -19,7 +20,8 @@ export function TransactionsScreen() {
   const [editing, setEditing] = useState<TransactionResponse | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
-  const { data, isLoading, isError } = useTransactions(year);
+  const query = useTransactions(year);
+  const { data } = query;
 
   function startEdit(transaction: TransactionResponse) {
     setEditing(transaction);
@@ -55,8 +57,9 @@ export function TransactionsScreen() {
         </Link>
       </div>
 
-      {isLoading ? <p className="text-sm text-muted-foreground">{t("loading")}</p> : null}
-      {isError ? <p className="text-sm text-destructive">{t("loadFailed")}</p> : null}
+      {query.isLoading || query.isError ? (
+        <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} resetKey={year} />
+      ) : null}
 
       {data ? (
         <>

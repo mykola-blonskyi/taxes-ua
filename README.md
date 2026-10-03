@@ -96,8 +96,10 @@ email from the allowed list. Open this in the browser (use your port and email):
 http://localhost:3000/api/auth/login/development?email=you@example.com&returnUrl=/
 ```
 
-An email outside the allowed list gets 403, the same as with Google. The shortcut does not exist
-in Production.
+An email outside the allowed list gets 403, the same as with Google. The shortcut exists only when the api
+runs in Development and `Auth__DevelopmentSignIn=true` is set. `docker-compose.local.yml` and the
+`dotnet run` launch profiles set it; Production never does, and the local stack publishes its port on
+127.0.0.1 only.
 
 ## Changing the database schema
 

@@ -1,5 +1,12 @@
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { PeriodsScreen } from "@/features/periods";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("periods");
+
+  return { title: t("title") };
+}
 
 export default async function PeriodsPage() {
   const t = await getTranslations("periods");

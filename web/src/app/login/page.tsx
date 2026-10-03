@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { GoogleSignInButton, PasskeyButton, PasskeyRegisterPrompt } from "@/features/auth";
 import { AppHeader } from "@/shared/shell/AppHeader";
 import { Disclaimer } from "@/shared/shell/Disclaimer";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("login");
+
+  return { title: t("title") };
+}
 
 export default async function LoginPage() {
   const t = await getTranslations("login");

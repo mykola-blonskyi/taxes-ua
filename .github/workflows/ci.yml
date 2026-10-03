@@ -39,11 +39,13 @@ jobs:
           - shard: rest
             filter: FullyQualifiedName!~Api.Tests.Features.Monobank.&FullyQualifiedName!~Api.Tests.Features.Backup.&FullyQualifiedName!~Api.Tests.Features.Notifications.&FullyQualifiedName!~Api.Tests.Features.Payments.&FullyQualifiedName!~Api.Tests.Features.Declarations.&FullyQualifiedName!~Api.Tests.Features.Invoices.&FullyQualifiedName!~Api.Tests.Features.Settings.
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('api/**/*.csproj', 'api/Directory.Packages.props') }}
@@ -51,7 +53,7 @@ jobs:
       - run: dotnet test api/TaxesUa.slnx --filter "${{ matrix.filter }}" --logger "trx;LogFilePrefix=${{ matrix.shard }}" --results-directory api/TestResults
       - name: Keep the test results of a failed run
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: api-trx-${{ matrix.shard }}
           path: api/TestResults/
@@ -89,17 +91,19 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-web
       - run: pnpm lint
       # tsconfig includes .next/types, which typegen writes without a build.
       - run: pnpm exec next typegen
       - run: pnpm typecheck
       - run: pnpm build
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '10.0.x'
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('api/**/*.csproj', 'api/Directory.Packages.props') }}
@@ -116,7 +120,9 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-web
       - run: pnpm test
 
@@ -128,11 +134,13 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-web
       - id: playwright
         run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         id: browsers
         with:
           path: ~/.cache/ms-playwright
@@ -149,7 +157,7 @@ jobs:
       - run: pnpm e2e
       - name: Keep the report and traces of a failed run
         if: failure() || cancelled()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-report
           path: |
@@ -162,11 +170,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Pull the base images, retrying
         run: .github/scripts/prepull-images.sh
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ./api
           cache-from: type=gha,scope=api
@@ -177,11 +187,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Pull the base images, retrying
         run: .github/scripts/prepull-images.sh
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/build-push-action@v7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ./web
           cache-from: type=gha,scope=web
@@ -192,7 +204,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Pull the base images, retrying
         run: .github/scripts/prepull-images.sh
       - run: deploy/check-compose.sh
@@ -233,7 +247,8 @@ jobs:
           status=$(curl --silent --show-error --max-time 60 --output response.txt --write-out '%{http_code}' \
             --request POST "$COOLIFY_WEBHOOK_URL" --header "Authorization: Bearer $COOLIFY_WEBHOOK_TOKEN")
           echo "Coolify answered $status"
-          head -c 500 response.txt; echo
+          # The answer names the resource and deployment ids, and this log is public: print the status
+          # only. A failure is read in Coolify's own deployment log.
           test "$status" = 200
 
       - name: Wait for this commit to report healthy

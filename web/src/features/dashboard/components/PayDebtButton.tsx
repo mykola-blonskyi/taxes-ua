@@ -58,6 +58,7 @@ export function PayDebtButton({
         details={details.data}
         loading={details.isFetching}
         failed={details.isError && !notComputed}
+        onRetry={() => details.refetch()}
         notComputed={notComputed}
       />
     </>

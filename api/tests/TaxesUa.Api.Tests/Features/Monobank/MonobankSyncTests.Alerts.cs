@@ -147,6 +147,9 @@ public sealed partial class MonobankSyncTests
         app.Clock.Advance(TimeSpan.FromDays(10));
         var restored = await owner.PostAsync("/api/restore", new StringContent(backup, System.Text.Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+
+        // A restore brings the channel back unconfirmed (#180); the owner presses Start again.
+        await LinkTelegram(app, owner, telegram);
         await Drain(app, owner);
 
         await SendAlerts(app);

@@ -336,7 +336,10 @@ Group 3 is confirmed when the owner marks it so, with the date and number of the
 (`Group3ConfirmedOn`, `Group3ReceiptNumber`). The app cannot read the register. Until the mark is
 set, every figure is provisional:
 
-- The dashboard shows a banner saying so, which links to the "Status with the DPS" checklist.
+- The dashboard shows a notice saying so, which links to the "Status with the DPS" checklist. Missing
+  the application deadline cannot be undone, so this notice ranks above the declaration, a stale sync,
+  the review queue and overdue client invoices, and with three days or fewer left (or past) it goes
+  above every other notice (ADR-029).
 - The declaration screen warns beside the file and the filed mark. Neither is blocked: the owner may
   know more than the app does.
 - While `Group3Since` is the registration date, the application deadline (the registration date plus

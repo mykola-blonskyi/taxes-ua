@@ -1177,7 +1177,9 @@ signed-in owner can ask, and an address is the owner's own choice. Addresses are
 added if it is ever needed. A restored backup carries the address but no token and no delivery record (schema 15),
 and an email address comes back unconfirmed and switched off whatever the file says: a file proves nothing
 about a mailbox (it may be edited, or restored on another server), so the owner sends the link again. A Telegram
-channel keeps its confirmation, since a chat id is only ever linked by pressing Start. The backup upgrade runs 14 to 15 after main's 13 to 14; the migration adds the column and marks every existing
+channel came back confirmed at first, since a chat id is only ever linked by pressing Start; #180 changed that: it
+too comes back unconfirmed and switched off, because a tampered file could otherwise point reminders at any chat,
+and pressing Start again is one tap. The backup upgrade runs 14 to 15 after main's 13 to 14; the migration adds the column and marks every existing
 channel confirmed, since all of them are Telegram chats.
 
 ---
@@ -1567,3 +1569,72 @@ failure messages, and the tests assert codes. The backup and import file errors 
 (`id_not_unique`, `unknown_reference`, `inconsistent_fields`, `duplicate_value`) beside the field path the screen
 prints, since the owner reads them as a list of places in a file, not as prose. The declaration screen no longer
 lists the XML schema checker's own messages: they are English diagnostics, which the api still sends in `errors` for the logs.
+
+---
+
+## ADR-029. The pay hero leads the dashboard, one banner at most above it, and every data screen shares one loading and failure state
+
+Date: 2026-10-02
+
+Status: Accepted
+
+### Context
+
+The audit (UX Medium 6, 9) found that up to four notices (limit crossing, review, declaration due, overdue
+invoices) rendered above the pay hero, so on a phone "what do I pay" could fall below the fold. It also found
+that loading and failure were a bare `<p>` per screen: not announced to assistive technology, and with no way
+to try again except in `AuthGate`.
+
+### Decision
+
+1. **The hero comes first; the notices are ranked by consequence.** `web/src/features/dashboard/components/notices.ts`
+   lists the notices in priority order and `activeNotices` returns the ones that apply. The first is the only
+   banner above the hero; the rest fold into one closed "Needs attention (N)" `<details>` under it. The order,
+   most consequential first:
+   1. Sync rejected or unreadable (`TokenRejected`, `TokenUnreadable`). Income stopped arriving, so every figure
+      depends on it and the owner pays too little (ADR-026).
+   2. Limit crossing. The regime changes for the quarters it names.
+   3. Group 3 unconfirmed, or its application deadline. Missing the deadline cannot be undone (Rule 8, ADR-023).
+   4. Declaration due.
+   5. Sync stale. Figures may be incomplete, but the feed still works.
+   6. Transactions waiting for review.
+   7. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
+
+   A debt is the hero itself (red when overdue), so it takes no banner. Treasury account expiry is shown inside
+   the hero's pay panel, where the account is used, so it never takes a banner slot. The quiet "last exchange"
+   line of a healthy feed is not a notice and stays under the hero.
+
+   A declaration, or a group 3 application, with three days or fewer left (or already past) is promoted above all
+   the others, keeping the order above between two promoted ones.
+
+   The folded list's summary shows the count and the titles of what it holds, and takes the colour of the most
+   severe of them (red if any is an alert, amber if any is a warning), so a serious notice does not hide behind a
+   neutral line.
+2. **One loading and failure state, in two layers.** `LoadStateView` (`web/src/shared/ui/load-state.tsx`) is
+   presentational: loading or offline status text, or a failure with its text and an `onRetry`. `LoadState`
+   (`web/src/data/api/LoadState.tsx`) is the thin adapter over a TanStack query (or several a screen needs
+   together); it lives in `@/data/api` because it words failures with `useApiErrorText` (ADR-028) and `@/shared`
+   may not import `@/data`. Screens without a query object, such as the pay panel, use the view with their own
+   refetch.
+   - Loading and offline are a polite `role="status"`. A query paused for the network reads as an offline line,
+     not as a retry that would do nothing.
+   - A failure is a `role="alert"` worded as the screen's own "could not load" followed by the api's coded
+     reason when this build has words for it. Its retry refetches only the failed queries.
+   - TanStack resets a failed query that has no data to pending while it refetches, which would unmount the alert
+     and drop keyboard focus. The adapter remembers it is retrying and keeps the alert and its button on
+     screen until the refetch settles. The button is `aria-disabled`, not `disabled`, so focus stays on it, and
+     reads "Retrying…".
+   - Each retry button is described by its own failure text (`aria-describedby`), since a screen can show two.
+   - `quiet` is for a side query a screen works without (the client and receipt suggestions in a form): it
+     shows nothing while loading and the failure with a retry only if it fails, so a failed list is never
+     mistaken for an empty one.
+3. **A failure that used to read as an empty state is shown.** The invoice draft's client list, the
+   transaction form's client and receipt suggestions, and the reserve jar (a failed load is not "no jar
+   chosen") now show the failure and a retry.
+
+### Consequences
+
+A new data screen renders `LoadState` instead of writing its own `<p>`. A new dashboard notice is added to
+`noticePriority` at its rank and to `noticeSeverity`, with a case in `NoticeView` and a title in
+`useNoticeTitles`. The banner above the hero is chosen by rank alone, apart from the three-day promotion, so
+the hero is never pushed down by more than one banner.

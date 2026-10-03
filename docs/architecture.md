@@ -39,6 +39,12 @@ Full spec: `/Users/mykola/Documents/obsidian-notes/tsxes-ua/SPEC.md` (outside th
 | Database | PostgreSQL 16+ | Owner's preference. Already running on the VPS. |
 | Deploy | Coolify on the `blonskyi-dev` VPS, Docker Compose from the repository | Traefik with auto-TLS, existing PostgreSQL instance, backups. |
 
+**PWA.** The service worker (`web/service-worker/sw.ts`) precaches the build's static files and
+`public/offline.html`, nothing else. Pages and `/api` responses always go to the network, so no stale
+tax data is ever served; a failed navigation gets the static offline page (uk/ru by the `locale`
+cookie). A new worker waits until the owner accepts the "new version" prompt (`UpdatePrompt`), then
+the tab reloads, so chunks of two builds never mix and a half-filled form is never reloaded.
+
 ---
 
 ## Components
@@ -317,9 +323,16 @@ decrypted at the moment of the bank API call and never appear in logs, responses
 Other: HTTPS via Traefik. `ALLOWED_HOSTS` pins the host the Google redirect URI is built from, and
 the api refuses to start in Production without it. Host filtering sees the host the container was
 addressed by, so outside Development it also accepts `api` and `localhost`; the pin to the domain is
-`ForwardedHeadersOptions.AllowedHosts`, and a forwarded host outside it gets 400. `web/next.config.ts`
-sends HSTS, `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a Content-Security-Policy; the
-api sends the same headers except the CSP on `/api/*`, which Next passes through untouched. `PASSKEY_SERVER_DOMAIN` pins the WebAuthn Relying
+`ForwardedHeadersOptions.AllowedHosts`, and a forwarded host outside it gets 400. The forwarded-headers options trust every hop (`KnownProxies` and
+`KnownIPNetworks` are cleared), so the client IP and scheme the api sees are not trustworthy: any caller can send
+`X-Forwarded-For`. A feature that depends on the client IP must first restrict `KnownIPNetworks` to the Docker
+subnet and read `CF-Connecting-IP` behind Cloudflare. `web/next.config.ts`
+sends HSTS, `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a Permissions-Policy (camera, microphone, location,
+payment and USB off; passkeys untouched). `web/src/proxy.ts` sets the Content-Security-Policy on every page with a nonce per
+request, so `script-src` has no `'unsafe-inline'` (styles keep it, since React writes style attributes). The
+Paths the proxy skips (a last segment with an extension, such as a static file or `/foo.bar`) get a static policy from
+`next.config.ts` instead, with `script-src 'self'` and `style-src 'self'`, so a static page keeps its script and style
+in files. The api sends the same headers except the CSP on `/api/*`, which Next passes through untouched. `PASSKEY_SERVER_DOMAIN` pins the WebAuthn Relying
 Party ID rather than letting Identity infer it from the host header, and the api refuses to start
 without it too; a passkey is bound to the RP ID it was registered against. The OpenAPI document is
 served only in Development. Anti-forgery for cookie auth is SameSite=Lax plus `CrossSiteGuard` (ADR-024): an unsafe

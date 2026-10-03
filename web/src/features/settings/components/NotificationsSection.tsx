@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { LoadState } from "@/data/api/LoadState";
 import {
   useConnectTelegram,
   useDisconnectTelegram,
@@ -26,16 +27,13 @@ export function NotificationsSection({
 }) {
   const t = useTranslations("settings.notifications");
   const [link, setLink] = useState<TelegramConnect | null>(null);
-  const { data, isLoading, isError } = useNotificationChannels({ awaitingLink: link !== null });
+  const query = useNotificationChannels({ awaitingLink: link !== null });
+  const { data } = query;
   const telegram = data?.find((channel) => channel.kind === "Telegram");
   const email = data?.find((channel) => channel.kind === "Email");
 
-  if (isLoading) {
-    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
-  }
-
-  if (isError || !telegram || !email) {
-    return <p className="text-sm text-destructive">{t("loadFailed")}</p>;
+  if (query.isLoading || query.isError || !telegram || !email) {
+    return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
   return (
@@ -73,11 +71,13 @@ function TelegramChannel({
     return <p className="text-sm text-muted-foreground">{t("unavailable")}</p>;
   }
 
-  if (!channel.linked) {
+  // A channel restored from a backup is linked but unconfirmed: nothing is sent, and pressing Start again
+  // in Telegram confirms it, so it gets the same connect flow as no channel at all.
+  if (!channel.linked || !channel.confirmed) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">{t("intro")}</p>
-        <div>
+        <p className="text-sm text-muted-foreground">{t(channel.linked ? "reconfirm" : "intro")}</p>
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             disabled={connect.isPending}
@@ -85,8 +85,19 @@ function TelegramChannel({
           >
             {connect.isPending ? t("connecting") : link ? t("newLink") : t("connect")}
           </Button>
+          {channel.linked ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disconnect.isPending}
+              onClick={() => disconnect.mutate(undefined, { onSuccess: () => onLink(null) })}
+            >
+              {disconnect.isPending ? t("disconnecting") : t("disconnect")}
+            </Button>
+          ) : null}
         </div>
         {connect.isError ? <p className="text-sm text-destructive">{t("connectFailed")}</p> : null}
+        {disconnect.isError ? <p className="text-sm text-destructive">{t("saveFailed")}</p> : null}
         {link ? (
           <div className="flex min-w-0 flex-col gap-2 rounded-lg border p-3">
             <p className="text-sm">{t("linkSteps")}</p>

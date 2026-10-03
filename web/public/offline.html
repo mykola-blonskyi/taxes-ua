@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Немає мережі · Податки ФОП 3 групи</title>
+  <link rel="stylesheet" href="/offline.css">
+</head>
+<body>
+  <!-- Static on purpose: the service worker serves this file when a navigation fails, so it cannot depend on the app or the api. Style and script are external files so the page works under script-src 'self'; style-src 'self'. The text mirrors `offline` in messages/uk.json and messages/ru.json. -->
+  <main>
+    <section lang="uk" id="offline-uk">
+      <h1>Немає мережі</h1>
+      <p>Дані не оновлено. Перевірте з’єднання й спробуйте ще раз.</p>
+      <button type="button" data-retry>Спробувати знову</button>
+    </section>
+    <section lang="ru" id="offline-ru" hidden>
+      <h1>Нет сети</h1>
+      <p>Данные не обновлены. Проверьте соединение и попробуйте снова.</p>
+      <button type="button" data-retry>Попробовать снова</button>
+    </section>
+  </main>
+  <script src="/offline.js"></script>
+</body>
+</html>

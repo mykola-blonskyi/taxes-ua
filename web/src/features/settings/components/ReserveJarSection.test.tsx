@@ -156,6 +156,33 @@ describe("ReserveJarSection", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("monobank отклонил токен, подключите снова.");
   });
 
+  it.each([
+    ["uk", "Не вдалося завантажити скарбничку.", "Скарбничку не обрано.", "Спробувати ще раз"],
+    ["ru", "Не удалось загрузить копилку.", "Копилка не выбрана.", "Повторить"],
+  ] as const)(
+    "does not read a failed load as no jar chosen, and retries, in %s",
+    async (locale, failedText, noJarText, retry) => {
+      let calls = 0;
+      stubFetch({ [stored]: () => (++calls === 1 ? reply(500, { title: "Boom" }) : { jar }) });
+      const { user } = renderSection(true, locale);
+
+      expect(await screen.findByText(new RegExp(failedText))).toBeVisible();
+      expect(screen.queryByText(noJarText)).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: retry }));
+
+      expect(await screen.findByText("Податки: 400,00 ₴")).toBeVisible();
+      expect(calls).toBe(2);
+    },
+  );
+
+  it("shows the failure even when monobank cannot be read, so a stored jar is not hidden", async () => {
+    stubFetch({ [stored]: reply(500, { title: "Boom" }) });
+    renderSection(false);
+
+    expect(await screen.findByText(/Не вдалося завантажити скарбничку/)).toBeVisible();
+  });
+
   it("lists jars in Russian", async () => {
     stubFetch({ [stored]: { jar: null }, [jars]: { jars: choices, readAt: "2026-10-02T09:00:00Z" } });
     const { user } = renderSection(true, "ru");

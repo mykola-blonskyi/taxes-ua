@@ -12,6 +12,7 @@ import {
 } from "@/data/monobank/useReserveJar";
 import { formatInstantInKyiv } from "@/shared/lib/dates";
 import { formatMoney } from "@/shared/lib/money";
+import { LoadState } from "@/data/api/LoadState";
 import { Button } from "@/shared/ui/button";
 import { SelectField } from "@/shared/ui/fields";
 
@@ -42,7 +43,7 @@ export function ReserveJarSection({ canRead }: { canRead: boolean }) {
 
   // A stored jar outlives a disconnect or a rejected token, so it can always be seen and removed; asking the
   // bank needs a working token.
-  if (!jar && !canRead) {
+  if (!jar && !canRead && !stored.isError) {
     return null;
   }
 
@@ -62,6 +63,8 @@ export function ReserveJarSection({ canRead }: { canRead: boolean }) {
               : t("asOf", { time: formatInstantInKyiv(jar.fetchedAt, locale) })}
           </p>
         </div>
+      ) : stored.isLoading || stored.isError ? (
+        <LoadState query={stored} failed={t("loadFailed")} />
       ) : (
         <p className="text-sm text-muted-foreground">{t("none")}</p>
       )}

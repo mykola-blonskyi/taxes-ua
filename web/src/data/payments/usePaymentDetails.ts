@@ -83,6 +83,8 @@ export function usePaymentDetails(target: PaymentTarget, amountKop: number | nul
     error: base.error ?? withAmount.error,
     isError: base.isError || withAmount.isError,
     isFetching: base.isFetching || withAmount.isFetching,
+    // Asks again for whichever of the two reads failed.
+    refetch: () => Promise.allSettled([base.isError ? base.refetch() : null, withAmount.isError ? withAmount.refetch() : null]),
   };
 }
 
