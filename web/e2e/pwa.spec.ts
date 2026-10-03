@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { expect, test, type Page } from "@playwright/test";
+import { staticContentSecurityPolicy } from "../src/shared/security/csp";
 import ru from "../messages/ru.json";
 import uk from "../messages/uk.json";
 
@@ -11,6 +12,12 @@ async function workerControls(page: Page) {
 }
 
 test("offline, a navigation shows the fallback page in the owner's language, never tax data", async ({ page, context, baseURL }) => {
+  const violations: string[] = [];
+  page.on("console", (message) => {
+    if (/content security policy/i.test(message.text())) {
+      violations.push(message.text());
+    }
+  });
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 2, name: uk.dashboard.title })).toBeVisible();
   await workerControls(page);
@@ -32,6 +39,18 @@ test("offline, a navigation shows the fallback page in the owner's language, nev
   await context.setOffline(false);
   await page.getByRole("button", { name: ru.offline.retry }).click();
   await expect(page.getByRole("heading", { level: 2, name: ru.settings.title })).toBeVisible();
+  expect(violations).toEqual([]);
+});
+
+// The fallback page and the worker are static files, which the proxy (and its nonce policy) does not see.
+// They get the static policy from next.config.ts, and a response with two policies would enforce both.
+test("the fallback page, its files and the worker each carry exactly the static CSP", async ({ request }) => {
+  for (const path of ["/offline.html", "/offline.js", "/offline.css", "/sw.js"]) {
+    const response = await request.get(path);
+    expect(response.ok(), path).toBe(true);
+    const policies = response.headersArray().filter((header) => header.name.toLowerCase() === "content-security-policy");
+    expect(policies.map((header) => header.value), path).toEqual([staticContentSecurityPolicy]);
+  }
 });
 
 test("the service worker caches static files and the fallback, never an api response or a page", async ({ page }) => {
