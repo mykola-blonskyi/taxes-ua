@@ -4,6 +4,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import ru from "../messages/ru.json";
 import uk from "../messages/uk.json";
+import { seedTreasuryAccounts } from "./support/seed";
 import { removeMonobankToken, seedRejectedMonobankToken, seedScreensWithContent } from "./support/layout-seed";
 
 // Every screen at phone width, in both languages. A page that scrolls sideways, loses its disclaimer or
@@ -283,16 +284,19 @@ async function inspectOpenStates(page: Page, route: string, locale: Locale) {
       await payButton.click();
       const sheet = page.getByRole("dialog");
       await expect(sheet).toBeVisible();
-      await expect(sheet.getByLabel(text.pay.amountInput)).toBeVisible();
+      // A quarter with nothing owed opens on an empty amount and no QR; an amount of its own gives the sheet one.
+      await sheet.getByLabel(text.pay.amountInput).fill("100");
+      // The sheet is a portal that settled() does not watch: measure it once its details and QR have loaded.
+      await expect(sheet.getByText(text.pay.loading)).toHaveCount(0);
+      await expect(sheet.getByText(text.pay.qrUpdating)).toHaveCount(0);
+      const enlarge = sheet.getByRole("button", { name: text.pay.qrEnlarge });
+      await expect(enlarge, "the seeded Treasury account should give the sheet a QR to enlarge").toBeVisible();
       problems.push(...(await inspect(page, route, locale, "pay sheet")));
 
-      const enlarge = sheet.getByRole("button", { name: text.pay.qrEnlarge });
-      if (await enlarge.isVisible()) {
-        await enlarge.click();
-        await expect(page.getByRole("img", { name: text.pay.qrLabel }).last()).toBeVisible();
-        problems.push(...(await inspect(page, route, locale, "enlarged QR")));
-        await page.keyboard.press("Escape");
-      }
+      await enlarge.click();
+      await expect(page.getByRole("img", { name: text.pay.qrLabel }).last()).toBeVisible();
+      problems.push(...(await inspect(page, route, locale, "enlarged QR")));
+      await page.keyboard.press("Escape");
       await page.keyboard.press("Escape");
       await expect(page.getByRole("dialog")).toHaveCount(0);
     }
@@ -332,6 +336,8 @@ test.beforeAll(async ({ playwright }, testInfo) => {
   const owner = await playwright.request.newContext({ baseURL, storageState });
   try {
     const { longClientName, longForeignClientName, paymentNote } = await seedScreensWithContent(owner);
+    // The pay sheet needs a Treasury account to show its details and the QR that the enlarged-QR state opens.
+    await seedTreasuryAccounts(owner);
     seededText["/transactions"] = [longClientName];
     seededText["/payments"] = [paymentNote];
     seededText["/invoices"] = [longForeignClientName];
