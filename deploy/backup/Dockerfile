@@ -1,5 +1,5 @@
 # The backup sidecar: an encrypted pg_dump of the app database to S3-compatible storage, and a weekly
-# proof that the newest dump restores (ADR-030). It is also what deploy/smoke.compose.yml runs as its
+# proof that the newest dump restores (ADR-031). It is also what deploy/smoke.compose.yml runs as its
 # S3 stand-in (`rclone serve s3`), so the smoke test needs no image that cannot be pulled.
 # postgres:18 because pg_dump must be at least the shared instance's major version; its server
 # binaries give the restore check a throwaway cluster of its own. When the instance moves to a newer

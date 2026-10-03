@@ -1079,7 +1079,7 @@ A message is plain text in the owner's language: what stopped, what it means for
 the monobank tab of settings.
 
 **Unproven backup.** The database is backed up each night and a restore of the newest copy is tried each
-week (ADR-030). Every run is recorded in `DatabaseBackupRuns`. `RestoreCheckFailed` is open when the newest
+week (ADR-031). Every run is recorded in `DatabaseBackupRuns`. `RestoreCheckFailed` is open when the newest
 restore check failed, or when no restore check has succeeded for more than 8 days (one weekly check and a day
 of slack). Before the first successful check, the 8 days count from the oldest recorded run. With nothing
 recorded, there is nothing to judge. The key is the kind and the last successful check (or that oldest run),

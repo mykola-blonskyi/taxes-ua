@@ -294,7 +294,7 @@ imports` in eslint.
   project on that instance follows ([ADR-006](decisions.md)). Backups: Coolify's daily
   instance-wide dump, kept on the VPS and in the owner's MinIO, and the `backup` service's nightly
   encrypted dump of `taxes_ua` alone to MinIO and an optional bucket off the VPS, with a weekly restore
-  check that alerts the owner when it fails ([ADR-030](decisions.md)).
+  check that alerts the owner when it fails ([ADR-031](decisions.md)).
 - Cron: hosted services inside `api`. No external scheduler is needed.
 - Secrets: Coolify environment variables. `.env.example` in the repository holds no values, and
   the api refuses to start outside Development while a required one is empty.

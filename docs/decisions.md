@@ -1641,7 +1641,7 @@ the hero is never pushed down by more than one banner.
 
 ---
 
-## ADR-030. Back up `taxes_ua` nightly from a compose sidecar, encrypted with age, and prove a restore weekly
+## ADR-031. Back up `taxes_ua` nightly from a compose sidecar, encrypted with age, and prove a restore weekly
 
 Date: 2026-10-03
 
@@ -1681,7 +1681,7 @@ pre-migration dumps of ADR-027 cover a bad migration only and live on the same d
    read a backup. Losing the server does not lose the recovery key.
 5. **Restore check.** For each configured target, the check:
    - takes the newest object in `daily/` and fails when it is older than 48 hours;
-   - decrypts it with the check key;
+   - decrypts it with the check key and streams it straight into `pg_restore`, so no decrypted dump touches the disk;
    - restores it with `pg_restore --no-owner --no-privileges --single-transaction --exit-on-error` into a fresh
      database in a scratch cluster that runs inside the container;
    - requires the last `__EFMigrationsHistory` row to exist and to be in the live database's history;
@@ -1729,7 +1729,7 @@ manual drill: after setup and after any key change, the owner decrypts one objec
 there are no rows and no alert. Setup closes that gap by running one backup and one check by hand and
 reading the rows. A backup that fails for a week fails the next check, because the newest object is then older
 than 48 hours. The owner hears about it within 8 days. A nightly failure does not alert on its own. Deploys
-restart the container. A deploy during the 01:00 run kills that run, and the next night runs again. Moving
+restart the container. A deploy during the 01:00 run kills that run, and the next night runs again. When the scheduler starts, it deletes whatever a killed run left in `/tmp`, including a scratch cluster with restored data. Moving
 the shared instance to a newer PostgreSQL major means bumping the base image here and in `api/Dockerfile`. The
 owner chose on 2026-10-03 to run without the off-VPS target for now. Until its variables are set, every copy is
 on the VPS disk, so this decision makes restores proven and per-database but does not yet survive losing the

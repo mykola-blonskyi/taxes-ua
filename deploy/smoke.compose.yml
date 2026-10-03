@@ -31,7 +31,8 @@ services:
   # by smoke-test.sh on every run and exported; nothing here is a real key.
   backup:
     environment:
-      DATABASE_URL: Host=db;Port=5432;Database=taxes_ua;Username=taxes_ua;Password=smoke
+      # Spaced and quoted the way an owner might paste it into Coolify; the script must read it as the api does.
+      DATABASE_URL: " Host = db ; Port = 5432 ;Database= taxes_ua; Username =taxes_ua ; Password = 'smoke' ;"
       BACKUP_AGE_RECIPIENT: ${SMOKE_BACKUP_AGE_RECIPIENT:-}
       BACKUP_CHECK_AGE_IDENTITY: ${SMOKE_BACKUP_CHECK_AGE_IDENTITY:-}
       BACKUP_S3_ENDPOINT: http://s3:9000

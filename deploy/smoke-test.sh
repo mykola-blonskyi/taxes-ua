@@ -90,7 +90,12 @@ dumps=$("${compose[@]}" exec -T api sh -c 'ls /var/lib/taxes-ua/dumps/taxes_ua-p
 check "$(tr -d '[:space:]' <<<"$dumps")" 1 "api dumped the database before its first migration"
 
 # The backup sidecar: one dump and one restore check by hand (the schedule would wait for 01:00 UTC),
-# against the database the api just migrated and the S3 stand-in, with two targets.
+# against the database the api just migrated and the S3 stand-in, with two targets. Its DATABASE_URL is the
+# spaced, quoted form; this case adds a quoted password holding ';', '=' and a doubled quote.
+parsed=$("${compose[@]}" exec -T backup bash -c '. /usr/local/bin/backup-db
+DATABASE_URL="Server = h1 ;Port=6543; Database=d1;User ID = u 1 ;Password=\"a;b=c\"\"d\" ; Maximum Pool Size=10"
+parse_database_url && printf "%s|%s|%s|%s|%s" "$DB_HOST" "$DB_PORT" "$DB_NAME" "$DB_USER" "$DB_PASS"' | tr -d '\r')
+check "$parsed" 'h1|6543|d1|u 1|a;b=c"d' "backup-db reads a spaced connection string with a quoted password the way Npgsql does"
 backup_run() { "${compose[@]}" exec -T backup backup-db "$1" 2>&1; }
 backup_out=$(backup_run backup) && rc=0 || rc=$?
 check "$rc" 0 "backup-db backup succeeds"

@@ -70,7 +70,7 @@ services:
       retries: 3
 
   # Encrypted pg_dump of the app database to S3-compatible storage every night, and a weekly restore of the
-  # newest dump into a throwaway cluster (ADR-030). It reaches the database through the same DATABASE_URL.
+  # newest dump into a throwaway cluster (ADR-031). It reaches the database through the same DATABASE_URL.
   backup:
     restart: unless-stopped
     mem_limit: 256m

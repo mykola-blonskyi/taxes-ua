@@ -3,7 +3,7 @@
 #   schedule  (default) every day at 01:00 UTC run `backup`; on Sundays then run `check`
 #   backup    dump the app database, encrypt it with age, upload it, prune old copies
 #   check     restore the newest stored dump into a throwaway cluster and compare it with the live database
-# Every run records one row in "DatabaseBackupRuns" (the api shows it) and exits 0 only if it succeeded.
+# Every run records one row in "DatabaseBackupRuns" and exits 0 only if it succeeded.
 # Secrets arrive in the environment and go to tools by environment or process substitution, never on a
 # command line, and are never printed.
 set -euo pipefail
@@ -26,19 +26,56 @@ trap cleanup EXIT
 
 DB_HOST="" DB_PORT="" DB_NAME="" DB_USER="" DB_PASS=""
 
-# Npgsql form: Host=..;Port=..;Database=..;Username=..;Password=..; other keys are ignored.
+# Npgsql form: Key=Value pairs split by ';'. Keys are case-insensitive, and spaces around keys and values are
+# dropped. A value in single or double quotes may hold ';' and '=', and a doubled quote inside stands for
+# one. Keys other than the five below, such as Maximum Pool Size, are ignored.
 parse_database_url() {
   [ -n "${DATABASE_URL:-}" ] || return 1
-  local parts part key val
+  local s=$DATABASE_URL i=0 n c q key val
+  n=${#s}
   DB_HOST="" DB_PORT="" DB_NAME="" DB_USER="" DB_PASS=""
-  IFS=';' read -ra parts <<<"$DATABASE_URL"
-  for part in "${parts[@]}"; do
-    [[ "$part" == *=* ]] || continue
-    key=${part%%=*}
-    val=${part#*=}
-    read -r key <<<"$key" || true
+  while [ "$i" -lt "$n" ]; do
+    key=""
+    while [ "$i" -lt "$n" ] && [ "${s:i:1}" != "=" ] && [ "${s:i:1}" != ";" ]; do
+      key+=${s:i:1}
+      i=$((i + 1))
+    done
+    if [ "$i" -ge "$n" ] || [ "${s:i:1}" = ";" ]; then
+      i=$((i + 1))
+      continue
+    fi
+    i=$((i + 1))
+    while [ "$i" -lt "$n" ] && [[ "${s:i:1}" == [[:space:]] ]]; do i=$((i + 1)); done
+    val=""
+    c=${s:i:1}
+    if [ "$c" = '"' ] || [ "$c" = "'" ]; then
+      q=$c
+      i=$((i + 1))
+      while [ "$i" -lt "$n" ]; do
+        c=${s:i:1}
+        if [ "$c" = "$q" ]; then
+          if [ "${s:i+1:1}" = "$q" ]; then
+            val+=$q
+            i=$((i + 2))
+            continue
+          fi
+          i=$((i + 1))
+          break
+        fi
+        val+=$c
+        i=$((i + 1))
+      done
+      while [ "$i" -lt "$n" ] && [ "${s:i:1}" != ";" ]; do i=$((i + 1)); done
+    else
+      while [ "$i" -lt "$n" ] && [ "${s:i:1}" != ";" ]; do
+        val+=${s:i:1}
+        i=$((i + 1))
+      done
+      val=${val%"${val##*[![:space:]]}"}
+    fi
+    i=$((i + 1))
     key=${key,,}
-    key=${key// /}
+    key=${key//[[:space:]]/}
     case "$key" in
       host | server) DB_HOST=$val ;;
       port) DB_PORT=$val ;;
@@ -170,8 +207,10 @@ start_work() {
   WORK=$(mktemp -d)
   ERR="$WORK/err"
   ERR2="$WORK/err2"
+  ERR3="$WORK/err3"
   : >"$ERR"
   : >"$ERR2"
+  : >"$ERR3"
 }
 
 # ---- backup ----------------------------------------------------------------------------------------
@@ -270,7 +309,7 @@ start_scratch() {
 # The newest stored dump must be under 48 hours old, decrypt with the check identity, restore, carry a
 # migration the live database has too, and hold rows. Sets CHECK_DETAIL on success.
 check_target() {
-  local t=$1 bucket listing latest ts epoch hours restored last_migration known rows
+  local t=$1 bucket listing latest ts epoch hours last_migration known rows
   bucket=$(target_get "$t" BUCKET)
   if ! listing=$(rclone lsf --files-only "$t:$bucket/daily/" 2>"$ERR"); then
     STEP_ERR="cannot list daily/: $(last_error "$ERR")"
@@ -290,23 +329,21 @@ check_target() {
     return 1
   fi
 
-  restored="$WORK/restored.dump"
-  : >"$ERR"
-  : >"$ERR2"
-  if ! rclone cat "$t:$bucket/daily/$latest" 2>"$ERR" | age -d -i <(printf '%s\n' "$BACKUP_CHECK_AGE_IDENTITY") >"$restored" 2>"$ERR2"; then
-    STEP_ERR="decrypting $latest: $(last_error "$ERR2" "$ERR")"
-    return 1
-  fi
   scratch dropdb --if-exists taxes_ua_restore 2>/dev/null || true
   if ! scratch createdb taxes_ua_restore 2>"$ERR"; then
     STEP_ERR="createdb: $(last_error "$ERR")"
     return 1
   fi
-  if ! scratch pg_restore --no-owner --no-privileges --single-transaction --exit-on-error -d taxes_ua_restore "$restored" 2>"$ERR"; then
-    STEP_ERR="restoring $latest: $(last_error "$ERR")"
+  # Streamed, so no decrypted dump is ever written to disk.
+  : >"$ERR"
+  : >"$ERR2"
+  : >"$ERR3"
+  if ! rclone cat "$t:$bucket/daily/$latest" 2>"$ERR" \
+    | age -d -i <(printf '%s\n' "$BACKUP_CHECK_AGE_IDENTITY") 2>"$ERR2" \
+    | scratch pg_restore --no-owner --no-privileges --single-transaction --exit-on-error -d taxes_ua_restore 2>"$ERR3"; then
+    STEP_ERR="restoring $latest: $(last_error "$ERR2" "$ERR" "$ERR3")"
     return 1
   fi
-  rm -f "$restored"
 
   if ! last_migration=$(scratch psql -X -At -d taxes_ua_restore \
     -c 'select "MigrationId" from "__EFMigrationsHistory" order by 1 desc limit 1' 2>"$ERR"); then
@@ -381,6 +418,9 @@ seconds_until_next_run() {
 
 cmd_schedule() {
   local self=${BASH_SOURCE[0]}
+  # A run killed mid-way (a deploy, an OOM kill) leaves its temp dirs, and a check's scratch cluster holds
+  # restored data. Nothing else runs at start, so every mktemp dir is stale.
+  rm -rf /tmp/tmp.*
   log "scheduler started; backup daily at 01:00 UTC, restore check on Sundays"
   while true; do
     sleep "$(seconds_until_next_run "$(date -u +%s)")"

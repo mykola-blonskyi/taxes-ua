@@ -45,11 +45,12 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
 - The data-protection key ring lives in the `dataprotection-keys` volume, so a redeploy keeps the
   owner signed in (ADR-010).
 - The `backup` service publishes no port and backs up `taxes_ua` each night, encrypted, to the MinIO on the
-  VPS and, when configured, to a second target off the VPS. It proves a restore every Sunday (ADR-030,
+  VPS and, when configured, to a second target off the VPS. It proves a restore every Sunday (ADR-031,
   step 8). The smoke test runs one backup and one restore check against S3-compatible storage and asserts
   that both succeed, that the owner's recovery key decrypts the stored file, and that no secret reaches
-  the log. With its variables empty, the service still starts. Each run records a failure, and the owner
-  is alerted within 8 days.
+  the log. With its variables empty, the service still starts and each nightly run records a failed
+  backup. The first Sunday's restore check then fails too, and that alerts the owner at once. Configure
+  step 8b before the first Sunday 01:00 UTC after this deploys, or expect that alert.
 - `api` answers only for `ALLOWED_HOSTS`, as forwarded by `web`, plus its own internal names for
   the healthcheck and the rewrite. A foreign host gets 400.
 - Every response carries HSTS, `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a
@@ -151,7 +152,7 @@ is disabled.
 
    | Variable | Value |
    | --- | --- |
-   | `DATABASE_URL` | the connection string from step 3 |
+   | `DATABASE_URL` | the connection string from step 3. The `backup` service reads it too. It accepts spaces around keys and values, and a value in single or double quotes may hold `;` and `=` (a doubled quote inside stands for one), as in Npgsql |
    | `GOOGLE_CLIENT_ID` | from step 4 |
    | `GOOGLE_CLIENT_SECRET` | from step 4 |
    | `ALLOWED_EMAILS` | the owner's email |
@@ -169,6 +170,10 @@ is disabled.
    Set these only in Coolify. Never put the domain in a local `.env`: `docker-compose.local.yml`
    overrides only the environment name and the connection string, so a local run would inherit it
    and refuse to start.
+
+Coolify 4.2.0 can refuse to save the General form while a compose service has no entry in the resource's
+`docker_compose_domains`. The workaround is the same as for `api`: give `backup` an entry with no domain,
+`"backup":{"domain":null}`, next to the existing ones.
 
 **Check.** Persistent Storage lists the `dataprotection-keys` volume. The `api` and `backup` services
 have no domain. The six required variables have values. The two `MONOBANK_*` ones, `TELEGRAM_BOT_TOKEN`
@@ -290,7 +295,7 @@ Two backups run, and they protect against different things:
   survive losing the server, and restoring one brings back every project at once.
 - **The app backup (8b).** The `backup` service dumps `taxes_ua` alone each night at 01:00 UTC. It
   encrypts the dump and sends it to MinIO and, when configured, to a bucket off the VPS. Every Sunday it
-  restores the newest copy into a scratch database to prove that the copy works (ADR-030). This is the one
+  restores the newest copy into a scratch database to prove that the copy works (ADR-031). This is the one
   to use when the server is lost, once it has an off-VPS bucket; until then it shares the VPS disk.
 
 ### 8a. The instance dump
@@ -390,7 +395,7 @@ item is done by the owner. Nothing here is in the repository.
 **Check.** Run one backup and one check by hand, then read what they recorded:
 
 ```bash
-B=$(ssh blonskyi "docker ps -qf name='^backup-'")
+B=$(ssh blonskyi "docker ps -qf name='^backup-tpx1vnmef2rgcbjjpqlbvour'")
 ssh blonskyi "docker exec $B backup-db backup"
 ssh blonskyi "docker exec $B backup-db check"
 P='docker exec -i 3p9qjnulllqn3bcjqokir0wq'
