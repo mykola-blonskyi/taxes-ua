@@ -106,7 +106,7 @@ row per owner, key `UserId`; an owner who never saved one reads an empty set and
 
 Fields: `TaxOfficeRegion: int?` (C_REG, 1 to 99) and `TaxOfficeDistrict: int?` (C_RAJ, 0 to 99), both
 set or both empty; `TaxOfficeName` (the office's name for the form's HSTI, as the Cabinet shows it next
-to the code, at most 200 characters, empty when not set); `KvedCodes: string[]` (each `NN.NN`, distinct, at most 20, in the owner's order, the
+to the code, at most 200 characters, empty when not set); `KvedCodes: string[]` (each `NN.NN` and a class of КВЕД ДК 009:2010, refused as `kved_unknown` otherwise; distinct, at most 20, in the owner's order, the
 first the main activity); `Address` (as in the register, at most 500 characters); `FullName` (surname,
 given name and patronymic as in the registration documents, at most 200 characters, HNAME; empty means
 the invoicing name); `Phone` (HTEL, stored as `+380` and nine digits, typed with spaces, brackets or dashes,
@@ -116,7 +116,10 @@ are not stored here: they are `InvoicingDetails.SellerNameUk` and `Rnokpp`, and 
 /api/settings/declaration` echoes them read-only, with the confirmed email channel's address as
 `ConfirmedEmail`. An incomplete set saves; completeness is a readiness
 item (`MissingDetails: Name | Rnokpp | TaxOffice | Kved | Address`; `TaxOffice` covers the codes and
-the name).
+the name). A stored code the classifier does not know, which only a restored backup can hold, is its own
+readiness item (`UnknownKvedCodes`, also on `GET /api/settings/declaration`) and blocks the declaration; the
+backup restore accepts it, the settings form refuses to save it. `GET /api/settings/declaration/kved-classes`
+serves the classifier, code and Держстат's Ukrainian name, for the form to show the name under each code.
 
 Audited as `DeclarationDetails`. Relationships: belongs to `User`.
 

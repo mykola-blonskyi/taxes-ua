@@ -7,6 +7,7 @@ import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useDeclarationDetails,
+  useKvedClasses,
   useSaveDeclarationDetails,
   type DeclarationDetailsResponse,
 } from "@/data/declarations/useDeclarations";
@@ -15,6 +16,8 @@ import { LoadState } from "@/data/api/LoadState";
 import { FieldErrors, TextAreaField, TextField, FieldForm } from "@/shared/ui/fields";
 
 const maxKvedCodes = 20;
+
+const kvedShape = /^\d{2}\.\d{2}$/;
 
 type FormState = {
   region: string;
@@ -62,11 +65,13 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
   const tFields = useTranslations("declaration.fields");
   const apiText = useApiErrorText();
   const save = useSaveDeclarationDetails();
+  const kvedClasses = useKvedClasses();
   const [form, setForm] = useState<FormState>(() => toFormState(details));
 
   const failure = save.error instanceof ApiError ? save.error : null;
   const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
   const missing = details.missingDetails;
+  const unknownKved = details.unknownKvedCodes;
   const suggestedEmail = form.reportEmail === "" ? details.confirmedEmail : null;
   const sentKved = form.kvedCodes.flatMap((code, index) => (code.trim() === "" ? [] : [index]));
 
@@ -78,6 +83,20 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
     const sent = sentKved.indexOf(index);
 
     return sent < 0 ? undefined : fieldErrors(`kvedCodes[${sent}]`);
+  }
+
+  // Typing a code is touching it (ADR-030), so an unknown one is worded before any save.
+  function kvedAnnotation(code: string): { hint?: string; errors?: string[] } {
+    const typed = code.trim();
+    const names = kvedClasses.data;
+
+    if (!names || !kvedShape.test(typed)) {
+      return {};
+    }
+
+    const name = names.get(typed);
+
+    return name === undefined ? { errors: [apiText.ofCode("kved_unknown")] } : { hint: name };
   }
 
   const setDigits = (field: "region" | "district") => (value: string) =>
@@ -117,6 +136,10 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
       {missing.length > 0 ? (
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
           {tDeclaration("missing", { fields: missing.map((field) => tFields(field)).join(", ") })}
+        </p>
+      ) : unknownKved.length > 0 ? (
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+          {tDeclaration("kvedUnknownBanner", { codes: unknownKved.join(", ") })}
         </p>
       ) : (
         <p className="text-sm text-emerald-700 dark:text-emerald-400">{tDeclaration("complete")}</p>
@@ -190,29 +213,36 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
       >
         <legend className="text-base font-semibold">{tDeclaration("kved")}</legend>
         <p className="text-xs text-muted-foreground">{tDeclaration("kvedHint")}</p>
-        {form.kvedCodes.map((code, index) => (
-          <div key={index} className="flex min-w-0 max-w-xs items-end gap-2">
-            <div className="min-w-0 flex-1">
-              <TextField
-                id={`kved-${index}`}
-                label={
-                  index === 0
-                    ? `${tDeclaration("kvedCode", { number: index + 1 })} (${tDeclaration("main")})`
-                    : tDeclaration("kvedCode", { number: index + 1 })
-                }
-                inputMode="decimal"
-                maxLength={5}
-                placeholder="62.01"
-                value={code}
-                onChange={setKved(index)}
-                errors={kvedErrors(index)}
-              />
+        {form.kvedCodes.map((code, index) => {
+          const annotation = kvedAnnotation(code);
+
+          return (
+            <div key={index} className="flex min-w-0 max-w-md flex-col items-start gap-2">
+              <div className="w-full min-w-0">
+                <TextField
+                  id={`kved-${index}`}
+                  label={
+                    index === 0
+                      ? `${tDeclaration("kvedCode", { number: index + 1 })} (${tDeclaration("main")})`
+                      : tDeclaration("kvedCode", { number: index + 1 })
+                  }
+                  inputMode="decimal"
+                  maxLength={5}
+                  placeholder="62.01"
+                  value={code}
+                  onChange={setKved(index)}
+                  hint={annotation.hint}
+                  hintClassName="break-words"
+                  errors={kvedErrors(index) ?? annotation.errors}
+                />
+              </div>
+              <Button type="button" variant="outline" onClick={() => removeKved(index)}>
+                {tDeclaration("removeKved")}
+              </Button>
             </div>
-            <Button type="button" variant="outline" onClick={() => removeKved(index)}>
-              {tDeclaration("removeKved")}
-            </Button>
-          </div>
-        ))}
+          );
+        })}
+        <LoadState query={kvedClasses} failed={tDeclaration("kvedClassesFailed")} quiet />
         <FieldErrors id="kved-codes-error" errors={fieldErrors("kvedCodes")} />
         <div>
           <Button
