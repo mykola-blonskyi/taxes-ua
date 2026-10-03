@@ -109,7 +109,7 @@ public static class TransactionsEndpoints
                 }
 
                 var result = await TransactionRecorder.RecordAsync(
-                    database, user.Id, request, provenance: null, rates, time.TodayInKyiv(), cancellationToken);
+                    database, user.Id, request, provenance: null, rates, time.TodayInKyiv(), time, cancellationToken);
 
                 if (result is RecordTransactionResult.Success recorded)
                 {
@@ -191,7 +191,7 @@ public static class TransactionsEndpoints
                 row.InvoiceNumber = normalized.InvoiceNumber;
                 row.Description = normalized.Description;
                 row.ReviewStatus = ReviewStatus.Confirmed;
-                row.UpdatedAt = DateTimeOffset.UtcNow;
+                row.UpdatedAt = time.GetUtcNow();
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
@@ -211,6 +211,7 @@ public static class TransactionsEndpoints
                 Guid id,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -256,7 +257,7 @@ public static class TransactionsEndpoints
                         row.InvoiceNumber = null;
                     }
 
-                    row.UpdatedAt = DateTimeOffset.UtcNow;
+                    row.UpdatedAt = time.GetUtcNow();
                 }
 
                 await database.SaveChangesAsync(cancellationToken);
@@ -274,6 +275,7 @@ public static class TransactionsEndpoints
                 ConfirmRequest request,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -308,7 +310,7 @@ public static class TransactionsEndpoints
                 if (row.ReviewStatus == ReviewStatus.NeedsReview)
                 {
                     row.ReviewStatus = ReviewStatus.Confirmed;
-                    row.UpdatedAt = DateTimeOffset.UtcNow;
+                    row.UpdatedAt = time.GetUtcNow();
                     await database.SaveChangesAsync(cancellationToken);
                 }
 

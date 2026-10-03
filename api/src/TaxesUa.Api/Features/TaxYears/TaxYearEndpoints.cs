@@ -97,6 +97,7 @@ public static class TaxYearEndpoints
         taxYears.MapPost("/{year:int}/verify", async (
                 int year,
                 AppDbContext database,
+                TimeProvider time,
                 CancellationToken cancellationToken) =>
             {
                 var config = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
@@ -105,7 +106,7 @@ public static class TaxYearEndpoints
                     return Problems.TaxYearNotFound(year);
                 }
 
-                config.VerifiedAt = DateTimeOffset.UtcNow;
+                config.VerifiedAt = time.GetUtcNow();
                 await database.SaveChangesAsync(cancellationToken);
 
                 return Results.Ok(ToResponse(config));

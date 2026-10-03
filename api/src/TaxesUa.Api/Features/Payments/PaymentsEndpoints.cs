@@ -74,7 +74,7 @@ public static class PaymentsEndpoints
                     return Results.Unauthorized();
                 }
 
-                var now = DateTimeOffset.UtcNow;
+                var now = time.GetUtcNow();
                 var row = new BudgetPayment { Id = Guid.NewGuid(), UserId = user.Id, CreatedAt = now };
                 Apply(row, request, now);
                 database.BudgetPayments.Add(row);
@@ -118,7 +118,7 @@ public static class PaymentsEndpoints
                     return Problems.NotFound(ProblemCodes.PaymentNotFound, "payment", id);
                 }
 
-                var now = DateTimeOffset.UtcNow;
+                var now = time.GetUtcNow();
                 Apply(row, request, now);
                 await PaymentCandidatesEndpoints.FollowPaymentAsync(database, row, request.Kind, now, cancellationToken);
                 await database.SaveChangesAsync(cancellationToken);
@@ -137,6 +137,7 @@ public static class PaymentsEndpoints
                 Guid id,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -156,7 +157,7 @@ public static class PaymentsEndpoints
                 }
 
                 database.BudgetPayments.Remove(row);
-                await PaymentCandidatesEndpoints.FollowPaymentAsync(database, row, null, DateTimeOffset.UtcNow, cancellationToken);
+                await PaymentCandidatesEndpoints.FollowPaymentAsync(database, row, null, time.GetUtcNow(), cancellationToken);
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 

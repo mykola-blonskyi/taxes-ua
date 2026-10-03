@@ -346,7 +346,7 @@ internal sealed class MonobankStatementImport(
         var provenance = new ImportProvenance(account.Id, item.Id, item.Time, counterparty, batchId);
 
         var result = await TransactionRecorder.RecordAsync(
-            database, ownerId, request, provenance, rates, today, cancellationToken);
+            database, ownerId, request, provenance, rates, today, time, cancellationToken);
 
         switch (result)
         {

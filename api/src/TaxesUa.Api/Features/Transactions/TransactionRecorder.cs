@@ -20,6 +20,7 @@ internal static class TransactionRecorder
         ImportProvenance? provenance,
         FxRates rates,
         DateOnly today,
+        TimeProvider time,
         CancellationToken cancellationToken)
     {
         var normalized = TransactionsEndpoints.Normalize(request);
@@ -47,7 +48,7 @@ internal static class TransactionRecorder
             };
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = time.GetUtcNow();
         row.ClientId = await TransactionsEndpoints.ResolveClientAsync(
             database, userId, normalized.ClientName, cancellationToken);
         row.Kind = request.Kind;
