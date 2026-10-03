@@ -1177,7 +1177,9 @@ signed-in owner can ask, and an address is the owner's own choice. Addresses are
 added if it is ever needed. A restored backup carries the address but no token and no delivery record (schema 15),
 and an email address comes back unconfirmed and switched off whatever the file says: a file proves nothing
 about a mailbox (it may be edited, or restored on another server), so the owner sends the link again. A Telegram
-channel keeps its confirmation, since a chat id is only ever linked by pressing Start. The backup upgrade runs 14 to 15 after main's 13 to 14; the migration adds the column and marks every existing
+channel came back confirmed at first, since a chat id is only ever linked by pressing Start; #180 changed that: it
+too comes back unconfirmed and switched off, because a tampered file could otherwise point reminders at any chat,
+and pressing Start again is one tap. The backup upgrade runs 14 to 15 after main's 13 to 14; the migration adds the column and marks every existing
 channel confirmed, since all of them are Telegram chats.
 
 ---

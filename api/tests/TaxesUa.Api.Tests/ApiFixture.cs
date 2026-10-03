@@ -74,6 +74,9 @@ public sealed class ApiFixture : IAsyncLifetime
             builder.UseSetting("Auth:AllowedEmails", string.Join(';', [AllowedEmail, SecondAllowedEmail, .. _owners]));
             builder.UseSetting("Monobank:TokenEncryptionKeyBase64", MonobankTestKeyBase64);
 
+            // The Development sign-in needs this flag besides the environment; tests sign in through it.
+            builder.UseSetting("Auth:DevelopmentSignIn", "true");
+
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IStartupFilter, ExternalSignInStub>();

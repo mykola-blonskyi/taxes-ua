@@ -100,13 +100,16 @@ export function BackupPanel() {
       ) : null}
 
       {restoreBackup.isSuccess && restoreBackup.data ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          {t("success", {
-            clients: Number(restoreBackup.data.clients),
-            transactions: Number(restoreBackup.data.transactions),
-            budgetPayments: Number(restoreBackup.data.budgetPayments),
-          })}
-        </p>
+        <div role="status" className="flex flex-col gap-1 text-sm text-muted-foreground">
+          <p>
+            {t("success", {
+              clients: Number(restoreBackup.data.clients),
+              transactions: Number(restoreBackup.data.transactions),
+              budgetPayments: Number(restoreBackup.data.budgetPayments),
+            })}
+          </p>
+          <p>{t("channelsHint")}</p>
+        </div>
       ) : null}
 
       <UploadFailure

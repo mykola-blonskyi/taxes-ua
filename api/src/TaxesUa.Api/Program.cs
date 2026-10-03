@@ -148,12 +148,15 @@ builder.Services.AddHttpClient<NbuRateClient>(client =>
 // starts unconfigured rather than throwing, and MonobankEndpoints answers 503 until it is set.
 builder.Services.AddSingleton<TokenEncryptor>();
 builder.Services.AddHttpClient<MonobankClient>(client =>
-{
-    // Empty means the real bank: the local Compose file passes it through, empty unless a stub is wanted.
-    var baseUrl = builder.Configuration["Monobank:BaseUrl"];
-    client.BaseAddress = new Uri((string.IsNullOrWhiteSpace(baseUrl) ? "https://api.monobank.ua" : baseUrl).TrimEnd('/') + "/");
-    client.Timeout = TimeSpan.FromSeconds(10);
-});
+    {
+        // Empty means the real bank: the local Compose file passes it through, empty unless a stub is wanted.
+        var baseUrl = builder.Configuration["Monobank:BaseUrl"];
+        client.BaseAddress = new Uri((string.IsNullOrWhiteSpace(baseUrl) ? "https://api.monobank.ua" : baseUrl).TrimEnd('/') + "/");
+        client.Timeout = TimeSpan.FromSeconds(10);
+    })
+    // The framework's request logging prints the URL, and the statement path carries the bank account
+    // id and the sync window.
+    .RemoveAllLoggers();
 builder.Services.AddSingleton<MonobankRateGate>();
 builder.Services.AddSingleton<MonobankClientInfoReader>();
 builder.Services.AddScoped<ReserveJarService>();
@@ -306,9 +309,15 @@ if (app.Environment.IsDevelopment())
 {
     api.MapOpenApi("/openapi/{documentName}.json");
 
-    // A deliberate auth bypass for obtaining a real session without a Google OAuth client. This
-    // Development check, plus the allowlist inside AuthEndpoints.CompleteSignIn, are what contain it.
-    api.MapDevelopmentSignIn();
+    // A deliberate auth bypass for obtaining a real session without a Google OAuth client. It needs the
+    // Development environment AND Auth:DevelopmentSignIn=true, which only docker-compose.local.yml and
+    // a developer's own run set; the allowlist inside AuthEndpoints.CompleteSignIn is the third gate.
+    // A loopback check on the remote address is not usable: the proxy lists above trust every hop, so
+    // X-Forwarded-For chooses RemoteIpAddress, and behind web's rewrite it is a container address anyway.
+    if (bool.TryParse(app.Configuration["Auth:DevelopmentSignIn"], out var developmentSignIn) && developmentSignIn)
+    {
+        api.MapDevelopmentSignIn();
+    }
 }
 
 // The commit this container was built from. Coolify injects SOURCE_COMMIT into the compose services;

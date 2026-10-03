@@ -68,6 +68,21 @@ done
 csp=$(header content-security-policy -H "Host: $domain" http://web:3000/login)
 case "$csp" in *"frame-ancestors 'none'"*) r=yes ;; *) r=no ;; esac
 check "$r" yes "/login sends a CSP with frame-ancestors 'none'"
+script_src=$(tr ';' '\n' <<<"$csp" | grep -E '^ ?script-src')
+case "$script_src" in *"'unsafe-inline'"*) r=no ;; *"'nonce-"*) r=yes ;; *) r=no ;; esac
+check "$r" yes "/login's script-src carries a nonce and no 'unsafe-inline'"
+# /foo.bar is skipped by the proxy matcher (a last segment with an extension) and renders the 404 page: it
+# gets the static policy, and no response carries two.
+static_csp=$(header content-security-policy -H "Host: $domain" http://web:3000/foo.bar)
+check "$static_csp" "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" \
+  "a path with a dot gets the static CSP: scripts and styles from 'self' only"
+check "$(request -H "Host: $domain" http://web:3000/foo.bar | tr -d '\r' | grep -ci '^content-security-policy:')" 1 "a path with a dot carries one CSP"
+for file in /offline.html /offline.js /offline.css /sw.js; do
+  check "$(header content-security-policy -H "Host: $domain" "http://web:3000$file")" "$static_csp" "$file carries the static CSP"
+  check "$(request -H "Host: $domain" "http://web:3000$file" | tr -d '\r' | grep -ci '^content-security-policy:')" 1 "$file carries one CSP"
+done
+check "$(request -H "Host: $domain" http://web:3000/login | tr -d '\r' | grep -ci '^content-security-policy:')" 1 "a page carries one CSP"
+check "$(header permissions-policy -H "Host: $domain" http://web:3000/login | grep -c 'camera=()')" 1 "/login sends a Permissions-Policy"
 check "$(header x-powered-by -H "Host: $domain" http://web:3000/login)" "" "/login does not advertise the framework"
 
 # The first start migrated an empty database, so it had to dump it first with the real pg_dump.
