@@ -26,6 +26,11 @@ test("the declaration details name the saved KVED and word an unknown one", asyn
   await extra.fill("85.59");
   await expect(page.getByText("Інші види освіти, н.в.і.у.")).toBeVisible();
 
+  await page.setViewportSize({ width: 375, height: 812 });
+  await extra.fill("47.91");
+  await expect(page.getByText(/^Роздрібна торгівля, що здійснюється фірмами поштового замовлення/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+
   await extra.fill("12.34");
   await expect(page.getByText(uk.apiErrors.kved_unknown)).toBeVisible();
 });
