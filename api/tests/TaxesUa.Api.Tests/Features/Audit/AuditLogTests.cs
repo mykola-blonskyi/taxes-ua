@@ -9,6 +9,7 @@ using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Calendar;
+using TaxesUa.Api.Features.DatabaseBackups;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Monobank;
@@ -259,6 +260,8 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
             // The bank's last answer for the jar, rewritten on every sync, and the jar's name and balance
             // are the owner's savings: the choice is a click, and neither belongs on the History screen.
             typeof(ReserveJar),
+            // The backup sidecar's own log of its runs, written by psql outside the app; no owner is in it.
+            typeof(DatabaseBackupRun),
         ];
 
         await using var scope = fixture.CreateScope();
