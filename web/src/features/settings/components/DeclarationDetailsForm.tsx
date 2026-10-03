@@ -84,9 +84,7 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
     return sent < 0 ? undefined : fieldErrors(`kvedCodes[${sent}]`);
   }
 
-  // The name when the typed code is a known class, the unknown-code message when it has the shape of a
-  // code and is not one. Typing is touching, so this shows as the owner types; an unfinished code shows
-  // neither, and nothing shows until the classifier has loaded.
+  // Typing a code is touching it (ADR-030), so an unknown one is worded before any save.
   function kvedAnnotation(code: string): { hint?: string; errors?: string[] } {
     const typed = code.trim();
     const names = kvedClasses.data;

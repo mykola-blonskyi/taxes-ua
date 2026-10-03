@@ -2,8 +2,6 @@ import { expect, test } from "@playwright/test";
 import uk from "../messages/uk.json";
 import { taxOffice } from "./support/seed";
 
-// The classifier is the api's: the form shows Держстат's name under a code, and a code of the right shape
-// that is not a class is worded as unknown before anything is saved.
 test("the declaration details name the saved KVED and word an unknown one", async ({ page, request }) => {
   const saved = await request.put("/api/settings/declaration", {
     data: {
