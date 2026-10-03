@@ -266,7 +266,7 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
         {suggestedEmail ? (
           <button
             type="button"
-            className="self-start break-all text-left text-sm font-medium text-primary underline-offset-4 hover:underline"
+            className="self-start break-all text-left text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:min-h-11"
             onClick={() => setForm((current) => ({ ...current, reportEmail: suggestedEmail }))}
           >
             {tDeclaration("reportEmailSuggest", { email: suggestedEmail })}

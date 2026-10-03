@@ -111,7 +111,7 @@ export function Readiness({ year, readiness }: { year: number; readiness: Declar
           <span className="min-w-0 break-words">{t("fullNameUnset")}</span>
           <Link
             href="/settings?tab=declaration"
-            className="shrink-0 font-medium text-primary underline-offset-4 hover:underline"
+            className="shrink-0 font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
           >
             {t("fullNameCta")}
           </Link>
