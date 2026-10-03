@@ -105,8 +105,8 @@ function Declaration({ declaration, period, today }: { declaration: DeclarationR
         group3Confirmed={declaration.readiness.group3Confirmed}
       />
       <Readiness year={period.year} readiness={declaration.readiness} />
-      <FillInCabinet declaration={declaration} />
       <XmlFile declaration={declaration} period={period} />
+      <FillInCabinet declaration={declaration} />
     </>
   );
 }

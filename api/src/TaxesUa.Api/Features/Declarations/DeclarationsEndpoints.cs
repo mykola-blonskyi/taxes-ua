@@ -442,9 +442,11 @@ public static class DeclarationsEndpoints
                 details.TaxOfficeRegion!.Value,
                 details.TaxOfficeDistrict!.Value,
                 details.TaxOfficeName,
-                invoicing.SellerNameUk,
+                details.FullName.Length > 0 ? details.FullName : invoicing.SellerNameUk,
                 details.Address,
-                details.KvedCodes);
+                details.KvedCodes,
+                details.ReportEmail.Length > 0 ? details.ReportEmail : null,
+                details.Phone.Length > 0 ? details.Phone : null);
 
     // The same list the XML writers read (ADR-025), for a reporting declaration: the type is chosen in
     // the Cabinet, and its marks are not part of the view.

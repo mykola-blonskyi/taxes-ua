@@ -6,8 +6,8 @@ namespace TaxesUa.Api.Features.Settings;
 
 /// <summary>
 /// What the declaration's header needs beyond the invoicing requisites, one row per owner
-/// (knowledge/domain-model.md). The name and RNOKPP are not repeated here: they are
-/// <see cref="InvoicingDetails"/>' own, so the two cannot drift apart.
+/// (knowledge/domain-model.md). The RNOKPP is not repeated here: it is <see cref="InvoicingDetails"/>'
+/// own, so the two cannot drift apart. The name is the invoicing name unless <see cref="FullName"/> is set.
 /// </summary>
 internal sealed class DeclarationDetails
 {
@@ -28,13 +28,25 @@ internal sealed class DeclarationDetails
     public string Address { get; set; } = string.Empty;
 
     /// <summary>
+    /// Surname, given name and patronymic as in the registration documents, HNAME. Empty means the
+    /// invoicing name, which often has no patronymic.
+    /// </summary>
+    public string FullName { get; set; } = string.Empty;
+
+    /// <summary>The phone the header prints, HTEL, as +380 and nine digits; empty leaves it out.</summary>
+    public string Phone { get; set; } = string.Empty;
+
+    /// <summary>The email the header prints, HEMAIL; empty leaves it out. Not the email channel's address.</summary>
+    public string ReportEmail { get; set; } = string.Empty;
+
+    /// <summary>
     /// What the declaration still lacks, in the order of the form's header. Saving an incomplete set
     /// is allowed; completeness only decides the declaration's readiness (Rule 15).
     /// </summary>
     public static DeclarationDetailField[] Missing(InvoicingDetails? invoicing, DeclarationDetails? details)
     {
         var missing = new List<DeclarationDetailField>();
-        if (string.IsNullOrEmpty(invoicing?.SellerNameUk))
+        if (string.IsNullOrEmpty(details?.FullName) && string.IsNullOrEmpty(invoicing?.SellerNameUk))
         {
             missing.Add(DeclarationDetailField.Name);
         }

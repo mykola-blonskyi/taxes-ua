@@ -787,9 +787,13 @@ The declaration is ready when nothing below blocks it. These block:
   candidate of another quarter does not block this one);
 - the year's `TaxYearConfig` not verified (Rule 9);
 - no registration date (Rule 8);
-- a missing detail: the name and RNOKPP (read from the invoicing details, never stored twice), the
-  tax office (its region and district codes and its name), at least one KVED code (the first is the main
-  activity), and the address as in the register;
+- a missing detail: the name (the full name from the declaration details, or else the invoicing name)
+  and RNOKPP (read from the invoicing details, never stored twice), the tax office (its region and
+  district codes and its name), at least one KVED code (the first is the main activity), and the address
+  as in the register. The phone and the email for reports are optional: the form's field 6 is left empty
+  without them. An empty full name does not block either (the owner has not decided whether it should),
+  but the readiness list warns that the declaration goes with the invoicing name, possibly without the
+  patronymic, and links to the field;
 - a quarter outside group 3 after a crossing, as above. The crossing quarter itself does not block,
   since its lines 07 and 09 are filled.
 
@@ -806,18 +810,25 @@ it, the mark is flagged as changed since filing, a hint that a clarifying declar
 until the owner marks the quarter again. The home screen names the last ended quarter's declaration
 from the day after the quarter ends through its due date (Rule 5), until it is marked filed.
 
-Filling in the Cabinet (#175, ADR-025). The Electronic Cabinet has no XML import, so the main path is
-manual entry: the declaration screen lists every field of F0103309 in the form's order, and of annex 1
-when the quarter has one, each with its printed line number, the plain value and a copy button. The list
+Filing through the Cabinet (#222, ADR-025). The main path is the XML file: in the Electronic Cabinet the
+owner opens "Введення звітності", creates the form ("Створити") or opens a draft, presses "Завантажити",
+picks the declaration file, checks the fields, sets the filing date to the day of sending, signs with a
+KEP and sends. Whether the Cabinet takes annex 1 as a second file of the same report is unverified: if it
+offers to add the annex file, the owner loads it the same way, and otherwise fills annex 1 from the list
+below. The declaration screen also lists every field of F0103309 in the
+form's order, and of annex 1 when the quarter has one, each with its printed line number, the plain value
+and a copy button: a cross-check of what the Cabinet shows after the import, and the way to type the form
+in by hand if an import fails. The list
 and the XML are built from one list of fields, so a value cannot differ between them. Amounts are copied as
 digits with a dot and two decimals, as the schema's `DGdecimal2` type requires (`1234.56`, no spaces, no
 sign, a minus for a negative line); a zero line the XML carries is `0.00`; a line the XML leaves out (07 and
 09 unless the limit was crossed in the quarter, 21 outside the annex quarter) is not given a value and the
 screen tells the owner to leave it empty; dates are copied as `dd.mm.yyyy`. The type and period boxes and
 the annex's boxes are ticked, not typed, so they have no copy button. The header fields show only once the
-declaration details are complete. The provisional notes of Rule 8 show here too.
+declaration details are complete. The footer's filing date is the day the list or the file was made; the
+screen tells the owner to set it to the day they send. The provisional notes of Rule 8 show here too.
 
-The declaration file (#111) is the secondary path, for M.E.Doc and other software that imports XML. For a
+The declaration file (#111) is what the Cabinet and M.E.Doc import. For a
 ready quarter with figures the owner downloads the declaration as an F0103309 XML file of the chosen type
 (reporting by default); the app never signs or sends (ADR-016). A quarter that is not ready, or is outside group 3, gets no file. The file follows the DPS format:
 
@@ -828,9 +839,14 @@ ready quarter with figures the owner downloads the declaration as an F0103309 XM
   PERIOD_MONTH 3, 6, 9 or 12 for Q1 to Q4, C_DOC_STAN 1, 2 or 3 for reporting, new reporting or
   clarifying, D_FILL and HFILL the day it is prepared in Kyiv as `ddmmyyyy`;
 - the body: the type flag (HZ, HZN or HZU), the period flag (H1KV, HHY, H3KV or HY) and year, for a
-  clarifying declaration the same quarter as the period clarified, HSTI the tax office's name, HNAME and
-  HBOS the invoicing details' Ukrainian name without a leading "ФОП", HLOC the address, HNACTL 0, the
-  KVED codes in table 1 with empty names, and the lines above with two decimals. Lines 07 and 09 are
+  clarifying declaration the same quarter as the period clarified, HSTI the tax office's name, HNAME the
+  full name from the declaration details (surname, given name, patronymic, as in the registration
+  documents) or else the invoicing details' Ukrainian name, without a leading "ФОП", HLOC the address,
+  HEMAIL and HTEL the email for reports and the phone (`+380` and nine digits) when set, HNACTL 0, the
+  KVED codes in table 1 with their class names from КВЕД ДК 009:2010 (a checked-in list of the classes an
+  IT FOP usually registers; a code outside it gets an empty name), the lines above with two decimals, and
+  HBOS, the signature line "власне ім'я та прізвище", as the given name and the surname in capitals
+  ("Іван ІВАНЕНКО", the name's first two words swapped; a single word is taken for the surname and capitalised). Lines 07 and 09 are
   written only when nonzero; line 21 only with annex 1, below; every other line is left out;
 - the name, per standard No. 729: C_REG and C_RAJ (two digits each), the TIN padded to 10, F01, 033,
   C_DOC_VER as two digits, C_DOC_STAN, C_DOC_TYPE as two digits, C_DOC_CNT as seven, PERIOD_TYPE,
@@ -852,7 +868,7 @@ it. The two files are prepared, validated, stored and downloaded together:
 - each file links the other in LINKED_DOCS, one DOC with NUM 1: the declaration names the annex with
   TYPE 1 (an annex), the annex names the declaration with TYPE 2 (the main form). The declaration sets
   HD1, "annex 1 attached", and line 21 (R021G3) to the annex's total;
-- the annex's body: the type flag, HTIN, HNAME, the period flag and year (for a clarifying one the same
+- the annex's body (F0133109 has no email or phone): the type flag, HTIN, HNAME, the period flag and year (for a clarifying one the same
   period clarified), H03 on a crossing quarter's, HKVED the first KVED code, R08G1D to R08G2D the stretch
   on the simplified system within the year (from 1 January, the registration date or the first day of
   the quarter of a return to group 3, whichever is latest, to the last day of the declaration's

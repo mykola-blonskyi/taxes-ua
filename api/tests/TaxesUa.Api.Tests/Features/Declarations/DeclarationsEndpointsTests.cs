@@ -231,6 +231,13 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
         var after = (await Get(owner, year, 1)).Readiness;
         Assert.Empty(after.MissingDetails);
         Assert.True(after.Ready);
+        Assert.False(after.FullNameSet);
+
+        await PutDetails(owner, CompleteDetails with { FullName = "Тестенко Тест Тестович" });
+
+        var named = (await Get(owner, year, 1)).Readiness;
+        Assert.True(named.FullNameSet);
+        Assert.True(named.Ready);
     }
 
     [Fact]

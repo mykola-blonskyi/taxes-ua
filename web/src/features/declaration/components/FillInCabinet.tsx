@@ -66,10 +66,11 @@ export function FillInCabinet({ declaration }: { declaration: DeclarationRespons
       return `${line}. ${text}`;
     }
 
-    if (element === "T1RXXXXG1S") {
+    if (element === "T1RXXXXG1S" || element === "T1RXXXXG2S") {
       const count = cabinet.filter((other) => other.element === element).length;
+      const [one, many] = element === "T1RXXXXG1S" ? (["fields.kved", "fields.kvedRow"] as const) : (["fields.kvedName", "fields.kvedNameRow"] as const);
 
-      return count > 1 ? t("fields.kvedRow", { row: Number(field.row) }) : t("fields.kved");
+      return count > 1 ? t(many, { row: Number(field.row) }) : t(one);
     }
 
     if (field.part === "Period" && field.kind === "Mark") {
@@ -94,7 +95,7 @@ export function FillInCabinet({ declaration }: { declaration: DeclarationRespons
       );
     }
 
-    if (field.value === null) {
+    if (field.value === null || field.value === "") {
       return null;
     }
 
@@ -143,12 +144,13 @@ export function FillInCabinet({ declaration }: { declaration: DeclarationRespons
     );
   }
 
-  const section = (part: CabinetField["part"], title: string) => {
+  const section = (part: CabinetField["part"], title: string, note?: string) => {
     const fields = cabinet.filter((field) => field.part === part);
 
     return fields.length === 0 ? null : (
       <div key={part} className="flex min-w-0 flex-col gap-2">
         <h4 className="text-sm font-medium">{title}</h4>
+        {note ? <p className="break-words text-sm">{note}</p> : null}
         <ul className="flex min-w-0 flex-col gap-3 rounded-lg border bg-card p-3">
           {fields.map((field) => {
             const month = Number(field.month);
@@ -209,16 +211,19 @@ export function FillInCabinet({ declaration }: { declaration: DeclarationRespons
           )}
 
           <div className="flex min-w-0 flex-col gap-2">
-            <h4 className="text-sm font-medium">{t("guide.title")}</h4>
-            <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm">
+            <h4 id="cabinet-guide-heading" className="text-sm font-medium">
+              {t("guide.title")}
+            </h4>
+            <ol aria-labelledby="cabinet-guide-heading" className="flex list-decimal flex-col gap-1 pl-5 text-sm">
+              <li>{t("guide.download")}</li>
               <li>{t("guide.open")}</li>
-              <li>{t("guide.form")}</li>
-              <li>{t("guide.period", { period, year })}</li>
-              <li>{t("guide.fill")}</li>
+              <li>{t("guide.upload")}</li>
               {hasAnnex ? <li>{t("guide.annex")}</li> : null}
               <li>{t("guide.check")}</li>
+              <li>{t("guide.date")}</li>
               <li>{t("guide.sign")}</li>
             </ol>
+            <p className="text-sm">{t("guide.manual", { period, year })}</p>
             <p className="text-xs text-muted-foreground">{t("guide.noSend")}</p>
             <p className="text-xs text-muted-foreground">{t("format")}</p>
           </div>
@@ -233,6 +238,7 @@ export function FillInCabinet({ declaration }: { declaration: DeclarationRespons
             {emptyLines.length > 0 ? `${t("empty", { count: emptyLines.length, lines: emptyLines.join(", ") })} ` : null}
             {t("othersEmpty")}
           </p>
+          {section("Footer", t("sections.footer"), t("footerNote"))}
           {section("Annex", t("sections.annex"))}
         </>
       )}
