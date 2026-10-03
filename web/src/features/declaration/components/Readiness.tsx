@@ -97,7 +97,7 @@ export function Readiness({ year, readiness }: { year: number; readiness: Declar
               {!item.met && item.fix ? (
                 <Link
                   href={item.fix.href}
-                  className="shrink-0 font-medium text-primary underline-offset-4 hover:underline"
+                  className="shrink-0 font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
                 >
                   {item.fix.label}
                 </Link>
@@ -135,7 +135,7 @@ function Unpaid({ unpaid }: { unpaid: DeclarationReadiness["unpaid"] }) {
           </li>
         ))}
       </ul>
-      <Link href="/payments" className="font-medium text-primary underline-offset-4 hover:underline">
+      <Link href="/payments" className="font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
         {t("cta")}
       </Link>
     </div>

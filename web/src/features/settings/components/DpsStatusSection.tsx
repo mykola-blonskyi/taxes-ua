@@ -9,7 +9,7 @@ import { useDpsStatus, useSaveDpsStatus, type DpsStatusRequest, type DpsStatusRe
 import { formatDateOnly, todayInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
 import { LoadState } from "@/data/api/LoadState";
-import { CheckboxField, SelectField, TextField } from "@/shared/ui/fields";
+import { CheckboxField, FieldErrors, SelectField, TextField, FieldForm } from "@/shared/ui/fields";
 
 type Start = "registration" | "quarter";
 
@@ -117,7 +117,7 @@ function DpsStatusForm({ status }: { status: DpsStatusResponse }) {
   const update = (patch: Partial<FormState>) => setForm((current) => ({ ...current, ...patch }));
 
   return (
-    <form
+    <FieldForm quietErrors={Boolean(rejected)}
       className="flex min-w-0 flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault();
@@ -131,7 +131,7 @@ function DpsStatusForm({ status }: { status: DpsStatusResponse }) {
       </div>
 
       {rejected ? (
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {t("validationError")}
         </p>
       ) : null}
@@ -217,7 +217,10 @@ function DpsStatusForm({ status }: { status: DpsStatusResponse }) {
         </Item>
       </ul>
 
-      <fieldset className="flex min-w-0 flex-col gap-2">
+      <fieldset
+        className="flex min-w-0 flex-col gap-2"
+        aria-describedby={fieldErrors("group3Since")?.length ? "group3-since-error" : undefined}
+      >
         <legend className="text-base font-semibold">{tDps("since")}</legend>
         <p className="text-xs text-muted-foreground">{tDps("sinceHint")}</p>
         <Radio
@@ -251,11 +254,7 @@ function DpsStatusForm({ status }: { status: DpsStatusResponse }) {
             />
           </div>
         ) : null}
-        {fieldErrors("group3Since")?.map((message) => (
-          <p key={message} className="text-xs text-destructive">
-            {message}
-          </p>
-        ))}
+        <FieldErrors id="group3-since-error" errors={fieldErrors("group3Since")} />
         {showDeadline ? (
           <p className="text-sm text-amber-700 dark:text-amber-400">
             {deadline >= today
@@ -278,7 +277,7 @@ function DpsStatusForm({ status }: { status: DpsStatusResponse }) {
           </p>
         ) : null}
       </div>
-    </form>
+    </FieldForm>
   );
 }
 
@@ -300,7 +299,7 @@ function Radio({
   onChange: () => void;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-2">
+    <div className="flex min-w-0 items-start gap-2 pointer-coarse:items-center">
       <input
         id={id}
         type="radio"
@@ -308,9 +307,9 @@ function Radio({
         checked={checked}
         disabled={disabled}
         onChange={onChange}
-        className="mt-0.5 size-4 shrink-0 disabled:opacity-50"
+        className="mt-0.5 size-4 shrink-0 disabled:opacity-50 pointer-coarse:mt-0 pointer-coarse:size-6"
       />
-      <label htmlFor={id} className="min-w-0 break-words text-sm">
+      <label htmlFor={id} className="min-w-0 flex-1 break-words text-sm pointer-coarse:flex pointer-coarse:min-h-11 pointer-coarse:items-center">
         {label}
       </label>
     </div>

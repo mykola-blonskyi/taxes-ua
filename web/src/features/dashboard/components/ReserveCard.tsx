@@ -62,7 +62,7 @@ export function ReserveCard({
       {reserve.jar ? (
         <JarCover jar={reserve.jar} today={today} />
       ) : reserve.canChooseJar ? (
-        <Link href="/settings?tab=monobank" className="text-sm text-primary underline-offset-4 hover:underline">
+        <Link href="/settings?tab=monobank" className="text-sm text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
           {tJar("card.choose")}
         </Link>
       ) : null}

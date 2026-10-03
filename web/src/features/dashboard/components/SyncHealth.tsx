@@ -32,7 +32,7 @@ export function SyncHealth({ sync }: { sync: Sync }) {
       <p className="break-words text-sm">{t(`${problem.key}.text`, { when: when ?? "" })}</p>
       <Link
         href="/settings?tab=monobank"
-        className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline"
+        className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
       >
         {t("fix")}
       </Link>

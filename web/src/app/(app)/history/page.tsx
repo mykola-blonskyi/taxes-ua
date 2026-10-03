@@ -54,7 +54,7 @@ export default async function HistoryPage({
       </div>
 
       {entity ? (
-        <Link href="/history" className="text-sm text-primary underline-offset-4 hover:underline">
+        <Link href="/history" className="text-sm text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
           {t("viewFullLog")}
         </Link>
       ) : null}

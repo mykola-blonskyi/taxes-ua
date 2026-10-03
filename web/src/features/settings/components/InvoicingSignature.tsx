@@ -72,6 +72,8 @@ export function InvoicingSignature({ details }: { details: InvoicingDetailsRespo
           type="file"
           accept={signatureTypes.join(",")}
           className="sr-only"
+          tabIndex={-1}
+          aria-hidden="true"
           onChange={(event) => choose(event.target.files?.[0])}
         />
         <Button type="button" variant="outline" disabled={upload.isPending} onClick={() => input.current?.click()}>

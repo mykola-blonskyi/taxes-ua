@@ -1,15 +1,17 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import ru from "../messages/ru.json";
 import uk from "../messages/uk.json";
+import { seedTreasuryAccounts } from "./support/seed";
 import { removeMonobankToken, seedRejectedMonobankToken, seedScreensWithContent } from "./support/layout-seed";
 
 // Every screen at phone width, in both languages. A page that scrolls sideways, loses its disclaimer or
 // renders the wrong language fails here, and the failure names the route, the language and the element.
 
 const catalogs = { uk, ru };
-const locales = ["uk", "ru"] as const;
+type Locale = "uk" | "ru";
 const viewport = { width: 375, height: 812 };
 
 // Strips that scroll on their own by design, named by the `data-scroll-strip` attribute the component
@@ -59,7 +61,7 @@ const routes = discoverRoutes();
 
 // Every catalog line under a key that matches. While a "loading" line is on screen a panel has not painted
 // its data yet, and measuring it would call a loading line clean.
-function catalogPattern(locale: (typeof locales)[number], keyPattern: RegExp) {
+function catalogPattern(locale: Locale, keyPattern: RegExp) {
   const lines: string[] = [];
   const walk = (node: unknown, key: string) => {
     if (typeof node === "string") {
@@ -74,7 +76,7 @@ function catalogPattern(locale: (typeof locales)[number], keyPattern: RegExp) {
 
 // The screens fetch after they paint, so the heading alone is too early to measure. A failed fetch leaves
 // an error line and no data, which would measure clean, so it fails the check instead.
-async function settled(page: Page, locale: (typeof locales)[number]) {
+async function settled(page: Page, locale: Locale) {
   await expect.poll(() => page.locator("main").innerText(), { message: "a loading line is still on screen" }).not.toMatch(
     catalogPattern(locale, /^loading/),
   );
@@ -84,10 +86,11 @@ async function settled(page: Page, locale: (typeof locales)[number]) {
   );
 }
 
-type Finding = { kind: "overflow" | "strip"; element: string; detail: string };
+type Finding = { kind: "overflow" | "strip" | "target"; element: string; detail: string };
 type Measurement = {
   scrollWidth: number;
   clientWidth: number;
+  coarse: boolean;
   lang: string;
   bodyText: string;
   findings: Finding[];
@@ -166,16 +169,78 @@ function measure(allowedStrips: string[]): Measurement {
     }
   }
 
+  // A coarse pointer needs 44 px to hit. A control's box counts, and so does the label tied to a checkbox
+  // or radio (the label is what a thumb taps). Text links inside a sentence are exempt, as in WCAG 2.5.8;
+  // an element a screen hides on purpose (sr-only, hidden file inputs) is not a target.
+  const coarse = matchMedia("(pointer: coarse)").matches;
+  const minimum = 44;
+  const targets = document.querySelectorAll(
+    'button, a[href], select, textarea, summary, [role="tab"], input:not([type="hidden"])',
+  );
+  const targetFindings: Finding[] = [];
+  for (const element of Array.from(targets)) {
+    const box = element.getBoundingClientRect();
+    if (box.width <= 1 || box.height <= 1) continue;
+    if (element instanceof HTMLInputElement && element.type === "file") continue;
+    if (element.closest("[inert], [aria-hidden='true']")) continue;
+
+    let left = box.left;
+    let right = box.right;
+    let top = box.top;
+    let bottom = box.bottom;
+    if (element instanceof HTMLInputElement && (element.type === "checkbox" || element.type === "radio")) {
+      for (const label of Array.from(element.labels ?? [])) {
+        const labelBox = label.getBoundingClientRect();
+        left = Math.min(left, labelBox.left);
+        right = Math.max(right, labelBox.right);
+        top = Math.min(top, labelBox.top);
+        bottom = Math.max(bottom, labelBox.bottom);
+      }
+    }
+    const width = right - left;
+    const height = bottom - top;
+    if (element instanceof HTMLAnchorElement) {
+      const sentence = Array.from(element.parentElement?.childNodes ?? []).some(
+        (node) => node !== element && node.nodeType === Node.TEXT_NODE && (node.textContent ?? "").trim() !== "",
+      );
+      if (sentence) continue;
+    }
+
+    // A text link is as wide as its words, so only its height must reach the minimum.
+    const narrow = !(element instanceof HTMLAnchorElement) && Math.round(width) < minimum;
+    if (Math.round(height) < minimum || narrow) {
+      targetFindings.push({
+        kind: "target",
+        element: describe(element),
+        detail: `is ${Math.round(width)}x${Math.round(height)} px, under ${minimum} px for a coarse pointer`,
+      });
+    }
+  }
+
   return {
     scrollWidth: doc.scrollWidth,
     clientWidth,
+    coarse,
     lang: doc.lang,
     bodyText: document.body.innerText,
-    findings: findings.slice(0, 8),
+    findings: findings.slice(0, 8).concat(targetFindings.slice(0, 8)),
   };
 }
 
-async function inspect(page: Page, route: string, locale: (typeof locales)[number], state: string) {
+// axe-core against the rendered state, failing on serious and critical violations. No rule is disabled: a
+// rule that cannot hold for this app would be listed here with the reason, never switched off silently.
+async function accessibilityViolations(page: Page, where: string) {
+  const { violations } = await new AxeBuilder({ page }).analyze();
+
+  return violations
+    .filter((violation) => violation.impact === "serious" || violation.impact === "critical")
+    .map((violation) => {
+      const nodes = violation.nodes.slice(0, 6).map((node) => `${node.target.join(" ")} [${node.any[0]?.message ?? ""}]`).join("; ");
+      return `${where}: axe ${violation.impact} ${violation.id}: ${violation.help} (${violation.nodes.length} node(s): ${nodes})`;
+    });
+}
+
+async function inspect(page: Page, route: string, locale: Locale, state: string) {
   const where = `${route}${state ? ` (${state})` : ""} in ${locale}`;
   const tab = await page.evaluate(() => document.querySelector('[role="tab"][aria-selected="true"]')?.id.split("-trigger-")[1]);
   const allowed = scrollingStrips
@@ -190,6 +255,10 @@ async function inspect(page: Page, route: string, locale: (typeof locales)[numbe
   for (const finding of measured.findings) {
     problems.push(`${where}: ${finding.element} ${finding.detail}`);
   }
+  if (!measured.coarse) {
+    problems.push(`${where}: the browser reports a fine pointer, so the touch-target check measured nothing`);
+  }
+  problems.push(...(await accessibilityViolations(page, where)));
   if (!measured.bodyText.includes(catalogs[locale].disclaimer)) {
     problems.push(`${where}: the ${locale} disclaimer is not in the rendered text`);
   }
@@ -199,7 +268,59 @@ async function inspect(page: Page, route: string, locale: (typeof locales)[numbe
   return problems;
 }
 
-async function open(page: Page, route: string, locale: (typeof locales)[number]) {
+// Screens that open something over the page or turn into a form: the pay sheet, the enlarged QR, the mark-paid
+// form and the invoice editor. They are states of the route as much as a tab is, and axe and the touch check
+// must see them open.
+async function inspectOpenStates(page: Page, route: string, locale: Locale) {
+  const text = catalogs[locale];
+  const problems: string[] = [];
+  const payButton = page.getByRole("button", { name: text.pay.button }).first();
+
+  if (route === "/payments" || route === "/") {
+    if (route === "/payments") {
+      await expect(payButton, "/payments should show a pay button to open the sheet").toBeVisible();
+    }
+    if (await payButton.isVisible()) {
+      await payButton.click();
+      const sheet = page.getByRole("dialog");
+      await expect(sheet).toBeVisible();
+      // A quarter with nothing owed opens on an empty amount and no QR; an amount of its own gives the sheet one.
+      await sheet.getByLabel(text.pay.amountInput).fill("100");
+      // The sheet is a portal that settled() does not watch: measure it once its details and QR have loaded.
+      await expect(sheet.getByText(text.pay.loading)).toHaveCount(0);
+      await expect(sheet.getByText(text.pay.qrUpdating)).toHaveCount(0);
+      const enlarge = sheet.getByRole("button", { name: text.pay.qrEnlarge });
+      await expect(enlarge, "the seeded Treasury account should give the sheet a QR to enlarge").toBeVisible();
+      problems.push(...(await inspect(page, route, locale, "pay sheet")));
+
+      await enlarge.click();
+      await expect(page.getByRole("img", { name: text.pay.qrLabel }).last()).toBeVisible();
+      problems.push(...(await inspect(page, route, locale, "enlarged QR")));
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+    }
+  }
+
+  if (route === "/") {
+    const markPaid = page.getByRole("button", { name: text.dashboard.markPaid });
+    if (await markPaid.isVisible()) {
+      await markPaid.click();
+      await expect(page.getByLabel(text.dashboard.paidOn)).toBeVisible();
+      problems.push(...(await inspect(page, route, locale, "mark-paid form")));
+    }
+  }
+
+  if (route === "/invoices") {
+    await page.getByRole("button", { name: text.invoices.new }).click();
+    await expect(page.getByRole("button", { name: text.invoices.editor.back })).toBeVisible();
+    problems.push(...(await inspect(page, route, locale, "invoice editor")));
+  }
+
+  return problems;
+}
+
+async function open(page: Page, route: string, locale: Locale) {
   await page.goto(dynamicRouteAddresses[route] ?? route);
   await expect(page.locator("main h2").first()).not.toBeEmpty();
   for (const text of seededText[route] ?? []) {
@@ -209,10 +330,14 @@ async function open(page: Page, route: string, locale: (typeof locales)[number])
 }
 
 test.beforeAll(async ({ playwright }, testInfo) => {
+  // The hook is capped at the 30 s test timeout, which would cut the 75 s wait for the rejected token short.
+  test.setTimeout(120_000);
   const { baseURL, storageState } = testInfo.project.use;
   const owner = await playwright.request.newContext({ baseURL, storageState });
   try {
     const { longClientName, longForeignClientName, paymentNote } = await seedScreensWithContent(owner);
+    // The pay sheet needs a Treasury account to show its details and the QR that the enlarged-QR state opens.
+    await seedTreasuryAccounts(owner);
     seededText["/transactions"] = [longClientName];
     seededText["/payments"] = [paymentNote];
     seededText["/invoices"] = [longForeignClientName];
@@ -233,10 +358,18 @@ test.afterAll(async ({ playwright }, testInfo) => {
   }
 });
 
-for (const locale of locales) {
-  test.describe(`at 375 px in ${locale}`, () => {
+// Light in both languages, and dark in Ukrainian: the theme changes every colour, so contrast is measured in
+// both. The system preference picks the theme, as it does for a visitor with no stored choice.
+const runs = [
+  { locale: "uk", scheme: "light" },
+  { locale: "ru", scheme: "light" },
+  { locale: "uk", scheme: "dark" },
+] as const;
+
+for (const { locale, scheme } of runs) {
+  test.describe(`at 375 px in ${locale}${scheme === "dark" ? " in the dark theme" : ""}`, () => {
     // The old script emulated a touch phone below 768 px, and the app may branch on it.
-    test.use({ viewport, isMobile: true, hasTouch: true });
+    test.use({ viewport, isMobile: true, hasTouch: true, colorScheme: scheme });
 
     test.beforeEach(async ({ context, baseURL }) => {
       await context.addCookies([{ name: "locale", value: locale, url: baseURL! }]);
@@ -257,6 +390,9 @@ for (const locale of locales) {
         // A tabbed route opens nine panels, each waiting for its data.
         test.setTimeout(60_000);
         await open(page, route, locale);
+        await expect(page.locator("html"), `the ${scheme} theme should be the rendered one`).toHaveClass(
+          scheme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/,
+        );
         if (route === "/") {
           const rejected = page.getByRole("alert").filter({ hasText: catalogs[locale].dashboard.sync.tokenRejected.title });
           const fold = page.locator("main details > summary");
@@ -310,6 +446,8 @@ for (const locale of locales) {
           await settled(page, locale);
           problems.push(...(await inspect(page, route, locale, `tab ${index + 1} "${name}"`)));
         }
+
+        problems.push(...(await inspectOpenStates(page, route, locale)));
 
         expect(problems, problems.join("\n")).toEqual([]);
       });

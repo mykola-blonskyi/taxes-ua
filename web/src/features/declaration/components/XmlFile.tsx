@@ -148,7 +148,7 @@ function DownloadLink({ href, fileName, children }: { href: string; fileName: st
     <a
       href={href}
       download={fileName}
-      className="inline-flex w-fit items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+      className="inline-flex w-fit items-center gap-1 font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
     >
       <Download className="size-4" aria-hidden="true" />
       {children}
