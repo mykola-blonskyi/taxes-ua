@@ -1657,20 +1657,25 @@ fields were 24-32 px tall on a phone, and the focus ring was about 1.6:1 against
    from the field id and hands the control `id`, `aria-invalid` and `aria-describedby` (hint first, error second).
    Every field component (`TextField`, `NumberField`, `SelectField`, ...) is built on it, and a control of its own
    (`PeriodSelect`) takes the same props through the function form of `children`. Errors render as
-   `FieldErrors`, a `role="alert"` region that is announced when it appears. A message that belongs to a group of
+   `FieldErrors`, a `role="alert"` region that is announced when it appears, except inside a `FieldForm` whose
+   server rejection summary is showing: the summary is then the one live region, and each field message stays
+   reachable through `aria-describedby` but is not live. A message that belongs to a group of
    controls (weekend days, KVED codes, invoice lines) uses `FieldErrors` directly and the fieldset points its
    `aria-describedby` at it.
 2. **An error is shown only for a field the owner has touched or submitted.** The primitive shows what it is
-   given, so the caller decides: the pay panel and the mark-paid form track what was edited; server-side
-   field errors arrive only after a submit.
+   given, so the caller decides: the pay panel tracks its amount, and the mark-paid form shows every wrong field once any field is
+   edited; server-side field errors arrive only after a submit. A save failure is a message of its own, never an
+   `aria-invalid` on a field whose value is fine. An untouched empty pay amount shows a prompt to enter it, not
+   a QR "update".
 3. **Coarse pointers get 44 px.** `buttonVariants`, the field classes, tabs, menu items, checkbox and radio rows
-   and standalone text links add `pointer-coarse:` sizes. Links inside a sentence are exempt, as in WCAG 2.5.8.
+   standalone text links and the sheet and QR close buttons add `pointer-coarse:` sizes. Links inside a sentence are exempt, as in WCAG 2.5.8.
    The layout spec measures every control at 375 px with a touch context.
 4. **The focus ring is solid `--ring`, `oklch(0.55 0 0)` in both themes**, at least 3:1 against the page and
    against a filled button. `focus-ring.test.ts` computes it from `globals.css`. `--muted-foreground` and
    `--destructive` were darkened in the light theme so small text passes AA on the muted and tinted cards.
-5. **axe runs in the layout spec** (`@axe-core/playwright`) in every state it measures, in uk and ru, and fails on
-   serious and critical violations. No rule is disabled.
+5. **axe runs in the layout spec** (`@axe-core/playwright`, pinned) on every route and tab in uk and ru, in
+   the dark theme in uk, and on the open pay sheet, enlarged QR, mark-paid form and invoice editor. It fails on
+   serious and critical violations. No rule is disabled. The touch check runs on the same states.
 
 ### Consequences
 

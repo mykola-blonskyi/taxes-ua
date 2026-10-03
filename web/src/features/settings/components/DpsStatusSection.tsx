@@ -9,7 +9,7 @@ import { useDpsStatus, useSaveDpsStatus, type DpsStatusRequest, type DpsStatusRe
 import { formatDateOnly, todayInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
 import { LoadState } from "@/data/api/LoadState";
-import { CheckboxField, FieldErrors, SelectField, TextField } from "@/shared/ui/fields";
+import { CheckboxField, FieldErrors, SelectField, TextField, FieldForm } from "@/shared/ui/fields";
 
 type Start = "registration" | "quarter";
 
@@ -117,7 +117,7 @@ function DpsStatusForm({ status }: { status: DpsStatusResponse }) {
   const update = (patch: Partial<FormState>) => setForm((current) => ({ ...current, ...patch }));
 
   return (
-    <form
+    <FieldForm quietErrors={Boolean(rejected)}
       className="flex min-w-0 flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault();
@@ -131,7 +131,7 @@ function DpsStatusForm({ status }: { status: DpsStatusResponse }) {
       </div>
 
       {rejected ? (
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {t("validationError")}
         </p>
       ) : null}
@@ -277,7 +277,7 @@ function DpsStatusForm({ status }: { status: DpsStatusResponse }) {
           </p>
         ) : null}
       </div>
-    </form>
+    </FieldForm>
   );
 }
 

@@ -10,7 +10,7 @@ import { removeMonobankToken, seedRejectedMonobankToken, seedScreensWithContent 
 // renders the wrong language fails here, and the failure names the route, the language and the element.
 
 const catalogs = { uk, ru };
-const locales = ["uk", "ru"] as const;
+type Locale = "uk" | "ru";
 const viewport = { width: 375, height: 812 };
 
 // Strips that scroll on their own by design, named by the `data-scroll-strip` attribute the component
@@ -60,7 +60,7 @@ const routes = discoverRoutes();
 
 // Every catalog line under a key that matches. While a "loading" line is on screen a panel has not painted
 // its data yet, and measuring it would call a loading line clean.
-function catalogPattern(locale: (typeof locales)[number], keyPattern: RegExp) {
+function catalogPattern(locale: Locale, keyPattern: RegExp) {
   const lines: string[] = [];
   const walk = (node: unknown, key: string) => {
     if (typeof node === "string") {
@@ -75,7 +75,7 @@ function catalogPattern(locale: (typeof locales)[number], keyPattern: RegExp) {
 
 // The screens fetch after they paint, so the heading alone is too early to measure. A failed fetch leaves
 // an error line and no data, which would measure clean, so it fails the check instead.
-async function settled(page: Page, locale: (typeof locales)[number]) {
+async function settled(page: Page, locale: Locale) {
   await expect.poll(() => page.locator("main").innerText(), { message: "a loading line is still on screen" }).not.toMatch(
     catalogPattern(locale, /^loading/),
   );
@@ -239,7 +239,7 @@ async function accessibilityViolations(page: Page, where: string) {
     });
 }
 
-async function inspect(page: Page, route: string, locale: (typeof locales)[number], state: string) {
+async function inspect(page: Page, route: string, locale: Locale, state: string) {
   const where = `${route}${state ? ` (${state})` : ""} in ${locale}`;
   const tab = await page.evaluate(() => document.querySelector('[role="tab"][aria-selected="true"]')?.id.split("-trigger-")[1]);
   const allowed = scrollingStrips
@@ -267,7 +267,56 @@ async function inspect(page: Page, route: string, locale: (typeof locales)[numbe
   return problems;
 }
 
-async function open(page: Page, route: string, locale: (typeof locales)[number]) {
+// Screens that open something over the page or turn into a form: the pay sheet, the enlarged QR, the mark-paid
+// form and the invoice editor. They are states of the route as much as a tab is, and axe and the touch check
+// must see them open.
+async function inspectOpenStates(page: Page, route: string, locale: Locale) {
+  const text = catalogs[locale];
+  const problems: string[] = [];
+  const payButton = page.getByRole("button", { name: text.pay.button }).first();
+
+  if (route === "/payments" || route === "/") {
+    if (route === "/payments") {
+      await expect(payButton, "/payments should show a pay button to open the sheet").toBeVisible();
+    }
+    if (await payButton.isVisible()) {
+      await payButton.click();
+      const sheet = page.getByRole("dialog");
+      await expect(sheet).toBeVisible();
+      await expect(sheet.getByLabel(text.pay.amountInput)).toBeVisible();
+      problems.push(...(await inspect(page, route, locale, "pay sheet")));
+
+      const enlarge = sheet.getByRole("button", { name: text.pay.qrEnlarge });
+      if (await enlarge.isVisible()) {
+        await enlarge.click();
+        await expect(page.getByRole("img", { name: text.pay.qrLabel }).last()).toBeVisible();
+        problems.push(...(await inspect(page, route, locale, "enlarged QR")));
+        await page.keyboard.press("Escape");
+      }
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+    }
+  }
+
+  if (route === "/") {
+    const markPaid = page.getByRole("button", { name: text.dashboard.markPaid });
+    if (await markPaid.isVisible()) {
+      await markPaid.click();
+      await expect(page.getByLabel(text.dashboard.paidOn)).toBeVisible();
+      problems.push(...(await inspect(page, route, locale, "mark-paid form")));
+    }
+  }
+
+  if (route === "/invoices") {
+    await page.getByRole("button", { name: text.invoices.new }).click();
+    await expect(page.getByRole("button", { name: text.invoices.editor.back })).toBeVisible();
+    problems.push(...(await inspect(page, route, locale, "invoice editor")));
+  }
+
+  return problems;
+}
+
+async function open(page: Page, route: string, locale: Locale) {
   await page.goto(dynamicRouteAddresses[route] ?? route);
   await expect(page.locator("main h2").first()).not.toBeEmpty();
   for (const text of seededText[route] ?? []) {
@@ -277,6 +326,8 @@ async function open(page: Page, route: string, locale: (typeof locales)[number])
 }
 
 test.beforeAll(async ({ playwright }, testInfo) => {
+  // The hook is capped at the 30 s test timeout, which would cut the 75 s wait for the rejected token short.
+  test.setTimeout(120_000);
   const { baseURL, storageState } = testInfo.project.use;
   const owner = await playwright.request.newContext({ baseURL, storageState });
   try {
@@ -301,10 +352,18 @@ test.afterAll(async ({ playwright }, testInfo) => {
   }
 });
 
-for (const locale of locales) {
-  test.describe(`at 375 px in ${locale}`, () => {
+// Light in both languages, and dark in Ukrainian: the theme changes every colour, so contrast is measured in
+// both. The system preference picks the theme, as it does for a visitor with no stored choice.
+const runs = [
+  { locale: "uk", scheme: "light" },
+  { locale: "ru", scheme: "light" },
+  { locale: "uk", scheme: "dark" },
+] as const;
+
+for (const { locale, scheme } of runs) {
+  test.describe(`at 375 px in ${locale}${scheme === "dark" ? " in the dark theme" : ""}`, () => {
     // The old script emulated a touch phone below 768 px, and the app may branch on it.
-    test.use({ viewport, isMobile: true, hasTouch: true });
+    test.use({ viewport, isMobile: true, hasTouch: true, colorScheme: scheme });
 
     test.beforeEach(async ({ context, baseURL }) => {
       await context.addCookies([{ name: "locale", value: locale, url: baseURL! }]);
@@ -325,6 +384,9 @@ for (const locale of locales) {
         // A tabbed route opens nine panels, each waiting for its data.
         test.setTimeout(60_000);
         await open(page, route, locale);
+        await expect(page.locator("html"), `the ${scheme} theme should be the rendered one`).toHaveClass(
+          scheme === "dark" ? /\bdark\b/ : /^(?!.*\bdark\b)/,
+        );
         if (route === "/") {
           const rejected = page.getByRole("alert").filter({ hasText: catalogs[locale].dashboard.sync.tokenRejected.title });
           const fold = page.locator("main details > summary");
@@ -378,6 +440,8 @@ for (const locale of locales) {
           await settled(page, locale);
           problems.push(...(await inspect(page, route, locale, `tab ${index + 1} "${name}"`)));
         }
+
+        problems.push(...(await inspectOpenStates(page, route, locale)));
 
         expect(problems, problems.join("\n")).toEqual([]);
       });

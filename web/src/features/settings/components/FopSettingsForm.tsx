@@ -9,7 +9,7 @@ import { useSaveSettings, useSettings, type SettingsRequest } from "@/data/setti
 import { locales } from "@/i18n/locales";
 import { Button } from "@/shared/ui/button";
 import { LoadState } from "@/data/api/LoadState";
-import { CheckboxField, FieldErrors, SelectField, TextField } from "@/shared/ui/fields";
+import { CheckboxField, FieldErrors, SelectField, TextField, FieldForm } from "@/shared/ui/fields";
 
 type PaymentMode = SettingsRequest["paymentMode"];
 type EsvRegistrationMonthPolicy = SettingsRequest["esvRegistrationMonthPolicy"];
@@ -120,7 +120,7 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
   }
 
   return (
-    <form
+    <FieldForm quietErrors={Boolean(rejectedFields)}
       className="flex flex-col gap-4"
       onSubmit={(event) => {
         event.preventDefault();
@@ -128,7 +128,7 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
       }}
     >
       {rejectedFields ? (
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {t("validationError")}
         </p>
       ) : null}
@@ -286,6 +286,6 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
           <Link href="/history?entity=Settings">{tFop("history")}</Link>
         </Button>
       </div>
-    </form>
+    </FieldForm>
   );
 }

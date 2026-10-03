@@ -16,7 +16,7 @@ import {
 import { currencies } from "@/data/fx/useFxRate";
 import { Button } from "@/shared/ui/button";
 import { LoadState } from "@/data/api/LoadState";
-import { SelectField, TextAreaField, TextField } from "@/shared/ui/fields";
+import { SelectField, TextAreaField, TextField, FieldForm } from "@/shared/ui/fields";
 
 type FormState = {
   name: string;
@@ -160,9 +160,9 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
   }
 
   return (
-    <form className="flex min-w-0 flex-col gap-3" onSubmit={submit}>
+    <FieldForm quietErrors={Boolean(rejectedFields)} className="flex min-w-0 flex-col gap-3" onSubmit={submit}>
       {rejectedFields ? (
-        <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           {t("validationError")}
         </p>
       ) : saveError ? (
@@ -295,7 +295,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
           ) : null}
         </div>
       ) : null}
-    </form>
+    </FieldForm>
   );
 }
 

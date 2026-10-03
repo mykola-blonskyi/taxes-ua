@@ -249,7 +249,10 @@ function QrBlock({ details, amountKop }: { details: PayDetails; amountKop: numbe
     return <p className="text-sm text-muted-foreground">{t("qrTreasuryOff")}</p>;
   }
   // Without an amount nothing was asked for, so a null qrContent is not a failure to encode.
-  if (amountKop === null || (details.qrContent === null && details.qrPending)) {
+  if (amountKop === null) {
+    return <p className="text-sm text-muted-foreground">{t("qrNeedsAmount")}</p>;
+  }
+  if (details.qrContent === null && details.qrPending) {
     return <p className="text-sm text-muted-foreground">{t("qrUpdating")}</p>;
   }
   if (details.qrContent === null || encodeNbuQr(details.qrContent) === null) {
@@ -282,7 +285,7 @@ function QrBlock({ details, amountKop }: { details: PayDetails; amountKop: numbe
             <Dialog.Title className="sr-only">{t("qrLabel")}</Dialog.Title>
             <Dialog.Close
               aria-label={t("close")}
-              className="absolute -right-2 -top-2 rounded-full border bg-background p-1.5 text-foreground shadow outline-none focus-visible:ring-3 focus-visible:ring-ring"
+              className="absolute -right-2 -top-2 flex items-center justify-center rounded-full border bg-background p-1.5 pointer-coarse:size-11 text-foreground shadow outline-none focus-visible:ring-3 focus-visible:ring-ring"
             >
               <XIcon className="size-5" />
             </Dialog.Close>

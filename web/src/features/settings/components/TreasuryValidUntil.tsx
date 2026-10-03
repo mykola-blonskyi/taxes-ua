@@ -60,7 +60,6 @@ export function TreasuryValidUntil({ account }: { account: TreasuryAccount }) {
         type="date"
         value={value}
         onChange={setValue}
-        errors={save.isError ? [t("saveFailed")] : undefined}
       />
       {account.kind === "MilitaryLevy" && account.validUntil === null && todayInKyiv() <= temporaryLevyAccountsEnd ? (
         <div>
@@ -68,6 +67,11 @@ export function TreasuryValidUntil({ account }: { account: TreasuryAccount }) {
             {t("temporaryLevy")}
           </Button>
         </div>
+      ) : null}
+      {save.isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {t("saveFailed")}
+        </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
         <Button type="submit" size="sm" disabled={save.isPending}>

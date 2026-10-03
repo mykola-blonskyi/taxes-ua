@@ -1,4 +1,6 @@
-import type { ComponentProps, ReactNode } from "react";
+"use client";
+
+import { createContext, useContext, type ComponentProps, type ReactNode } from "react";
 import { formatMoney, formatRate } from "@/shared/lib/money";
 import { cn } from "@/shared/lib/utils";
 
@@ -17,17 +19,37 @@ export type ControlProps = {
   "aria-describedby"?: string;
 };
 
+// A form that rejects a submit shows one summary that is a live region. While it does, the messages under
+// each field stay reachable through aria-describedby but are not live, so a screen reader hears the summary
+// once and not once per field.
+const QuietFieldErrors = createContext(false);
+
+export function QuietFieldErrorsScope({ quiet, children }: { quiet: boolean; children: ReactNode }) {
+  return <QuietFieldErrors value={quiet}>{children}</QuietFieldErrors>;
+}
+
+// A <form> whose field messages go quiet while `quietErrors` is true (its summary is announcing instead).
+export function FieldForm({ quietErrors, ...props }: ComponentProps<"form"> & { quietErrors: boolean }) {
+  return (
+    <QuietFieldErrorsScope quiet={quietErrors}>
+      <form {...props} />
+    </QuietFieldErrorsScope>
+  );
+}
+
 // The messages under a field. A role="alert" region that appears with its text is announced on its own, so
 // the owner who submits a form hears what is wrong without having to find it. Renders nothing when there
 // is none. A group of controls that shares one message (a fieldset) uses this directly and points the
 // group's aria-describedby at `id`.
 export function FieldErrors({ id, errors, className }: { id: string; errors?: string[]; className?: string }) {
+  const quiet = useContext(QuietFieldErrors);
+
   if (!errors || errors.length === 0) {
     return null;
   }
 
   return (
-    <div id={id} role="alert" className={cn("text-xs text-destructive", className)}>
+    <div id={id} role={quiet ? undefined : "alert"} className={cn("text-xs text-destructive", className)}>
       {errors.map((message) => (
         <p key={message}>{message}</p>
       ))}

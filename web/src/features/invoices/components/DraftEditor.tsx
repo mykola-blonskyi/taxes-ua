@@ -24,7 +24,7 @@ import {
 import { todayInKyiv } from "@/shared/lib/dates";
 import { formatAmount } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
-import { FieldErrors as FieldErrorList, SelectField, TextAreaField, TextField } from "@/shared/ui/fields";
+import { FieldErrors as FieldErrorList, QuietFieldErrorsScope, SelectField, TextAreaField, TextField } from "@/shared/ui/fields";
 import { useErrorMessages } from "../errorMessages";
 import {
   addDays,
@@ -258,6 +258,7 @@ export function DraftEditor({
   const clientOptions = (clients.data ?? []).map((client) => ({ value: client.id, label: client.name }));
 
   return (
+    <QuietFieldErrorsScope quiet={hasErrors}>
     <div className="flex min-w-0 max-w-2xl flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onBack}>
@@ -267,7 +268,7 @@ export function DraftEditor({
       </div>
 
       {hasErrors ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+        <div role="alert" className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
           <p>{tErrors("validation")}</p>
           {problems.length > 0 ? (
             <ul className="flex flex-col gap-1">
@@ -478,6 +479,7 @@ export function DraftEditor({
         </div>
       ) : null}
     </div>
+    </QuietFieldErrorsScope>
   );
 }
 

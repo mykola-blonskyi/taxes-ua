@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { renderApp, screen } from "@/test/harness";
 import {
   FieldErrors,
+  FieldForm,
   FieldWrapper,
   MoneyField,
   NumberField,
@@ -120,5 +121,22 @@ describe("FieldErrors", () => {
     rerender(<FieldErrors id="group-error" errors={undefined} />);
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("a form whose summary is announcing", () => {
+  it("keeps each field message in the field's description but not live", () => {
+    renderApp(
+      <FieldForm quietErrors>
+        <p role="alert">Summary</p>
+        <TextField id="a" label="A" value="" onChange={noop} errors={["Wrong A"]} />
+        <TextField id="b" label="B" value="" onChange={noop} errors={["Wrong B"]} />
+      </FieldForm>,
+    );
+
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByLabelText("A")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("A")).toHaveAccessibleDescription("Wrong A");
+    expect(screen.getByLabelText("B")).toHaveAccessibleDescription("Wrong B");
   });
 });

@@ -96,15 +96,15 @@ export function HeroCard({ now, today, busy }: { now: KindDebt[]; today: string;
 
 // `debts` is what the form records. After a partial failure it is only the debts that were not saved, and
 // `retry` keeps the form open when a refetch has already moved the step on.
-// `touched` lists the fields the owner has edited; only those can show an error, so a form that opens
-// holding a value the owner has not changed is not scolded for it.
+// `touched` holds the fields the owner has edited. A form that opens untouched shows no error; once any
+// field is edited and the form is invalid, every wrong field says so, so a wrong field is never silent.
 type Draft = {
   step: string;
   debts: KindDebt[];
   paidOn: string;
   amounts: Record<string, string>;
   retry: boolean;
-  touched: string[];
+  touched: Set<string>;
 };
 
 function MarkPaid({
@@ -141,7 +141,7 @@ function MarkPaid({
       step,
       debts: now,
       retry: false,
-      touched: [],
+      touched: new Set(),
       paidOn: today,
       amounts: Object.fromEntries(
         now.map((debt) => [debtKey(debt), formatPlainAmount(edited[debtKey(debt)] ?? Number(debt.amountKop))]),
@@ -203,8 +203,8 @@ function MarkPaid({
             min={earliestPaidOn}
             max={today}
             value={open.paidOn}
-            onChange={(paidOn) => setDraft({ ...open, paidOn, touched: [...open.touched, "paidOn"] })}
-            errors={dateValid || !open.touched.includes("paidOn") ? undefined : [t("paidOnInvalid")]}
+            onChange={(paidOn) => setDraft({ ...open, paidOn, touched: new Set(open.touched).add("paidOn") })}
+            errors={dateValid || open.touched.size === 0 ? undefined : [t("paidOnInvalid")]}
           />
           {debts.map((debt, index) => (
             <TextField
@@ -215,10 +215,10 @@ function MarkPaid({
               autoComplete="off"
               value={open.amounts[debtKey(debt)] ?? ""}
               onChange={(text) =>
-                setDraft({ ...open, amounts: { ...open.amounts, [debtKey(debt)]: text }, touched: [...open.touched, debtKey(debt)] })
+                setDraft({ ...open, amounts: { ...open.amounts, [debtKey(debt)]: text }, touched: new Set(open.touched).add(debtKey(debt)) })
               }
               errors={
-                (amountsKop[index] !== null && amountsKop[index]! > 0) || !open.touched.includes(debtKey(debt))
+                (amountsKop[index] !== null && amountsKop[index]! > 0) || open.touched.size === 0
                   ? undefined
                   : [t("paidAmountInvalid")]
               }
