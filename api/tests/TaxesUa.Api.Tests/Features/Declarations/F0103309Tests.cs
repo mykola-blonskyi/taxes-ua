@@ -19,7 +19,9 @@ public sealed partial class F0103309Tests
         "ГУ ДПС у м. Києві",
         "ФОП Іваненко Іван Іванович",
         "м. Київ, вул. Хрещатик, 1",
-        ["62.01", "62.02"]);
+        ["62.01", "62.02"],
+        "fop@example.com",
+        "+380501234567");
 
     private const long MinWageKop = 864_700;
 
@@ -134,13 +136,13 @@ public sealed partial class F0103309Tests
         AssertEncoding(files.Declaration.Content, "F0103309");
         var text = Windows1251.GetString(files.Declaration.Content);
         Assert.Contains("<HNAME>Іваненко Іван Іванович</HNAME>", text);
-        Assert.Contains("<HBOS>Іваненко Іван Іванович</HBOS>", text);
+        Assert.Contains("<HBOS>Іван ІВАНЕНКО</HBOS>", text);
         if (files.Annex is { } annex)
         {
             AssertEncoding(annex.Content, "F0133109");
             var annexText = Windows1251.GetString(annex.Content);
             Assert.Contains("<HNAME>Іваненко Іван Іванович</HNAME>", annexText);
-            Assert.Contains("<HBOS>Іваненко Іван Іванович</HBOS>", annexText);
+            Assert.Contains("<HBOS>Іван ІВАНЕНКО</HBOS>", annexText);
         }
     }
 
@@ -296,6 +298,65 @@ public sealed partial class F0103309Tests
         Assert.Contains("<C_DOC_STAN>3</C_DOC_STAN>", text);
         Assert.Contains("<HZU>1</HZU><HHY>1</HHY><HZY>2026</HZY><HHYP>1</HHYP><HZYP>2026</HZYP>", text);
     }
+
+    [Fact]
+    public void The_header_carries_the_email_and_phone_after_the_address_and_names_each_KVED()
+    {
+        var text = DeclarationText("2026-q3");
+
+        Assert.Contains(
+            "<HLOC>м. Київ, вул. Хрещатик, 1</HLOC><HEMAIL>fop@example.com</HEMAIL><HTEL>+380501234567</HTEL><HTIN>1234567890</HTIN>",
+            text);
+        Assert.Contains(
+            "<T1RXXXXG1S ROWNUM=\"1\">62.01</T1RXXXXG1S><T1RXXXXG1S ROWNUM=\"2\">62.02</T1RXXXXG1S>"
+            + "<T1RXXXXG2S ROWNUM=\"1\">Комп'ютерне програмування</T1RXXXXG2S>"
+            + "<T1RXXXXG2S ROWNUM=\"2\">Консультування з питань інформатизації</T1RXXXXG2S>",
+            text);
+    }
+
+    [Fact]
+    public void Without_an_email_or_phone_the_header_leaves_both_out_and_still_passes_the_schemas()
+    {
+        var (figures, type, filledOn, _, _) = Cases["2026-q4"];
+
+        var files = F0103309.Write(figures, Header with { Email = null, Phone = null }, type, filledOn);
+        var text = Windows1251.GetString(files.Declaration.Content);
+
+        Assert.Contains("<HLOC>м. Київ, вул. Хрещатик, 1</HLOC><HTIN>1234567890</HTIN>", text);
+        Assert.DoesNotContain("HEMAIL", text);
+        Assert.DoesNotContain("HTEL", text);
+        Assert.Empty(F0103309.SchemaErrors(files.Declaration.Content));
+        Assert.Empty(F0133109.SchemaErrors(files.Annex!.Content));
+    }
+
+    [Fact]
+    public void A_KVED_code_outside_the_list_is_written_with_an_empty_name()
+    {
+        var (figures, type, filledOn, _, _) = Cases["2026-q3"];
+
+        var files = F0103309.Write(figures, Header with { KvedCodes = ["62.01", "01.11"] }, type, filledOn);
+        var text = Windows1251.GetString(files.Declaration.Content);
+
+        Assert.Contains("<T1RXXXXG2S ROWNUM=\"2\"></T1RXXXXG2S>", text);
+        Assert.Empty(F0103309.SchemaErrors(files.Declaration.Content));
+    }
+
+    [Fact]
+    public void The_filing_date_is_the_day_the_file_is_written_in_both_the_head_and_the_footer()
+    {
+        var text = DeclarationText("2026-q3");
+
+        Assert.Contains("<D_FILL>20102026</D_FILL>", text);
+        Assert.Contains("<HFILL>20102026</HFILL>", text);
+    }
+
+    [Theory]
+    [InlineData("Іваненко Іван Іванович", "Іван ІВАНЕНКО")]
+    [InlineData("Іваненко Іван", "Іван ІВАНЕНКО")]
+    [InlineData("Мар'яненко-Їжак Єва Ґалиївна", "Єва МАР'ЯНЕНКО-ЇЖАК")]
+    [InlineData("Іваненко", "Іваненко")]
+    public void The_signature_is_the_given_name_and_the_surname_in_capitals(string name, string expected) =>
+        Assert.Equal(expected, DpsXml.Signature(name));
 
     [Theory]
     [InlineData("ФОП Іваненко Іван", "Іваненко Іван")]

@@ -11,6 +11,7 @@ internal enum CabinetPart
     Header,
     Period,
     Declaration,
+    Footer,
     Annex,
 }
 
@@ -83,6 +84,8 @@ internal static class CabinetForm
             fields.Add(new("HSTI", header.TaxOfficeName, CabinetPart.Header));
             fields.Add(new("HNAME", HeaderName(header.Name), CabinetPart.Header));
             fields.Add(new("HLOC", header.Address, CabinetPart.Header));
+            fields.Add(new("HEMAIL", header.Email, CabinetPart.Header));
+            fields.Add(new("HTEL", header.Phone, CabinetPart.Header));
             fields.Add(new("HTIN", header.Rnokpp, CabinetPart.Header));
             fields.Add(new("HNACTL", "0"));
             for (var i = 0; i < header.KvedCodes.Count; i++)
@@ -90,10 +93,10 @@ internal static class CabinetForm
                 fields.Add(new("T1RXXXXG1S", header.KvedCodes[i], CabinetPart.Header, Row: i + 1));
             }
 
-            // The app keeps no KVED names, and the column's type lets a row be empty.
+            // A code the classifier list does not hold gets an empty name, which the column's type allows.
             for (var i = 0; i < header.KvedCodes.Count; i++)
             {
-                fields.Add(new("T1RXXXXG2S", string.Empty, Row: i + 1));
+                fields.Add(new("T1RXXXXG2S", Kved.Name(header.KvedCodes[i]) ?? string.Empty, CabinetPart.Header, Row: i + 1));
             }
         }
 
@@ -120,10 +123,10 @@ internal static class CabinetForm
             fields.Add(new("HD1", "1", CabinetPart.Annex, CabinetKind.Mark));
         }
 
-        fields.Add(new("HFILL", Date(filledOn)));
+        fields.Add(new("HFILL", Date(filledOn), CabinetPart.Footer, CabinetKind.Date));
         if (header is not null)
         {
-            fields.Add(new("HBOS", HeaderName(header.Name)));
+            fields.Add(new("HBOS", Signature(HeaderName(header.Name)), CabinetPart.Footer));
         }
 
         return fields;
@@ -171,7 +174,7 @@ internal static class CabinetForm
         fields.Add(new("R09G4", Amount(annex.EsvKop), CabinetPart.Annex, CabinetKind.Amount, "9"));
         if (header is not null)
         {
-            fields.Add(new("HBOS", HeaderName(header.Name)));
+            fields.Add(new("HBOS", Signature(HeaderName(header.Name))));
         }
 
         return fields;

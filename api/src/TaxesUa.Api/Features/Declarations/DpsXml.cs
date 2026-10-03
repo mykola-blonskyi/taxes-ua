@@ -7,6 +7,10 @@ using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Features.Declarations;
 
+/// <summary>
+/// The header the forms print. <c>Name</c> is the full name, surname first, which may carry the
+/// invoices' "ФОП"; <c>Email</c> and <c>Phone</c> are null when the owner left them out.
+/// </summary>
 internal sealed record DeclarationHeader(
     string Rnokpp,
     int TaxOfficeRegion,
@@ -14,7 +18,9 @@ internal sealed record DeclarationHeader(
     string TaxOfficeName,
     string Name,
     string Address,
-    IReadOnlyList<string> KvedCodes);
+    IReadOnlyList<string> KvedCodes,
+    string? Email = null,
+    string? Phone = null);
 
 internal sealed record DeclarationXml(string FileName, byte[] Content);
 
@@ -33,6 +39,8 @@ internal static partial class DpsXml
     private const string ResourcePrefix = "TaxesUa.Api.Schemas.";
 
     private static readonly Encoding Windows1251 = CodePagesEncodingProvider.Instance.GetEncoding(1251)!;
+
+    private static readonly CultureInfo Ukrainian = CultureInfo.GetCultureInfo("uk-UA");
 
     /// <summary>C_DOC, C_DOC_SUB and C_DOC_VER, which name a form and its schema.</summary>
     internal sealed record Form(string Doc, string DocSub, int DocVer)
@@ -53,8 +61,6 @@ internal static partial class DpsXml
 
         public string Filled => Date(FilledOn);
 
-        public string Name => HeaderName(Header.Name);
-
         public string FileName(Form form) => string.Create(
             CultureInfo.InvariantCulture,
             $"{Header.TaxOfficeRegion:00}{Header.TaxOfficeDistrict:00}{Header.Rnokpp.PadLeft(10, '0')}{form.Code}{State}00{1:0000000}{PeriodType}{PeriodMonth:00}{Year:0000}{TaxOffice:0000}.xml");
@@ -65,6 +71,19 @@ internal static partial class DpsXml
 
     /// <summary>The name without the "ФОП" the invoices carry: the form asks for the person's name.</summary>
     public static string HeaderName(string sellerNameUk) => FopPrefix().Replace(sellerNameUk.Trim(), string.Empty).Trim();
+
+    /// <summary>
+    /// HBOS, which the form captions "власне ім'я та прізвище": the given name, then the surname in
+    /// capitals, as DPS forms sign. <paramref name="name"/> is surname first, so its first two words are
+    /// swapped; a single word is printed as it is.
+    /// </summary>
+    public static string Signature(string name)
+    {
+        var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words.Length < 2
+            ? name
+            : $"{words[1]} {words[0].ToUpper(Ukrainian)}";
+    }
 
     /// <summary>
     /// One error per header field holding a character XML 1.0 cannot carry (a control character) or
@@ -79,6 +98,7 @@ internal static partial class DpsXml
             ("taxOfficeName", header.TaxOfficeName),
             ("name", header.Name),
             ("address", header.Address),
+            ("email", header.Email ?? string.Empty),
             .. header.KvedCodes.Select((code, i) => ($"kvedCodes[{i}]", code)),
         ];
 

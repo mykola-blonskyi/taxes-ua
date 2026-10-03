@@ -40,7 +40,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":17,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
+        """{"schemaVersion":18,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -1286,7 +1286,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                     [new InvoiceLine("Support", "Підтримка", InvoiceUnit.Month, 1_000, 500_00)],
                     null, null, null, null, null, null, created.AddDays(1), created.AddDays(1)),
             ],
-            new DeclarationDetailsBackup(26, 5, "ГУ ДПС у м. Києві", ["62.01", "63.11"], "Київ, вул. Тестова 1"),
+            new DeclarationDetailsBackup(
+                26, 5, "ГУ ДПС у м. Києві", ["62.01", "63.11"], "Київ, вул. Тестова 1", "Тестенко Тест Тестович", "+380501234567", "fop@example.com"),
             [
                 new DeclarationFilingBackup(2030, 4, new DateOnly(2031, 2, 3), DeclarationType.Reporting, 90_000_000, created, created),
                 new DeclarationFilingBackup(2031, 1, new DateOnly(2031, 5, 5), DeclarationType.Clarifying, 4_900_000, created, created),

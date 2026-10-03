@@ -3,7 +3,11 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
+using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Features.Settings;
 
 namespace TaxesUa.Api.Tests.Features.Settings;
@@ -104,6 +108,14 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         { "NUL in the address", "address" },
         { "tax office name over 200 characters", "taxOfficeName" },
         { "NUL in the tax office name", "taxOfficeName" },
+        { "full name over 200 characters", "fullName" },
+        { "NUL in the full name", "fullName" },
+        { "phone too short", "phone" },
+        { "phone of another country", "phone" },
+        { "phone with letters", "phone" },
+        { "email without an at sign", "reportEmail" },
+        { "email with two at signs", "reportEmail" },
+        { "email without a domain dot", "reportEmail" },
     };
 
     private static DeclarationDetailsRequest Invalid(string name)
@@ -127,6 +139,14 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
             "NUL in the address" => valid with { Address = "Київ\u0000" },
             "tax office name over 200 characters" => valid with { TaxOfficeName = new string('а', 201) },
             "NUL in the tax office name" => valid with { TaxOfficeName = "ГУ ДПС\u0000" },
+            "full name over 200 characters" => valid with { FullName = new string('а', 201) },
+            "NUL in the full name" => valid with { FullName = "Тестенко\u0000" },
+            "phone too short" => valid with { Phone = "+38050123" },
+            "phone of another country" => valid with { Phone = "+48501234567" },
+            "phone with letters" => valid with { Phone = "+38050ABC4567" },
+            "email without an at sign" => valid with { ReportEmail = "fop.example.com" },
+            "email with two at signs" => valid with { ReportEmail = "fop@@example.com" },
+            "email without a domain dot" => valid with { ReportEmail = "fop@example" },
             _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
         };
     }
@@ -144,6 +164,92 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         using var problem = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         ProblemAssert.Rejects(problem.RootElement, field);
         Assert.Equal(before, await owner.GetStringAsync(Url));
+    }
+
+    [Theory]
+    [InlineData("+380501234567")]
+    [InlineData("+38 (050) 123-45-67")]
+    [InlineData("050 123 45 67")]
+    [InlineData("380501234567")]
+    [InlineData("050.123.45.67")]
+    public async Task A_ukrainian_phone_is_stored_as_plus_380_and_nine_digits(string typed)
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+
+        var put = await owner.PutAsJsonAsync(
+            Url,
+            new DeclarationDetailsRequest(26, 5, "ГУ ДПС у м. Києві", ["62.01"], "Київ", Phone: typed),
+            Json);
+
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        Assert.Equal("+380501234567", (await put.Content.ReadFromJsonAsync<DeclarationDetailsResponse>(Json))!.Phone);
+    }
+
+    [Fact]
+    public async Task The_full_name_phone_and_report_email_save_and_reload_and_none_is_required()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings/invoicing", Invoicing(), Json)).StatusCode);
+
+        var put = await owner.PutAsJsonAsync(
+            Url,
+            new DeclarationDetailsRequest(
+                26, 5, "ГУ ДПС у м. Києві", ["62.01"], "Київ", "  Тестенко   Тест Тестович ", " +380501234567 ", " fop@example.com "),
+            Json);
+
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>(Url, Json);
+        Assert.Equal(
+            ("ФОП Тест", "Тестенко Тест Тестович", "+380501234567", "fop@example.com"),
+            (details!.Name, details.FullName, details.Phone, details.ReportEmail));
+        Assert.Empty(details.MissingDetails);
+
+        var cleared = await owner.PutAsJsonAsync(Url, new DeclarationDetailsRequest(26, 5, "ГУ ДПС у м. Києві", ["62.01"], "Київ"), Json);
+        var after = (await cleared.Content.ReadFromJsonAsync<DeclarationDetailsResponse>(Json))!;
+        Assert.Equal(("", "", ""), (after.FullName, after.Phone, after.ReportEmail));
+        Assert.Empty(after.MissingDetails);
+    }
+
+    [Fact]
+    public async Task The_email_channel_is_offered_for_the_report_email_only_once_it_is_confirmed()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        await using var scope = fixture.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userId = await database.Users.Where(user => user.Email == ApiFixture.AllowedEmail).Select(user => user.Id).SingleAsync();
+        var channel = await database.NotificationChannels
+            .SingleOrDefaultAsync(row => row.UserId == userId && row.Kind == NotificationChannelKind.Email);
+        if (channel is null)
+        {
+            channel = new NotificationChannel { Id = Guid.NewGuid(), UserId = userId, Kind = NotificationChannelKind.Email };
+            database.NotificationChannels.Add(channel);
+        }
+
+        channel.Address = "alerts@example.com";
+        channel.ConfirmedAt = null;
+        await database.SaveChangesAsync();
+        Assert.Null((await owner.GetFromJsonAsync<DeclarationDetailsResponse>(Url, Json))!.ConfirmedEmail);
+
+        channel.ConfirmedAt = DateTimeOffset.UtcNow;
+        await database.SaveChangesAsync();
+        var details = (await owner.GetFromJsonAsync<DeclarationDetailsResponse>(Url, Json))!;
+
+        Assert.Equal("alerts@example.com", details.ConfirmedEmail);
+        Assert.NotEqual("alerts@example.com", details.ReportEmail);
+    }
+
+    [Fact]
+    public async Task A_full_name_stands_in_for_a_missing_invoicing_name()
+    {
+        using var owner = await SignIn(ApiFixture.SecondAllowedEmail);
+
+        var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>(Url, Json);
+
+        Assert.Contains(DeclarationDetailField.Name, details!.MissingDetails);
+        Assert.Null(details.ConfirmedEmail);
+        Assert.DoesNotContain(
+            DeclarationDetailField.Name,
+            DeclarationDetails.Missing(null, new DeclarationDetails { FullName = "Тестенко Тест Тестович" }));
     }
 
     [Fact]
