@@ -26,3 +26,30 @@ services:
       interval: 2s
       timeout: 3s
       retries: 20
+
+  # The backup sidecar against the throwaway database and the S3 stand-in below. The two age keys are made
+  # by smoke-test.sh on every run and exported; nothing here is a real key.
+  backup:
+    environment:
+      DATABASE_URL: Host=db;Port=5432;Database=taxes_ua;Username=taxes_ua;Password=smoke
+      BACKUP_AGE_RECIPIENT: ${SMOKE_BACKUP_AGE_RECIPIENT:-}
+      BACKUP_CHECK_AGE_IDENTITY: ${SMOKE_BACKUP_CHECK_AGE_IDENTITY:-}
+      BACKUP_S3_ENDPOINT: http://s3:9000
+      BACKUP_S3_BUCKET: taxes-ua-backups
+      BACKUP_S3_ACCESS_KEY: smoke-access
+      BACKUP_S3_SECRET_KEY: smoke-s3-secret-value
+      BACKUP_OFFSITE_S3_ENDPOINT: http://s3:9000
+      BACKUP_OFFSITE_S3_BUCKET: taxes-ua-offsite
+      BACKUP_OFFSITE_S3_ACCESS_KEY: smoke-access
+      BACKUP_OFFSITE_S3_SECRET_KEY: smoke-s3-secret-value
+    depends_on:
+      api:
+        condition: service_healthy
+      s3:
+        condition: service_started
+
+  # An S3-compatible server holding the two buckets in the container's own storage. rclone is already in
+  # the backup image, so the smoke test needs no MinIO image.
+  s3:
+    build: ./deploy/backup
+    entrypoint: ["sh", "-c", "mkdir -p /tmp/s3/taxes-ua-backups /tmp/s3/taxes-ua-offsite && exec rclone serve s3 --auth-key smoke-access,smoke-s3-secret-value --addr :9000 /tmp/s3"]
