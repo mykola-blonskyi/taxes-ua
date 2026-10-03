@@ -2,7 +2,7 @@ using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Engine;
 
-namespace TaxesUa.Api.Tests.Features.Monobank;
+namespace TaxesUa.Api.Tests.Features.Banking;
 
 public sealed class TreasuryPaymentTests
 {
