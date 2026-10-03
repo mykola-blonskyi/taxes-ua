@@ -11,6 +11,7 @@ using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Backup;
 using TaxesUa.Api.Features.Calendar;
+using TaxesUa.Api.Features.DatabaseBackups;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
@@ -1038,6 +1039,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         // The feed secret is a bearer credential for the owner's deadlines (ADR-017). A restore creates
         // none and leaves the current one alone; the owner rotates to get one.
         Type[] calendarSecretNotBackedUp = [typeof(CalendarFeed)];
+        // The backup sidecar's log of its own runs is the whole database's, with no owner in it.
+        Type[] databaseOperationsNotBackedUp = [typeof(DatabaseBackupRun)];
 
         var featureTables = model.GetEntityTypes()
             .Select(type => type.ClrType)
@@ -1052,6 +1055,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 .Concat(bankRecordNotBackedUp)
                 .Concat(telegramRuntimeNotBackedUp)
                 .Concat(calendarSecretNotBackedUp)
+                .Concat(databaseOperationsNotBackedUp)
                 .ToHashSet(),
             featureTables);
 

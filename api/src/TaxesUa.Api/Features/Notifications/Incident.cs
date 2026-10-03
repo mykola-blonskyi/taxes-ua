@@ -11,6 +11,7 @@ internal enum IncidentKind
     SyncStale,
     TokenRejected,
     TokenUnreadable,
+    RestoreCheckFailed,
 }
 
 /// <summary>

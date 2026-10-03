@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Calendar;
+using TaxesUa.Api.Features.DatabaseBackups;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
@@ -66,6 +67,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<SentReminder> SentReminders => Set<SentReminder>();
     public DbSet<CalendarFeed> CalendarFeeds => Set<CalendarFeed>();
+
+    public DbSet<DatabaseBackupRun> DatabaseBackupRuns => Set<DatabaseBackupRun>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
