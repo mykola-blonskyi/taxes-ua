@@ -9,6 +9,7 @@ const readiness: DeclarationReadiness = {
   taxYearVerified: true,
   registrationDateSet: true,
   missingDetails: [],
+  unknownKvedCodes: [],
   outsideGroup3: false,
   beforeGroup3: false,
   group3Confirmed: true,
@@ -47,5 +48,42 @@ describe("Readiness and the full name", () => {
     renderApp(<Readiness year={2026} readiness={{ ...readiness, missingDetails: ["Name"], ready: false }} />);
 
     expect(screen.queryByText(/без по батькові/)).not.toBeInTheDocument();
+  });
+});
+
+describe.each([
+  {
+    locale: "uk" as const,
+    text: "КВЕД 12.34 немає в класифікаторі КВЕД ДК 009:2010 — виправте його в налаштуваннях.",
+    second: "КВЕД 99.99 немає в класифікаторі КВЕД ДК 009:2010 — виправте його в налаштуваннях.",
+    fix: "Виправити",
+  },
+  {
+    locale: "ru" as const,
+    text: "КВЭД 12.34 нет в классификаторе КВЭД ДК 009:2010 — исправьте его в настройках.",
+    second: "КВЭД 99.99 нет в классификаторе КВЭД ДК 009:2010 — исправьте его в настройках.",
+    fix: "Исправить",
+  },
+])("Readiness and a stored KVED code the classifier does not know in $locale", ({ locale, text, second, fix }) => {
+  it("lists each code as its own item that links to the settings", () => {
+    stubFetch({});
+    renderApp(
+      <Readiness year={2026} readiness={{ ...readiness, unknownKvedCodes: ["12.34", "99.99"], ready: false }} />,
+      { locale },
+    );
+
+    expect(screen.getByText(text)).toBeVisible();
+    expect(screen.getByText(second)).toBeVisible();
+    const links = screen.getAllByRole("link", { name: fix });
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute("href", "/settings?tab=declaration");
+  });
+
+  it("adds no item when every stored code is known", () => {
+    stubFetch({});
+    renderApp(<Readiness year={2026} readiness={readiness} />, { locale });
+
+    expect(screen.queryByText(/12\.34/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: fix })).not.toBeInTheDocument();
   });
 });

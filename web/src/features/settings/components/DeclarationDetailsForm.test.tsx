@@ -27,6 +27,7 @@ const details = {
   reportEmail: "",
   confirmedEmail: null as string | null,
   missingDetails: [],
+  unknownKvedCodes: [] as string[],
 };
 
 describe("DeclarationDetailsForm contacts", () => {
@@ -156,9 +157,9 @@ describe("DeclarationDetailsForm rejection", () => {
 });
 
 describe.each([
-  { locale: "uk" as const, save: "Зберегти", unknown: "Такого коду немає в КВЕД ДК 009:2010.", label: "КВЕД 1 (основний)", second: "КВЕД 2" },
-  { locale: "ru" as const, save: "Сохранить", unknown: "Такого кода нет в КВЭД ДК 009:2010.", label: "КВЭД 1 (основной)", second: "КВЭД 2" },
-])("DeclarationDetailsForm KVED names in $locale", ({ locale, unknown, label, second }) => {
+  { locale: "uk" as const, save: "Зберегти", unknown: "Такого коду немає в КВЕД ДК 009:2010.", label: "КВЕД 1 (основний)", second: "КВЕД 2", complete: "Усе потрібне для декларації заповнено.", unknownBanner: "У класифікаторі КВЕД ДК 009:2010 немає: 12.34. Виправте ці коди." },
+  { locale: "ru" as const, save: "Сохранить", unknown: "Такого кода нет в КВЭД ДК 009:2010.", label: "КВЭД 1 (основной)", second: "КВЭД 2", complete: "Всё нужное для декларации заполнено.", unknownBanner: "В классификаторе КВЭД ДК 009:2010 нет: 12.34. Исправьте эти коды." },
+])("DeclarationDetailsForm KVED names in $locale", ({ locale, unknown, label, second, complete, unknownBanner }) => {
   it("shows the Ukrainian name of every saved code under its input", async () => {
     stubFetch({ ...classifier, [read]: details });
     renderApp(<DeclarationDetailsForm />, { locale });
@@ -191,6 +192,17 @@ describe.each([
 
     expect(screen.getByText(unknown)).toBeVisible();
     expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("flags a saved code the classifier does not know on load and does not call the details complete", async () => {
+    stubFetch({ ...classifier, [read]: { ...details, kvedCodes: ["62.01", "12.34"], unknownKvedCodes: ["12.34"] } });
+    renderApp(<DeclarationDetailsForm />, { locale });
+
+    expect(await screen.findByText(unknown)).toBeVisible();
+    expect(screen.getByLabelText(second)).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText(label)).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByText(unknownBanner)).toBeVisible();
+    expect(screen.queryByText(complete)).not.toBeInTheDocument();
   });
 
   it("shows no name and no error until the classifier has loaded, then names the saved code", async () => {

@@ -5651,6 +5651,7 @@ export interface components {
             reportEmail: string;
             confirmedEmail: null | string;
             missingDetails: ("Name" | "Rnokpp" | "TaxOffice" | "Kved" | "Address")[];
+            unknownKvedCodes: string[];
         };
         DeclarationDueResponse: {
             /** Format: int32 */
@@ -5749,6 +5750,7 @@ export interface components {
             taxYearVerified: boolean;
             registrationDateSet: boolean;
             missingDetails: ("Name" | "Rnokpp" | "TaxOffice" | "Kved" | "Address")[];
+            unknownKvedCodes: string[];
             outsideGroup3: boolean;
             beforeGroup3: boolean;
             group3Confirmed: boolean;

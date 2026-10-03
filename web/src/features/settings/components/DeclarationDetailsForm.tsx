@@ -71,6 +71,7 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
   const failure = save.error instanceof ApiError ? save.error : null;
   const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
   const missing = details.missingDetails;
+  const unknownKved = details.unknownKvedCodes;
   const suggestedEmail = form.reportEmail === "" ? details.confirmedEmail : null;
   const sentKved = form.kvedCodes.flatMap((code, index) => (code.trim() === "" ? [] : [index]));
 
@@ -135,6 +136,10 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
       {missing.length > 0 ? (
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
           {tDeclaration("missing", { fields: missing.map((field) => tFields(field)).join(", ") })}
+        </p>
+      ) : unknownKved.length > 0 ? (
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
+          {tDeclaration("kvedUnknownBanner", { codes: unknownKved.join(", ") })}
         </p>
       ) : (
         <p className="text-sm text-emerald-700 dark:text-emerald-400">{tDeclaration("complete")}</p>
