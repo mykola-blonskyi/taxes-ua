@@ -1072,8 +1072,18 @@ followed account is queued or syncing: a recovery under way is not a new inciden
 shows the state. If one account then stays stale after the queue empties, it is alerted under its own,
 later key. The first rejection of a token also stays: a later 401 does not overwrite `RejectedAt`.
 
-The same mechanism will carry other incidents, such as a backup that failed (#176) and an expired Treasury
-account (#173): a new kind of incident and a source that reports it, not a new sender.
+The same mechanism carries other incidents: a new kind of incident and a source that reports it, not a new
+sender. An unproven backup is one (below), and an expired Treasury account (#173) will be another.
 
 A message is plain text in the owner's language: what stopped, what it means for the figures, and a link to
 the monobank tab of settings.
+
+**Unproven backup.** The database is backed up each night and a restore of the newest copy is tried each
+week (ADR-030). Every run is recorded in `DatabaseBackupRuns`. `RestoreCheckFailed` is open when the newest
+restore check failed, or when no restore check has succeeded for more than 8 days (one weekly check and a day
+of slack). Before the first successful check, the 8 days count from the oldest recorded run. With nothing
+recorded, there is nothing to judge. The key is the kind and the last successful check (or that oldest run),
+so a failure that then goes overdue is one incident, and the next success re-arms it. Every owner with a
+switched-on channel gets it, because the database is shared. The message says the check is failing, gives the
+date of the last success (or that there has been none), and points to the `backup` service's log. It has no
+link: nothing in the app fixes it.

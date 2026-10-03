@@ -1636,3 +1636,99 @@ A new data screen renders `LoadState` instead of writing its own `<p>`. A new da
 `noticePriority` at its rank and to `noticeSeverity`, with a case in `NoticeView` and a title in
 `useNoticeTitles`. The banner above the hero is chosen by rank alone, apart from the three-day promotion, so
 the hero is never pushed down by more than one banner.
+
+---
+
+## ADR-030. Back up `taxes_ua` nightly from a compose sidecar, encrypted with age, and prove a restore weekly
+
+Date: 2026-10-03
+
+Status: Accepted
+
+### Context
+
+The only regular backup is Coolify's daily `pg_dumpall` of the whole shared instance, kept on the VPS disk and
+in the owner's MinIO, which runs on the same VPS and disk (audit of 2026-10-02, Reliability H2, #176). Losing the
+server loses every copy. Nothing has ever restored one of those dumps, so nobody knows that they restore. The
+pre-migration dumps of ADR-027 cover a bad migration only and live on the same disk.
+
+### Decision
+
+1. **A `backup` service in the production compose.** It is built from `deploy/backup/Dockerfile`:
+   `postgres:18-alpine` plus `age` and `rclone` from Alpine, and one bash script, `deploy/backup/backup.sh`. The
+   script sleeps until 01:00 UTC each night and runs `backup`. On Sundays it then runs `check`. Both can be run by
+   hand with `docker exec <backup container> backup-db backup|check`. The image is PostgreSQL 18 for two reasons.
+   `pg_dump` must be at least the server's major version, as in ADR-027. Its server binaries also give the
+   restore check a throwaway cluster of its own.
+2. **Backup.** `pg_dump --format=custom` of `taxes_ua` with the credentials in `DATABASE_URL`, which `api`
+   already has, so there is no new database secret. The output is encrypted with `age` to a temporary file
+   first and uploaded only once complete, so a failed dump never uploads a truncated object. The file goes to
+   `<bucket>/daily/taxes_ua-<UTC time>.dump.age` on the primary target, the MinIO on the VPS. When
+   `BACKUP_OFFSITE_S3_ENDPOINT` is set, it also goes to a second S3-compatible target off the VPS. When that
+   variable is empty, the second target is skipped. On Sundays the same object is also copied to `weekly/`.
+3. **Retention.** Each target keeps 14 days of `daily/` and 56 days (8 weeks) of `weekly/`, deleted by
+   `rclone delete --min-age`. Retention runs on a target only after that night's upload to it succeeded, so a
+   broken backup never deletes the last good copy.
+4. **Keys.** `age` encrypts each file to two public keys. The **recovery key**
+   (`BACKUP_AGE_RECIPIENT`) is the owner's. Its private half lives only in the password manager and never on
+   the server; it is what a disaster restore uses. The **check key** (`BACKUP_CHECK_AGE_IDENTITY`) is a private
+   key held in Coolify. The script derives its public half, and the weekly check decrypts with it. Holding a
+   private key on the server cannot be avoided if the server is to prove its own restores. It costs little:
+   whoever can read Coolify's environment can already read `DATABASE_URL` and the live database. The
+   encryption is aimed at a leaked bucket or bucket key, on the VPS or off it, and neither one is enough to
+   read a backup. Losing the server does not lose the recovery key.
+5. **Restore check.** For each configured target, the check:
+   - takes the newest object in `daily/` and fails when it is older than 48 hours;
+   - decrypts it with the check key;
+   - restores it with `pg_restore --no-owner --no-privileges --single-transaction --exit-on-error` into a fresh
+     database in a scratch cluster that runs inside the container;
+   - requires the last `__EFMigrationsHistory` row to exist and to be in the live database's history;
+   - requires the restored tables, other than the migration history and the run log, to hold at least one row;
+   - drops the scratch database and stops the cluster.
+
+   The shared instance is not touched beyond reading, and the app role needs no `CREATEDB`.
+6. **The result goes to the app's database.** After every `backup` and every `check`, the script inserts one
+   row into `DatabaseBackupRuns` (`Job` = `Backup` or `RestoreCheck`, `FinishedAt`, `Succeeded`, and a short
+   `Detail` without secrets). It also prints the same line to its log, which Coolify shows. The table belongs to
+   `api` and is created by its migration.
+7. **Alert.** `RestoreCheckIncidentSource` is the `IIncidentSource` for `IncidentKind.RestoreCheckFailed`, which
+   ADR-026 anticipated. An incident is open when the newest check failed. It is also open when the newest
+   successful check is more than 8 days old: one weekly check plus a day of slack. With no successful check
+   yet, the 8 days run from the oldest recorded run. Its key is the kind plus that last success (or that oldest
+   run), so a failure that then goes overdue is one alert. The next success re-arms it. An empty table reports
+   nothing.
+8. **Never logged.** Secrets reach `pg_dump`, `age` and `rclone` through environment variables or process
+   substitution, never on a command line. The script never traces itself. `deploy/smoke-test.sh` asserts that
+   the container log holds none of them.
+
+### Alternatives considered
+
+- **A hosted service in `api`.** `api` already has `pg_dump`. It would still need `age` and an S3 client in its
+  image. A scratch database would need `CREATEDB` or the instance's admin password, which ADR-006 keeps away
+  from the app. The work would also share `api`'s 512 MB.
+- **Cron on the host, or a Coolify scheduled task.** Either one lives outside the repository. CI could not
+  test it, and a rebuilt server would silently lack it.
+- **Streaming the dump straight to the bucket.** A dump that fails midway leaves a truncated object behind.
+- **A passphrase (gpg `--symmetric`).** One secret, but it has to be on the server for every backup, and the
+  owner's copy is the same secret. With age the nightly backup needs no secret at all.
+- **One age key whose private half is on the server.** This is simpler, but a lost server takes the only
+  decryption key with it, unless the owner also keeps a copy. That copy is the recovery key with less
+  separation.
+- **Restoring into a scratch database on the shared instance.** It needs admin rights and puts load on the
+  instance every project shares.
+- **Bucket lifecycle rules for retention.** They vary by provider and are set outside the repository.
+
+### Consequences
+
+The weekly check proves that the stored object decrypts and restores, but it decrypts with the check key. It
+cannot prove that the recovery public key in Coolify matches the private key in the password manager. That is a
+manual drill: after setup and after any key change, the owner decrypts one object with the recovery key
+(`docs/deploy.md`, section 8). The sidecar records nothing until its first night. If it never reaches the database,
+there are no rows and no alert. Setup closes that gap by running one backup and one check by hand and
+reading the rows. A backup that fails for a week fails the next check, because the newest object is then older
+than 48 hours. The owner hears about it within 8 days. A nightly failure does not alert on its own. Deploys
+restart the container. A deploy during the 01:00 run kills that run, and the next night runs again. Moving
+the shared instance to a newer PostgreSQL major means bumping the base image here and in `api/Dockerfile`. The
+owner chose on 2026-10-03 to run without the off-VPS target for now. Until its variables are set, every copy is
+on the VPS disk, so this decision makes restores proven and per-database but does not yet survive losing the
+server. Turning it on is five Coolify variables and no code change.
