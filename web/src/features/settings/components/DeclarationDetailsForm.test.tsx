@@ -4,6 +4,15 @@ import { DeclarationDetailsForm } from "./DeclarationDetailsForm";
 
 const read = "GET /api/settings/declaration" as const;
 const write = "PUT /api/settings/declaration" as const;
+const classes = "GET /api/settings/declaration/kved-classes" as const;
+
+const classifier = {
+  [classes]: [
+    { code: "62.01", name: "Комп'ютерне програмування" },
+    { code: "62.02", name: "Консультування з питань інформатизації" },
+    { code: "85.59", name: "Інші види освіти, н.в.і.у." },
+  ],
+};
 
 const details = {
   name: "Іваненко Іван",
@@ -23,6 +32,7 @@ const details = {
 describe("DeclarationDetailsForm contacts", () => {
   it("leaves the report email empty, offers the notification address in one click, and saves the three fields", async () => {
     const api = stubFetch({
+      ...classifier,
       [read]: { ...details, confirmedEmail: "fop@example.com" },
       [write]: { ...details, fullName: "Тестенко Тест Тестович", phone: "+380501234567", reportEmail: "fop@example.com" },
     });
@@ -55,6 +65,7 @@ describe("DeclarationDetailsForm contacts", () => {
 
   it("keeps the stored report email over the notification address", async () => {
     stubFetch({
+      ...classifier,
       [read]: { ...details, fullName: "Тестенко Тест Тестович", phone: "+380501234567", reportEmail: "reports@example.com", confirmedEmail: "fop@example.com" },
     });
     renderApp(<DeclarationDetailsForm />);
@@ -68,7 +79,7 @@ describe("DeclarationDetailsForm contacts", () => {
   });
 
   it("leaves the email empty when there is no confirmed address", async () => {
-    stubFetch({ [read]: details });
+    stubFetch({ ...classifier, [read]: details });
     renderApp(<DeclarationDetailsForm />);
 
     expect(await screen.findByLabelText("Пошта для звітності")).toHaveValue("");
@@ -77,6 +88,7 @@ describe("DeclarationDetailsForm contacts", () => {
 
   it("words a rejected phone by its code and ties the message to the input", async () => {
     stubFetch({
+      ...classifier,
       [read]: details,
       [write]: reply(400, { code: "validation_failed", errorCodes: { phone: ["phone_invalid"] } }),
     });
@@ -90,6 +102,7 @@ describe("DeclarationDetailsForm contacts", () => {
 
   it("words a rejected phone in Russian", async () => {
     stubFetch({
+      ...classifier,
       [read]: details,
       [write]: reply(400, { code: "validation_failed", errorCodes: { phone: ["phone_invalid"] } }),
     });
@@ -104,6 +117,7 @@ describe("DeclarationDetailsForm contacts", () => {
 describe("DeclarationDetailsForm rejection", () => {
   it("words each rejected field by its code, including a KVED by its position", async () => {
     stubFetch({
+      ...classifier,
       [read]: details,
       [write]: reply(400, {
         code: "validation_failed",
@@ -125,6 +139,7 @@ describe("DeclarationDetailsForm rejection", () => {
 
   it("words an over-long address and a stray control character in Russian", async () => {
     stubFetch({
+      ...classifier,
       [read]: details,
       [write]: reply(400, {
         code: "validation_failed",
@@ -137,5 +152,75 @@ describe("DeclarationDetailsForm rejection", () => {
 
     expect(await screen.findByText("Текст слишком длинный.")).toBeVisible();
     expect(screen.getByText("Текст содержит недопустимый символ.")).toBeVisible();
+  });
+});
+
+describe.each([
+  { locale: "uk" as const, save: "Зберегти", unknown: "Такого коду немає в КВЕД ДК 009:2010.", label: "КВЕД 1 (основний)", second: "КВЕД 2" },
+  { locale: "ru" as const, save: "Сохранить", unknown: "Такого кода нет в КВЭД ДК 009:2010.", label: "КВЭД 1 (основной)", second: "КВЭД 2" },
+])("DeclarationDetailsForm KVED names in $locale", ({ locale, unknown, label, second }) => {
+  it("shows the Ukrainian name of every saved code under its input", async () => {
+    stubFetch({ ...classifier, [read]: details });
+    renderApp(<DeclarationDetailsForm />, { locale });
+
+    await screen.findByText("Комп'ютерне програмування");
+    expect(screen.getByLabelText(label)).toHaveAccessibleDescription("Комп'ютерне програмування");
+    expect(screen.getByLabelText(second)).toHaveAccessibleDescription("Консультування з питань інформатизації");
+  });
+
+  it("shows the name of a code as it is typed and nothing for an unfinished one", async () => {
+    stubFetch({ ...classifier, [read]: { ...details, kvedCodes: [] } });
+    const { user } = renderApp(<DeclarationDetailsForm />, { locale });
+    const input = await screen.findByLabelText(label);
+
+    await user.type(input, "85.5");
+    expect(screen.queryByText("Інші види освіти, н.в.і.у.")).not.toBeInTheDocument();
+    expect(screen.queryByText(unknown)).not.toBeInTheDocument();
+
+    await user.type(input, "9");
+    expect(screen.getByText("Інші види освіти, н.в.і.у.")).toBeVisible();
+    expect(input).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("words a code of the right shape that is not a class as the owner types it", async () => {
+    stubFetch({ ...classifier, [read]: { ...details, kvedCodes: [] } });
+    const { user } = renderApp(<DeclarationDetailsForm />, { locale });
+    const input = await screen.findByLabelText(label);
+
+    await user.type(input, "12.34");
+
+    expect(screen.getByText(unknown)).toBeVisible();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("shows no name and no error until the classifier has loaded, then names the saved code", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    stubFetch({
+      [read]: details,
+      [classes]: async () => {
+        await gate;
+
+        return classifier[classes];
+      },
+    });
+    renderApp(<DeclarationDetailsForm />, { locale });
+
+    const input = await screen.findByLabelText(label);
+    expect(input).toHaveValue("62.01");
+    expect(screen.queryByText("Комп'ютерне програмування")).not.toBeInTheDocument();
+
+    release();
+    expect(await screen.findByText("Комп'ютерне програмування")).toBeVisible();
+  });
+
+  it("says the names could not be loaded and keeps the form usable", async () => {
+    stubFetch({ [read]: details, [classes]: reply(500, { code: "internal_error" }) });
+    renderApp(<DeclarationDetailsForm />, { locale });
+
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.getByLabelText(label)).toHaveValue("62.01");
   });
 });
