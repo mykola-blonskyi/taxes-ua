@@ -470,7 +470,7 @@ public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixtu
     [Fact]
     public async Task A_stored_KVED_code_the_classifier_does_not_know_blocks_the_declaration_and_its_file()
     {
-        const int year = 2086;
+        const int year = 2060;
         await using var application = At(new DateOnly(year, 4, 20));
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         await SetUp(owner, year);
