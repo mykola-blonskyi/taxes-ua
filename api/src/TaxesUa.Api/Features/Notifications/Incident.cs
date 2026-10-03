@@ -12,6 +12,7 @@ internal enum IncidentKind
     TokenRejected,
     TokenUnreadable,
     NewTaxYear,
+    MissingTaxYear,
 }
 
 /// <summary>

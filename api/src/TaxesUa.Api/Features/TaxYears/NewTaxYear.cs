@@ -45,22 +45,43 @@ internal static class NewTaxYearCheck
     }
 }
 
+/// <summary>The current Kyiv year has no parameters, so the ledger stops there and the home screen has no balance (Rule 7).</summary>
+internal static class MissingTaxYearCheck
+{
+    public static async Task<int?> LoadAsync(AppDbContext database, DateOnly today, CancellationToken cancellationToken) =>
+        await database.TaxYearConfigs.AsNoTracking().AnyAsync(config => config.Year == today.Year, cancellationToken)
+            ? null
+            : today.Year;
+}
+
 /// <summary>
-/// Turns <see cref="NewTaxYearCheck"/> into an alert. The key is the year, so the owner hears of each
+/// Turns <see cref="NewTaxYearCheck"/> and <see cref="MissingTaxYearCheck"/> into alerts. The key is the year, so the owner hears of each
 /// new year once per channel however many days of December it stays open. Tax years are not per owner,
-/// so every owner is told. The message goes out from 09:00 Kyiv, the hour of the deadline reminders,
+/// so every owner is told. A current year with no row is a second incident, keyed by that year, which
+/// takes over on 1 January when December's closes. The message goes out from 09:00 Kyiv, the hour of the deadline reminders,
 /// since nothing here is urgent enough to wake anyone.
 /// </summary>
 internal sealed class NewTaxYearIncidentSource(TimeProvider time) : IIncidentSource
 {
     public async Task<IReadOnlyList<Incident>> OpenAsync(AppDbContext database, string userId, CancellationToken cancellationToken)
     {
-        if (TimeOnly.FromDateTime(time.NowInKyiv()) < ReminderPlan.SendAt
-            || await NewTaxYearCheck.LoadAsync(database, time.TodayInKyiv(), cancellationToken) is not { } status)
+        if (TimeOnly.FromDateTime(time.NowInKyiv()) < ReminderPlan.SendAt)
         {
             return [];
         }
 
-        return [new Incident($"{IncidentKind.NewTaxYear}:{status.Year}", IncidentKind.NewTaxYear, null, status.Year)];
+        var today = time.TodayInKyiv();
+        var open = new List<Incident>();
+        if (await MissingTaxYearCheck.LoadAsync(database, today, cancellationToken) is { } missing)
+        {
+            open.Add(new Incident($"{IncidentKind.MissingTaxYear}:{missing}", IncidentKind.MissingTaxYear, null, missing));
+        }
+
+        if (await NewTaxYearCheck.LoadAsync(database, today, cancellationToken) is { } status)
+        {
+            open.Add(new Incident($"{IncidentKind.NewTaxYear}:{status.Year}", IncidentKind.NewTaxYear, null, status.Year));
+        }
+
+        return open;
     }
 }

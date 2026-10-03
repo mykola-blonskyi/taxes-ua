@@ -13,6 +13,7 @@ import {
   type TaxYearConfigRequest,
   type TaxYearConfigResponse,
 } from "@/data/tax-years/useTaxYears";
+import { todayInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
 import { LoadState } from "@/data/api/LoadState";
 import { MoneyField, NumberField, RateField, ReadOnlyMoneyField, TextField } from "@/shared/ui/fields";
@@ -101,18 +102,23 @@ export function TaxYearTable() {
   );
 }
 
-// The coming year has no parameters yet: offer the clone of this year at the top, where the owner lands from
-// the December prompt, instead of leaving the button to be found on the right row.
+// The next year is due and has no parameters: offer to clone the latest configured year into it, at the top,
+// where the owner lands from the dashboard notice and the channel alert. It is due in December (Kyiv), or
+// when the current Kyiv year itself has no row (the rollover); earlier than that an unverified copy would
+// nag for months and extend the ledger (Rule 9).
 function NewYearOffer({ taxYears }: { taxYears: TaxYearConfigResponse[] }) {
   const t = useTranslations("settings");
   const tYears = useTranslations("settings.taxYears");
   const apiText = useApiErrorText();
   const cloneTaxYear = useCloneTaxYear();
-  const year = new Date().getFullYear();
+  const today = todayInKyiv();
+  const current = Number(today.slice(0, 4));
+  const years = taxYears.map((taxYear) => Number(taxYear.year));
+  const year = Math.max(...years);
   const next = year + 1;
-  const has = (value: number) => taxYears.some((taxYear) => Number(taxYear.year) === value);
+  const due = today.slice(5, 7) === "12" || !years.includes(current);
 
-  if (!has(year) || has(next)) {
+  if (!due || next > current + 1) {
     return null;
   }
 

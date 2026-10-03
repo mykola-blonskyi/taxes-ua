@@ -1438,7 +1438,8 @@ the next tax year (Rule 9). Its key is `NewTaxYear:<year>`, so it is alerted onc
 `Incident` gained an optional `Year` for the text. It is the one source that waits for 09:00 Kyiv: a month
 of runway does not justify a message at midnight, and unlike a bad token it has a date to anchor to. The
 dashboard card and the alert read one predicate, `NewTaxYearCheck`, so they cannot disagree. Tax years are
-not per owner, so every owner with a channel is told.
+not per owner, so every owner with a channel is told. A second kind, `MissingTaxYear:<year>`, stays open
+while the current Kyiv year has no row, so the alert survives the rollover when December's incident closes.
 
 ---
 
