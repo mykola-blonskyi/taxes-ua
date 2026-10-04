@@ -180,7 +180,7 @@ src/TaxesUa.Api/
     AppDbContext.cs   only DbSet<T> per entity, no business logic
     Migrations/
     OwnerLock.cs      the per-owner advisory lock restore, import, sync and owner writes share
-  Problems.cs, TextRules.cs, KyivTime.cs, Incident.cs ...
+  Problems.cs, TextRules.cs, KyivTime.cs, Incident.cs, Limits.cs ...
                   shared helpers every feature may use; they reach no feature
   Features/       one directory per feature (see graph/dependencies.md for the full list)
     <Name>/
@@ -193,11 +193,12 @@ The whole api is one assembly, so `internal` keeps no feature from another. The 
 reference in the compiled assembly and fails when a feature reaches another along an edge that is not on
 its allow-list, when the listed edges form a cycle, or when the shared code under `TaxesUa.Api` and
 `TaxesUa.Api.Data` reaches a feature (`AppDbContext` aside, since EF Core needs one `DbContext` that maps
-every entity). The allow-list is the layering, from `Auth`, `Fx` and `TaxYears` at the bottom to `Backup`
+every entity). Const and enum values, which the compiler inlines, are caught by a scan of the sources. The allow-list is the layering, from `Auth`, `Fx` and `TaxYears` at the bottom to `Backup`
 and `Calendar` at the top; [graph/dependencies.md](../graph/dependencies.md) shows it as a table, and the
 test keeps the two equal. A new edge is a one-line change to the list, made in review. `ClockTests` in the
-same folder fails on any read of the real clock outside `Program.cs`: every "now" comes from the injected
-`TimeProvider`. `TaxesUa.Engine` (ADR-002) sits outside this tree entirely, as a separate, package-free
+same folder fails on any read of the real clock outside `Program`'s top-level statements, endpoint
+lambdas included: every "now" comes from the injected `TimeProvider`. Clocks read inside packages are
+out of its scope. `TaxesUa.Engine` (ADR-002) sits outside this tree entirely, as a separate, package-free
 project; any feature that needs a computation references it, never duplicates it.
 
 **Change log.** `Features/Audit/AuditSaveChangesInterceptor` is the only writer of `AuditLog`. On

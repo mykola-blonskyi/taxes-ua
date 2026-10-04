@@ -125,8 +125,9 @@ as the record.
 
 ## What remains
 
-- #186: split the largest API files (`BackupDocument.cs`, `InvoicesEndpoints.cs`,
-  `TransactionsEndpoints.cs`, `InvoicingEndpoints.cs`).
+- #186: split the API files over 600 lines (`BackupDocument.cs`, `InvoicesEndpoints.cs`,
+  `TransactionsEndpoints.cs`, `MonobankStatementImport.cs`). Generated `*.g.cs` files, such as
+  `KvedClasses.g.cs`, are exempt from the 600-line rule.
 - Stage 3's yearly document archive, in [backlog.md](backlog.md).
 
 ## Two chains, not one

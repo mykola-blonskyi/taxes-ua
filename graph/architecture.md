@@ -31,13 +31,13 @@ feature edges are in [dependencies.md](dependencies.md).
   highest correctness stakes. It is pure and well tested, but a rule change reaches the dashboard,
   reminders, declarations and the reserve.
 - Reminders claim before they send, so a crash mid-send loses that reminder rather than doubling it.
-- The boundary test reads IL, so a cross-feature `const` is invisible to it.
+- The boundary test reads IL and scans the sources for `Type.Const` reads. A const reached any other
+  way (a `using static`, a fully qualified name split across lines) would slip past the scan.
 
 ## Improvements
 
-- #186 splits `BackupDocument.cs`, `InvoicesEndpoints.cs`, `TransactionsEndpoints.cs` and
-  `InvoicingEndpoints.cs`.
+- #186 splits the files over 600 lines: `BackupDocument.cs`, `InvoicesEndpoints.cs`,
+  `TransactionsEndpoints.cs` and `MonobankStatementImport.cs`. Generated `*.g.cs` files are exempt.
 - Several endpoints still answer a bare 404 with no body (Treasury accounts, invoicing signature,
   declaration files). The audit asked for the coded `Problems.NotFound` everywhere except the secret
   paths; that changes responses, so it is left for its own ticket.
-- `TransactionsEndpoints.MinYear` and `MaxYear` are read by five features. They belong in shared code.

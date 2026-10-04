@@ -17,7 +17,7 @@ and prints the table to paste here.
 
 A feature reaches only the features on its row. A layer is one more than the highest layer the feature
 reaches, so every edge points down and no cycle can form. Every feature may also use the shared code in
-`TaxesUa.Api` (`Problems`, `TextRules`, `KyivTime`, `Incident`) and `TaxesUa.Api.Data` (`AppDbContext`,
+`TaxesUa.Api` (`Problems`, `TextRules`, `KyivTime`, `Incident`, `Limits`) and `TaxesUa.Api.Data` (`AppDbContext`,
 `OwnerLock`), which itself reaches no feature, `AppDbContext` aside.
 
 | Feature | Layer | Reaches |
@@ -46,9 +46,11 @@ reaches, so every edge points down and no cycle can form. Every feature may also
 (Declarations, Export, Invoices, Monobank, Notifications, Payments, Periods, Settings, TaxYears,
 Transactions) formed one cycle. ADR-008's amendment lists what moved to break it.
 
-The test reads type references from IL, so a reference made only through a `const` (inlined by the
-compiler) does not show. `TransactionsEndpoints.MinYear` and `MaxYear`, read by Payments, Settings,
-Invoices, Export and Backup, are the main case.
+The test reads type references from IL: signatures, attributes with their `typeof` and enum
+arguments, generic constraints, locals and every token in method bodies. The compiler inlines a const
+or enum value as a number, so a second check scans the sources for `Type.Member` reads of another
+feature's literal fields. The year bounds and the client name length that five features read live in
+the shared `Limits`.
 
 ### Web layers
 

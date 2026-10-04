@@ -6,7 +6,7 @@ Blocked by: none
 
 ## Problem
 
-#225 fills the F0103309 KVED name (`T1RXXXXG2S`) from a checked-in list of 27 classes of КВЕД ДК 009:2010 in `api/src/TaxesUa.Api/Features/Declarations/Kved.cs`. The owner reports two gaps:
+#225 fills the F0103309 KVED name (`T1RXXXXG2S`) from a checked-in list of 27 classes of КВЕД ДК 009:2010 in `api/src/TaxesUa.Api/Features/Declarations/Kved.cs` (moved to `Features/Settings/Kved.cs` by #185). The owner reports two gaps:
 
 - Settings → declaration details → КВЕДи shows only the code (for example 62.01). The owner cannot see the name, and had to type the name into the Cabinet by hand.
 - A code outside the 27 entries gets an empty name in the XML.
