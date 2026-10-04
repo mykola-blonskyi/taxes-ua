@@ -48,9 +48,23 @@ Transactions) formed one cycle. ADR-008's amendment lists what moved to break it
 
 The test reads type references from IL: signatures, attributes with their `typeof` and enum
 arguments, generic constraints, locals and every token in method bodies. The compiler inlines a const
-or enum value as a number, so a second check scans the sources for `Type.Member` reads of another
-feature's literal fields. The year bounds and the client name length that five features read live in
+or enum value as a number, so a second check (`ConstEdgeScan`) parses the sources with Roslyn and
+reads `Type.Member` pairs of another feature's literal fields from the syntax tree. Comments and string
+literals are not code, so they never match. It reads every adjacent pair of a chain, so a partly
+qualified `Monobank.SyncHealthState.Stale` counts, and a chain split over whitespace or lines counts.
+It resolves `using X = ...` aliases and `using static T;` by name. Probes for each case live in
+`ConstEdgeScanTests.cs`, as source strings that are never compiled. The year bounds and the client name length that five features read live in
 the shared `Limits`.
+
+The const and enum scan is syntax only, with no symbol binding, so it has gaps:
+
+- A `global using X = ...` or `global using static T;` in another file is not followed. The sources hold
+  none today.
+- `using static T;` matches a bare identifier by its name, so a local or member that shares a name with a
+  literal of `T` is a false positive. A false positive fails the test loudly; it never hides an edge.
+- A chain is matched by simple type name. A property chain `x.Type.Member` whose `Type` shares a name with
+  a literal's type is a false positive, and two types of one name in different features are told apart
+  only by `Type.Member` owner, not by namespace.
 
 ### Web layers
 
