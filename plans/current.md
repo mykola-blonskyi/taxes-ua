@@ -125,9 +125,9 @@ as the record.
 
 ## What remains
 
-- #186: split the API files over 600 lines (`BackupDocument.cs`, `InvoicesEndpoints.cs`,
-  `TransactionsEndpoints.cs`, `MonobankStatementImport.cs`). Generated `*.g.cs` files, such as
-  `KvedClasses.g.cs`, are exempt from the 600-line rule.
+- #186 is done: the four API files over 600 lines are split into partial classes along their seams,
+  and `SourceSizeTests` fails a hand-written file over 600 lines. Generated code is exempt: `*.g.cs`
+  files such as `KvedClasses.g.cs`, and the EF migrations, which carry an auto-generated header.
 - Stage 3's yearly document archive, in [backlog.md](backlog.md).
 
 ## Two chains, not one
