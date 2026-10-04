@@ -44,6 +44,7 @@ public static class PaymentCandidatesEndpoints
                 var manual = await database.BudgetPayments
                     .Where(row => row.UserId == user.Id && row.ExternalId == null && paidOn.Contains(row.PaidOn))
                     .OrderBy(row => row.CreatedAt)
+                    .ThenBy(row => row.Id)
                     .ToListAsync(cancellationToken);
 
                 return Results.Ok(pending
