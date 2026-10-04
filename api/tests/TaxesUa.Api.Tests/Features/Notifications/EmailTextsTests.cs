@@ -33,13 +33,13 @@ public sealed class EmailTextsTests
     [InlineData(null, false)]
     public void Only_a_plain_address_is_accepted(string? input, bool accepted)
     {
-        Assert.Equal(accepted, EmailTexts.TryNormalize(input, out var address));
+        Assert.Equal(accepted, TextRules.TryNormalizeEmail(input, out var address));
         Assert.Equal(accepted ? input!.Trim() : string.Empty, address);
     }
 
     [Fact]
     public void An_address_longer_than_254_characters_is_refused()
     {
-        Assert.False(EmailTexts.TryNormalize(new string('a', 250) + "@example.com", out _));
+        Assert.False(TextRules.TryNormalizeEmail(new string('a', 250) + "@example.com", out _));
     }
 }

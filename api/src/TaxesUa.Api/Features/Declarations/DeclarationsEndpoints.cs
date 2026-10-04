@@ -480,10 +480,7 @@ public static class DeclarationsEndpoints
     {
         if (loaded is null)
         {
-            return Problems.Create(
-                StatusCodes.Status404NotFound,
-                ProblemCodes.TaxYearNotFound,
-                $"No tax year configuration exists for {year}.");
+            return Problems.TaxYearNotFound(year);
         }
 
         return loaded.Viewed.Settings.FopRegistrationDate is { } registered && QuarterEnd(year, quarter) < registered

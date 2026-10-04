@@ -6,10 +6,6 @@ namespace TaxesUa.Api.Features.TaxYears;
 
 public static class TaxYearEndpoints
 {
-    private const int MinYear = 2000;
-
-    private const int MaxYear = 2100;
-
     // 28 is the largest day of month every month has. AdvanceRecommendedDay lands in the month after
     // any month, February included, so it needs that bound. EsvDeadlineDay lands in the month after a
     // quarter, which always has 30 or 31 days, and shares the bound so there is one rule rather than a
@@ -51,7 +47,7 @@ public static class TaxYearEndpoints
             {
                 var config = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
 
-                return config is null ? Missing(year) : Results.Ok(ToResponse(config));
+                return config is null ? Problems.TaxYearNotFound(year) : Results.Ok(ToResponse(config));
             })
             .Produces<TaxYearConfigResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -97,15 +93,16 @@ public static class TaxYearEndpoints
         taxYears.MapPost("/{year:int}/verify", async (
                 int year,
                 AppDbContext database,
+                TimeProvider time,
                 CancellationToken cancellationToken) =>
             {
                 var config = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
                 if (config is null)
                 {
-                    return Missing(year);
+                    return Problems.TaxYearNotFound(year);
                 }
 
-                config.VerifiedAt = DateTimeOffset.UtcNow;
+                config.VerifiedAt = time.GetUtcNow();
                 await database.SaveChangesAsync(cancellationToken);
 
                 return Results.Ok(ToResponse(config));
@@ -128,7 +125,7 @@ public static class TaxYearEndpoints
                 var source = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
                 if (source is null)
                 {
-                    return Missing(year);
+                    return Problems.TaxYearNotFound(year);
                 }
 
                 if (await database.TaxYearConfigs.AnyAsync(config => config.Year == next, cancellationToken))
@@ -153,11 +150,6 @@ public static class TaxYearEndpoints
 
         return routes;
     }
-
-    private static IResult Missing(int year) => Problems.Create(
-        StatusCodes.Status404NotFound,
-        ProblemCodes.TaxYearNotFound,
-        $"No tax year configuration exists for {year}.");
 
     // A write invalidates the verification, which attested to the numbers that were stored before it.
     private static void Apply(TaxYearConfig config, TaxYearConfigRequest request)
@@ -244,7 +236,7 @@ public static class TaxYearEndpoints
         }
     }
 
-    private static Bound YearBound(string name, int year) => new(name, year, MinYear, MaxYear);
+    private static Bound YearBound(string name, int year) => new(name, year, Limits.MinYear, Limits.MaxYear);
 
     private static FieldErrors? Validate(IEnumerable<Bound> bounds)
     {

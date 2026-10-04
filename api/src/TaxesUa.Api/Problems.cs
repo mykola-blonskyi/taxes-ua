@@ -29,6 +29,13 @@ internal static class Problems
         return Results.Problem(statusCode: statusCode, title: title, detail: detail, extensions: all);
     }
 
+    /// <summary>The 404 for an id the owner has no row of; <paramref name="what"/> names the row in the title.</summary>
+    public static IResult NotFound(string code, string what, Guid id) =>
+        Create(StatusCodes.Status404NotFound, code, $"No {what} exists with id {id}.");
+
+    public static IResult TaxYearNotFound(int year) =>
+        Create(StatusCodes.Status404NotFound, ProblemCodes.TaxYearNotFound, $"No tax year configuration exists for {year}.");
+
     /// <summary>
     /// A rejected request body. <c>errors</c> keeps the English sentences per field and <c>errorCodes</c>
     /// holds the code of each of them at the same index; the top-level <c>code</c> is

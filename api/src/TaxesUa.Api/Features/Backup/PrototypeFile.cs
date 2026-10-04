@@ -272,12 +272,12 @@ internal sealed record PrototypeFile(PrototypeIncome[] Incomes, PaidMonth[] Paid
 
             var year = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
             var month = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
-            if (year < TransactionsEndpoints.MinYear || year > TransactionsEndpoints.MaxYear)
+            if (year < Limits.MinYear || year > Limits.MaxYear)
             {
                 errors.Set(
                     at,
                     ProblemCodes.YearOutOfRange,
-                    $"The year must be between {TransactionsEndpoints.MinYear} and {TransactionsEndpoints.MaxYear}.");
+                    $"The year must be between {Limits.MinYear} and {Limits.MaxYear}.");
             }
             else if (property.Value.ValueKind == JsonValueKind.False)
             {

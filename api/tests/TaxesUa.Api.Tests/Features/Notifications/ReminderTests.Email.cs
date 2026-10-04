@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Features.Notifications;
+using TaxesUa.Api.Features.Settings;
 using TaxesUa.Engine;
 using static TaxesUa.Api.Tests.Features.Notifications.EmailChannelTests;
 using static TaxesUa.Api.Tests.Features.Notifications.TelegramSteps;

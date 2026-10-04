@@ -36,12 +36,12 @@ public static class ExportEndpoints
                     HttpContext http,
                     CancellationToken cancellationToken) =>
                 {
-                    if (year < TransactionsEndpoints.MinYear || year > TransactionsEndpoints.MaxYear)
+                    if (year < Limits.MinYear || year > Limits.MaxYear)
                     {
                         return Problems.Validation(
                             "year",
                             ProblemCodes.YearOutOfRange,
-                            $"year must be between {TransactionsEndpoints.MinYear} and {TransactionsEndpoints.MaxYear}.");
+                            $"year must be between {Limits.MinYear} and {Limits.MaxYear}.");
                     }
 
                     var user = await users.GetUserAsync(http.User);
@@ -79,5 +79,6 @@ public static class ExportEndpoints
                 && row.ValueDate < new DateOnly(year + 1, 1, 1))
             .OrderBy(row => row.ValueDate)
             .ThenBy(row => row.CreatedAt)
+            .ThenBy(row => row.Id)
             .ToListAsync(cancellationToken);
 }

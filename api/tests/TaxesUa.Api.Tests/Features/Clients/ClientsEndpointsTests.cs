@@ -3,10 +3,11 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using TaxesUa.Api.Features.Audit;
+using TaxesUa.Api.Features.Clients;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Transactions;
 
-namespace TaxesUa.Api.Tests.Features.Transactions;
+namespace TaxesUa.Api.Tests.Features.Clients;
 
 // The fixture shares one database across the class, so every test names its clients uniquely.
 public sealed class ClientsEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>

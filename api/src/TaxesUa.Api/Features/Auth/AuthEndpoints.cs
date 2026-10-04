@@ -69,7 +69,8 @@ public static class AuthEndpoints
         HttpContext http,
         SignInManager<ApplicationUser> signInManager,
         UserManager<ApplicationUser> userManager,
-        EmailAllowlist allowlist)
+        EmailAllowlist allowlist,
+        TimeProvider time)
     {
         var login = await signInManager.GetExternalLoginInfoAsync();
         if (login is null)
@@ -102,7 +103,7 @@ public static class AuthEndpoints
                     Email = email,
                     EmailConfirmed = true,
                     DisplayName = login.Principal.FindFirstValue(ClaimTypes.Name),
-                    CreatedAt = DateTimeOffset.UtcNow,
+                    CreatedAt = time.GetUtcNow(),
                 };
 
                 var created = await userManager.CreateAsync(user);

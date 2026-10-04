@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
+using TaxesUa.Api.Features.Settings;
 
 namespace TaxesUa.Api.Features.Notifications;
 
@@ -24,7 +25,7 @@ internal sealed record NotificationChannelBackup(
         _ when !Enum.IsDefined(Kind) => ("kind", new Issue(ProblemCodes.InvalidValue, "kind must name a channel kind.")),
         NotificationChannelKind.Telegram when !long.TryParse(Address, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _) =>
             ("address", new Issue(ProblemCodes.InvalidValue, "A Telegram address must be a chat id.")),
-        NotificationChannelKind.Email when !EmailTexts.TryNormalize(Address, out _) =>
+        NotificationChannelKind.Email when !TextRules.TryNormalizeEmail(Address, out _) =>
             ("address", new Issue(ProblemCodes.InvalidValue, "An email address must be a plain address such as name@example.com.")),
         _ when Enabled && ConfirmedAt is null => ("enabled", new Issue(ProblemCodes.InvalidValue, "A channel cannot be enabled before it is confirmed.")),
         _ => null,

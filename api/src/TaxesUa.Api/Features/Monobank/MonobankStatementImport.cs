@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Transactions;
@@ -221,8 +222,7 @@ internal sealed class MonobankStatementImport(
         // rows as it goes, so this also has to run before anything is changed in the context.
         var saleRates = await LookUpSaleRatesAsync(ownerId, account, statement, cancellationToken);
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-        await database.Database.ExecuteSqlAsync(
-            $"SELECT pg_advisory_xact_lock(hashtext({ownerId}))", cancellationToken);
+        await OwnerLock.AcquireAsync(database, ownerId, cancellationToken);
         // Rows an earlier window of this walk left tracked would otherwise stand in for what the owner
         // has since confirmed or edited; nothing is pending here, so dropping them loses nothing.
         database.ChangeTracker.Clear();
@@ -332,7 +332,7 @@ internal sealed class MonobankStatementImport(
             return Outcome.Skipped;
         }
 
-        var counterparty = Fit(item.CounterName?.Trim(), TransactionsEndpoints.MaxClientNameLength);
+        var counterparty = Fit(item.CounterName?.Trim(), Limits.MaxClientNameLength);
         var request = new TransactionRequest(
             item.Time.KyivDate(),
             item.Amount,
@@ -347,7 +347,7 @@ internal sealed class MonobankStatementImport(
         var provenance = new ImportProvenance(account.Id, item.Id, item.Time, counterparty, batchId);
 
         var result = await TransactionRecorder.RecordAsync(
-            database, ownerId, request, provenance, rates, today, cancellationToken);
+            database, ownerId, request, provenance, rates, today, time, cancellationToken);
 
         switch (result)
         {
@@ -436,7 +436,7 @@ internal sealed class MonobankStatementImport(
             BankTime = item.Time,
             AmountKop = -item.Amount,
             CounterIban = TreasuryPayment.Normalize(item.CounterIban)!,
-            CounterName = Fit(item.CounterName?.Trim(), TransactionsEndpoints.MaxClientNameLength),
+            CounterName = Fit(item.CounterName?.Trim(), Limits.MaxClientNameLength),
             CounterEdrpou = Fit(item.CounterEdrpou?.Trim(), TreasuryAccountsEndpoints.MaxEdrpouLength),
             Purpose = Fit(Describe(item), TransactionsEndpoints.MaxDescriptionLength),
             Status = CandidateStatus.Pending,

@@ -148,6 +148,12 @@ internal sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
             .HasForeignKey(invoice => invoice.ClientId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // An invoice with a receipt linked is issued, and an issued invoice is never deleted.
+        builder.HasMany<Transaction>()
+            .WithOne()
+            .HasForeignKey(transaction => transaction.InvoiceId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.Ignore(invoice => invoice.Number);
 
         // Backs the max-plus-one numbering: two issues that somehow raced past the owner's lock

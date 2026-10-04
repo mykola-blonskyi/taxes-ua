@@ -43,7 +43,7 @@ backend. A second container on the shared VPS, roughly 150 MB RAM.
 
 Date: 2026-09-25
 
-Status: Proposed
+Status: Accepted
 
 ### Context
 
@@ -72,7 +72,7 @@ the boundary.
 
 Date: 2026-09-25
 
-Status: Proposed
+Status: Accepted
 
 ### Context
 
@@ -104,7 +104,7 @@ boundary.
 
 Date: 2026-09-25
 
-Status: Proposed
+Status: Accepted
 
 ### Context
 
@@ -126,7 +126,7 @@ The engine knows nothing about time zones. Changing the date rule touches a sing
 
 Date: 2026-09-25
 
-Status: Proposed
+Status: Accepted
 
 ### Context
 
@@ -161,7 +161,7 @@ the Google handler here is the current step, not the permanent one.
 
 Date: 2026-09-25
 
-Status: Proposed
+Status: Accepted
 
 ### Context
 
@@ -209,7 +209,7 @@ another's tables: each owns its objects and grants nothing on them.
 
 Date: 2026-09-25
 
-Status: Proposed
+Status: Accepted
 
 ### Context
 
@@ -234,7 +234,7 @@ knows nothing about years.
 
 Date: 2026-09-25
 
-Status: Proposed
+Status: Accepted, amended 2026-10-04 (`internal` does not keep features apart; a test does, see the amendment)
 
 ### Context
 
@@ -285,6 +285,32 @@ One folder maps to one ticket and to the same mental model already used on the f
 to multiple developers or the API grows well past today's resource count, revisit: vertical
 slices scale per developer up to a point, and Clean Architecture's extra ceremony starts paying
 for itself past it. Not a concern at the current size.
+
+### Amendment, 2026-10-04: a test keeps the features apart, not `internal` (#185)
+
+The decision said `internal` lets the compiler refuse a feature that reaches into another. It does not.
+`internal` is visible to the whole assembly, and every feature lives in `TaxesUa.Api`. The audit of
+2026-10-02 found the gap. Measured from the compiled code before #185, features reached each other along
+85 edges, and ten of them (Declarations, Export, Invoices, Monobank, Notifications, Payments, Periods,
+Settings, TaxYears and Transactions) formed one cycle.
+
+The boundary is now `api/tests/TaxesUa.Api.Tests/Architecture/FeatureBoundaryTests.cs`. It reads every type
+reference in the compiled assembly and fails when a feature reaches another along an edge not on its
+allow-list, when a listed edge is no longer used, when a feature folder is missing from the list, or when
+the listed edges form a cycle. Code in the shared namespaces `TaxesUa.Api` and `TaxesUa.Api.Data` reaches
+no feature, `AppDbContext` aside. Adding an edge is a one-line change to the list, made in review, and
+`graph/dependencies.md` shows the same list as a table the test keeps equal. The compiler inlines a
+const or enum value, so the test also scans the sources for `Type.Member` reads of another feature's
+literal fields.
+
+To reach an acyclic list, #185 put each shared type under the feature that owns its data and moved each
+upper handler up to the feature it orchestrates: a `Banking` feature for bank accounts and IBAN and
+Treasury recognition, a `Clients` feature for the client endpoints (they count both invoices and receipts),
+payment details under `Periods`, KVED and the notification channel entity under `Settings`, the email
+address check into `TextRules`, the year bounds and client name length five features read into `Limits`,
+and `Incident` into the shared namespace. Splitting the features into separate projects was the
+alternative. It gets the compiler's refusal at the cost of about twenty projects; the test gives the
+same refusal in one file.
 
 ---
 

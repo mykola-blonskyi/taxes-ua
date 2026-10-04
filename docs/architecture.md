@@ -33,7 +33,7 @@ Full spec: `/Users/mykola/Documents/obsidian-notes/tsxes-ua/SPEC.md` (outside th
 | Auth | ASP.NET Core Identity + Google OAuth + passkey (built into Identity in .NET 10), cookie session, email allowlist | Free, no vendor. 2FA comes from the Google account. |
 | Tax engine | `TaxesUa.Engine`, a package-free class library, xUnit | Testable without a database or UI. |
 | Frontend | Next.js (App Router), TypeScript | Owner's preference. UI only, no server code. |
-| Client | TanStack Query, Table, Form; types generated from OpenAPI via `openapi-typescript` | One source of types, the API contract is never hand-duplicated. |
+| Client | TanStack Query; types generated from OpenAPI via `openapi-typescript` | One source of types, the API contract is never hand-duplicated. Tables and forms are plain React over shadcn/ui; TanStack Table and Form are not used. |
 | UI | Tailwind CSS + shadcn/ui, next-intl (uk by default, ru), PWA via Serwist | Responsive layout, light and dark theme, installable on a phone. |
 | State | Zustand only when actually needed | No global client state in the MVP. |
 | Database | PostgreSQL 16+ | Owner's preference. Already running on the VPS. |
@@ -62,8 +62,8 @@ Responsibilities:
   polling (Stage 2).
 - Change log.
 
-Dependencies: `TaxesUa.Engine`, PostgreSQL, the NBU API, later the Telegram Bot API, SMTP, bank
-APIs.
+Dependencies: `TaxesUa.Engine`, PostgreSQL, the NBU API, the Telegram Bot API, SMTP and the
+monobank personal API.
 
 ### TaxesUa.Engine (class library)
 
@@ -179,21 +179,27 @@ src/TaxesUa.Api/
   Data/
     AppDbContext.cs   only DbSet<T> per entity, no business logic
     Migrations/
-  Features/       one directory per resource (auth, settings, tax-years, transactions, fx,
-    <Name>/       payments, periods, declarations, dashboard, export, backup, audit, invoices)
+    OwnerLock.cs      the per-owner advisory lock restore, import, sync and owner writes share
+  Problems.cs, TextRules.cs, KyivTime.cs, Incident.cs, Limits.cs ...
+                  shared helpers every feature may use; they reach no feature
+  Features/       one directory per feature (see graph/dependencies.md for the full list)
+    <Name>/
       <Entity>.cs        EF entity/entities, declared internal
-      <Name>Endpoints.cs the feature's single public surface: Map<Name>Api(this
-                         IEndpointRouteBuilder group), called once from Program.cs
+      <Name>Endpoints.cs Map<Name>Api(this IEndpointRouteBuilder group), called once from Program.cs
 ```
 
-The dependency rule is enforced by the C# `internal` access modifier (ADR-008): entities and
-feature-internal helpers are `internal`, so only a feature's `Map<Name>Api` method is visible to
-`Program.cs` and to other features — the compiler refuses a feature that reaches into another
-feature's types, the same way eslint refuses it on the frontend. `TaxesUa.Engine` (ADR-002)
-sits outside this tree entirely, as a separate, package-free project; any feature that needs a
-computation references it, never duplicates it. `AppDbContext` and the audit save interceptor
-are the two deliberate exceptions — EF Core needs one `DbContext`, and change auditing needs to
-see every audited entity, so both necessarily touch every feature.
+The whole api is one assembly, so `internal` keeps no feature from another. The boundary is a test
+(ADR-008, amended): `api/tests/TaxesUa.Api.Tests/Architecture/FeatureBoundaryTests.cs` reads every type
+reference in the compiled assembly and fails when a feature reaches another along an edge that is not on
+its allow-list, when the listed edges form a cycle, or when the shared code under `TaxesUa.Api` and
+`TaxesUa.Api.Data` reaches a feature (`AppDbContext` aside, since EF Core needs one `DbContext` that maps
+every entity). Const and enum values, which the compiler inlines, are caught by a scan of the sources. The allow-list is the layering, from `Auth`, `Fx` and `TaxYears` at the bottom to `Backup`
+and `Calendar` at the top; [graph/dependencies.md](../graph/dependencies.md) shows it as a table, and the
+test keeps the two equal. A new edge is a one-line change to the list, made in review. `ClockTests` in the
+same folder fails on any read of the real clock outside `Program`'s top-level statements, endpoint
+lambdas included: every "now" comes from the injected `TimeProvider`. Clocks read inside packages are
+out of its scope. `TaxesUa.Engine` (ADR-002) sits outside this tree entirely, as a separate, package-free
+project; any feature that needs a computation references it, never duplicates it.
 
 **Change log.** `Features/Audit/AuditSaveChangesInterceptor` is the only writer of `AuditLog`. On
 every `SaveChangesAsync` it snapshots each added, modified or deleted `Transaction`,
@@ -259,8 +265,8 @@ src/
   shared/       the bottom layer. Imports nothing from app, features or data
     lib/        utilities: cn, money and date formatting
     ui/         shadcn/ui components (alias @/shared/ui in components.json)
-    types/      hand-written types unrelated to the API
     constants/
+    security/   the page's Content-Security-Policy, built per request with its nonce
     shell/      app chrome shared by every route group: navigation, header, disclaimer, the
                 theme and language toggles
     theme/      ThemeProvider and the theme toggle. The colour tokens themselves live in
@@ -278,9 +284,8 @@ English sentences in `errors`. The web never shows or matches the English: `ApiE
 `fieldCodes`, and `useApiErrorText` words them from the `apiErrors` catalog in `web/messages`, with a generic
 sentence for a code it does not know.
 
-Both layouts follow the same idea — one folder per feature, reachable only through its public
-surface — enforced by whatever each language gives for free: `internal` in C#, `no-restricted-
-imports` in eslint.
+Both layouts follow the same idea, one folder per feature with its dependencies declared, enforced by
+a check in each language: `FeatureBoundaryTests` in C#, `no-restricted-imports` in eslint.
 
 ---
 

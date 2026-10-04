@@ -1,4 +1,4 @@
-namespace TaxesUa.Api.Features.Monobank;
+namespace TaxesUa.Api.Features.Banking;
 
 internal enum Bank
 {

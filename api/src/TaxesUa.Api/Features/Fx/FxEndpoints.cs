@@ -2,10 +2,6 @@ namespace TaxesUa.Api.Features.Fx;
 
 public static class FxEndpoints
 {
-    private const int MinYear = 2000;
-
-    private const int MaxYear = 2100;
-
     public static IEndpointRouteBuilder MapFxApi(this IEndpointRouteBuilder routes)
     {
         routes.MapGroup("/fx")
@@ -23,12 +19,12 @@ public static class FxEndpoints
                     return Problems.Validation(nameof(currency), ProblemCodes.InvalidValue, "currency must be USD or EUR.");
                 }
 
-                if (date.Year < MinYear || date.Year > MaxYear)
+                if (date.Year < Limits.MinYear || date.Year > Limits.MaxYear)
                 {
                     return Problems.Validation(
                         nameof(date),
                         ProblemCodes.YearOutOfRange,
-                        $"date year must be between {MinYear} and {MaxYear}.");
+                        $"date year must be between {Limits.MinYear} and {Limits.MaxYear}.");
                 }
 
                 var lookup = await rates.GetAsync(currency, date, cancellationToken);

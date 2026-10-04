@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using TaxesUa.Api.Features.Clients;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Transactions;

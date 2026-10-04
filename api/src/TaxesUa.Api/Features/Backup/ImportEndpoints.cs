@@ -112,8 +112,7 @@ public static class ImportEndpoints
 
         // The restore's lock, so an import and a restore of the same owner cannot interleave, and two
         // imports of one file cannot both see a record as missing.
-        await database.Database.ExecuteSqlAsync(
-            $"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
+        await OwnerLock.AcquireAsync(database, userId, cancellationToken);
 
         var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, userId, cancellationToken);
         if (file.PaidMonths.Length > 0 && settings.FopRegistrationDate is null)

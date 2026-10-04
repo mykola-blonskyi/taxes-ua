@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Banking;
 
 namespace TaxesUa.Api.Features.Monobank;
 

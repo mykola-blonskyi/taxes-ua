@@ -70,7 +70,7 @@ internal sealed class TreasuryAccountConfiguration : IEntityTypeConfiguration<Tr
         builder.Property(account => account.ManualRecipientName).HasMaxLength(TreasuryAccountsEndpoints.MaxManualNameLength);
         builder.Property(account => account.ManualRecipientCode).HasMaxLength(TreasuryAccountsEndpoints.RecipientCodeLength);
         builder.Property(account => account.LearnedIban).HasMaxLength(34);
-        builder.Property(account => account.LearnedRecipientName).HasMaxLength(TransactionsEndpoints.MaxClientNameLength);
+        builder.Property(account => account.LearnedRecipientName).HasMaxLength(Limits.MaxClientNameLength);
         builder.Property(account => account.LearnedRecipientCode).HasMaxLength(TreasuryAccountsEndpoints.RecipientCodeLength);
         builder.Property(account => account.LearnedExternalId).HasMaxLength(200);
 

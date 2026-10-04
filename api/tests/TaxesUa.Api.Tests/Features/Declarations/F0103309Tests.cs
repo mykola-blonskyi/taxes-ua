@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using TaxesUa.Api.Features.Declarations;
+using TaxesUa.Api.Features.Settings;
 using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Tests.Features.Declarations;

@@ -165,13 +165,13 @@ public static class SettingsEndpoints
             errors.Set(Field(name), ProblemCodes.WeekendAllDays, $"{name} must leave at least one working day.");
         }
 
-        if (request.BackOnGroup3From is { } back && (back.Quarter is < 1 or > 4 || back.Year is < TransactionsEndpoints.MinYear or > TransactionsEndpoints.MaxYear))
+        if (request.BackOnGroup3From is { } back && (back.Quarter is < 1 or > 4 || back.Year is < Limits.MinYear or > Limits.MaxYear))
         {
             var name = nameof(request.BackOnGroup3From);
             errors.Set(
                 Field(name),
                 ProblemCodes.InvalidQuarter,
-                $"{name} must be a quarter from 1 to 4 of a year from {TransactionsEndpoints.MinYear} to {TransactionsEndpoints.MaxYear}.");
+                $"{name} must be a quarter from 1 to 4 of a year from {Limits.MinYear} to {Limits.MaxYear}.");
         }
 
         return errors.OrNull();

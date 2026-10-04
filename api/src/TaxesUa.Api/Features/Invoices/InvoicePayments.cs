@@ -19,6 +19,7 @@ internal static class InvoicePayments
             .Where(row => row.UserId == userId && row.InvoiceId != null && invoiceIds.Contains(row.InvoiceId.Value))
             .OrderBy(row => row.ValueDate)
             .ThenBy(row => row.CreatedAt)
+            .ThenBy(row => row.Id)
             .Select(row => new
             {
                 InvoiceId = row.InvoiceId!.Value,

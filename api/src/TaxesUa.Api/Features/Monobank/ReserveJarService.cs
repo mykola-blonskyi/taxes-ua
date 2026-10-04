@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Fx;
 
 namespace TaxesUa.Api.Features.Monobank;

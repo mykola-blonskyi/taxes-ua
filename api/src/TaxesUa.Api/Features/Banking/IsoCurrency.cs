@@ -1,7 +1,7 @@
 using System.Globalization;
 using TaxesUa.Api.Features.Fx;
 
-namespace TaxesUa.Api.Features.Monobank;
+namespace TaxesUa.Api.Features.Banking;
 
 /// <summary>The ISO 4217 numeric codes a bank reports, mapped to the currencies the app records.</summary>
 internal static class IsoCurrency

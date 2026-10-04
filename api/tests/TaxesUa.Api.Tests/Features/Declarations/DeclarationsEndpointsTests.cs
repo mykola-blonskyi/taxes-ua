@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
+using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Dashboard;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Fx;

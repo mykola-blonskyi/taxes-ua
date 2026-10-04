@@ -4,8 +4,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Fx;
-using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Engine;
 using SettingsEntity = TaxesUa.Api.Features.Settings.Settings;
@@ -14,10 +14,6 @@ namespace TaxesUa.Api.Features.Transactions;
 
 public static class TransactionsEndpoints
 {
-    internal const int MinYear = 2000;
-
-    internal const int MaxYear = 2100;
-
     // Caps the hryvnia result as well as the amount. Money.ToUahKop multiplies AmountMinor by RateE4
     // unchecked, and a result of at most 1e14 kop bounds that product by 1e14 x 10^4, inside long. 1e14
     // also stays inside JS Number.MAX_SAFE_INTEGER, which is what the web reads both as.
@@ -27,8 +23,6 @@ public static class TransactionsEndpoints
     private const int MaxRateE4 = 10_000_000;
 
     private const int MaxReasonLength = 1000;
-
-    internal const int MaxClientNameLength = 200;
 
     private const int MaxInvoiceNumberLength = 100;
 
@@ -47,10 +41,10 @@ public static class TransactionsEndpoints
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
-                if (year < MinYear || year > MaxYear)
+                if (year < Limits.MinYear || year > Limits.MaxYear)
                 {
                     return Problems.Validation(
-                        "year", ProblemCodes.YearOutOfRange, $"year must be between {MinYear} and {MaxYear}.");
+                        "year", ProblemCodes.YearOutOfRange, $"year must be between {Limits.MinYear} and {Limits.MaxYear}.");
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -70,6 +64,7 @@ public static class TransactionsEndpoints
                         && row.ValueDate < new DateOnly(year + 1, 1, 1))
                     .OrderByDescending(row => row.ValueDate)
                     .ThenByDescending(row => row.CreatedAt)
+                    .ThenBy(row => row.Id)
                     .ToListAsync(cancellationToken);
 
                 var totalIncomeKop = IncomeLedger.ForYear(
@@ -109,7 +104,7 @@ public static class TransactionsEndpoints
                 }
 
                 var result = await TransactionRecorder.RecordAsync(
-                    database, user.Id, request, provenance: null, rates, time.TodayInKyiv(), cancellationToken);
+                    database, user.Id, request, provenance: null, rates, time.TodayInKyiv(), time, cancellationToken);
 
                 if (result is RecordTransactionResult.Success recorded)
                 {
@@ -158,13 +153,13 @@ public static class TransactionsEndpoints
 
                 var lookup = await LookUpRateAsync(request, rates, cancellationToken);
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.Transactions
                     .Include(t => t.BankAccount)
                     .FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.Id, cancellationToken);
                 if (row is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.TransactionNotFound, "transaction", id);
                 }
 
                 if (await ValidateLinksAsync(database, user.Id, row, request, cancellationToken) is { } linkErrors)
@@ -191,7 +186,7 @@ public static class TransactionsEndpoints
                 row.InvoiceNumber = normalized.InvoiceNumber;
                 row.Description = normalized.Description;
                 row.ReviewStatus = ReviewStatus.Confirmed;
-                row.UpdatedAt = DateTimeOffset.UtcNow;
+                row.UpdatedAt = time.GetUtcNow();
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
@@ -211,6 +206,7 @@ public static class TransactionsEndpoints
                 Guid id,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -221,12 +217,12 @@ public static class TransactionsEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.Transactions
                     .FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.Id, cancellationToken);
                 if (row is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.TransactionNotFound, "transaction", id);
                 }
 
                 if (await database.Transactions.AnyAsync(
@@ -256,7 +252,7 @@ public static class TransactionsEndpoints
                         row.InvoiceNumber = null;
                     }
 
-                    row.UpdatedAt = DateTimeOffset.UtcNow;
+                    row.UpdatedAt = time.GetUtcNow();
                 }
 
                 await database.SaveChangesAsync(cancellationToken);
@@ -274,6 +270,7 @@ public static class TransactionsEndpoints
                 ConfirmRequest request,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -284,7 +281,7 @@ public static class TransactionsEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.Transactions
                     .Include(t => t.Client)
                     .Include(t => t.RefundsTransaction)
@@ -292,7 +289,7 @@ public static class TransactionsEndpoints
                     .FirstOrDefaultAsync(t => t.Id == id && t.UserId == user.Id, cancellationToken);
                 if (row is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.TransactionNotFound, "transaction", id);
                 }
 
                 // A sync may have moved the suggestion since the owner read it; confirming then would save
@@ -308,7 +305,7 @@ public static class TransactionsEndpoints
                 if (row.ReviewStatus == ReviewStatus.NeedsReview)
                 {
                     row.ReviewStatus = ReviewStatus.Confirmed;
-                    row.UpdatedAt = DateTimeOffset.UtcNow;
+                    row.UpdatedAt = time.GetUtcNow();
                     await database.SaveChangesAsync(cancellationToken);
                 }
 
@@ -347,6 +344,7 @@ public static class TransactionsEndpoints
                     .OrderByDescending(row => row.ValueDate)
                     .ThenByDescending(row => row.BankTime)
                     .ThenByDescending(row => row.CreatedAt)
+                    .ThenBy(row => row.Id)
                     .ToListAsync(cancellationToken);
 
                 var setAside = await SetAsideOfAsync(database, settings, rows, cancellationToken);
@@ -374,6 +372,7 @@ public static class TransactionsEndpoints
                     .Where(row => row.UserId == user.Id && row.Kind == TransactionKind.Income)
                     .OrderByDescending(row => row.ValueDate)
                     .ThenByDescending(row => row.CreatedAt)
+                    .ThenBy(row => row.Id)
                     .Select(row => new ReceiptOption(
                         row.Id,
                         row.ValueDate,
@@ -390,16 +389,6 @@ public static class TransactionsEndpoints
 
         return routes;
     }
-
-    // The lock the sync, restore and prototype import take, so a sync's re-suggestion of an unreviewed
-    // row cannot land between an owner's read and write of it.
-    private static Task LockOwnerAsync(AppDbContext database, string userId, CancellationToken cancellationToken) =>
-        database.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
-
-    private static IResult Missing(Guid id) => Problems.Create(
-        StatusCodes.Status404NotFound,
-        ProblemCodes.TransactionNotFound,
-        $"No transaction exists with id {id}.");
 
     // Asks the same Rule 8 decision `IncomeLedger.ForYear` makes, so a row's flag and the list's total
     // cannot disagree.
@@ -724,12 +713,12 @@ public static class TransactionsEndpoints
             }
         }
 
-        if (request.ValueDate.Year < MinYear || request.ValueDate.Year > MaxYear)
+        if (request.ValueDate.Year < Limits.MinYear || request.ValueDate.Year > Limits.MaxYear)
         {
             errors.Set(
                 Field(nameof(request.ValueDate)),
                 ProblemCodes.YearOutOfRange,
-                $"valueDate year must be between {MinYear} and {MaxYear}.");
+                $"valueDate year must be between {Limits.MinYear} and {Limits.MaxYear}.");
         }
         else if (request.ValueDate > today)
         {
@@ -779,12 +768,12 @@ public static class TransactionsEndpoints
                 "refundsTransactionId is allowed only on a refund to a client.");
         }
 
-        if (normalized.ClientName is { Length: > MaxClientNameLength })
+        if (normalized.ClientName is { Length: > Limits.MaxClientNameLength })
         {
             errors.Set(
                 Field(nameof(request.ClientName)),
                 ProblemCodes.TooLong,
-                $"clientName must not exceed {MaxClientNameLength} characters.");
+                $"clientName must not exceed {Limits.MaxClientNameLength} characters.");
         }
         else if (normalized.ClientName is { } clientName && TextRules.HasDisallowedControlChar(clientName))
         {

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MimeKit;
 using TaxesUa.Api.Features.Notifications;
+using TaxesUa.Api.Features.Settings;
 
 namespace TaxesUa.Api.Tests.Features.Notifications;
 

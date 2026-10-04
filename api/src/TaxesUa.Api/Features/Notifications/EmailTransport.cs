@@ -2,6 +2,7 @@ using System.Net.Sockets;
 using MailKit;
 using MailKit.Net.Smtp;
 using MimeKit;
+using TaxesUa.Api.Features.Settings;
 
 namespace TaxesUa.Api.Features.Notifications;
 

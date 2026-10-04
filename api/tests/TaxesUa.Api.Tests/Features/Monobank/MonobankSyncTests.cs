@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Features.Audit;
+using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Settings;
@@ -184,7 +185,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
     [Fact]
     public async Task A_long_counterparty_name_is_cut_without_splitting_an_emoji()
     {
-        var name = new string('a', TransactionsEndpoints.MaxClientNameLength - 1) + "\U0001F600 tail";
+        var name = new string('a', Limits.MaxClientNameLength - 1) + "\U0001F600 tail";
         var bank = new FakeBank();
         bank.Connect("token-emoji", ("emoji-uah", 980));
         bank.Put("emoji-uah", new Operation("op-emoji", At(2047, 5, 7, 9), 100_00, 980, CounterName: name));

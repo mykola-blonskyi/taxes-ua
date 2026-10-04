@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Payments;
+using TaxesUa.Api.Features.Periods;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
@@ -17,7 +18,7 @@ using TaxesUa.Engine;
 using EsvRegistrationMonthPolicy = TaxesUa.Api.Features.Settings.EsvRegistrationMonthPolicy;
 using PaymentMode = TaxesUa.Api.Features.Settings.PaymentMode;
 
-namespace TaxesUa.Api.Tests.Features.Payments;
+namespace TaxesUa.Api.Tests.Features.Periods;
 
 // The details a Pay panel shows (#99, Rule 16). A restore of an empty file gives each test a clean owner.
 public sealed class PaymentDetailsEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>

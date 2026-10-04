@@ -29,7 +29,7 @@ public static class PaymentsEndpoints
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
-                if (year < TransactionsEndpoints.MinYear || year > TransactionsEndpoints.MaxYear)
+                if (year < Limits.MinYear || year > Limits.MaxYear)
                 {
                     return Problems.Validation("year", ProblemCodes.YearOutOfRange, YearRangeMessage("year"));
                 }
@@ -44,6 +44,7 @@ public static class PaymentsEndpoints
                     .Where(row => row.UserId == user.Id && row.PeriodYear == year)
                     .OrderByDescending(row => row.PaidOn)
                     .ThenByDescending(row => row.CreatedAt)
+                    .ThenBy(row => row.Id)
                     .ToListAsync(cancellationToken);
 
                 var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
@@ -74,7 +75,7 @@ public static class PaymentsEndpoints
                     return Results.Unauthorized();
                 }
 
-                var now = DateTimeOffset.UtcNow;
+                var now = time.GetUtcNow();
                 var row = new BudgetPayment { Id = Guid.NewGuid(), UserId = user.Id, CreatedAt = now };
                 Apply(row, request, now);
                 database.BudgetPayments.Add(row);
@@ -110,15 +111,15 @@ public static class PaymentsEndpoints
 
                 // Under the owner's lock, as a confirm is, so a candidate is never read half-changed.
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.BudgetPayments
                     .FirstOrDefaultAsync(p => p.Id == id && p.UserId == user.Id, cancellationToken);
                 if (row is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.PaymentNotFound, "payment", id);
                 }
 
-                var now = DateTimeOffset.UtcNow;
+                var now = time.GetUtcNow();
                 Apply(row, request, now);
                 await PaymentCandidatesEndpoints.FollowPaymentAsync(database, row, request.Kind, now, cancellationToken);
                 await database.SaveChangesAsync(cancellationToken);
@@ -137,6 +138,7 @@ public static class PaymentsEndpoints
                 Guid id,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
+                TimeProvider time,
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
@@ -147,16 +149,16 @@ public static class PaymentsEndpoints
                 }
 
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
-                await PaymentCandidatesEndpoints.LockOwnerAsync(database, user.Id, cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await database.BudgetPayments
                     .FirstOrDefaultAsync(p => p.Id == id && p.UserId == user.Id, cancellationToken);
                 if (row is null)
                 {
-                    return Missing(id);
+                    return Problems.NotFound(ProblemCodes.PaymentNotFound, "payment", id);
                 }
 
                 database.BudgetPayments.Remove(row);
-                await PaymentCandidatesEndpoints.FollowPaymentAsync(database, row, null, DateTimeOffset.UtcNow, cancellationToken);
+                await PaymentCandidatesEndpoints.FollowPaymentAsync(database, row, null, time.GetUtcNow(), cancellationToken);
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
@@ -215,11 +217,6 @@ public static class PaymentsEndpoints
     // the owner just gets flagged to double-check the date.
     private static bool IsBeforeRegistration(BudgetPayment row, SettingsEntity settings) =>
         settings.FopRegistrationDate is { } registrationDate && row.PaidOn < registrationDate;
-
-    private static IResult Missing(Guid id) => Problems.Create(
-        StatusCodes.Status404NotFound,
-        ProblemCodes.PaymentNotFound,
-        $"No payment exists with id {id}.");
 
     /// <summary>
     /// A payment is money already paid, so when <paramref name="today"/> (Kyiv, Rule 10) is given its date
@@ -302,10 +299,10 @@ public static class PaymentsEndpoints
     }
 
     internal static bool InYearRange(int year) =>
-        year >= TransactionsEndpoints.MinYear && year <= TransactionsEndpoints.MaxYear;
+        year >= Limits.MinYear && year <= Limits.MaxYear;
 
     internal static string YearRangeMessage(string subject) =>
-        $"{subject} must be between {TransactionsEndpoints.MinYear} and {TransactionsEndpoints.MaxYear}.";
+        $"{subject} must be between {Limits.MinYear} and {Limits.MaxYear}.";
 
     private static string Field(string name) => JsonNamingPolicy.CamelCase.ConvertName(name);
 

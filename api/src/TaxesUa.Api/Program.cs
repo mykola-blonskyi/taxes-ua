@@ -11,6 +11,7 @@ using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Backup;
 using TaxesUa.Api.Features.Calendar;
+using TaxesUa.Api.Features.Clients;
 using TaxesUa.Api.Features.Dashboard;
 using TaxesUa.Api.Features.DatabaseBackups;
 using TaxesUa.Api.Features.Declarations;
@@ -337,6 +338,7 @@ api.MapGet("/health", async (AppDbContext db, CancellationToken ct) =>
 api.MapAuthApi();
 api.MapSettingsApi();
 api.MapInvoicingApi();
+api.MapInvoicingPrefillApi();
 api.MapInvoicesApi();
 api.MapDeclarationDetailsApi();
 api.MapDpsStatusApi();

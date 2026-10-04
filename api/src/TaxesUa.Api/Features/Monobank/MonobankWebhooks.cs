@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Threading.Channels;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Banking;
 
 namespace TaxesUa.Api.Features.Monobank;
 

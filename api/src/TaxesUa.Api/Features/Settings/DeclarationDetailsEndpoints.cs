@@ -3,8 +3,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
-using TaxesUa.Api.Features.Declarations;
-using TaxesUa.Api.Features.Notifications;
 
 namespace TaxesUa.Api.Features.Settings;
 
@@ -220,7 +218,7 @@ public static partial class DeclarationDetailsEndpoints
             errors.Set("phone", ProblemCodes.PhoneInvalid, "phone must be a Ukrainian number such as +380 67 123 45 67.");
         }
 
-        if (request.ReportEmail.Length > 0 && !EmailTexts.TryNormalize(request.ReportEmail, out _))
+        if (request.ReportEmail.Length > 0 && !TextRules.TryNormalizeEmail(request.ReportEmail, out _))
         {
             errors.Set("reportEmail", ProblemCodes.EmailInvalid, "reportEmail must be an address such as name@example.com.");
         }

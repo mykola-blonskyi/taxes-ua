@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Settings;
 
 namespace TaxesUa.Api.Features.Notifications;
 

@@ -217,8 +217,7 @@ public static class BackupEndpoints
 
         // Serializes restores per owner. Without it a second restore's delete misses the first one's
         // uncommitted rows, then sees them as another owner's ids and inserts the file a second time.
-        await database.Database.ExecuteSqlAsync(
-            $"SELECT pg_advisory_xact_lock(hashtext({userId}))", cancellationToken);
+        await OwnerLock.AcquireAsync(database, userId, cancellationToken);
 
         // An issued or cancelled invoice's number is already out in the world; dropping it would let the
         // next issue take it again (Rule 14).

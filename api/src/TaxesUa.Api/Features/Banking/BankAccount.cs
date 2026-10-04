@@ -1,4 +1,4 @@
-namespace TaxesUa.Api.Features.Monobank;
+namespace TaxesUa.Api.Features.Banking;
 
 /// <summary>
 /// A bank account exposed by a connected bank token, per knowledge/domain-model.md. One row per
