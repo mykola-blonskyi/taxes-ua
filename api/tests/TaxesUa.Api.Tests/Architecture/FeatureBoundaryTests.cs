@@ -1,5 +1,5 @@
 using System.Reflection;
-using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis.CSharp;
 using TaxesUa.Api.Data;
 
 namespace TaxesUa.Api.Tests.Architecture;
@@ -7,7 +7,7 @@ namespace TaxesUa.Api.Tests.Architecture;
 // The API is one assembly, so `internal` keeps no feature from another. This test does: a feature reaches
 // another only along an edge listed here, the listed edges form no cycle, and shared code reaches no
 // feature. Adding an edge is a decision made here, in review. Edges are read from the compiled IL, plus a
-// scan of the sources for const and enum values, which the compiler inlines as plain numbers.
+// scan of the sources (ConstEdgeScan) for const and enum values, which the compiler inlines as plain numbers.
 public sealed class FeatureBoundaryTests
 {
     private const string FeaturesPrefix = "TaxesUa.Api.Features.";
@@ -89,20 +89,20 @@ public sealed class FeatureBoundaryTests
                 .Where(field => field.IsLiteral)
                 .Select(field => (Name: $"{type.Name}.{field.Name}", Feature: FeatureOf(type)!)))
             .ToLookup(literal => literal.Name, literal => literal.Feature);
+        var literals = owners.Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
         var listed = ListedEdges().ToHashSet(StringComparer.Ordinal);
         var features = Path.Combine(Above(Path.Combine("src", "TaxesUa.Api", "Program.cs")), "src", "TaxesUa.Api", "Features");
 
         var unlisted = Directory.EnumerateFiles(features, "*.cs", SearchOption.AllDirectories)
             .SelectMany(path =>
             {
-                var source = File.ReadAllText(path);
-                var from = Regex.Match(source, @"^namespace TaxesUa\.Api\.Features\.(\w+)", RegexOptions.Multiline).Groups[1].Value;
-                var code = Regex.Replace(source, @"^\s*//.*$", string.Empty, RegexOptions.Multiline);
+                var root = CSharpSyntaxTree.ParseText(File.ReadAllText(path)).GetRoot();
+                var from = ConstEdgeScan.FeatureOf(root);
 
-                return Regex.Matches(code, @"\b(\w+)\.(\w+)\b")
-                    .SelectMany(read => owners[read.Value]
-                        .Where(to => to != from && !owners[read.Value].Contains(from) && !listed.Contains($"{from} -> {to}"))
-                        .Select(to => $"{from} -> {to}: {read.Value} in {Path.GetFileName(path)}"));
+                return ConstEdgeScan.Reads(root, literals)
+                    .SelectMany(read => owners[read]
+                        .Where(to => to != from && !owners[read].Contains(from) && !listed.Contains($"{from} -> {to}"))
+                        .Select(to => $"{from} -> {to}: {read} in {Path.GetFileName(path)}"));
             })
             .Distinct()
             .ToArray();

@@ -300,8 +300,13 @@ allow-list, when a listed edge is no longer used, when a feature folder is missi
 the listed edges form a cycle. Code in the shared namespaces `TaxesUa.Api` and `TaxesUa.Api.Data` reaches
 no feature, `AppDbContext` aside. Adding an edge is a one-line change to the list, made in review, and
 `graph/dependencies.md` shows the same list as a table the test keeps equal. The compiler inlines a
-const or enum value, so the test also scans the sources for `Type.Member` reads of another feature's
-literal fields.
+const or enum value, so the test also parses the sources with Roslyn (`Microsoft.CodeAnalysis.CSharp`,
+a test-only package; it was not yet a dependency of the test project) and reads `Type.Member` pairs of
+another feature's literal fields from the syntax tree (#233). That handles partly qualified and
+multi-line chains, `using X = ...` aliases and `using static T;`, and ignores comments and strings.
+It binds no symbols, so it leaves gaps: a `global using` alias or `using static` in another file is
+not followed (the sources have none), and `using static` matches a bare name, which can give a false
+positive but never hides an edge. `graph/dependencies.md` lists them.
 
 To reach an acyclic list, #185 put each shared type under the feature that owns its data and moved each
 upper handler up to the feature it orchestrates: a `Banking` feature for bank accounts and IBAN and
