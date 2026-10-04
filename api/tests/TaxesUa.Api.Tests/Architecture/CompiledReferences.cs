@@ -4,8 +4,10 @@ using System.Reflection.Emit;
 namespace TaxesUa.Api.Tests.Architecture;
 
 /// <summary>
-/// What the compiled code of a type names: its base and interfaces, attributes, member signatures, locals,
-/// and every type, method and field token in its method bodies. Lambdas, async state machines and
+/// What the compiled code of a type names: its base and interfaces, generic constraints, member signatures,
+/// the attributes on the type and its members (with their typeof and enum arguments), locals, and every
+/// type, method and field token in its method bodies. A const or enum value read is inlined as a number,
+/// so it is not here; FeatureBoundaryTests scans the sources for those. Lambdas, async state machines and
 /// iterators compile to nested types, and <see cref="Type.Namespace"/> of a nested type is its outer
 /// type's, so their references count against the type that wrote them.
 /// </summary>
@@ -21,49 +23,51 @@ internal static class CompiledReferences
 
     public static IEnumerable<MemberInfo> Of(Type type)
     {
-        if (type.BaseType is { } baseType)
-        {
-            yield return baseType;
-        }
+        IEnumerable<MemberInfo> declaration =
+        [
+            .. type.BaseType is { } baseType ? [baseType] : Array.Empty<Type>(),
+            .. type.GetInterfaces(),
+            .. Constraints(type.IsGenericTypeDefinition ? type.GetGenericArguments() : []),
+            .. Attributes(type.GetCustomAttributesData()),
+        ];
+        var fields = type.GetFields(Declared)
+            .SelectMany(field => Attributes(field.GetCustomAttributesData()).Prepend(field.FieldType));
+        var properties = type.GetProperties(Declared)
+            .SelectMany(property => Attributes(property.GetCustomAttributesData()).Prepend(property.PropertyType));
+        var methods = type.GetMethods(Declared).Cast<MethodBase>().Concat(type.GetConstructors(Declared))
+            .SelectMany(method => Signature(method).Concat(Bodies(method).Select(reference => reference.Reference)));
 
-        foreach (var member in type.GetInterfaces())
-        {
-            yield return member;
-        }
-
-        foreach (var attribute in type.GetCustomAttributesData())
-        {
-            yield return attribute.AttributeType;
-        }
-
-        foreach (var field in type.GetFields(Declared))
-        {
-            yield return field.FieldType;
-        }
-
-        foreach (var property in type.GetProperties(Declared))
-        {
-            yield return property.PropertyType;
-        }
-
-        foreach (var method in type.GetMethods(Declared).Cast<MethodBase>().Concat(type.GetConstructors(Declared)))
-        {
-            if (method is MethodInfo { ReturnType: var returnType })
-            {
-                yield return returnType;
-            }
-
-            foreach (var parameter in method.GetParameters())
-            {
-                yield return parameter.ParameterType;
-            }
-
-            foreach (var reference in InBody(method))
-            {
-                yield return reference;
-            }
-        }
+        return declaration.Concat(fields).Concat(properties).Concat(methods);
     }
+
+    /// <summary>Each member a method body of <paramref name="type"/> names, with the method that names it.</summary>
+    public static IEnumerable<(MethodBase Method, MemberInfo Reference)> InBodies(Type type) =>
+        type.GetMethods(Declared).Cast<MethodBase>().Concat(type.GetConstructors(Declared)).SelectMany(Bodies);
+
+    private static IEnumerable<MemberInfo> Signature(MethodBase method) =>
+    [
+        .. method is MethodInfo info ? [info.ReturnType, .. Attributes(info.ReturnParameter.GetCustomAttributesData())] : Array.Empty<MemberInfo>(),
+        .. Attributes(method.GetCustomAttributesData()),
+        .. Constraints(method.IsGenericMethodDefinition ? method.GetGenericArguments() : []),
+        .. method.GetParameters().SelectMany(parameter => Attributes(parameter.GetCustomAttributesData()).Prepend(parameter.ParameterType)),
+    ];
+
+    private static IEnumerable<Type> Constraints(Type[] parameters) =>
+        parameters.SelectMany(parameter => parameter.GetGenericParameterConstraints());
+
+    // An attribute names its own type, and the types of its arguments, including typeof(...) and enum values.
+    private static IEnumerable<Type> Attributes(IEnumerable<CustomAttributeData> attributes) =>
+        attributes.SelectMany(attribute => attribute.ConstructorArguments
+            .Concat(attribute.NamedArguments.Select(named => named.TypedValue))
+            .SelectMany(Argument)
+            .Prepend(attribute.AttributeType));
+
+    private static IEnumerable<Type> Argument(CustomAttributeTypedArgument argument) => argument.Value switch
+    {
+        Type value => [argument.ArgumentType, value],
+        IEnumerable<CustomAttributeTypedArgument> items => items.SelectMany(Argument).Prepend(argument.ArgumentType),
+        _ => [argument.ArgumentType],
+    };
 
     /// <summary>A referenced member and the types it carries, with generic arguments and element types unwrapped.</summary>
     public static IEnumerable<Type> Types(MemberInfo member) => member switch
@@ -94,7 +98,7 @@ internal static class CompiledReferences
             : [type];
     }
 
-    private static IEnumerable<MemberInfo> InBody(MethodBase method)
+    private static IEnumerable<(MethodBase Method, MemberInfo Reference)> Bodies(MethodBase method)
     {
         var body = method.GetMethodBody();
         if (body is null)
@@ -104,7 +108,7 @@ internal static class CompiledReferences
 
         foreach (var local in body.LocalVariables)
         {
-            yield return local.LocalType;
+            yield return (method, local.LocalType);
         }
 
         var il = body.GetILAsByteArray() ?? [];
@@ -119,7 +123,7 @@ internal static class CompiledReferences
             switch (code.OperandType)
             {
                 case OperandType.InlineMethod or OperandType.InlineField or OperandType.InlineType or OperandType.InlineTok:
-                    yield return method.Module.ResolveMember(BitConverter.ToInt32(il, at), typeArguments, methodArguments)!;
+                    yield return (method, method.Module.ResolveMember(BitConverter.ToInt32(il, at), typeArguments, methodArguments)!);
                     at += 4;
                     break;
                 case OperandType.InlineSwitch:

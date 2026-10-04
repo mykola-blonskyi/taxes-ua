@@ -6,10 +6,6 @@ namespace TaxesUa.Api.Features.TaxYears;
 
 public static class TaxYearEndpoints
 {
-    private const int MinYear = 2000;
-
-    private const int MaxYear = 2100;
-
     // 28 is the largest day of month every month has. AdvanceRecommendedDay lands in the month after
     // any month, February included, so it needs that bound. EsvDeadlineDay lands in the month after a
     // quarter, which always has 30 or 31 days, and shares the bound so there is one rule rather than a
@@ -240,7 +236,7 @@ public static class TaxYearEndpoints
         }
     }
 
-    private static Bound YearBound(string name, int year) => new(name, year, MinYear, MaxYear);
+    private static Bound YearBound(string name, int year) => new(name, year, Limits.MinYear, Limits.MaxYear);
 
     private static FieldErrors? Validate(IEnumerable<Bound> bounds)
     {

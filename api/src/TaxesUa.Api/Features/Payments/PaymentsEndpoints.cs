@@ -29,7 +29,7 @@ public static class PaymentsEndpoints
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
-                if (year < TransactionsEndpoints.MinYear || year > TransactionsEndpoints.MaxYear)
+                if (year < Limits.MinYear || year > Limits.MaxYear)
                 {
                     return Problems.Validation("year", ProblemCodes.YearOutOfRange, YearRangeMessage("year"));
                 }
@@ -44,6 +44,7 @@ public static class PaymentsEndpoints
                     .Where(row => row.UserId == user.Id && row.PeriodYear == year)
                     .OrderByDescending(row => row.PaidOn)
                     .ThenByDescending(row => row.CreatedAt)
+                    .ThenBy(row => row.Id)
                     .ToListAsync(cancellationToken);
 
                 var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
@@ -298,10 +299,10 @@ public static class PaymentsEndpoints
     }
 
     internal static bool InYearRange(int year) =>
-        year >= TransactionsEndpoints.MinYear && year <= TransactionsEndpoints.MaxYear;
+        year >= Limits.MinYear && year <= Limits.MaxYear;
 
     internal static string YearRangeMessage(string subject) =>
-        $"{subject} must be between {TransactionsEndpoints.MinYear} and {TransactionsEndpoints.MaxYear}.";
+        $"{subject} must be between {Limits.MinYear} and {Limits.MaxYear}.";
 
     private static string Field(string name) => JsonNamingPolicy.CamelCase.ConvertName(name);
 

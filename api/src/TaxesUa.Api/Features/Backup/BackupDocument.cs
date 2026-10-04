@@ -880,7 +880,7 @@ internal sealed record TreasuryAccountBackup(
                 return ("learnedExternalId", externalError with { Message = externalError.Message.Replace("externalId", "learnedExternalId", StringComparison.Ordinal) });
             }
 
-            if (LearnedRecipientName is { Length: > TransactionsEndpoints.MaxClientNameLength }
+            if (LearnedRecipientName is { Length: > Limits.MaxClientNameLength }
                 || (LearnedRecipientName is not null && TextRules.HasDisallowedControlChar(LearnedRecipientName)))
             {
                 return ("learnedRecipientName", new Issue(ProblemCodes.ControlCharacter, "learnedRecipientName must be short text without a control character."));
@@ -1095,8 +1095,8 @@ internal sealed record TransactionBackup(
         { BankAccountId: { } accountId } when !accountIds.Contains(accountId) =>
             ("bankAccountId", new Issue(ProblemCodes.UnknownReference, "bankAccountId must be the id of one of the bank accounts.")),
         { ExternalId: { } externalId } when BackupDocument.ExternalIdError(externalId) is { } error => ("externalId", error),
-        { Counterparty: { Length: > TransactionsEndpoints.MaxClientNameLength } } =>
-            ("counterparty", new Issue(ProblemCodes.TooLong, $"counterparty must not exceed {TransactionsEndpoints.MaxClientNameLength} characters.")),
+        { Counterparty: { Length: > Limits.MaxClientNameLength } } =>
+            ("counterparty", new Issue(ProblemCodes.TooLong, $"counterparty must not exceed {Limits.MaxClientNameLength} characters.")),
         { Counterparty: { } counterparty } when TextRules.HasDisallowedControlChar(counterparty) =>
             ("counterparty", new Issue(ProblemCodes.ControlCharacter, "counterparty must not contain a control character.")),
         { ImportBatchId: { } batchId } when !batchAccounts.TryGetValue(batchId, out var batchAccount)
@@ -1164,7 +1164,7 @@ internal sealed record TransactionBackup(
         { RateSource: Fx.RateSource.Nbu, RateDate: null } =>
             ("rateDate", new Issue(ProblemCodes.InvalidValue, "An NBU rate needs the rateDate NBU published it for.")),
         { RateSource: Fx.RateSource.Nbu, RateDate: { } rateDate } when rateDate > ValueDate
-            || rateDate.Year < TransactionsEndpoints.MinYear =>
+            || rateDate.Year < Limits.MinYear =>
             ("rateDate", new Issue(ProblemCodes.InvalidValue, "An NBU rateDate must be on or before valueDate.")),
         { RateSource: Fx.RateSource.Manual, RateDate: not null } =>
             ("rateDate", new Issue(ProblemCodes.InvalidValue, "A manual rate has no rateDate.")),
@@ -1306,8 +1306,8 @@ internal sealed record PaymentCandidateBackup(
         { AmountKop: <= 0 } => ("amountKop", new Issue(ProblemCodes.NotPositive, "amountKop must be positive.")),
         _ when !TreasuryPayment.IsTreasury(CounterIban) || TreasuryPayment.Normalize(CounterIban) != CounterIban =>
             ("counterIban", new Issue(ProblemCodes.InvalidValue, "counterIban must be a Treasury IBAN in capitals without spaces.")),
-        { CounterName.Length: > TransactionsEndpoints.MaxClientNameLength } =>
-            ("counterName", new Issue(ProblemCodes.TooLong, $"counterName must not exceed {TransactionsEndpoints.MaxClientNameLength} characters.")),
+        { CounterName.Length: > Limits.MaxClientNameLength } =>
+            ("counterName", new Issue(ProblemCodes.TooLong, $"counterName must not exceed {Limits.MaxClientNameLength} characters.")),
         { CounterEdrpou.Length: > TreasuryAccountsEndpoints.MaxEdrpouLength } =>
             ("counterEdrpou", new Issue(ProblemCodes.TooLong, $"counterEdrpou must not exceed {TreasuryAccountsEndpoints.MaxEdrpouLength} characters.")),
         _ when CounterEdrpou is not null && TextRules.HasDisallowedControlChar(CounterEdrpou) =>

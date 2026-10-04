@@ -14,10 +14,6 @@ namespace TaxesUa.Api.Features.Transactions;
 
 public static class TransactionsEndpoints
 {
-    internal const int MinYear = 2000;
-
-    internal const int MaxYear = 2100;
-
     // Caps the hryvnia result as well as the amount. Money.ToUahKop multiplies AmountMinor by RateE4
     // unchecked, and a result of at most 1e14 kop bounds that product by 1e14 x 10^4, inside long. 1e14
     // also stays inside JS Number.MAX_SAFE_INTEGER, which is what the web reads both as.
@@ -27,8 +23,6 @@ public static class TransactionsEndpoints
     private const int MaxRateE4 = 10_000_000;
 
     private const int MaxReasonLength = 1000;
-
-    internal const int MaxClientNameLength = 200;
 
     private const int MaxInvoiceNumberLength = 100;
 
@@ -47,10 +41,10 @@ public static class TransactionsEndpoints
                 HttpContext http,
                 CancellationToken cancellationToken) =>
             {
-                if (year < MinYear || year > MaxYear)
+                if (year < Limits.MinYear || year > Limits.MaxYear)
                 {
                     return Problems.Validation(
-                        "year", ProblemCodes.YearOutOfRange, $"year must be between {MinYear} and {MaxYear}.");
+                        "year", ProblemCodes.YearOutOfRange, $"year must be between {Limits.MinYear} and {Limits.MaxYear}.");
                 }
 
                 var user = await users.GetUserAsync(http.User);
@@ -70,6 +64,7 @@ public static class TransactionsEndpoints
                         && row.ValueDate < new DateOnly(year + 1, 1, 1))
                     .OrderByDescending(row => row.ValueDate)
                     .ThenByDescending(row => row.CreatedAt)
+                    .ThenBy(row => row.Id)
                     .ToListAsync(cancellationToken);
 
                 var totalIncomeKop = IncomeLedger.ForYear(
@@ -349,6 +344,7 @@ public static class TransactionsEndpoints
                     .OrderByDescending(row => row.ValueDate)
                     .ThenByDescending(row => row.BankTime)
                     .ThenByDescending(row => row.CreatedAt)
+                    .ThenBy(row => row.Id)
                     .ToListAsync(cancellationToken);
 
                 var setAside = await SetAsideOfAsync(database, settings, rows, cancellationToken);
@@ -376,6 +372,7 @@ public static class TransactionsEndpoints
                     .Where(row => row.UserId == user.Id && row.Kind == TransactionKind.Income)
                     .OrderByDescending(row => row.ValueDate)
                     .ThenByDescending(row => row.CreatedAt)
+                    .ThenBy(row => row.Id)
                     .Select(row => new ReceiptOption(
                         row.Id,
                         row.ValueDate,
@@ -716,12 +713,12 @@ public static class TransactionsEndpoints
             }
         }
 
-        if (request.ValueDate.Year < MinYear || request.ValueDate.Year > MaxYear)
+        if (request.ValueDate.Year < Limits.MinYear || request.ValueDate.Year > Limits.MaxYear)
         {
             errors.Set(
                 Field(nameof(request.ValueDate)),
                 ProblemCodes.YearOutOfRange,
-                $"valueDate year must be between {MinYear} and {MaxYear}.");
+                $"valueDate year must be between {Limits.MinYear} and {Limits.MaxYear}.");
         }
         else if (request.ValueDate > today)
         {
@@ -771,12 +768,12 @@ public static class TransactionsEndpoints
                 "refundsTransactionId is allowed only on a refund to a client.");
         }
 
-        if (normalized.ClientName is { Length: > MaxClientNameLength })
+        if (normalized.ClientName is { Length: > Limits.MaxClientNameLength })
         {
             errors.Set(
                 Field(nameof(request.ClientName)),
                 ProblemCodes.TooLong,
-                $"clientName must not exceed {MaxClientNameLength} characters.");
+                $"clientName must not exceed {Limits.MaxClientNameLength} characters.");
         }
         else if (normalized.ClientName is { } clientName && TextRules.HasDisallowedControlChar(clientName))
         {

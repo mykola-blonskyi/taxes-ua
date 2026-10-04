@@ -50,7 +50,7 @@ internal sealed record ClientRequest(
 
 internal static class ClientRules
 {
-    public const int MaxNameLength = TransactionsEndpoints.MaxClientNameLength;
+    public const int MaxNameLength = Limits.MaxClientNameLength;
 
     public const int MaxAddressLength = 500;
 

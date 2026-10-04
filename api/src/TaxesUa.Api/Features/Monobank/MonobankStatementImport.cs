@@ -332,7 +332,7 @@ internal sealed class MonobankStatementImport(
             return Outcome.Skipped;
         }
 
-        var counterparty = Fit(item.CounterName?.Trim(), TransactionsEndpoints.MaxClientNameLength);
+        var counterparty = Fit(item.CounterName?.Trim(), Limits.MaxClientNameLength);
         var request = new TransactionRequest(
             item.Time.KyivDate(),
             item.Amount,
@@ -436,7 +436,7 @@ internal sealed class MonobankStatementImport(
             BankTime = item.Time,
             AmountKop = -item.Amount,
             CounterIban = TreasuryPayment.Normalize(item.CounterIban)!,
-            CounterName = Fit(item.CounterName?.Trim(), TransactionsEndpoints.MaxClientNameLength),
+            CounterName = Fit(item.CounterName?.Trim(), Limits.MaxClientNameLength),
             CounterEdrpou = Fit(item.CounterEdrpou?.Trim(), TreasuryAccountsEndpoints.MaxEdrpouLength),
             Purpose = Fit(Describe(item), TransactionsEndpoints.MaxDescriptionLength),
             Status = CandidateStatus.Pending,

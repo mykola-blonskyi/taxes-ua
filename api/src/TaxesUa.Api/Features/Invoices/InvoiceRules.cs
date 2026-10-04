@@ -83,12 +83,12 @@ internal static class InvoiceRules
             errors.Set("clientId", ProblemCodes.Required, "clientId is required.");
         }
 
-        if (request.IssueDate.Year is < TransactionsEndpoints.MinYear or > TransactionsEndpoints.MaxYear)
+        if (request.IssueDate.Year is < Limits.MinYear or > Limits.MaxYear)
         {
             errors.Set(
                 "issueDate",
                 ProblemCodes.YearOutOfRange,
-                $"issueDate must be in {TransactionsEndpoints.MinYear} to {TransactionsEndpoints.MaxYear}.");
+                $"issueDate must be in {Limits.MinYear} to {Limits.MaxYear}.");
         }
 
         if (request.DueDate < request.IssueDate)

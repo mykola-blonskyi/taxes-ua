@@ -1,11 +1,13 @@
+using System.Reflection;
+using System.Text.RegularExpressions;
 using TaxesUa.Api.Data;
 
 namespace TaxesUa.Api.Tests.Architecture;
 
 // The API is one assembly, so `internal` keeps no feature from another. This test does: a feature reaches
 // another only along an edge listed here, the listed edges form no cycle, and shared code reaches no
-// feature. Adding an edge is a decision made here, in review. Edges are read from the compiled IL, so a
-// reference made only through a `const` (which the compiler inlines) does not show.
+// feature. Adding an edge is a decision made here, in review. Edges are read from the compiled IL, plus a
+// scan of the sources for const and enum values, which the compiler inlines as plain numbers.
 public sealed class FeatureBoundaryTests
 {
     private const string FeaturesPrefix = "TaxesUa.Api.Features.";
@@ -78,6 +80,37 @@ public sealed class FeatureBoundaryTests
     }
 
     [Fact]
+    public void Const_and_enum_reads_follow_the_listed_edges()
+    {
+        const BindingFlags anyStatic = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+        var owners = ApiTypes
+            .Where(type => FeatureOf(type) is not null)
+            .SelectMany(type => type.GetFields(anyStatic)
+                .Where(field => field.IsLiteral)
+                .Select(field => (Name: $"{type.Name}.{field.Name}", Feature: FeatureOf(type)!)))
+            .ToLookup(literal => literal.Name, literal => literal.Feature);
+        var listed = ListedEdges().ToHashSet(StringComparer.Ordinal);
+        var features = Path.Combine(Above(Path.Combine("src", "TaxesUa.Api", "Program.cs")), "src", "TaxesUa.Api", "Features");
+
+        var unlisted = Directory.EnumerateFiles(features, "*.cs", SearchOption.AllDirectories)
+            .SelectMany(path =>
+            {
+                var source = File.ReadAllText(path);
+                var from = Regex.Match(source, @"^namespace TaxesUa\.Api\.Features\.(\w+)", RegexOptions.Multiline).Groups[1].Value;
+                var code = Regex.Replace(source, @"^\s*//.*$", string.Empty, RegexOptions.Multiline);
+
+                return Regex.Matches(code, @"\b(\w+)\.(\w+)\b")
+                    .SelectMany(read => owners[read.Value]
+                        .Where(to => to != from && !owners[read.Value].Contains(from) && !listed.Contains($"{from} -> {to}"))
+                        .Select(to => $"{from} -> {to}: {read.Value} in {Path.GetFileName(path)}"));
+            })
+            .Distinct()
+            .ToArray();
+
+        Assert.True(unlisted.Length == 0, string.Join(Environment.NewLine, unlisted));
+    }
+
+    [Fact]
     public void Every_listed_edge_is_still_used()
     {
         var unused = ListedEdges().Except(MeasuredEdges().Keys, StringComparer.Ordinal).ToArray();
@@ -134,7 +167,8 @@ public sealed class FeatureBoundaryTests
                 .Select(feature => $"| {feature} | {Layer(feature, [])} | {(Allowed[feature] is [] ? "nothing" : string.Join(", ", Allowed[feature]))} |"),
         ];
         var table = string.Join('\n', rows);
-        var document = File.ReadAllText(DependenciesDocument()).ReplaceLineEndings("\n");
+        var document = File.ReadAllText(Path.Combine(Above(Path.Combine("graph", "dependencies.md")), "graph", "dependencies.md"))
+            .ReplaceLineEndings("\n");
 
         Assert.True(document.Contains(table, StringComparison.Ordinal), $"Replace the table in graph/dependencies.md with:\n{table}");
     }
@@ -142,21 +176,21 @@ public sealed class FeatureBoundaryTests
     private static int Layer(string feature, HashSet<string> seen) =>
         seen.Add(feature) ? Allowed[feature].Select(to => Layer(to, [.. seen])).DefaultIfEmpty(-1).Max() + 1 : 0;
 
-    private static string DependenciesDocument()
+    // The directory above the test binaries that holds `relative`: the repository root or api/.
+    private static string Above(string relative)
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
         {
-            var path = Path.Combine(directory.FullName, "graph", "dependencies.md");
-            if (File.Exists(path))
+            if (File.Exists(Path.Combine(directory.FullName, relative)))
             {
-                return path;
+                return directory.FullName;
             }
         }
 
-        throw new InvalidOperationException("graph/dependencies.md is not above the test binaries.");
+        throw new InvalidOperationException($"{relative} is not above the test binaries.");
     }
 
-    // TaxesUa.Api and TaxesUa.Api.Data hold what every feature may use (Problems, TextRules, Incident,
+    // TaxesUa.Api and TaxesUa.Api.Data hold what every feature may use (Problems, TextRules, Limits, Incident,
     // OwnerLock). A feature reached from there would let one feature reach another unseen. AppDbContext
     // maps every feature's entities, so it is the exception.
     [Fact]
