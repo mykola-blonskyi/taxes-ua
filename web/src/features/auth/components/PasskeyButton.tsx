@@ -1,7 +1,6 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { Button } from "@/shared/ui/button";
 import {
@@ -39,10 +38,8 @@ export function PasskeyButton({ mode }: { mode: PasskeyMode }) {
       {ceremony.error instanceof PasskeyCancelledError && (
         <p className="text-sm text-muted-foreground">{t("passkeyCancelled")}</p>
       )}
-      {ceremony.error instanceof ApiError && (
-        <p className="text-sm text-destructive">
-          {apiText.withReason(t("passkeyError"), ceremony.error)}
-        </p>
+      {ceremony.error && !(ceremony.error instanceof PasskeyCancelledError) && (
+        <p className="text-sm text-destructive">{apiText.withReason(t("passkeyError"), ceremony.error)}</p>
       )}
       {!isSignIn && ceremony.isSuccess && (
         <p className="text-sm text-muted-foreground">{t("passkeyRegisterSuccess")}</p>

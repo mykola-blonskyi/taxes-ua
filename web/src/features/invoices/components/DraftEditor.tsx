@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Plus, Trash2 } from "lucide-react";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { LoadState } from "@/data/api/LoadState";
 import { useClients } from "@/data/clients/useClients";
 import { currencies, type Currency } from "@/data/fx/useFxRate";
@@ -51,6 +52,7 @@ export function DraftEditor({
 }) {
   const t = useTranslations("invoices.editor");
   const tErrors = useTranslations("invoices.errors");
+  const apiText = useApiErrorText();
   const tCurrencies = useTranslations("transactions.currencies");
   const tUnits = useTranslations("invoices.units");
   const locale = useLocale();
@@ -110,12 +112,14 @@ export function DraftEditor({
   }
 
   function fail(error: unknown) {
-    if (error instanceof ApiError && Object.keys(error.fieldCodes).length > 0) {
-      setErrors(error.fieldCodes);
-    } else if (error instanceof ApiError && error.status === 409) {
+    const problem = problemOf(error);
+
+    if (problem && Object.keys(problem.fieldCodes).length > 0) {
+      setErrors(problem.fieldCodes);
+    } else if (problem?.status === 409) {
       setFailure(tErrors("conflict"));
     } else {
-      setFailure(tErrors("generic"));
+      setFailure(apiText.withReason(tErrors("generic"), error));
     }
   }
 

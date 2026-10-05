@@ -39,13 +39,24 @@ describe("useApiErrorText", () => {
   it.each([
     ["a code this build has no words for", new ApiError(500, { code: "a_code_from_the_future", message: "English." })],
     ["a failure with no code", new ApiError(502, { message: "Bad Gateway" })],
-    ["a thrown value that is not an ApiError", new TypeError("Failed to fetch")],
-    ["a thrown string", "boom"],
   ])("reads %s as the generic sentence, never the English", (_name, error) => {
     renderApp(<Probe error={error} />);
 
     expect(screen.getByTestId("describe")).toHaveTextContent(generic);
     expect(screen.getByTestId("describe")).not.toHaveTextContent(/English|Bad Gateway|Failed to fetch|boom/);
+  });
+
+  it.each([
+    ["a dropped connection", new TypeError("Failed to fetch")],
+    ["a thrown string", "boom"],
+  ])("reads %s as the network sentence, never the English", (_name, error) => {
+    renderApp(<Probe error={error} />);
+
+    const network = "Немає зв'язку з сервером. Перевірте мережу й спробуйте ще раз.";
+
+    expect(screen.getByTestId("describe")).toHaveTextContent(network);
+    expect(screen.getByTestId("withReason")).toHaveTextContent(`Не вдалося зберегти: ${network}`);
+    expect(screen.getByTestId("describe")).not.toHaveTextContent(/Failed to fetch|boom/);
   });
 
   it("adds no reason after the screen's own words when it has none to give", () => {

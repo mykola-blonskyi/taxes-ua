@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { LoadState } from "@/data/api/LoadState";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { recordedPeriodOf, useDashboard, type DashboardResponse } from "@/data/dashboard/useDashboard";
 import {
@@ -93,6 +93,7 @@ function NoticeCard({ notice, onClose }: { notice: ConfirmedNotice; onClose: () 
   const tPayments = useTranslations("payments");
   const locale = useLocale();
   const dismiss = useDismissTreasuryNotice();
+  const apiText = useApiErrorText();
 
   return (
     <li
@@ -128,7 +129,7 @@ function NoticeCard({ notice, onClose }: { notice: ConfirmedNotice; onClose: () 
       </div>
       {dismiss.isError ? (
         <p role="alert" className="text-destructive">
-          {t("dismissFailed")}
+          {apiText.withReason(t("dismissFailed"), dismiss.error)}
         </p>
       ) : null}
     </li>
@@ -158,9 +159,8 @@ function CandidateCard({
 
   const match = candidate.matches.find((typed) => typed.kind === state.kind);
   const pending = confirmCandidate.isPending || dismissCandidate.isPending;
-  const failure = [confirmCandidate.error, dismissCandidate.error].find((error) => error instanceof ApiError) as
-    | ApiError
-    | undefined;
+  const failure = confirmCandidate.error ?? dismissCandidate.error;
+  const problem = problemOf(failure);
   const paidYear = Number(candidate.paidOn.slice(0, 4));
   const yearOptions = [...new Set([state.periodYear, paidYear, paidYear - 1])].sort((a, b) => a - b);
   const formattedAmount = formatMoney(Number(candidate.amountKop), locale);
@@ -316,9 +316,9 @@ function CandidateCard({
 
       {failure ? (
         <p className="text-xs text-destructive">
-          {failure.status === 409
+          {problem?.status === 409
             ? t("stale")
-            : failure.status === 400
+            : problem?.status === 400
               ? t("invalid")
               : apiText.withReason(t("failed"), failure)}
         </p>

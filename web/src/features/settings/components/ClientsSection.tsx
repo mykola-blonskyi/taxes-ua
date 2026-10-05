@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useClients,
@@ -138,9 +138,8 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
 
   const saving = createClient.isPending || updateClient.isPending;
   const saveError = createClient.error ?? updateClient.error;
-  const saveFailure = saveError instanceof ApiError ? saveError : undefined;
-  const deleteFailure = deleteClient.error instanceof ApiError ? deleteClient.error : null;
-  const fieldErrors = apiText.fieldTexts(saveFailure);
+  const deleteFailure = deleteClient.error;
+  const fieldErrors = apiText.fieldTexts(saveError);
   const rejectedFields = Object.keys(fieldErrors).length > 0;
   const countryName = countryDisplayName(form.country, locale);
   const canDelete = client !== undefined && client.receiptCount === 0;
@@ -167,7 +166,7 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
         </p>
       ) : saveError ? (
         <p className="text-sm text-destructive">
-          {saveFailure ? apiText.withReason(t("saveFailed"), saveFailure) : t("saveFailedGeneric")}
+          {apiText.withReason(t("saveFailed"), saveError)}
         </p>
       ) : null}
 
@@ -286,11 +285,9 @@ function ClientEditor({ client, onClose }: { client?: ClientResponse; onClose: (
           )}
           {deleteClient.error ? (
             <p className="text-sm text-destructive">
-              {deleteFailure === null
-                ? t("deleteFailedGeneric")
-                : deleteFailure.status === 409
-                  ? t("deleteBlocked")
-                  : apiText.withReason(t("deleteFailed"), deleteFailure)}
+              {problemOf(deleteFailure)?.status === 409
+                ? t("deleteBlocked")
+                : apiText.withReason(t("deleteFailed"), deleteFailure)}
             </p>
           ) : null}
         </div>

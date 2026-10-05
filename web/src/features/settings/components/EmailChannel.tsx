@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useAddEmail,
   useConfirmEmail,
@@ -31,6 +32,7 @@ export function EmailChannel({
   onTokenSpent: () => void;
 }) {
   const t = useTranslations("settings.notifications.email");
+  const apiText = useApiErrorText();
   const { mutate: confirmEmail, ...confirm } = useConfirmEmail();
   const spent = useRef(false);
 
@@ -55,11 +57,11 @@ export function EmailChannel({
       ) : null}
       {confirm.error ? (
         <p role="alert" className="text-sm text-destructive">
-          {confirm.error instanceof ApiError && confirm.error.status === 400
+          {problemOf(confirm.error)?.status === 400
             ? t("linkInvalid")
-            : confirm.error instanceof ApiError && confirm.error.status === 410
+            : problemOf(confirm.error)?.status === 410
               ? t("linkExpired")
-              : t("confirmFailed")}
+              : apiText.withReason(t("confirmFailed"), confirm.error)}
         </p>
       ) : null}
       {!channel.available ? (
@@ -77,9 +79,10 @@ export function EmailChannel({
 
 function AddressForm() {
   const t = useTranslations("settings.notifications.email");
+  const apiText = useApiErrorText();
   const add = useAddEmail();
   const [address, setAddress] = useState("");
-  const invalid = add.error instanceof ApiError && add.error.status === 400;
+  const invalid = problemOf(add.error)?.status === 400;
 
   return (
     <form
@@ -105,13 +108,14 @@ function AddressForm() {
           {add.isPending ? t("adding") : t("add")}
         </Button>
       </div>
-      {add.isError && !invalid ? <p className="text-sm text-destructive">{t("addFailed")}</p> : null}
+      {add.isError && !invalid ? <p className="text-sm text-destructive">{apiText.withReason(t("addFailed"), add.error)}</p> : null}
     </form>
   );
 }
 
 function Pending({ channel }: { channel: NotificationChannel }) {
   const t = useTranslations("settings.notifications.email");
+  const apiText = useApiErrorText();
   const locale = useLocale();
   const resend = useResendEmailConfirmation();
   const remove = useRemoveEmail();
@@ -137,14 +141,15 @@ function Pending({ channel }: { channel: NotificationChannel }) {
           {t("resent")}
         </p>
       ) : null}
-      {resend.isError ? <p className="text-sm text-destructive">{t("resendFailed")}</p> : null}
-      {remove.isError ? <p className="text-sm text-destructive">{t("saveFailed")}</p> : null}
+      {resend.isError ? <p className="text-sm text-destructive">{apiText.withReason(t("resendFailed"), resend.error)}</p> : null}
+      {remove.isError ? <p className="text-sm text-destructive">{apiText.withReason(t("saveFailed"), remove.error)}</p> : null}
     </div>
   );
 }
 
 function Confirmed({ channel }: { channel: NotificationChannel }) {
   const t = useTranslations("settings.notifications.email");
+  const apiText = useApiErrorText();
   const locale = useLocale();
   const toggle = useToggleEmail();
   const test = useTestEmail();
@@ -192,8 +197,10 @@ function Confirmed({ channel }: { channel: NotificationChannel }) {
           {t("testSent")}
         </p>
       ) : null}
-      {test.isError ? <p className="text-sm text-destructive">{t("testFailed")}</p> : null}
-      {toggle.isError || remove.isError ? <p className="text-sm text-destructive">{t("saveFailed")}</p> : null}
+      {test.isError ? <p className="text-sm text-destructive">{apiText.withReason(t("testFailed"), test.error)}</p> : null}
+      {toggle.isError || remove.isError ? (
+        <p className="text-sm text-destructive">{apiText.withReason(t("saveFailed"), toggle.error ?? remove.error)}</p>
+      ) : null}
     </div>
   );
 }

@@ -35,6 +35,12 @@ export class ApiError extends Error {
   }
 }
 
+// The api's answer to a failed call, or null when the call never got one: a dropped connection or a
+// thrown value that is not an ApiError.
+export function problemOf(error: unknown): ApiError | null {
+  return error instanceof ApiError ? error : null;
+}
+
 const knownMembers = new Set(["type", "title", "status", "detail", "instance", "code", "errors", "errorCodes"]);
 
 // The api answers a failure as ProblemDetails: a machine `code`, an English `title` that is only for logs,
