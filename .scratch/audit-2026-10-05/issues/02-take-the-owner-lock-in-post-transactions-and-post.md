@@ -1,5 +1,5 @@
 GitHub: #239
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Take the owner lock in POST /transactions and POST /payments
