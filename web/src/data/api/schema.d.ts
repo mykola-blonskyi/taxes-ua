@@ -6680,7 +6680,7 @@ export interface components {
             backOnGroup3From: null | components["schemas"]["YearQuarter"];
         };
         /** @enum {string} */
-        SyncFailure: "BankUnreachable" | "BankTimeout" | "BankError" | "UnreadableAnswer" | "RateLimited" | "TokenUnreadable" | "TooManyInOneSecond" | "Unexpected";
+        SyncFailure: "BankUnreachable" | "BankTimeout" | "BankError" | "UnreadableAnswer" | "RateLimited" | "TokenUnreadable" | "TooManyInOneSecond" | "Unexpected" | "NbuRateUnavailable";
         SyncFailureResponse: {
             /** Format: date-time */
             at: string;
