@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useDataReplacements } from "@/data/backup/backup";
 import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useSaveSettings, useSettings, type SettingsRequest } from "@/data/settings/useSettings";
@@ -89,12 +90,13 @@ export function FopSettingsForm() {
   const t = useTranslations("settings");
   const query = useSettings();
   const { data } = query;
+  const replacements = useDataReplacements();
 
   if (!data) {
     return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
-  return <SettingsFormBody initial={data} />;
+  return <SettingsFormBody key={replacements} initial={data} />;
 }
 
 function SettingsFormBody({ initial }: { initial: SettingsRequest }) {

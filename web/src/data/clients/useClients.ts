@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/data/api/client";
 import type { components } from "@/data/api/schema";
+import { invoicesQueryKey } from "@/data/invoices/queryKey";
 import { clientsQueryKey, transactionsQueryKey } from "@/data/transactions/useTransactions";
 
 export type ClientRequest = components["schemas"]["ClientRequest"];
@@ -25,6 +26,7 @@ function useInvalidateClients() {
   return () => {
     queryClient.invalidateQueries({ queryKey: clientsQueryKey });
     queryClient.invalidateQueries({ queryKey: transactionsQueryKey });
+    queryClient.invalidateQueries({ queryKey: invoicesQueryKey });
   };
 }
 
