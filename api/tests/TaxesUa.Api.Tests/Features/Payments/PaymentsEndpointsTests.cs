@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Fx;
@@ -487,6 +488,28 @@ public sealed class PaymentsEndpointsTests(ApiFixture fixture) : IClassFixture<A
                 HttpStatusCode.OK,
                 (await client.PutAsJsonAsync($"/api/tax-years/{year}", TaxYearRequest(), Json)).StatusCode);
         }
+    }
+
+    [Fact]
+    public async Task Creating_a_payment_waits_for_the_owner_lock()
+    {
+        var email = fixture.NewOwner();
+        await using var application = fixture.CreateApplication(_ => { });
+        using var client = await ApiFixture.SignIn(application, email);
+        await using var scope = application.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userId = await database.Users.Where(user => user.Email == email).Select(user => user.Id).SingleAsync();
+
+        await using var holder = await database.Database.BeginTransactionAsync();
+        await database.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtext({userId}))");
+        var creating = client.PostAsJsonAsync("/api/payments", Body(2071, PaymentKind.Esv, 100_00, quarter: 1), Json);
+
+        var finishedWhileLocked = await Task.WhenAny(creating, Task.Delay(TimeSpan.FromSeconds(1))) == creating;
+        await holder.CommitAsync();
+        var response = await creating;
+
+        Assert.False(finishedWhileLocked);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 
     private static PaymentRequest Body(
