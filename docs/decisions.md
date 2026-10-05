@@ -664,6 +664,28 @@ the Treasury publishes a longer-lived account, and warning only, which still let
 account. The cost is that the owner must
 set the end once; settings offers 2026-12-31 for the levy in one tap. A backup carries both ends (schema 17).
 
+### Amendment, 2026-10-05: the levy account ends by default, and the owner is asked for the next one (#261)
+
+The owner decided (#252) that waiting for a tap was the wrong default: an owner who never sets the end gets
+the closed 2026 account offered for the Q4 levy due in February 2027. The end is now the owner's word when there
+is one, else a default from the tax year's parameters: `TaxYearConfig.MilitaryLevyAccountEnd`, seeded
+2026-12-31 for 2026 and null elsewhere, editable in the tax-years tab. It applies to a military-levy account
+the owner said nothing about, by the year the account arrived in (the learned payment's date, or when the
+owner entered it), not the year it is used in, which would drop the end the day the next year starts. The
+one-tap offer and its hardcoded date are gone.
+
+The owner's word is one of three states, `Unsaid`, `On(date)` or `Removed`, kept as a type with no fourth
+state and stored as a nullable date plus a "removed" flag under a check constraint. A nullable date alone
+cannot tell "nothing said" from "the owner removed the default", and the second is the owner's escape when the
+Treasury keeps the account. The default is derived on read, not written into the row, so a corrected year
+end applies to every account at once and the owner's own ends are never touched. Backup schema 19 carries the
+flags.
+
+From the day after the end the dashboard shows one notice and an incident alerts each channel once, from
+09:00 on the first working day after the end (Rule 16, Rule 18). Rejected: a scheduled reminder in the Rule 17
+plan, which is built around payment deadlines and would need its own dedup; the incident log already gives
+once per channel per key and clears itself when the owner enters the new account.
+
 ---
 
 ## ADR-015. Read Telegram by long polling, not a webhook
@@ -1661,16 +1683,19 @@ to try again except in `AuthGate`.
    2. Limit crossing. The regime changes for the quarters it names.
    3. Group 3 unconfirmed, or its application deadline. Missing the deadline cannot be undone (Rule 8, ADR-023).
    4. Declaration due.
-   5. New tax year: in December, next year's parameters missing or unconfirmed (Rule 9, #178). It warns a
+   5. Treasury account closed (#261): the account in use has passed its end, so the Pay panel withholds it
+      until the owner enters the new one. The panel stops the money going to a closed account, so this is a
+      prompt rather than a risk, and it ranks under the declaration's legal date and above the new tax year.
+   6. New tax year: in December, next year's parameters missing or unconfirmed (Rule 9, #178). It warns a
       month ahead, with nothing lost yet, but from January a missing year stops the ledger and with it the
       balance, so it ranks above a stale feed. It stays under a declaration, which has a legal date, and is
       never promoted: its only deadline is the new year, and a month is time enough to act.
-   6. Sync stale. Figures may be incomplete, but the feed still works.
-   7. Transactions waiting for review.
-   8. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
+   7. Sync stale. Figures may be incomplete, but the feed still works.
+   8. Transactions waiting for review.
+   9. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
 
-   A debt is the hero itself (red when overdue), so it takes no banner. Treasury account expiry is shown inside
-   the hero's pay panel, where the account is used, so it never takes a banner slot. The quiet "last exchange"
+   A debt is the hero itself (red when overdue), so it takes no banner. An account that ends before a due date
+   is still only a note inside the hero's pay panel; only a closed one takes a notice (5). The quiet "last exchange"
    line of a healthy feed is not a notice and stays under the hero.
 
    A declaration, or a group 3 application, with three days or fewer left (or already past) is promoted above all

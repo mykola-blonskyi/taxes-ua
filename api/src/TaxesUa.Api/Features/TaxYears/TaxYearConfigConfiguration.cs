@@ -38,6 +38,9 @@ internal sealed class TaxYearConfigConfiguration : IEntityTypeConfiguration<TaxY
             // Rule 5: martial law makes holidays business days, so the list is empty rather than
             // unknown.
             Holidays = [],
+
+            // Law 4908-IX sends the levy to temporary accounts "з 1 липня 2026 року по 31 грудня 2026 року" (Rule 16).
+            MilitaryLevyAccountEnd = new DateOnly(2026, 12, 31),
             Source = "ЗУ «Про Держбюджет України на 2026 рік»; ПКУ ст. 293, 295, 296; ЗУ «Про ЄСВ» ст. 8",
 
             // Spelled out because it is a decision, not an omission: nobody has checked these values

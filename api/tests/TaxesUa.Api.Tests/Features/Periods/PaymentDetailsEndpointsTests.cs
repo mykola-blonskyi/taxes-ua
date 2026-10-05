@@ -353,13 +353,13 @@ public sealed class PaymentDetailsEndpointsTests(ApiFixture fixture) : IClassFix
     }
 
     [Fact]
-    public async Task An_account_with_no_end_is_never_flagged_and_a_learned_one_ends_when_the_owner_says()
+    public async Task A_learned_levy_account_ends_on_its_years_default_until_the_owner_sets_or_removes_the_end()
     {
         await using var app = AppOn(new DateOnly(2027, 1, 10));
         using var owner = await SignInEmpty(app, ApiFixture.AllowedEmail);
         await SeedLearned(ApiFixture.AllowedEmail, PaymentKind.MilitaryLevy, "ГУК Київ", "37993783");
 
-        Assert.Null((await Details(owner, Q4Levy)).Expiry);
+        Assert.Equal(PaymentAccountExpiryState.Expired, (await Details(owner, Q4Levy)).Expiry!.State);
 
         var ended = await owner.PutAsJsonAsync(
             "/api/settings/treasury-accounts/MilitaryLevy/valid-until",

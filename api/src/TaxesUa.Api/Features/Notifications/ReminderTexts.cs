@@ -55,6 +55,8 @@ internal static class ReminderTexts
 
     private static readonly string[] Roman = ["I", "II", "III", "IV"];
 
+    public static string KindName(PaymentKind kind, string locale) => (locale == "ru" ? Russian : Ukrainian).Kinds[kind];
+
     public static ReminderMessage Render(Reminder reminder, string locale, DateOnly today, string? appUrl)
     {
         var words = locale == "ru" ? Russian : Ukrainian;
