@@ -317,6 +317,14 @@ and `Incident` into the shared namespace. Splitting the features into separate p
 alternative. It gets the compiler's refusal at the cost of about twenty projects; the test gives the
 same refusal in one file.
 
+#246 closed two gaps. Shared code was the two namespaces `TaxesUa.Api` and `TaxesUa.Api.Data`, checked
+by IL only, so `CrossSiteGuard` read the inlined `MonobankWebhooks.PathPrefix` unseen. Shared code is now
+every file outside `Features/`, the const and enum scan covers it, and a file's namespace must match its
+folder. The webhook route moved to `CrossSiteGuard.MonobankWebhookRoute`. The notification channel
+entity went back to `Notifications`: the declaration details form takes the confirmed email address from
+the channels the web already loads, so `GET /api/settings/declaration` no longer reads channels and
+Settings no longer holds a type for Notifications' sake. That adds the edge Audit -> Notifications.
+
 ---
 
 ## ADR-009. No server-side session revocation

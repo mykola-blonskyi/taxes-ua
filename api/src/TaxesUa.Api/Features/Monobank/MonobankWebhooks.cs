@@ -34,7 +34,7 @@ internal enum WebhookState
 internal sealed class MonobankWebhooks : BackgroundService
 {
     // Where MonobankEndpoints maps the webhook within the /api group.
-    public const string Route = "/monobank/webhook/";
+    public const string Route = CrossSiteGuard.MonobankWebhookRoute;
 
     public const string PathPrefix = "/api" + Route;
 
