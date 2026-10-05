@@ -11,7 +11,7 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 
 ## Planned
 
-- [ ] #186 Split the largest API files (the last ticket of the 2026-10-02 audit, #170).
+- [ ] The 2026-10-05 audit (#237): #238–#251 and #253–#257, #260, #261, owner decisions in #252. #238 first (dashboard 500).
 
 ---
 
@@ -33,8 +33,8 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 - [x] MVP tickets #2–#18 and #20, the deploy to Coolify (closed by 2026-09-28).
 - [x] Stage 2. monobank sync (#71), reminders in Telegram and email and the calendar feed (#104).
 - [x] Stage 3. Bilingual PDF invoices (#89), declaration readiness and the F0103309 XML (#109).
-- [x] The 2026-10-02 audit (#170): #171–#185 and #187–#190. #185 added the API's feature boundary
-      test and corrected these docs.
+- [x] The 2026-10-02 audit (#170): #171–#190. #185 added the API's feature boundary test and
+      corrected these docs; #186 split the API files over 600 lines.
 
 ## Open questions for the owner
 
