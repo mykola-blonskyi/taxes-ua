@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/data/api/client";
 import type { components } from "@/data/api/schema";
 import { dashboardQueryKey } from "@/data/dashboard/useDashboard";
+import { periodsQueryKey } from "@/data/periods/usePeriods";
 import { clientsQueryKey, transactionsQueryKey } from "@/data/transactions/useTransactions";
 
 export type MonobankConnectionResponse = components["schemas"]["MonobankConnectionResponse"];
@@ -27,6 +28,7 @@ export function useMonobankConnection() {
       if (wasSyncing && !isSyncing(data)) {
         queryClient.invalidateQueries({ queryKey: transactionsQueryKey });
         queryClient.invalidateQueries({ queryKey: clientsQueryKey });
+        queryClient.invalidateQueries({ queryKey: periodsQueryKey });
       }
 
       return data;
