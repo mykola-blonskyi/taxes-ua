@@ -28,7 +28,7 @@ reaches, so every edge points down and no cycle can form. Every feature may also
 | TaxYears | 0 | nothing |
 | Banking | 1 | Fx |
 | Settings | 2 | Auth, Banking, Fx, TaxYears |
-| Payments | 3 | Auth, Banking, Settings |
+| Payments | 3 | Auth, Banking, Settings, TaxYears |
 | Transactions | 3 | Auth, Banking, Fx, Settings, TaxYears |
 | Export | 4 | Auth, Fx, Settings, Transactions |
 | Monobank | 4 | Auth, Banking, Fx, Payments, Settings, Transactions |

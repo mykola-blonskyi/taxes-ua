@@ -1,5 +1,5 @@
 using TaxesUa.Api.Data;
-using TaxesUa.Api.Features.Payments;
+using TaxesUa.Engine;
 
 namespace TaxesUa.Api;
 
@@ -24,6 +24,9 @@ internal enum IncidentKind
 /// has another key. <c>Since</c> is the instant the text mentions, when the source has one; <c>Year</c>
 /// is the tax year it is about, when it is about one; <c>Account</c> the Treasury account that ended.
 /// </summary>
+/// <summary>A Treasury account in use whose last day has passed (Rule 16).</summary>
+internal sealed record ExpiredTreasuryAccount(PaymentKind Kind, DateOnly ValidUntil);
+
 internal sealed record Incident(
     string Key, IncidentKind Kind, DateTimeOffset? Since, int? Year = null, ExpiredTreasuryAccount? Account = null);
 

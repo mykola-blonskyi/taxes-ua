@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
-using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Engine;
 
@@ -88,8 +87,6 @@ internal sealed class LevyAccountEnds(IReadOnlyDictionary<int, DateOnly> byYear)
         };
     }
 }
-
-internal sealed record ExpiredTreasuryAccount(PaymentKind Kind, DateOnly ValidUntil);
 
 /// <summary>
 /// The accounts in use whose end has passed, so the owner has to enter the new one (Rule 16). Derived, never
