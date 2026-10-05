@@ -3,7 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { Download } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   declarationAnnexUrl,
   declarationFileUrl,
@@ -34,6 +35,7 @@ function startDownload(url: string, fileName: string) {
 
 export function XmlFile({ declaration, period }: { declaration: DeclarationResponse; period: Period }) {
   const t = useTranslations("declaration.xml");
+  const apiText = useApiErrorText();
   const tTypes = useTranslations("declaration.types");
   const tProvisional = useTranslations("declaration.provisional");
   const locale = useLocale();
@@ -42,7 +44,7 @@ export function XmlFile({ declaration, period }: { declaration: DeclarationRespo
 
   const type = chosen ?? declaration.filed?.type ?? "Reporting";
   const canPrepare = declaration.fileAvailable && declaration.readiness.ready && declaration.figures !== null;
-  const failure = generate.error instanceof ApiError ? generate.error : null;
+  const failure = problemOf(generate.error);
 
   function prepare() {
     generate.mutate(type, {
@@ -99,7 +101,7 @@ export function XmlFile({ declaration, period }: { declaration: DeclarationRespo
 
       {generate.isError ? (
         <div className="flex min-w-0 flex-col gap-2 text-sm text-destructive" role="alert">
-          <p>{failure?.status === 409 ? t("conflict") : failure?.status === 422 ? t("invalid") : t("failed")}</p>
+          <p>{failure?.status === 409 ? t("conflict") : failure?.status === 422 ? t("invalid") : apiText.withReason(t("failed"), generate.error)}</p>
         </div>
       ) : null}
 

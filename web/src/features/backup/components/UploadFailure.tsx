@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { NotJsonError, TooLargeError } from "@/data/backup/backup";
 
@@ -22,7 +22,7 @@ export function UploadFailure({ error, notJson, tooLarge, failed }: Props) {
     return null;
   }
 
-  const apiFailure = error instanceof ApiError ? error : null;
+  const apiFailure = problemOf(error);
   const missingInvoices = apiFailure?.extensions.missingInvoices;
 
   if (Array.isArray(missingInvoices)) {
@@ -44,7 +44,14 @@ export function UploadFailure({ error, notJson, tooLarge, failed }: Props) {
       : error instanceof TooLargeError || apiFailure?.status === 413
         ? tooLarge
         : failed;
-  const detail = apiFailure?.code && apiFailure.status !== 413 ? apiText.ofCode(apiFailure.code) : null;
+  const localFailure = error instanceof NotJsonError || error instanceof TooLargeError;
+  const detail = apiFailure
+    ? apiFailure.code && apiFailure.status !== 413
+      ? apiText.ofCode(apiFailure.code)
+      : null
+    : localFailure
+      ? null
+      : apiText.describe(error);
 
   return (
     <div role="alert" className="flex min-w-0 flex-col gap-1 text-xs text-destructive">

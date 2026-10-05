@@ -79,21 +79,21 @@ export function useDeletePayment() {
 
 // Invalidates once, after the last payment, so a screen showing the debts does not refetch and change
 // under a batch still being recorded. A payment that fails does not stop the rest: the answer names the
-// kinds that were saved and those that were not, so the caller never re-sends a saved one.
+// kinds that were saved and, for each that was not, why, so the caller never re-sends a saved one.
 export function useRecordPayments() {
   const invalidate = useInvalidatePayments();
 
   return useMutation({
     mutationFn: async (bodies: PaymentRequest[]) => {
       const saved: PaymentKind[] = [];
-      const failed: PaymentKind[] = [];
+      const failed: { kind: PaymentKind; error: unknown }[] = [];
 
       for (const body of bodies) {
         try {
           await api.POST("/api/payments", { body });
           saved.push(body.kind);
-        } catch {
-          failed.push(body.kind);
+        } catch (error) {
+          failed.push({ kind: body.kind, error });
         }
       }
 

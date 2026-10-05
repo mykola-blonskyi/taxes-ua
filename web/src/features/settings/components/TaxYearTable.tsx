@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useCloneTaxYear,
@@ -125,7 +125,7 @@ function NewYearOffer({ taxYears }: { taxYears: TaxYearConfigResponse[] }) {
     return null;
   }
 
-  const failure = cloneTaxYear.error instanceof ApiError ? cloneTaxYear.error : null;
+  const failure = cloneTaxYear.error;
 
   return (
     <section className="flex min-w-0 flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-4 text-sm">
@@ -211,11 +211,9 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
   const cloneTaxYear = useCloneTaxYear();
   const [form, setForm] = useState<FormState>(() => toFormState(taxYear));
 
-  const saveFailure = saveTaxYear.error instanceof ApiError ? saveTaxYear.error : null;
+  const saveFailure = saveTaxYear.error;
   const fieldErrors = apiText.fieldTexts(saveFailure);
-  const actionFailure = [verifyTaxYear.error, cloneTaxYear.error].find(
-    (error) => error instanceof ApiError,
-  );
+  const actionFailure = verifyTaxYear.error ?? cloneTaxYear.error;
 
   return (
     <tr className="grid grid-cols-2 gap-3 rounded-lg border p-3 align-top md:table-row md:rounded-none md:border-0 md:border-b md:p-0">
@@ -443,7 +441,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           <Button asChild variant="outline" size="sm">
             <Link href={`/history?entity=TaxYearConfig&id=${year}`}>{tYears("history")}</Link>
           </Button>
-          {saveFailure && Object.keys(saveFailure.fieldCodes).length === 0 ? (
+          {saveFailure && Object.keys(problemOf(saveFailure)?.fieldCodes ?? {}).length === 0 ? (
             <p className="text-xs text-destructive">{apiText.withReason(t("saveFailed"), saveFailure)}</p>
           ) : null}
           {actionFailure ? (

@@ -35,6 +35,19 @@ export class ApiError extends Error {
   }
 }
 
+// The api's answer to a failed call, or null when the call never got one: a dropped connection or a
+// thrown value that is not an ApiError.
+export function problemOf(error: unknown): ApiError | null {
+  return error instanceof ApiError ? error : null;
+}
+
+// fetch rejects with a TypeError when the request never reached the server or its answer never came back
+// (offline, DNS, refused or reset connection, CORS); the client sets no timeout or abort signal, so that is
+// the only network failure there is. An ApiError means the api did answer.
+export function isNetworkFailure(error: unknown): boolean {
+  return error instanceof TypeError;
+}
+
 const knownMembers = new Set(["type", "title", "status", "detail", "instance", "code", "errors", "errorCodes"]);
 
 // The api answers a failure as ProblemDetails: a machine `code`, an English `title` that is only for logs,

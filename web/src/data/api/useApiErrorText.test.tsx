@@ -39,8 +39,6 @@ describe("useApiErrorText", () => {
   it.each([
     ["a code this build has no words for", new ApiError(500, { code: "a_code_from_the_future", message: "English." })],
     ["a failure with no code", new ApiError(502, { message: "Bad Gateway" })],
-    ["a thrown value that is not an ApiError", new TypeError("Failed to fetch")],
-    ["a thrown string", "boom"],
   ])("reads %s as the generic sentence, never the English", (_name, error) => {
     renderApp(<Probe error={error} />);
 
@@ -48,10 +46,49 @@ describe("useApiErrorText", () => {
     expect(screen.getByTestId("describe")).not.toHaveTextContent(/English|Bad Gateway|Failed to fetch|boom/);
   });
 
-  it("adds no reason after the screen's own words when it has none to give", () => {
+  it("reads a dropped connection as the network sentence, never the English", () => {
+    renderApp(<Probe error={new TypeError("Failed to fetch")} />);
+
+    const network = "Немає зв'язку з сервером. Перевірте мережу й спробуйте ще раз.";
+
+    expect(screen.getByTestId("describe")).toHaveTextContent(network);
+    expect(screen.getByTestId("withReason")).toHaveTextContent(`Не вдалося зберегти: ${network}`);
+    expect(screen.getByTestId("describe")).not.toHaveTextContent(/Failed to fetch/);
+  });
+
+  it.each([
+    ["a plain Error", new Error("boom")],
+    ["a WebAuthn InvalidStateError", new DOMException("The authenticator was used before.", "InvalidStateError")],
+    ["a WebAuthn SecurityError", new DOMException("The origin is not allowed.", "SecurityError")],
+    ["a thrown string", "boom"],
+  ])("reads %s as the unexpected sentence, not as a network failure", (_name, error) => {
+    renderApp(<Probe error={error} />);
+
+    const unexpected = "Щось пішло не так. Спробуйте ще раз.";
+
+    expect(screen.getByTestId("describe")).toHaveTextContent(unexpected);
+    expect(screen.getByTestId("withReason")).toHaveTextContent(`Не вдалося зберегти: ${unexpected}`);
+    expect(screen.getByTestId("describe")).not.toHaveTextContent(/boom|Немає зв'язку|authenticator|origin/);
+  });
+
+  it("follows the screen's own colon with the unexpected sentence when the api gave no reason it can word", () => {
     renderApp(<Probe error={new ApiError(502, { message: "Bad Gateway" })} />);
 
-    expect(screen.getByTestId("withReason")).toHaveTextContent(/^Не вдалося зберегти:$/);
+    expect(screen.getByTestId("withReason")).toHaveTextContent(
+      "Не вдалося зберегти: Щось пішло не так. Спробуйте ще раз.",
+    );
+  });
+
+  it("leaves a screen's finished sentence alone when the api gave no reason it can word", () => {
+    renderApp(<Probe prefix="Не вдалося завантажити дані." error={new ApiError(502, { message: "Bad Gateway" })} />);
+
+    expect(screen.getByTestId("withReason")).toHaveTextContent(/^Не вдалося завантажити дані\.$/);
+  });
+
+  it("makes a colon a full stop when there is no error to read", () => {
+    renderApp(<Probe error={undefined} />);
+
+    expect(screen.getByTestId("withReason")).toHaveTextContent(/^Не вдалося зберегти\.$/);
   });
 
   it("words each rejected field of a validation problem", () => {

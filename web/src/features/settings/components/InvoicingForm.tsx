@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useDataReplacements } from "@/data/backup/backup";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useInvoicingDetails,
@@ -53,12 +53,12 @@ function InvoicingFormBody({ details }: { details: InvoicingDetailsResponse }) {
   const connection = useMonobankConnection();
   const [form, setForm] = useState<FormState>(() => toFormState(details));
 
-  const failure = save.error instanceof ApiError ? save.error : null;
-  const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
+  const failure = save.error;
+  const rejected = Object.keys(problemOf(failure)?.fieldCodes ?? {}).length > 0;
   const sent = sentCurrencies(form);
 
   function fieldErrors(key: string): string[] | undefined {
-    return failure?.fieldCodes[key]?.map(apiText.ofCode);
+    return problemOf(failure)?.fieldCodes[key]?.map(apiText.ofCode);
   }
 
   function paymentErrors(currency: Currency, field: keyof PaymentForm): string[] | undefined {

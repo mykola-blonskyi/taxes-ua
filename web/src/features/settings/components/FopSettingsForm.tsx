@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useDataReplacements } from "@/data/backup/backup";
-import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useSaveSettings, useSettings, type SettingsRequest } from "@/data/settings/useSettings";
 import { locales } from "@/i18n/locales";
@@ -108,7 +107,7 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
   const saveSettings = useSaveSettings();
   const [form, setForm] = useState<FormState>(() => toFormState(initial));
 
-  const failure = saveSettings.error instanceof ApiError ? saveSettings.error : null;
+  const failure = saveSettings.error;
   const fieldErrors = apiText.fieldTexts(failure);
   const rejectedFields = Object.keys(fieldErrors).length > 0;
 
