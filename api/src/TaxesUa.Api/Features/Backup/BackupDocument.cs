@@ -46,8 +46,9 @@ internal sealed partial record BackupDocument(
     // channels' confirmedAt, which email needs because an address waits for its link (#107); 16 added the
     // settings' group3Since, group3Confirmation and the three DPS registration ticks (#172); 17 added the
     // treasury accounts' manualValidUntil and learnedValidUntil (#173); 18 added the declaration details' fullName,
-    // phone and reportEmail (#222). An older file is upgraded to this shape one version at a time before it is read, see Upgrade.
-    public const int CurrentSchemaVersion = 18;
+    // phone and reportEmail (#222); 19 added the treasury accounts' manualEndRemoved and learnedEndRemoved (#261).
+    // An older file is upgraded to this shape one version at a time before it is read, see Upgrade.
+    public const int CurrentSchemaVersion = 19;
 
     private const int MaxExternalIdLength = 200;
 

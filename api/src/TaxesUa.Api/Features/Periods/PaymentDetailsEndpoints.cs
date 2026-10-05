@@ -62,7 +62,9 @@ public static class PaymentDetailsEndpoints
                 // The panel is used to pay now, so an account is judged on today: past its end it is withheld
                 // (no details, no copy buttons, no QR); still valid but ending before the due date it is shown
                 // with a warning (Rule 16).
-                var expiry = row is not null && TreasuryAccountsEndpoints.ValidUntilOf(row) is { } validUntil && missing.Length == 0
+                var expiry = row is not null
+                    && (await LevyAccountEnds.LoadAsync(database, cancellationToken)).ValidityOf(row) is { ValidUntil: var validUntil }
+                    && missing.Length == 0
                     ? ExpiryOf(viewed!, kind, periodYear, quarterOfPeriod, validUntil, time.TodayInKyiv())
                     : null;
                 if (expiry is { State: PaymentAccountExpiryState.Expired })

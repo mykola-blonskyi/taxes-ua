@@ -13,6 +13,7 @@ internal sealed record TreasuryAccountBackup(
     string? ManualRecipientCode,
     DateTimeOffset? ManualUpdatedAt,
     DateOnly? ManualValidUntil,
+    bool ManualEndRemoved,
     string? LearnedIban,
     string? LearnedRecipientName,
     string? LearnedRecipientCode,
@@ -20,6 +21,7 @@ internal sealed record TreasuryAccountBackup(
     DateOnly? LearnedPaidOn,
     DateTimeOffset? LearnedAt,
     DateOnly? LearnedValidUntil,
+    bool LearnedEndRemoved,
     DateTimeOffset? NoticeAt)
 {
     public static TreasuryAccountBackup From(TreasuryAccount row) => new(
@@ -29,6 +31,7 @@ internal sealed record TreasuryAccountBackup(
         row.ManualRecipientCode,
         row.ManualUpdatedAt,
         row.ManualValidUntil,
+        row.ManualEndRemoved,
         row.LearnedIban,
         row.LearnedRecipientName,
         row.LearnedRecipientCode,
@@ -36,6 +39,7 @@ internal sealed record TreasuryAccountBackup(
         row.LearnedPaidOn,
         row.LearnedAt,
         row.LearnedValidUntil,
+        row.LearnedEndRemoved,
         row.NoticeAt);
 
     // The column limits and check constraints of TreasuryAccountConfiguration, and the rules manual entry
@@ -58,9 +62,19 @@ internal sealed record TreasuryAccountBackup(
             return ("manualValidUntil", new Issue(ProblemCodes.InconsistentFields, "manualValidUntil needs a manual account."));
         }
 
+        if (ManualEndRemoved && (ManualIban is null || ManualValidUntil is not null))
+        {
+            return ("manualEndRemoved", new Issue(ProblemCodes.InconsistentFields, "manualEndRemoved needs a manual account without manualValidUntil."));
+        }
+
         if (LearnedIban is null && LearnedValidUntil is not null)
         {
             return ("learnedValidUntil", new Issue(ProblemCodes.InconsistentFields, "learnedValidUntil needs a learned account."));
+        }
+
+        if (LearnedEndRemoved && (LearnedIban is null || LearnedValidUntil is not null))
+        {
+            return ("learnedEndRemoved", new Issue(ProblemCodes.InconsistentFields, "learnedEndRemoved needs a learned account without learnedValidUntil."));
         }
 
         if (TreasuryAccountsEndpoints.ValidUntilProblem(LearnedValidUntil) is { } learnedEndProblem)
@@ -127,14 +141,14 @@ internal sealed record TreasuryAccountBackup(
         ManualRecipientName = ManualRecipientName,
         ManualRecipientCode = ManualRecipientCode,
         ManualUpdatedAt = ManualUpdatedAt?.ToUniversalTime(),
-        ManualValidUntil = ManualValidUntil,
+        ManualEnd = AccountEnd.Of(ManualValidUntil, ManualEndRemoved),
         LearnedIban = LearnedIban,
         LearnedRecipientName = LearnedRecipientName,
         LearnedRecipientCode = LearnedRecipientCode,
         LearnedExternalId = LearnedExternalId,
         LearnedPaidOn = LearnedPaidOn,
         LearnedAt = LearnedAt?.ToUniversalTime(),
-        LearnedValidUntil = LearnedValidUntil,
+        LearnedEnd = AccountEnd.Of(LearnedValidUntil, LearnedEndRemoved),
         NoticeAt = NoticeAt?.ToUniversalTime(),
     };
 }
