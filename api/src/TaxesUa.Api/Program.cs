@@ -198,6 +198,7 @@ builder.Services.AddScoped<IReminderChannel, EmailReminderChannel>();
 builder.Services.AddScoped<IIncidentSource, SyncIncidentSource>();
 builder.Services.AddScoped<IIncidentSource, NewTaxYearIncidentSource>();
 builder.Services.AddScoped<IIncidentSource, RestoreCheckIncidentSource>();
+builder.Services.AddScoped<IIncidentSource, ExpiredTreasuryAccountIncidentSource>();
 builder.Services.AddSingleton<ReminderSender>();
 builder.Services.AddHostedService<ReminderWorker>();
 

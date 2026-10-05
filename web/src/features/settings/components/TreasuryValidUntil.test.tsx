@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { TreasuryAccount } from "@/data/treasury/useTreasuryAccounts";
 import { renderApp, screen, stubFetch, waitFor } from "@/test/harness";
 import { TreasuryValidUntil } from "./TreasuryValidUntil";
@@ -13,20 +13,14 @@ const levy: TreasuryAccount = {
   recipientCode: "37993783",
   updatedAt: "2026-07-02T08:00:00Z",
   validUntil: null,
+  validUntilSource: null,
   learned: null,
   hasLearned: true,
   missing: [],
   notice: null,
 };
 
-function today(iso: string) {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date(`${iso}T09:00:00Z`));
-}
-
 describe("TreasuryValidUntil", () => {
-  afterEach(() => vi.useRealTimers());
-
   it("shows no control for a kind with no account", () => {
     renderApp(<TreasuryValidUntil account={{ ...levy, source: "None", iban: null }} />);
 
@@ -39,50 +33,54 @@ describe("TreasuryValidUntil", () => {
     expect(screen.getByText("без обмеження")).toBeVisible();
   });
 
-  it("fills the end of the temporary levy accounts in one tap and saves it", async () => {
-    today("2026-10-02");
-    const api = stubFetch({ [save]: { ...levy, validUntil: "2026-12-31" } });
-    const { user } = renderApp(<TreasuryValidUntil account={levy} />);
+  it("marks an end that is the tax year's default as such", () => {
+    renderApp(<TreasuryValidUntil account={{ ...levy, validUntil: "2026-12-31", validUntilSource: "Default" }} />);
+
+    expect(
+      screen.getByText("31 груд. 2026 р. (за замовчуванням для рахунків військового збору 2026 року)"),
+    ).toBeVisible();
+  });
+
+  it("marks the default in Russian too", () => {
+    renderApp(<TreasuryValidUntil account={{ ...levy, validUntil: "2026-12-31", validUntilSource: "Default" }} />, {
+      locale: "ru",
+    });
+
+    expect(screen.getByText(/по умолчанию для счетов военного сбора 2026 года/)).toBeVisible();
+  });
+
+  it("shows an end the owner set as a plain date", () => {
+    renderApp(<TreasuryValidUntil account={{ ...levy, validUntil: "2026-11-30", validUntilSource: "Owner" }} />);
+
+    expect(screen.getByText("30 лист. 2026 р.")).toBeVisible();
+    expect(screen.queryByText(/за замовчуванням/)).not.toBeInTheDocument();
+  });
+
+  it("removes the end, and with it the default, by clearing the date and saving", async () => {
+    const api = stubFetch({ [save]: { ...levy, validUntil: null, validUntilSource: null } });
+    const { user } = renderApp(
+      <TreasuryValidUntil account={{ ...levy, validUntil: "2026-12-31", validUntilSource: "Default" }} />,
+    );
 
     await user.click(screen.getByRole("button", { name: "Вказати строк дії" }));
-    await user.click(screen.getByRole("button", { name: "Тимчасовий рахунок: до 31.12.2026" }));
     expect(screen.getByLabelText("Діє до")).toHaveValue("2026-12-31");
+    expect(screen.getByText(/не підставить і строк за замовчуванням/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Прибрати строк" }));
     await user.click(screen.getByRole("button", { name: "Зберегти" }));
 
     await waitFor(() => expect(api.requestsTo(save)).toHaveLength(1));
-    expect(api.requestsTo(save)[0]?.body).toEqual({ validUntil: "2026-12-31" });
+    expect(api.requestsTo(save)[0]?.body).toEqual({ validUntil: null });
   });
 
-  it("offers the one-tap end only while the temporary accounts have not ended", async () => {
-    today("2027-01-05");
-    const late = renderApp(<TreasuryValidUntil account={levy} />);
-    await late.user.click(screen.getByRole("button", { name: "Вказати строк дії" }));
-    expect(screen.queryByRole("button", { name: /Тимчасовий рахунок/ })).not.toBeInTheDocument();
-    late.unmount();
-
-    today("2026-12-31");
-    const lastDay = renderApp(<TreasuryValidUntil account={levy} />);
-    await lastDay.user.click(screen.getByRole("button", { name: "Вказати строк дії" }));
-    expect(screen.getByRole("button", { name: /Тимчасовий рахунок/ })).toBeVisible();
-  });
-
-  it("does not offer the one-tap end when the account already has one", async () => {
-    today("2026-10-02");
-    const { user } = renderApp(<TreasuryValidUntil account={{ ...levy, validUntil: "2026-11-30" }} />);
+  it("saves a date the owner types", async () => {
+    const api = stubFetch({ [save]: { ...levy, validUntil: "2026-11-30", validUntilSource: "Owner" } });
+    const { user } = renderApp(<TreasuryValidUntil account={levy} />);
 
     await user.click(screen.getByRole("button", { name: "Вказати строк дії" }));
+    await user.type(screen.getByLabelText("Діє до"), "2026-11-30");
+    await user.click(screen.getByRole("button", { name: "Зберегти" }));
 
-    expect(screen.getByLabelText("Діє до")).toHaveValue("2026-11-30");
-    expect(screen.queryByRole("button", { name: /Тимчасовий рахунок/ })).not.toBeInTheDocument();
-  });
-
-  it("offers the one-tap end for the military levy only, in Russian too", async () => {
-    today("2026-10-02");
-    const { user } = renderApp(<TreasuryValidUntil account={{ ...levy, kind: "Esv" }} />, { locale: "ru" });
-
-    await user.click(screen.getByRole("button", { name: "Указать срок действия" }));
-
-    expect(screen.queryByRole("button", { name: /Временный счёт/ })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Действует до")).toBeVisible();
+    await waitFor(() => expect(api.requestsTo(save)).toHaveLength(1));
+    expect(api.requestsTo(save)[0]?.body).toEqual({ validUntil: "2026-11-30" });
   });
 });

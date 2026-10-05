@@ -60,6 +60,14 @@ public static class TaxYearEndpoints
                 CancellationToken cancellationToken) =>
             {
                 var errors = Validate(Bounds(year, request)) ?? new FieldErrors();
+                if (request.MilitaryLevyAccountEnd is { } levyEnd && levyEnd.Year != year)
+                {
+                    errors.Set(
+                        JsonNamingPolicy.CamelCase.ConvertName(nameof(request.MilitaryLevyAccountEnd)),
+                        ProblemCodes.OutOfRange,
+                        $"militaryLevyAccountEnd must be a day of {year}.");
+                }
+
                 if (TextRules.HasDisallowedControlChar(request.Source))
                 {
                     errors.Set(
@@ -167,6 +175,7 @@ public static class TaxYearEndpoints
         config.AdvanceRecommendedDay = request.AdvanceRecommendedDay;
         config.Group3ApplicationDays = request.Group3ApplicationDays;
         config.Holidays = [.. request.Holidays];
+        config.MilitaryLevyAccountEnd = request.MilitaryLevyAccountEnd;
         config.Source = request.Source;
         config.VerifiedAt = null;
         config.RecomputeDerived();
@@ -189,6 +198,7 @@ public static class TaxYearEndpoints
         config.AdvanceRecommendedDay,
         config.Group3ApplicationDays,
         config.Holidays,
+        config.MilitaryLevyAccountEnd,
         config.Source,
         config.VerifiedAt);
 
@@ -287,7 +297,8 @@ internal sealed record TaxYearConfigRequest(
     int AdvanceRecommendedDay,
     int Group3ApplicationDays,
     DateOnly[] Holidays,
-    string Source);
+    string Source,
+    DateOnly? MilitaryLevyAccountEnd = null);
 
 internal sealed record TaxYearConfigResponse(
     int Year,
@@ -306,5 +317,6 @@ internal sealed record TaxYearConfigResponse(
     int AdvanceRecommendedDay,
     int Group3ApplicationDays,
     DateOnly[] Holidays,
+    DateOnly? MilitaryLevyAccountEnd,
     string Source,
     DateTimeOffset? VerifiedAt);

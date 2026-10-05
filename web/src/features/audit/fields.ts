@@ -84,6 +84,7 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
     "advanceRecommendedDay",
     "group3ApplicationDays",
     "holidays",
+    "militaryLevyAccountEnd",
     "source",
     "verifiedAt",
   ],
@@ -112,6 +113,7 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
     "manualRecipientCode",
     "manualUpdatedAt",
     "manualValidUntil",
+    "manualEndRemoved",
     "learnedIban",
     "learnedRecipientName",
     "learnedRecipientCode",
@@ -119,6 +121,7 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
     "learnedPaidOn",
     "learnedAt",
     "learnedValidUntil",
+    "learnedEndRemoved",
     "noticeAt",
   ],
   NotificationChannel: ["kind", "enabled", "linkedAt", "confirmedAt"],
@@ -216,6 +219,7 @@ const exactFormatters: Record<string, FieldFormatter> = {
   linkedAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
   confirmedAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
   noticeAt: ({ value, locale }) => formatInstantInKyiv(String(value), locale),
+  militaryLevyAccountEnd: ({ value, locale }) => formatDateOnly(String(value), locale),
   holidays: ({ value, locale }) =>
     Array.isArray(value) ? value.map((entry) => formatDateOnly(String(entry), locale)).join(", ") : String(value),
   weekendDays: ({ value, locale }) =>

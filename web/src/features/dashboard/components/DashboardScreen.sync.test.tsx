@@ -7,6 +7,7 @@ const base = {
   nextStep: { state: "AllDone" },
   credits: [],
   needsReviewCount: 0,
+  expiredTreasuryAccounts: [],
   overdueInvoiceCount: 0,
   group3: {
     group3Start: "2026-09-28",
