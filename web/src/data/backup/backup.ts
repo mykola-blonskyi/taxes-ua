@@ -4,7 +4,6 @@ import { api } from "@/data/api/client";
 import type { components, paths } from "@/data/api/schema";
 
 export type RestoreResponse = components["schemas"]["RestoreResponse"];
-export type ImportResponse = components["schemas"]["ImportResponse"];
 
 type BackupPath = Extract<keyof paths, "/api/backup">;
 
@@ -40,7 +39,7 @@ function subscribeToReplacements(listener: () => void) {
   };
 }
 
-// Counts the restores and imports that replaced the owner's data. A form that copies server data into its
+// Counts the restores that replaced the owner's data. A form that copies server data into its
 // own state keys itself by it, so it re-seeds after a replacement and keeps an edit through any other refetch.
 export function useDataReplacements() {
   return useSyncExternalStore(
@@ -54,46 +53,6 @@ async function refreshAfterReplacement(queryClient: QueryClient) {
   await queryClient.invalidateQueries();
   replacements += 1;
   replacementListeners.forEach((listener) => listener());
-}
-
-async function readJsonText(file: File) {
-  if (file.size > maxBackupBytes) {
-    throw new TooLargeError();
-  }
-
-  const text = await file.text();
-
-  try {
-    JSON.parse(text);
-  } catch {
-    throw new NotJsonError();
-  }
-
-  return text;
-}
-
-// The file's own text is sent, not a re-serialized parse: JSON.parse would pass every amount through
-// a double, and the api reads money from the digits as written.
-export function useImportPrototype() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ file, dryRun }: { file: File; dryRun: boolean }) => {
-      const text = await readJsonText(file);
-      const { data } = await api.POST("/api/import/prototype", {
-        params: { query: { dryRun } },
-        body: text,
-        bodySerializer: (body) => body,
-      });
-
-      return data;
-    },
-    onSuccess: async (_data, { dryRun }) => {
-      if (!dryRun) {
-        await refreshAfterReplacement(queryClient);
-      }
-    },
-  });
 }
 
 export function useRestoreBackup() {

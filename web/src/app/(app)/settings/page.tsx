@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import { BackupPanel, PrototypeImportPanel } from "@/features/backup";
+import { BackupPanel } from "@/features/backup";
 import { SettingsTabs } from "@/features/settings";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -20,7 +20,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <h2 className="text-lg font-semibold md:text-xl">{t("title")}</h2>
       <SettingsTabs initialTab={initialTab} confirmEmailToken={confirmEmailToken} />
       <BackupPanel />
-      <PrototypeImportPanel />
     </section>
   );
 }

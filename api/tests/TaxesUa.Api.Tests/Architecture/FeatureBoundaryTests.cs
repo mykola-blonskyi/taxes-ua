@@ -23,7 +23,7 @@ public sealed class FeatureBoundaryTests
     {
         ["Audit"] = ["Auth", "Declarations", "Invoices", "Notifications", "Payments", "Settings", "TaxYears", "Transactions"],
         ["Auth"] = [],
-        ["Backup"] = ["Audit", "Auth", "Banking", "Declarations", "Fx", "Invoices", "Monobank", "Notifications", "Payments", "Periods", "Settings", "TaxYears", "Transactions"],
+        ["Backup"] = ["Audit", "Auth", "Banking", "Declarations", "Fx", "Invoices", "Monobank", "Notifications", "Payments", "Settings", "Transactions"],
         ["Banking"] = ["Fx"],
         ["Calendar"] = ["Auth", "Notifications", "Periods", "Settings", "TaxYears"],
         ["Clients"] = ["Auth", "Fx", "Invoices", "Transactions"],

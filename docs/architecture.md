@@ -231,10 +231,6 @@ until the new version's fixture exists. `UpgradeFromPreviousReleaseTests` migrat
 release's schema, filled with an owner's year, to head and reads the API over it. Move its `PreviousRelease` forward, and extend its seed, whenever a release's
 migrations rewrite existing rows. The current version's fixture must also export back unchanged.
 
-A prototype import (`POST /api/import/prototype`) merges rather than replaces, so it takes the
-ordinary path: one `Create` entry per inserted row. It shares the restore's per-owner advisory lock,
-and its dry run is the same code in a transaction that is rolled back.
-
 **Bank sync.** `POST /api/monobank/sync` only enqueues the owner's followed FOP accounts on
 `MonobankSyncQueue`; the request never calls the bank. One `BackgroundService`,
 `MonobankSyncWorker`, takes one account at a time. It waits its turn at `MonobankRateGate` (one
