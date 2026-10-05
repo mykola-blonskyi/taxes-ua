@@ -1,16 +1,21 @@
 import type { ReactElement } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NextIntlClientProvider } from "next-intl";
 import ru from "../../messages/ru.json";
 import uk from "../../messages/uk.json";
+import { createQueryClient } from "@/data/queryClient";
 import type { Locale } from "@/i18n/locales";
+import { router } from "./navigation";
 
 const catalogs = { uk, ru } satisfies Record<Locale, object>;
 
 function freshQueryClient() {
-  return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const client = createQueryClient((path) => router.replace(path));
+  client.setDefaultOptions({ queries: { retry: false }, mutations: { retry: false } });
+
+  return client;
 }
 
 /**
