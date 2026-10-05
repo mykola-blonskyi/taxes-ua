@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Engine;
 
@@ -408,6 +409,80 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Fact]
+    public async Task A_non_admin_allowlisted_user_reads_but_cannot_write()
+    {
+        using var admin = await SignIn();
+        using var member = await SignIn(ApiFixture.NonAdminEmail);
+        const int year = 2043;
+        Assert.Equal(HttpStatusCode.OK, (await admin.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await member.GetAsync("/api/tax-years")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await member.GetAsync($"/api/tax-years/{year}")).StatusCode);
+
+        await AssertAdminRequired(await member.PutAsJsonAsync($"/api/tax-years/{year}", Request(source: "tampered")));
+        await AssertAdminRequired(await member.PostAsync($"/api/tax-years/{year}/verify", null));
+        await AssertAdminRequired(await member.PostAsync($"/api/tax-years/{year}/clone-to/{year + 1}", null));
+
+        var stored = await admin.GetFromJsonAsync<TaxYearConfigResponse>($"/api/tax-years/{year}");
+        Assert.Equal("a test source", stored?.Source);
+        Assert.Null(stored?.VerifiedAt);
+        Assert.Equal(HttpStatusCode.NotFound, (await admin.GetAsync($"/api/tax-years/{year + 1}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_non_admin_is_refused_before_the_body_is_validated()
+    {
+        using var member = await SignIn(ApiFixture.NonAdminEmail);
+
+        await AssertAdminRequired(await member.PutAsJsonAsync("/api/tax-years/2044", Request(minWageKop: 0)));
+    }
+
+    [Fact]
+    public async Task The_first_allowlisted_address_is_the_admin_when_no_admins_are_configured()
+    {
+        const int year = 2045;
+        using var application = fixture.CreateApplication(builder => builder.UseSetting("Auth:AdminEmails", string.Empty));
+        using var first = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var second = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
+
+        Assert.Equal(HttpStatusCode.OK, (await first.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
+        await AssertAdminRequired(await second.PutAsJsonAsync($"/api/tax-years/{year}", Request()));
+
+        Assert.True((await first.GetFromJsonAsync<MeResponse>("/api/auth/me"))?.IsAdmin);
+        Assert.False((await second.GetFromJsonAsync<MeResponse>("/api/auth/me"))?.IsAdmin);
+    }
+
+    [Fact]
+    public async Task A_configured_admin_replaces_the_first_allowlisted_address()
+    {
+        const int year = 2046;
+        using var application = fixture.CreateApplication(
+            builder => builder.UseSetting("Auth:AdminEmails", ApiFixture.SecondAllowedEmail));
+        using var first = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        using var second = await ApiFixture.SignIn(application, ApiFixture.SecondAllowedEmail);
+
+        await AssertAdminRequired(await first.PutAsJsonAsync($"/api/tax-years/{year}", Request()));
+        Assert.Equal(HttpStatusCode.OK, (await second.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
+    }
+
+    [Fact]
+    public async Task Me_says_whether_the_user_is_an_admin()
+    {
+        using var admin = await SignIn();
+        using var member = await SignIn(ApiFixture.NonAdminEmail);
+
+        Assert.True((await admin.GetFromJsonAsync<MeResponse>("/api/auth/me"))?.IsAdmin);
+        Assert.False((await member.GetFromJsonAsync<MeResponse>("/api/auth/me"))?.IsAdmin);
+    }
+
+    private static async Task AssertAdminRequired(HttpResponseMessage response)
+    {
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(ProblemCodes.AdminRequired, body.RootElement.GetProperty("code").GetString());
+    }
+
     // Deliberately unlike the seeded 2026 values, so a test that asserts a stored number cannot pass
     // on a handler that quietly kept the row it found.
     private static TaxYearConfigRequest Request(
@@ -438,10 +513,10 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
             [],
             source);
 
-    private async Task<HttpClient> SignIn()
+    private async Task<HttpClient> SignIn(string email = ApiFixture.AllowedEmail)
     {
         var client = fixture.CreateClient();
-        var login = await client.GetAsync($"/api/auth/login/development?email={ApiFixture.AllowedEmail}");
+        var login = await client.GetAsync($"/api/auth/login/development?email={email}");
         Assert.Equal(HttpStatusCode.Found, login.StatusCode);
         var callback = await client.GetAsync(login.Headers.Location);
         Assert.Equal(HttpStatusCode.Found, callback.StatusCode);

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 import { GoogleSignInButton, PasskeyButton, PasskeyRegisterPrompt } from "@/features/auth";
+import { AppearanceMenus } from "@/features/appearance";
 import { AppHeader } from "@/shared/shell/AppHeader";
 import { Disclaimer } from "@/shared/shell/Disclaimer";
 
@@ -15,7 +16,7 @@ export default async function LoginPage() {
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <AppHeader />
+      <AppHeader preferences={<AppearanceMenus />} />
       <main className="flex flex-1 items-center justify-center px-4 py-8">
         <div className="flex w-full max-w-sm flex-col gap-4">
           <h2 className="text-lg font-semibold md:text-xl">{t("title")}</h2>

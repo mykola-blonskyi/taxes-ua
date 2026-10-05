@@ -155,6 +155,21 @@ Direct Google until the `login.blonskyi.dev` broker ships, then an OIDC client o
 The broker is designed as the sign-in for every `*.blonskyi.dev` project and is not built yet, so
 the Google handler here is the current step, not the permanent one.
 
+### Amendment, 2026-10-05: tax-year writes need an admin (#257)
+
+The tax-year parameters are the one table with no `UserId`: every user's engine reads the same rows.
+With one owner that is harmless; once the allowlist holds a second person, any signed-in user could
+change the rates the other's declaration is computed from (audit L10 of 2026-10-02).
+
+Reading stays open to every signed-in user. Writing (PUT, verify and clone) requires an admin: an
+address in `Auth__AdminEmails` (comma-separated) or, when that is unset or empty, the first address in
+`Auth__AllowedEmails`, so a single-owner deployment needs no new variable. An admin must also be on the
+allowlist. The check runs on each request against the current configuration, so removing an address
+takes effect at once. A non-admin gets 403 with the code `admin_required`, translated in uk and ru.
+
+`GET /api/auth/me` reports `isAdmin`, and the tax-years tab shows the parameters read-only to a
+non-admin. That is a courtesy; the api refuses the write whatever the screen offers.
+
 ---
 
 ## ADR-006. Deploy via Coolify on the existing VPS, reusing the existing PostgreSQL instance
@@ -2001,3 +2016,49 @@ restored that object as the scratch cluster's superuser.
 3. **Not done: recording a hash of each upload.** The app could store each object's SHA-256 and the check
    could require a match. That is a second trust store for the same question, and a restore that runs
    unprivileged already bounds what a planted object can do. Revisit it if the check ever needs more privilege.
+
+## ADR-032. One language menu and one theme toggle, saved to the server (#245)
+
+**Status:** accepted, 2026-10-05.
+
+The settings form had its own language and theme selects beside the shell's menus. The shell's menus only
+wrote the browser (a cookie, next-themes' storage), the form's selects only wrote `Settings`, and the server
+reads `Settings.Locale` for every message it originates: reminders, Telegram replies, the email and Telegram
+tests and the calendar feed. Two switches for one thing disagreed. `Settings.Theme` had no server reader at
+all, and the owner wants both to follow them from phone to PC.
+
+1. **The form loses both selects; the shell keeps one switch each.** A menu choice writes the browser first
+   (instant, and the only thing that happens signed out) and, when signed in, sends `PUT
+   /api/settings/appearance` with just the fields it changed, without being awaited, with `keepalive` so a
+   navigation started the same instant does not cancel it. The cookie is set before the request is made, so
+   the very next navigation carries the new language (#193).
+2. **`PUT /api/settings` treats an absent `locale` or `theme` as keep.** The form no longer sends them, and a
+   form opened before a menu change must not put the old choice back.
+3. **The newest choice wins, field by field.** `Settings` keeps `LocaleChosenAt` and `ThemeChosenAt` (UTC,
+   nullable) beside the values, and the browser keeps each choice's time next to the value the page reads:
+   the `locale-chosen-at` cookie beside `locale`, and `theme-chosen-at` in `localStorage` beside next-themes'
+   `theme`. `PUT /api/settings/appearance` takes `{ locale?, theme?, chosenAt }` and applies a field only
+   when `chosenAt` is later than the stored time, so a repeated or late request changes nothing; it answers
+   with the whole settings, times included. A `chosenAt` more than two minutes ahead of the server clock is
+   taken as the server's now, so a device whose clock runs ahead cannot win every later choice. The write
+   holds the owner's lock, because a browser sends the language and the theme as two requests at once and
+   both could otherwise add the first row or land out of order. A value
+   written through `PUT /api/settings` counts as chosen at that moment.
+   On every signed-in load, and each time the tab regains focus (the settings are read again then, however
+   fresh), the browser compares each field: the server's later choice is applied (the language refreshes
+   the route once, only when it actually changes and the cookie took it), and the browser's later choice is
+   sent. That covers a choice made signed out on the sign-in page and a save that was cut off, with no
+   separate store of unsent changes. A browser with no choice of its own takes the
+   server's. A time that is missing counts as the oldest: a browser or a row from before the times were
+   kept gives way to any timed choice, and two untimed sides are left as they are until the owner next
+   chooses. Two devices that each chose therefore converge on the later choice the next time either loads.
+   The server keeps that choice, which is what the messages it writes follow.
+4. **`system` syncs as the literal choice.** Each device resolves it for itself, so a phone in the light
+   and a PC in the dark both stay on "system".
+5. **The backup does not carry the two times (schema stays 19).** They only order choices between the
+   owner's devices. A restore leaves them null, so the restored language and theme count as the oldest
+   and each device's own later choice wins over the file's.
+6. **What remains.** The first paint uses the browser's own value; when the server's later choice arrives
+   the theme switches and the route refreshes once into the language. A tab left open sees another device's
+   change when it regains focus, not while it is in view. Default currency is untouched:
+   nothing reads it, and the owner decided to leave it as it is.

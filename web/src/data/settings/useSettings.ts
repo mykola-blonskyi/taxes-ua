@@ -12,9 +12,12 @@ export type SettingsResponse = components["schemas"]["SettingsResponse"];
 
 export const settingsQueryKey = ["settings"] as const;
 
-export function useSettings() {
+// refetchOnWindowFocus "always" reads the settings again on every return to the tab, however fresh they
+// are, for a reader that must see a change made on another device.
+export function useSettings({ refetchOnWindowFocus }: { refetchOnWindowFocus?: "always" } = {}) {
   return useQuery({
     queryKey: settingsQueryKey,
+    refetchOnWindowFocus,
     queryFn: async () => {
       const { data } = await api.GET("/api/settings");
 

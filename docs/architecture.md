@@ -268,11 +268,12 @@ src/
     ui/         shadcn/ui components (alias @/shared/ui in components.json)
     constants/
     security/   the page's Content-Security-Policy, built per request with its nonce
-    shell/      app chrome shared by every route group: navigation, header, disclaimer, the
-                theme and language toggles
-    theme/      ThemeProvider and the theme toggle. The colour tokens themselves live in
+    shell/      app chrome shared by every route group: navigation, header (which takes the
+                language and theme menus from the appearance feature as a slot), disclaimer
+    theme/      ThemeProvider. The colour tokens themselves live in
                 app/globals.css, because Tailwind v4 keeps the theme in CSS
-  i18n/         next-intl configuration, locale chosen from a cookie
+  i18n/         next-intl configuration, locale chosen from a cookie. The appearance feature's menus
+                write that cookie and next-themes' storage, and save both to the server (ADR-032)
 ```
 
 The dependency rules are enforced in eslint (`no-restricted-imports`): features never import
@@ -323,7 +324,11 @@ session cookie, the external sign-in cookie and the passkey ceremony cookie are 
 `HttpOnly; Secure; SameSite=Lax`. A session cannot be revoked server-side, which
 [ADR-009](decisions.md) explains.
 
-Authorization: every read and write is filtered by the `UserId` from the session.
+Authorization: every read and write is filtered by the `UserId` from the session. The tax-year
+parameters are the one shared table: any signed-in user reads them, and a write (PUT, verify, clone)
+needs an admin, an address in `Auth__AdminEmails` or, when that is unset, the first address in
+`Auth__AllowedEmails`. A non-admin gets 403 `admin_required`; `/api/auth/me` carries `isAdmin` so the
+web can hide the controls ([ADR-005](decisions.md)).
 
 Secrets management: the bank-token encryption key lives only in the environment. Tokens are
 decrypted at the moment of the bank API call and never appear in logs, responses or the client.

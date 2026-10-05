@@ -31,6 +31,9 @@ public sealed class ApiFixture : IAsyncLifetime
 
     public const string SecondAllowedEmail = "second@example.com";
 
+    // Allowlisted but not an admin: the one address tests use to prove a tax-year write is refused.
+    public const string NonAdminEmail = "member@example.com";
+
     // 32 bytes, base64 — a fixed test key so every test runs with monobank "configured" unless it
     // deliberately asks for the unconfigured application below.
     public const string MonobankTestKeyBase64 = "dGVzdC1tb25vYmFuay1rZXktMzItYnl0ZXMtbG9uZyE=";
@@ -72,7 +75,11 @@ public sealed class ApiFixture : IAsyncLifetime
             // ConfigureAppConfiguration source is attached, so they have to be host settings.
             builder.UseSetting("Auth:Passkey:ServerDomain", "localhost");
             builder.UseSetting("ConnectionStrings:Default", _database.GetConnectionString());
-            builder.UseSetting("Auth:AllowedEmails", string.Join(';', [AllowedEmail, SecondAllowedEmail, .. _owners]));
+            builder.UseSetting("Auth:AllowedEmails", string.Join(';', [AllowedEmail, SecondAllowedEmail, NonAdminEmail, .. _owners]));
+
+            // Every address a test signs in as is an admin, because tests write tax years as an owner of their
+            // own, except NonAdminEmail.
+            builder.UseSetting("Auth:AdminEmails", string.Join(';', [AllowedEmail, SecondAllowedEmail, .. _owners]));
             builder.UseSetting("Monobank:TokenEncryptionKeyBase64", MonobankTestKeyBase64);
 
             // The Development sign-in needs this flag besides the environment; tests sign in through it.

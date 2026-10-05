@@ -18,6 +18,7 @@ internal static class ProblemCodes
     public const string GoogleNotConfigured = "google_not_configured";
     public const string ExternalSignInIncomplete = "external_sign_in_incomplete";
     public const string AccountNotAllowed = "account_not_allowed";
+    public const string AdminRequired = "admin_required";
     public const string AccountCreateFailed = "account_create_failed";
     public const string GoogleLinkFailed = "google_link_failed";
     public const string PasskeyCredentialMissing = "passkey_credential_missing";

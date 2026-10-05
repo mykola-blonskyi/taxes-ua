@@ -3,10 +3,14 @@ import type { TaxYearConfigResponse } from "@/data/tax-years/useTaxYears";
 import { renderApp, reply, screen, stubFetch, useFakeTimers, within } from "@/test/harness";
 import { TaxYearTable } from "./TaxYearTable";
 
+const me = "GET /api/auth/me" as const;
 const list = "GET /api/tax-years" as const;
 const save = "PUT /api/tax-years/{year}" as const;
 const verify = "POST /api/tax-years/{year}/verify" as const;
 const clone = "POST /api/tax-years/{year}/clone-to/{next}" as const;
+
+const admin = { id: "u1", email: "owner@example.com", displayName: null, createdAt: "2026-01-01T00:00:00Z", isAdmin: true };
+const member = { ...admin, id: "u2", email: "second@example.com", isAdmin: false };
 
 const year2026: TaxYearConfigResponse = {
   year: 2026,
@@ -87,7 +91,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable in %s", (locale) => {
   const words = copy[locale];
 
   it("shows every parameter of a year with its label and value", async () => {
-    stubFetch({ [list]: [year2026] });
+    stubFetch({ [me]: admin, [list]: [year2026] });
     renderApp(<TaxYearTable />, { locale });
 
     expect(await screen.findByLabelText(`${words.minWage} 2026`)).toHaveValue(802_800);
@@ -112,7 +116,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable in %s", (locale) => {
   });
 
   it("keeps each year's parameters apart", async () => {
-    stubFetch({ [list]: [year2026, verified2025] });
+    stubFetch({ [me]: admin, [list]: [year2026, verified2025] });
     renderApp(<TaxYearTable />, { locale });
 
     expect(await screen.findByLabelText(`${words.source} 2026`)).toHaveValue("Закон про держбюджет");
@@ -121,7 +125,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable in %s", (locale) => {
   });
 
   it("saves the edited year from the same fields", async () => {
-    const api = stubFetch({ [list]: [year2026], [save]: year2026 });
+    const api = stubFetch({ [me]: admin, [list]: [year2026], [save]: year2026 });
     const { user } = renderApp(<TaxYearTable />, { locale });
 
     const rate = await screen.findByLabelText(`${words.singleTax} 2026`);
@@ -140,7 +144,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable in %s", (locale) => {
   });
 
   it("copies a year to the next one and marks it verified", async () => {
-    const api = stubFetch({ [list]: [year2026], [clone]: year2026, [verify]: year2026 });
+    const api = stubFetch({ [me]: admin, [list]: [year2026], [clone]: year2026, [verify]: year2026 });
     const { user } = renderApp(<TaxYearTable />, { locale });
 
     await user.click(await screen.findByRole("button", { name: words.clone }));
@@ -151,7 +155,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable in %s", (locale) => {
   });
 
   it("links a year to its history", async () => {
-    stubFetch({ [list]: [year2026] });
+    stubFetch({ [me]: admin, [list]: [year2026] });
     renderApp(<TaxYearTable />, { locale });
 
     const link = await screen.findByRole("link", { name: words.history });
@@ -159,9 +163,40 @@ describe.each(["uk", "ru"] as const)("TaxYearTable in %s", (locale) => {
   });
 });
 
+describe.each(["uk", "ru"] as const)("TaxYearTable for a non-admin in %s", (locale) => {
+  const words = copy[locale];
+
+  it("shows the parameters but offers no way to change them", async () => {
+    stubFetch({ [me]: member, [list]: [year2026] });
+    renderApp(<TaxYearTable />, { locale });
+
+    const source = await screen.findByLabelText(`${words.source} 2026`);
+    expect(source).toHaveValue("Закон про держбюджет");
+    expect(source).toBeDisabled();
+    expect(screen.getByLabelText(`${words.minWage} 2026`)).toBeDisabled();
+    expect(screen.getByLabelText(`${words.singleTax} 2026`)).toBeDisabled();
+    expect(screen.getByLabelText(`${words.esvDay} 2026`)).toBeDisabled();
+    expect(screen.getByLabelText(`${words.holidays} 2026`)).toBeDisabled();
+    expect(screen.queryByRole("button", { name: words.save })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: words.verify })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: words.clone })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: words.history })).toBeVisible();
+  });
+
+  it("does not offer to clone the coming year", async () => {
+    useFakeTimers(["Date"]);
+    vi.setSystemTime(new Date("2026-12-05T10:00:00Z"));
+    stubFetch({ [me]: member, [list]: [year2026] });
+    renderApp(<TaxYearTable />, { locale });
+
+    await screen.findByLabelText(`${words.source} 2026`);
+    expect(screen.queryByRole("button", { name: /2027/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("TaxYearTable verified year", () => {
   it("does not offer to verify a year that is already verified", async () => {
-    stubFetch({ [list]: [verified2025] });
+    stubFetch({ [me]: admin, [list]: [verified2025] });
     renderApp(<TaxYearTable />);
 
     const row = (await screen.findByLabelText("Джерело 2025")).closest("tr")!;
@@ -189,7 +224,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable offer of the coming year in %
   });
 
   it("offers to clone this year into the next when the next has no parameters", async () => {
-    const api = stubFetch({ [list]: [year2026], [clone]: year2026 });
+    const api = stubFetch({ [me]: admin, [list]: [year2026], [clone]: year2026 });
     const { user } = renderApp(<TaxYearTable />, { locale });
 
     expect(await screen.findByText(words.text)).toBeVisible();
@@ -199,7 +234,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable offer of the coming year in %
   });
 
   it("offers nothing once the next year has its row", async () => {
-    stubFetch({ [list]: [year2026, { ...year2026, year: 2027 }] });
+    stubFetch({ [me]: admin, [list]: [year2026, { ...year2026, year: 2027 }] });
     renderApp(<TaxYearTable />, { locale });
 
     await screen.findByLabelText(/2027/, { selector: "#min-wage-2027" });
@@ -208,7 +243,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable offer of the coming year in %
 
   it("offers nothing before December while the current year is configured", async () => {
     vi.setSystemTime(new Date("2026-11-30T10:00:00Z"));
-    stubFetch({ [list]: [year2026] });
+    stubFetch({ [me]: admin, [list]: [year2026] });
     renderApp(<TaxYearTable />, { locale });
 
     await screen.findByLabelText(/2026/, { selector: "#min-wage-2026" });
@@ -217,7 +252,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable offer of the coming year in %
 
   it("reads December and the year in Kyiv, not in the browser's zone", async () => {
     vi.setSystemTime(new Date("2026-11-30T22:30:00Z"));
-    stubFetch({ [list]: [year2026] });
+    stubFetch({ [me]: admin, [list]: [year2026] });
     renderApp(<TaxYearTable />, { locale });
 
     expect(await screen.findByText(words.text)).toBeVisible();
@@ -225,7 +260,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable offer of the coming year in %
 
   it("on the first of January with the new year missing offers to clone the latest year into it", async () => {
     vi.setSystemTime(new Date("2026-12-31T22:30:00Z"));
-    const api = stubFetch({ [list]: [year2026], [clone]: year2026 });
+    const api = stubFetch({ [me]: admin, [list]: [year2026], [clone]: year2026 });
     const { user } = renderApp(<TaxYearTable />, { locale });
 
     await user.click(await screen.findByRole("button", { name: words.clone }));
@@ -235,7 +270,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable offer of the coming year in %
 
   it("on the first of January offers the gap year first when two years are missing", async () => {
     vi.setSystemTime(new Date("2028-01-01T10:00:00Z"));
-    stubFetch({ [list]: [year2026] });
+    stubFetch({ [me]: admin, [list]: [year2026] });
     renderApp(<TaxYearTable />, { locale });
 
     expect(await screen.findByText(words.text)).toBeVisible();
@@ -243,7 +278,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable offer of the coming year in %
 
   it("offers nothing when the latest year is already past next year", async () => {
     vi.setSystemTime(new Date("2026-12-05T10:00:00Z"));
-    stubFetch({ [list]: [{ ...year2026, year: 2027 }, year2026] });
+    stubFetch({ [me]: admin, [list]: [{ ...year2026, year: 2027 }, year2026] });
     renderApp(<TaxYearTable />, { locale });
 
     await screen.findByLabelText(/2027/, { selector: "#min-wage-2027" });
@@ -251,7 +286,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable offer of the coming year in %
   });
 
   it("words a refused clone and keeps the offer", async () => {
-    stubFetch({ [list]: [year2026], [clone]: reply(409, { code: "tax_year_already_exists", title: "Exists" }) });
+    stubFetch({ [me]: admin, [list]: [year2026], [clone]: reply(409, { code: "tax_year_already_exists", title: "Exists" }) });
     const { user } = renderApp(<TaxYearTable />, { locale });
 
     await user.click(await screen.findByRole("button", { name: words.clone }));

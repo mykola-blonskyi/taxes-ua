@@ -280,10 +280,12 @@ export function MoneyField({
   locale,
   valueKop,
   onChange,
+  disabled,
 }: BaseFieldProps & {
   locale: string;
   valueKop: number;
   onChange: (valueKop: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <FieldWrapper label={label} htmlFor={id} hint={hint} errors={errors} labelClassName={labelClassName}>
@@ -294,6 +296,7 @@ export function MoneyField({
             step={1}
             value={valueKop}
             onChange={(event) => onChange(numberOrZero(event.target.valueAsNumber))}
+            disabled={disabled}
             className={inputClasses}
             {...control}
           />
@@ -313,10 +316,12 @@ export function RateField({
   locale,
   valueBp,
   onChange,
+  disabled,
 }: BaseFieldProps & {
   locale: string;
   valueBp: number;
   onChange: (valueBp: number) => void;
+  disabled?: boolean;
 }) {
   return (
     <FieldWrapper label={label} htmlFor={id} hint={hint} errors={errors} labelClassName={labelClassName}>
@@ -327,6 +332,7 @@ export function RateField({
             step={1}
             value={valueBp}
             onChange={(event) => onChange(numberOrZero(event.target.valueAsNumber))}
+            disabled={disabled}
             className={inputClasses}
             {...control}
           />
