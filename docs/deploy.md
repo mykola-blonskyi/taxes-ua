@@ -593,3 +593,27 @@ though the newer release is up; check the newer run.
 `release`. If it shows `unknown`, delete any user-defined `SOURCE_COMMIT` variable on the resource
 (Environment Variables): an empty one stops Coolify from injecting the real commit.
 
+### Keeping auto-merge branches current
+
+`main` requires branches to be up to date, so a PR with auto-merge armed goes `BEHIND` each time
+another PR merges. The `Update auto-merge branches` workflow runs on every push to `main` (and by
+hand from the Actions tab) and calls `gh pr update-branch` on each open PR with auto-merge enabled
+that is behind. A branch updated with the built-in `GITHUB_TOKEN` does not start CI, so the
+workflow uses a personal token instead.
+
+1. In GitHub, Settings → Developer settings → Personal access tokens → Fine-grained tokens, create
+   a token for this repository only, with Repository permissions **Contents: Read and write** and
+   **Pull requests: Read and write**, and an expiry you will remember to renew.
+2. In the repository, Settings → Secrets and variables → Actions, add it as `AUTO_UPDATE_TOKEN`.
+
+Without the secret the job logs a notice and passes, and nothing is updated. **Check.** Arm
+auto-merge on two PRs, merge one, and the other shows a new merge commit from the update and a CI
+run on it.
+
+### No AI attribution
+
+The `No AI attribution` workflow fails a PR whose own commits (`origin/main..head`), title or body
+carry a `Co-Authored-By:` naming Claude, Anthropic or an AI, `Generated with [Claude Code]`, or
+`noreply@anthropic.com`. Older history is not read. Run it locally with
+`.github/scripts/check-no-ai-attribution.sh origin/main HEAD`. It is not in the required checks of
+`main`'s branch protection; add `No AI attribution` there to make it block the merge.

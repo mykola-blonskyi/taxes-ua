@@ -35,6 +35,7 @@ GitHub shares one number space across issues and PRs, so a bare `#42` may be eit
 - The spec is `.scratch/<feature-slug>/spec.md` (a copy of the published spec issue body, with `GitHub: #<n>` at the top).
 - Tickets are one file per issue at `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01` in dependency order. Each file starts with `GitHub: #<n>`, `Status: <label>` and `Blocked by: #<n>, #<n>` lines.
 - The mirror is written when issues are published and refreshed when a skill changes an issue's status. It is committed to the repo.
+- `snippets/mirror-issues.sh <spec-number> <feature-slug>` regenerates `spec.md` and every ticket file from GitHub (tickets are the open and closed issues whose `## Parent` section names the spec, numbered in issue-number order; `Status:` is the triage label, or `closed`; `Blocked by:` comes from the native dependencies, or `none`). Run it instead of editing the files by hand; a rerun on unchanged GitHub state changes nothing.
 
 ## When a skill says "publish to the issue tracker"
 
