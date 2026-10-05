@@ -154,6 +154,35 @@ public sealed class DashboardEndpointsTests(ApiFixture fixture) : IClassFixture<
         Assert.Equal(0, dashboard.Limit.ExcessKop);
     }
 
+    // Rule 1 dates a refund by its own day, so a January refund of a December receipt, before any new
+    // income, leaves the year's group 3 income negative. Years of their own and an owner of its own, so
+    // the other tests' years and income stay as they expect.
+    [Fact]
+    public async Task A_year_whose_income_is_negative_uses_none_of_the_limit()
+    {
+        const int refundYear = 2091;
+        var email = fixture.NewOwner();
+        await using var application = At(new DateTimeOffset(refundYear, 1, 20, 9, 0, 0, TimeSpan.Zero));
+        using var client = await ApiFixture.SignIn(application, email);
+        await SetUp(client, new DateOnly(refundYear - 1, 12, 1), refundYear - 1, refundYear);
+        var receipt = await PostIncome(client, new DateOnly(refundYear - 1, 12, 10), 1_000_000);
+        var refund = await client.PostAsJsonAsync(
+            "/api/transactions",
+            new TransactionRequest(
+                new DateOnly(refundYear, 1, 15), 100_000, Currency.UAH, null, TransactionKind.RefundToClient,
+                null, null, null, null, receipt.Id),
+            Json);
+        Assert.Equal(HttpStatusCode.Created, refund.StatusCode);
+
+        var response = await client.GetAsync("/api/dashboard");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var dashboard = (await response.Content.ReadFromJsonAsync<DashboardResponse>(Json))!;
+        Assert.Equal(
+            new LimitStatusResponse(0, 864_700L * 1_167, 0, LimitLevel.Ok, 864_700L * 1_167 * 85 / 100, 0, 0),
+            dashboard.Limit);
+    }
+
     [Fact]
     public async Task Before_the_registration_date_the_step_names_it()
     {
@@ -191,7 +220,7 @@ public sealed class DashboardEndpointsTests(ApiFixture fixture) : IClassFixture<
     private static async Task<DashboardResponse> Get(HttpClient client) =>
         (await client.GetFromJsonAsync<DashboardResponse>("/api/dashboard", Json))!;
 
-    private static async Task PostIncome(HttpClient client, DateOnly valueDate, long amountKop)
+    private static async Task<TransactionResponse> PostIncome(HttpClient client, DateOnly valueDate, long amountKop)
     {
         var response = await client.PostAsJsonAsync(
             "/api/transactions",
@@ -199,14 +228,18 @@ public sealed class DashboardEndpointsTests(ApiFixture fixture) : IClassFixture<
                 valueDate, amountKop, Currency.UAH, null, TransactionKind.Income, null, null, null, null, null),
             Json);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<TransactionResponse>(Json))!;
     }
 
     // The 2026 parameters, so ESV is 1,902.34 a month.
-    private static async Task SetUp(HttpClient client, DateOnly? registrationDate)
+    private static async Task SetUp(HttpClient client, DateOnly? registrationDate, params int[] years)
     {
-        var year = new TaxYearConfigRequest(
+        var config = new TaxYearConfigRequest(
             864_700, 500, 100, 2_200, 1_500, 1_167, [85, 100], 19, 40, 10, 15, 10, [], "a test source");
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{Year}", year, Json)).StatusCode);
+        foreach (var year in years is [] ? [Year] : years)
+        {
+            Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", config, Json)).StatusCode);
+        }
 
         var request = new SettingsRequest(
             FopRegistrationDate: registrationDate,
