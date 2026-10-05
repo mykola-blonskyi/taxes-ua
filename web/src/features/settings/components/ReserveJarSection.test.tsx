@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { JarChoice, ReserveJar } from "@/data/monobank/useReserveJar";
-import { reply, renderApp, screen, stubFetch, waitFor } from "@/test/harness";
+import { act, reply, renderApp, screen, stubFetch, waitFor } from "@/test/harness";
 import { ReserveJarSection } from "./ReserveJarSection";
 
 const stored = "GET /api/monobank/reserve-jar" as const;
@@ -191,5 +191,19 @@ describe("ReserveJarSection", () => {
 
     expect(await screen.findByRole("combobox", { name: "Копилка в гривнах" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Выбрать" })).toBeVisible();
+  });
+
+  it("keeps saying no jar is chosen when a background refetch of the stored jar fails", async () => {
+    let calls = 0;
+    stubFetch({ [stored]: () => (++calls === 1 ? { jar: null } : reply(500, { title: "Boom" })) });
+    const { queryClient } = renderSection(true);
+    expect(await screen.findByText("Скарбничку не обрано.")).toBeVisible();
+
+    await act(() => queryClient.invalidateQueries());
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+
+    expect(calls).toBe(2);
+    expect(screen.getByText("Скарбничку не обрано.")).toBeVisible();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

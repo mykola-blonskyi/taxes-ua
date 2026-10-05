@@ -107,7 +107,7 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceResponse }) {
       {canLink && picking ? (
         <div className="flex flex-col gap-2 rounded-lg border p-3">
           <p className="text-sm font-medium">{t("pick")}</p>
-          {optionsQuery.isLoading || optionsQuery.isError ? (
+          {!options ? (
             <LoadState query={optionsQuery} loading={t("loadingOptions")} failed={t("failed")} />
           ) : null}
           {options && options.length === 0 ? (

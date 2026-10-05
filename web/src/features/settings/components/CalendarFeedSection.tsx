@@ -22,11 +22,11 @@ export function CalendarFeedSection() {
       <h3 className="text-sm font-medium">{t("title")}</h3>
       <p className="text-sm text-muted-foreground">{t("intro")}</p>
 
-      {query.isLoading || query.isError ? (
+      {!data ? (
         <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />
       ) : null}
 
-      {!query.isLoading && !query.isError && !url ? (
+      {data && !url ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground">{t("none")}</p>
           <div>

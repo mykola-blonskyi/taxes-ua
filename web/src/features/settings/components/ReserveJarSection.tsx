@@ -43,7 +43,7 @@ export function ReserveJarSection({ canRead }: { canRead: boolean }) {
 
   // A stored jar outlives a disconnect or a rejected token, so it can always be seen and removed; asking the
   // bank needs a working token.
-  if (!jar && !canRead && !stored.isError) {
+  if (!jar && !canRead && !(stored.isError && stored.data === undefined)) {
     return null;
   }
 
@@ -63,7 +63,7 @@ export function ReserveJarSection({ canRead }: { canRead: boolean }) {
               : t("asOf", { time: formatInstantInKyiv(jar.fetchedAt, locale) })}
           </p>
         </div>
-      ) : stored.isLoading || stored.isError ? (
+      ) : stored.data === undefined ? (
         <LoadState query={stored} failed={t("loadFailed")} />
       ) : (
         <p className="text-sm text-muted-foreground">{t("none")}</p>

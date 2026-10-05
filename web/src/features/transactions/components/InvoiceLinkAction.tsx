@@ -65,7 +65,7 @@ export function InvoiceLinkAction({ transaction, rowName }: { transaction: Trans
       {picking ? (
         <div className="flex w-full basis-full flex-col gap-2 rounded-lg border p-3">
           <p className="text-sm font-medium">{t("pick")}</p>
-          {optionsQuery.isLoading || optionsQuery.isError ? (
+          {!options ? (
             <LoadState query={optionsQuery} loading={t("loading")} failed={t("failed")} />
           ) : null}
           {options && options.length === 0 ? <p className="text-xs text-muted-foreground">{t("none")}</p> : null}
