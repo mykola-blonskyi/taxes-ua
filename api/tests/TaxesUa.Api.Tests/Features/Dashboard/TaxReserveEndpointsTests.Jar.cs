@@ -130,7 +130,6 @@ public sealed partial class TaxReserveEndpointsTests
         {
             UserId = user.Id,
             EncryptedToken = [1],
-            WebhookSecret = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"),
             ConnectedAt = now,
         });
         await database.SaveChangesAsync();

@@ -259,17 +259,18 @@ Relationships: belongs to `User`, has many `Transaction` and `ImportBatch`.
 Responsibilities: one owner's personal API token for one bank. One connection, and one encrypted
 token, per owner — not per account (#75).
 
-Fields: `UserId` (primary key), `EncryptedToken` (AES-256-GCM ciphertext, see ADR-011; never
-returned by the API), `MonobankClientId` (the bank's own client id, kept only to help the owner
+Fields: `UserId` (primary key), `EncryptedToken` (AES-256-GCM ciphertext with the owner's `UserId` as
+associated data, so it decrypts on this row only, see ADR-011; never returned by the API), `MonobankClientId` (the bank's own client id, kept only to help the owner
 recognise which token is connected), `ConnectedAt`, `RejectedAt?` (set when monobank answered 401 or
 403 to a statement call with this very token, compared by its ciphertext so a token saved meanwhile is
-not marked; while set, no sync of the owner runs and "sync now" answers 409), `WebhookSecret` (64
-random hex characters, unique, the path segment of the owner's webhook URL; drawn again on every token
-save, ADR-012), `WebhookUrl?` (the URL monobank last accepted for this token, or null),
+not marked; while set, no sync of the owner runs and "sync now" answers 409), `WebhookSecretHash?`
+(the SHA-256 of the path segment of the owner's webhook URL, unique; the secret itself is never stored, so a
+new one is drawn for every registration, and a token save clears it, ADR-012), `WebhookBaseUrl?` (the public
+base URL under which monobank accepted the URL of that secret, or null while it is not registered),
 `WebhookFailedAt?` and `WebhookFailure?` (the last failed registration, cleared by a successful one).
 
 Settings shows the webhook as `Off` (no public base URL configured), `Pending`, `Registered` (the
-stored URL is the wanted one) or `Failed` (with the time and reason).
+stored base URL is the configured one) or `Failed` (with the time and reason).
 
 The token is validated against the bank's `client-info` endpoint at the moment it is saved; an
 invalid token is rejected and nothing is stored. Saving a valid token reconciles `BankAccount` rows
@@ -694,8 +695,9 @@ effect of the update it passes, so a restart neither replays nor skips one. Not 
 Responsibilities: the secret behind one owner's calendar subscription URL (#105, ADR-017). Absent
 until the owner asks for a link; asking again replaces it.
 
-Fields: `UserId` (primary key), `Secret` (64 random hex characters, unique, the path segment of
-`/api/calendar/feed/{secret}.ics`), `CreatedAt`. Never audited, never logged, never in the backup: a
+Fields: `UserId` (primary key), `SecretHash` (the SHA-256 of the path segment of
+`/api/calendar/feed/{secret}.ics`, unique; the secret itself is never stored, so the URL is shown only in the
+answer that draws it, #256), `CreatedAt`. Never audited, never logged, never in the backup: a
 restore creates none and leaves an existing one alone, so the owner rotates in settings to get one on a
 new server. The deadlines it serves are computed from the engine at request time (Rule 5), so the row
 stores nothing else.

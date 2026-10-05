@@ -202,7 +202,8 @@ month's recommended advance date (Rule 6), unshifted. A year without a
 `TaxYearConfig` has no events. Events are all-day, carry alarms at 09:00 local 7 and 1 days before, and name the kind
 and the period in the owner's locale, never an amount. The UID is the kind with the year, the quarter or
 month and a short non-secret owner key, so a moved date updates the event. The document is behind a per-owner secret path the owner
-can rotate; it is not in the backup, so a restore creates none.
+can rotate. Only the secret's hash is stored, so the link is shown once, when it is created or rotated, and
+afterwards settings says only when it was created. It is not in the backup, so a restore creates none.
 
 ---
 
@@ -414,8 +415,9 @@ and by the nightly run. The webhook (ADR-012) is a signal only: a POST to the ow
 queues a sync of every followed account and its body is never read, so an operation is recorded only
 from the statement the sync reads with the owner's token. The queue holds at most one waiting copy
 of an account, so a burst of notifications costs at most one sync beyond the running one. An
-unknown secret gets 404 and queues nothing. The webhook is registered only when a public base URL is
-configured; its registration never blocks saving a token, and a failure is shown in settings. The
+unknown secret gets 404 and queues nothing. Only the secret's hash is stored, so every registration, the
+nightly one included, draws a new secret and the URL it replaces stops answering. The webhook is registered
+only when a public base URL is configured; its registration never blocks saving a token, and a failure is shown in settings. The
 nightly run, at 03:00 in Kyiv, queues every followed account of every connection whose token was not
 rejected, whatever its cursor says, so an operation no webhook announced is imported by morning.
 

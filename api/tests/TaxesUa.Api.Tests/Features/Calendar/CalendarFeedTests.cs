@@ -1,14 +1,20 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
@@ -187,7 +193,7 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
         await SetUp(owner, year, new DateOnly(year, 1, 1), PaymentMode.Quarterly);
         using var anonymous = ApiFixture.CreateClient(application);
 
-        Assert.Null((await owner.GetFromJsonAsync<JsonObject>("/api/calendar/feed", Json))!["path"]);
+        Assert.Null((await owner.GetFromJsonAsync<JsonObject>("/api/calendar/feed", Json))!["createdAt"]);
 
         var first = await Rotate(owner);
         Assert.Matches(FeedPath(), first);
@@ -195,14 +201,46 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
         Assert.Equal(HttpStatusCode.OK, fetched.StatusCode);
         Assert.Equal("text/calendar; charset=utf-8", fetched.Content.Headers.ContentType!.ToString());
         Assert.Equal("no-store", fetched.Headers.CacheControl!.ToString());
-        Assert.Equal(first, (await owner.GetFromJsonAsync<JsonObject>("/api/calendar/feed", Json))!["path"]!.GetValue<string>());
+        Assert.Equal(
+            new DateTimeOffset(year, 6, 15, 9, 0, 0, TimeSpan.Zero),
+            (await owner.GetFromJsonAsync<JsonObject>("/api/calendar/feed", Json))!["createdAt"]!.GetValue<DateTimeOffset>());
 
         var second = await Rotate(owner);
 
         Assert.NotEqual(first, second);
         Assert.Equal(HttpStatusCode.NotFound, (await anonymous.GetAsync(first)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await anonymous.GetAsync(second)).StatusCode);
-        Assert.Equal(second, (await owner.GetFromJsonAsync<JsonObject>("/api/calendar/feed", Json))!["path"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Only_the_rotation_shows_the_url_and_the_database_keeps_only_its_hash()
+    {
+        const int year = 2083;
+        var email = fixture.NewOwner();
+        await using var scoped = fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
+            services.AddSingleton<TimeProvider>(new FakeTime(new DateTimeOffset(year, 6, 15, 9, 0, 0, TimeSpan.Zero)))));
+        using var owner = await ApiFixture.SignIn(scoped, email);
+        await SetUp(owner, year, new DateOnly(year, 1, 1), PaymentMode.Quarterly);
+
+        var rotated = await owner.PostAsync("/api/calendar/feed/rotate", null);
+        var body = (await rotated.Content.ReadFromJsonAsync<JsonObject>(Json))!;
+        var path = body["path"]!.GetValue<string>();
+        var secret = path["/api/calendar/feed/".Length..^".ics".Length];
+        Assert.Equal(new DateTimeOffset(year, 6, 15, 9, 0, 0, TimeSpan.Zero), body["createdAt"]!.GetValue<DateTimeOffset>());
+
+        var read = await owner.GetStringAsync("/api/calendar/feed");
+        Assert.DoesNotContain(secret, read);
+        Assert.DoesNotContain("path", read);
+
+        await using var scope = scoped.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user = (await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(email))!;
+        var stored = await database.CalendarFeeds.AsNoTracking().SingleAsync(feed => feed.UserId == user.Id);
+        Assert.Equal(
+            Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(secret))),
+            stored.SecretHash);
+        using var anonymous = ApiFixture.CreateClient(scoped);
+        Assert.Equal(HttpStatusCode.NotFound, (await anonymous.GetAsync("/api/calendar/feed/" + stored.SecretHash + ".ics")).StatusCode);
     }
 
     [Fact]

@@ -1,21 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { LoadState } from "@/data/api/LoadState";
 import { Download } from "lucide-react";
 import { calendarDownloadUrl, useCalendarFeed, useRotateCalendarFeed } from "@/data/calendar/useCalendarFeed";
+import { formatInstantInKyiv } from "@/shared/lib/dates";
 import { Button } from "@/shared/ui/button";
 import { CopyField } from "@/shared/ui/copy-field";
 
 export function CalendarFeedSection() {
   const t = useTranslations("settings.calendar");
+  const locale = useLocale();
   const query = useCalendarFeed();
-  const { data } = query;
   const rotate = useRotateCalendarFeed();
   const [confirming, setConfirming] = useState(false);
-  const path = data?.path ?? null;
+  // The server keeps only a hash, so the link exists on screen only in the answer that drew it.
+  const path = rotate.data?.path ?? null;
   const url = path ? `${window.location.origin}${path}` : null;
+  const createdAt = query.data?.createdAt ?? null;
+  const loaded = !query.isLoading && !query.isError;
 
   return (
     <div className="flex max-w-xl flex-col gap-3">
@@ -26,7 +30,7 @@ export function CalendarFeedSection() {
         <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />
       ) : null}
 
-      {!query.isLoading && !query.isError && !url ? (
+      {loaded && !url && !createdAt ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted-foreground">{t("none")}</p>
           <div>
@@ -37,19 +41,30 @@ export function CalendarFeedSection() {
         </div>
       ) : null}
 
-      {url ? (
+      {loaded && (url || createdAt) ? (
         <div className="flex min-w-0 flex-col gap-3 rounded-lg border p-3">
-          <CopyField
-            label={t("urlLabel")}
-            value={url}
-            copyLabel={t("copy")}
-            copiedLabel={t("copied")}
-            failedLabel={t("copyFailed")}
-          />
+          {url ? (
+            <>
+              <CopyField
+                label={t("urlLabel")}
+                value={url}
+                copyLabel={t("copy")}
+                copiedLabel={t("copied")}
+                failedLabel={t("copyFailed")}
+              />
+              <p className="text-sm text-muted-foreground">{t("shownOnce")}</p>
+            </>
+          ) : createdAt ? (
+            <p className="text-sm text-muted-foreground">
+              {t("hidden", { time: formatInstantInKyiv(createdAt, locale) })}
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
-            <Button asChild size="sm">
-              <a href={url.replace(/^https?:/, "webcal:")}>{t("openInCalendar")}</a>
-            </Button>
+            {url ? (
+              <Button asChild size="sm">
+                <a href={url.replace(/^https?:/, "webcal:")}>{t("openInCalendar")}</a>
+              </Button>
+            ) : null}
             {confirming ? null : (
               <Button type="button" variant="outline" size="sm" onClick={() => setConfirming(true)}>
                 {t("rotate")}
