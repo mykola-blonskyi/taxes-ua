@@ -36,6 +36,7 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         Assert.Equal(15, config.AdvanceRecommendedDay);
         Assert.Equal(10, config.Group3ApplicationDays);
         Assert.Empty(config.Holidays);
+        Assert.Equal(new DateOnly(2026, 12, 31), config.MilitaryLevyAccountEnd);
         Assert.False(string.IsNullOrWhiteSpace(config.Source), "the seeded row cites no legal source");
         Assert.Null(config.VerifiedAt);
     }
@@ -294,7 +295,7 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
     }
 
     [Fact]
-    public async Task Clone_copies_every_value_into_an_unverified_next_year()
+    public async Task Clone_copies_every_value_but_the_levy_account_end_into_an_unverified_next_year()
     {
         using var client = await SignIn();
         var source = await client.GetFromJsonAsync<TaxYearConfigResponse>("/api/tax-years/2026");
@@ -305,12 +306,34 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         var clone = await created.Content.ReadFromJsonAsync<TaxYearConfigResponse>();
         Assert.Null(clone!.VerifiedAt);
         Assert.Equal(
-            JsonSerializer.Serialize(source! with { Year = 2027, VerifiedAt = null }),
+            JsonSerializer.Serialize(source! with { Year = 2027, VerifiedAt = null, MilitaryLevyAccountEnd = null }),
             JsonSerializer.Serialize(clone));
 
         var again = await client.PostAsync("/api/tax-years/2026/clone-to/2027", content: null);
 
         Assert.Equal(HttpStatusCode.Conflict, again.StatusCode);
+    }
+
+    [Fact]
+    public async Task The_levy_account_end_is_stored_and_must_be_a_day_of_its_year()
+    {
+        const int year = 2049;
+        using var client = await SignIn();
+
+        var outside = await client.PutAsJsonAsync(
+            $"/api/tax-years/{year}", Request() with { MilitaryLevyAccountEnd = new DateOnly(year + 1, 1, 31) });
+        Assert.Equal(HttpStatusCode.BadRequest, outside.StatusCode);
+        Assert.Contains("militaryLevyAccountEnd", await outside.Content.ReadAsStringAsync());
+
+        var stored = await client.PutAsJsonAsync(
+            $"/api/tax-years/{year}", Request() with { MilitaryLevyAccountEnd = new DateOnly(year, 6, 30) });
+        Assert.Equal(HttpStatusCode.OK, stored.StatusCode);
+        Assert.Equal(
+            new DateOnly(year, 6, 30),
+            (await client.GetFromJsonAsync<TaxYearConfigResponse>($"/api/tax-years/{year}"))!.MilitaryLevyAccountEnd);
+
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
+        Assert.Null((await client.GetFromJsonAsync<TaxYearConfigResponse>($"/api/tax-years/{year}"))!.MilitaryLevyAccountEnd);
     }
 
     [Fact]

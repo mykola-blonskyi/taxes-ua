@@ -117,7 +117,8 @@ public sealed class TreasuryAccountsEndpointsTests(ApiFixture fixture) : IClassF
         Assert.Equal(LevyEnd, sameIban.ValidUntil);
 
         var newIban = await Put(owner, new TreasuryAccountRequest(ShopTreasuryIban, "ГУК у м.Києві", "37993783"));
-        Assert.Equal((ShopTreasuryIban, null), (newIban.Iban, newIban.ValidUntil));
+        Assert.Equal(ShopTreasuryIban, newIban.Iban);
+        Assert.NotEqual(TreasuryEndSource.Owner, newIban.ValidUntilSource);
 
         var explicitEnd = await Put(owner, new TreasuryAccountRequest(Iban, "ГУК у м.Києві", "37993783", new DateOnly(2027, 6, 30)));
         Assert.Equal(new DateOnly(2027, 6, 30), explicitEnd.ValidUntil);
@@ -165,7 +166,7 @@ public sealed class TreasuryAccountsEndpointsTests(ApiFixture fixture) : IClassF
             LearnedExternalId = "op-1",
             LearnedPaidOn = new DateOnly(2026, 7, 1),
             LearnedAt = DateTimeOffset.UtcNow,
-            LearnedValidUntil = validUntil,
+            LearnedEnd = validUntil is { } end ? new AccountEnd.On(end) : AccountEnd.Unsaid,
         });
         await database.SaveChangesAsync();
     }

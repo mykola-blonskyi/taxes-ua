@@ -40,6 +40,8 @@ public static class DashboardEndpoints
                 var loaded = await YearAccruals.LoadAsync(database, user.Id, today.Year, cancellationToken);
                 var declaration = await DeclarationDueAsync(database, user.Id, today, cancellationToken);
                 var newTaxYear = await NewTaxYearCheck.LoadAsync(database, today, cancellationToken);
+                ExpiredTreasuryAccount[] expiredAccounts =
+                    [.. await ExpiredTreasuryAccounts.LoadAsync(database, user.Id, today, cancellationToken)];
 
                 var sync = await SyncHealthCheck.LoadAsync(database, user.Id, time.GetUtcNow(), cancellationToken) is { } health
                     ? new SyncHealthResponse(health.State, health.LastSyncedAt)
@@ -72,7 +74,8 @@ public static class DashboardEndpoints
                         overdueInvoices,
                         group3,
                         sync,
-                        newTaxYear));
+                        newTaxYear,
+                        expiredAccounts));
                 }
 
                 var settings = loaded.Viewed.Settings.ToEngineInput();
@@ -111,7 +114,8 @@ public static class DashboardEndpoints
                     overdueInvoices,
                     group3,
                     sync,
-                    newTaxYear));
+                    newTaxYear,
+                    expiredAccounts));
             })
             .WithTags("Dashboard")
             .RequireAuthorization()
@@ -271,6 +275,8 @@ public static class DashboardEndpoints
 /// quarter's declaration while it is due and not marked filed (Rule 15). <c>OverdueInvoiceCount</c> is the
 /// number of issued invoices past their due date in Kyiv that their linked receipts do not cover (Rule 14).
 /// <c>Sync</c> is the bank sync's health, sent whenever the owner follows a monobank account (Rule 17).
+/// <c>ExpiredTreasuryAccounts</c> are the accounts in use whose end has passed, so the owner has to enter the new
+/// one (Rule 16).
 /// </summary>
 internal sealed record DashboardResponse(
     DateOnly Today,
@@ -285,7 +291,8 @@ internal sealed record DashboardResponse(
     int OverdueInvoiceCount,
     Group3StatusResponse Group3,
     SyncHealthResponse? Sync,
-    NewTaxYearStatus? NewTaxYear);
+    NewTaxYearStatus? NewTaxYear,
+    ExpiredTreasuryAccount[] ExpiredTreasuryAccounts);
 
 /// <summary>
 /// <c>LastSyncedAt</c> is the end of the oldest statement window a followed account has caught up to, null

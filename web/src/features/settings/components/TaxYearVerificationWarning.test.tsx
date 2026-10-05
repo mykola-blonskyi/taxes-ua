@@ -20,6 +20,7 @@ const year = (value: number, verifiedAt: string | null): TaxYearConfigResponse =
   advanceRecommendedDay: 15,
   group3ApplicationDays: 10,
   holidays: [],
+  militaryLevyAccountEnd: null,
   source: "test",
   verifiedAt,
 });
