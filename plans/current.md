@@ -20,8 +20,8 @@ dependencies). Run `snippets/frontier.sh` for the live frontier instead of readi
 Stage 1 is done: every MVP ticket (#2–#18, #20) is closed and the app runs on Coolify. Stage 2 (monobank
 sync #71, reminders and the calendar feed #104) and the invoice and declaration parts of Stage 3 (#89,
 #109) are done too. Every ticket of the 2026-10-02 audit (#170), #171–#190, is done; #186
-landed last (PR #235). The 2026-10-05 audit (#237) is done except #254 (restore only the current backup
-schema) and #251 (this docs pass): #238–#250, #252, #253, #255–#257, #260 and #261 are closed. The sections
+landed last (PR #235). Every ticket of the 2026-10-05 audit (#237), #238–#257, #260 and #261, is done; #254
+(the backup schema floor) and #251 (the docs pass) landed last. The sections
 below are the MVP plan as it ran, kept as the record.
 
 ## Progress

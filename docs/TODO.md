@@ -11,8 +11,6 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 
 ## Planned
 
-- [ ] The 2026-10-05 audit (#237), what is left: #254 (restore only the current backup schema). #251 (this docs
-      pass) closes with its PR.
 
 ---
 
@@ -37,9 +35,10 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 - [x] The 2026-10-02 audit (#170): #171–#190. #185 added the API's feature boundary test and
       corrected these docs; #186 split the API files over 600 lines.
 
-- [x] The 2026-10-05 audit (#237), done 2026-10-05: #238–#250, #252, #253, #255–#257, #260, #261, including #245
-      (display settings), #246 (boundary gap), #253 (prototype importer deleted), #255 (`__Host-` cookie),
-      #256 (hashed path secrets) and #257 (admin-only tax years).
+- [x] The 2026-10-05 audit (#237), done 2026-10-05: #238–#257, #260 and #261, including #245
+      (display settings), #246 (boundary gap), #253 (prototype importer deleted), #254 (backup schema
+      floor), #255 (`__Host-` cookie), #256 (hashed path secrets), #257 (admin-only tax years) and #251
+      (this docs pass).
 
 ## Open questions for the owner
 
