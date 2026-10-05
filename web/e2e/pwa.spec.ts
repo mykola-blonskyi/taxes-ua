@@ -4,12 +4,19 @@ import { expect, test, type Page } from "@playwright/test";
 import { staticContentSecurityPolicy } from "../src/shared/security/csp";
 import ru from "../messages/ru.json";
 import uk from "../messages/uk.json";
+import { chooseLanguage, resetAppearance } from "./support/appearance";
 
 // The worker is registered after load and takes over its own page once it activates, which is after the
 // precache has finished. Everything below needs that, so wait for the controller, not for a timer.
 async function workerControls(page: Page) {
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
 }
+
+// A test that pins Russian saves it to the server; the next spec's browser, with no choice of its own,
+// must still open in Ukrainian.
+test.afterEach(async ({ request }) => {
+  await resetAppearance(request);
+});
 
 test("offline, a navigation shows the fallback page in the owner's language, never tax data", async ({ page, context, baseURL }) => {
   const violations: string[] = [];
@@ -30,7 +37,7 @@ test("offline, a navigation shows the fallback page in the owner's language, nev
   await expect(page.locator("html")).toHaveAttribute("lang", "uk");
   await expect(page.getByRole("navigation", { name: uk.nav.label })).toHaveCount(0);
 
-  await context.addCookies([{ name: "locale", value: "ru", url: baseURL! }]);
+  await chooseLanguage(context, baseURL!, "ru");
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: ru.offline.title })).toBeVisible();
   await expect(page.getByText(ru.offline.body)).toBeVisible();
@@ -190,7 +197,7 @@ test("each screen has its own localized tab title", async ({ page, context, base
   await page.goto("/settings");
   await expect(page).toHaveTitle(`${uk.settings.title} · ${uk.app.title}`);
 
-  await context.addCookies([{ name: "locale", value: "ru", url: baseURL! }]);
+  await chooseLanguage(context, baseURL!, "ru");
   await page.goto("/payments");
   await expect(page).toHaveTitle(`${ru.payments.title} · ${ru.app.title}`);
 });

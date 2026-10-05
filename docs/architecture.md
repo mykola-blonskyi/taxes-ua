@@ -272,11 +272,12 @@ src/
     ui/         shadcn/ui components (alias @/shared/ui in components.json)
     constants/
     security/   the page's Content-Security-Policy, built per request with its nonce
-    shell/      app chrome shared by every route group: navigation, header, disclaimer, the
-                theme and language toggles
-    theme/      ThemeProvider and the theme toggle. The colour tokens themselves live in
+    shell/      app chrome shared by every route group: navigation, header (which takes the
+                language and theme menus from the appearance feature as a slot), disclaimer
+    theme/      ThemeProvider. The colour tokens themselves live in
                 app/globals.css, because Tailwind v4 keeps the theme in CSS
-  i18n/         next-intl configuration, locale chosen from a cookie
+  i18n/         next-intl configuration, locale chosen from a cookie. The appearance feature's menus
+                write that cookie and next-themes' storage, and save both to the server (ADR-032)
 ```
 
 The dependency rules are enforced in eslint (`no-restricted-imports`): features never import

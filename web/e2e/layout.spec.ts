@@ -4,6 +4,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import ru from "../messages/ru.json";
 import uk from "../messages/uk.json";
+import { chooseLanguage, resetAppearance } from "./support/appearance";
 import { seedTreasuryAccounts } from "./support/seed";
 import { removeMonobankToken, seedRejectedMonobankToken, seedScreensWithContent } from "./support/layout-seed";
 
@@ -353,6 +354,7 @@ test.afterAll(async ({ playwright }, testInfo) => {
   const owner = await playwright.request.newContext({ baseURL, storageState });
   try {
     await removeMonobankToken(owner);
+    await resetAppearance(owner);
   } finally {
     await owner.dispose();
   }
@@ -374,7 +376,7 @@ for (const locale of ["uk", "ru"] as const) {
       test.use({ viewport, isMobile: true, hasTouch: true, colorScheme: scheme });
 
       test("shows every label whole", async ({ page, context, baseURL }) => {
-        await context.addCookies([{ name: "locale", value: locale, url: baseURL! }]);
+        await chooseLanguage(context, baseURL!, locale);
         await open(page, "/", locale);
         const links = page.getByRole("navigation", { name: catalogs[locale].nav.label }).getByRole("link");
         await expect(links).toHaveCount(5);
@@ -398,7 +400,7 @@ for (const { locale, scheme } of runs) {
     test.use({ viewport, isMobile: true, hasTouch: true, colorScheme: scheme });
 
     test.beforeEach(async ({ context, baseURL }) => {
-      await context.addCookies([{ name: "locale", value: locale, url: baseURL! }]);
+      await chooseLanguage(context, baseURL!, locale);
     });
 
     for (const route of routes) {
@@ -483,7 +485,7 @@ for (const { locale, scheme } of runs) {
       test.use({ storageState: { cookies: [], origins: [] } });
 
       test("/login does not scroll sideways", async ({ page, context, baseURL }) => {
-        await context.addCookies([{ name: "locale", value: locale, url: baseURL! }]);
+        await chooseLanguage(context, baseURL!, locale);
         await open(page, "/login", locale);
         const problems = await inspect(page, "/login", locale, "");
 
