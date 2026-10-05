@@ -28,8 +28,9 @@ internal enum WebhookState
 /// <summary>
 /// Registers each owner's webhook at <c>{Monobank:PublicBaseUrl}/api/monobank/webhook/{secret}</c>
 /// (ADR-012), one call at a time on the rate gate's "webhook" slot, so a token save never waits on
-/// the bank for it. Without a public base URL nothing is registered and a URL registered by an
-/// earlier deployment is removed.
+/// the bank for it. Only the secret's hash is stored (#256), so every registration draws a new secret
+/// and the URL it replaces stops answering. Without a public base URL nothing is registered and a URL
+/// registered by an earlier deployment is removed.
 /// </summary>
 internal sealed class MonobankWebhooks : BackgroundService
 {
@@ -77,16 +78,12 @@ internal sealed class MonobankWebhooks : BackgroundService
 
     public bool IsConfigured => _baseUrl is not null;
 
-    public static string NewSecret() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
-
-    public string? UrlFor(string secret) => _baseUrl is null ? null : _baseUrl + PathPrefix + secret;
-
     // A rejected token is never registered until it is replaced, so it cannot stay Pending.
-    public WebhookState StateOf(MonobankConnection connection) => UrlFor(connection.WebhookSecret) switch
+    public WebhookState StateOf(MonobankConnection connection) => _baseUrl switch
     {
         null => WebhookState.Off,
         _ when connection.RejectedAt is not null => WebhookState.Failed,
-        var wanted when wanted == connection.WebhookUrl => WebhookState.Registered,
+        var wanted when wanted == connection.WebhookBaseUrl => WebhookState.Registered,
         _ when connection.WebhookFailedAt is not null => WebhookState.Failed,
         _ => WebhookState.Pending,
     };
@@ -158,13 +155,13 @@ internal sealed class MonobankWebhooks : BackgroundService
     {
         await using var scope = _scopes.CreateAsyncScope();
         var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var connections = await database.MonobankConnections.AsNoTracking()
-            .Where(row => row.RejectedAt == null)
-            .Select(row => new { row.UserId, row.WebhookSecret, row.WebhookUrl })
+        var stale = await database.MonobankConnections.AsNoTracking()
+            .Where(row => row.RejectedAt == null && row.WebhookBaseUrl != _baseUrl)
+            .Select(row => row.UserId)
             .ToListAsync(cancellationToken);
-        foreach (var connection in connections.Where(row => UrlFor(row.WebhookSecret) != row.WebhookUrl))
+        foreach (var ownerId in stale)
         {
-            Reconcile(connection.UserId);
+            Reconcile(ownerId);
         }
     }
 
@@ -179,16 +176,14 @@ internal sealed class MonobankWebhooks : BackgroundService
             return;
         }
 
-        var wanted = UrlFor(connection.WebhookSecret);
-        if (wanted is null && connection.WebhookUrl is null)
+        if (_baseUrl is null && connection.WebhookBaseUrl is null)
         {
             return;
         }
 
-        // Only the token this registration was made for: one saved meanwhile has a new secret and
-        // queues its own.
+        // Only the token this registration was made for: one saved meanwhile queues its own.
         var sameToken = database.MonobankConnections
-            .Where(row => row.UserId == ownerId && row.WebhookSecret == connection.WebhookSecret);
+            .Where(row => row.UserId == ownerId && row.EncryptedToken == connection.EncryptedToken);
         if (Decrypt(ownerId, connection.EncryptedToken) is not { } token)
         {
             await sameToken.ExecuteUpdateAsync(
@@ -200,13 +195,29 @@ internal sealed class MonobankWebhooks : BackgroundService
         }
 
         await _gate.WaitTurnAsync(ownerId, WebhookMethod, cancellationToken);
+
+        // The bank checks the URL with a GET before it accepts it, so the new secret has to answer first.
+        // The stored hash is the only copy, so the URL registered before stops answering here.
+        var secret = _baseUrl is null ? null : PathSecret.New();
+        var hash = secret is null ? null : PathSecret.Hash(secret);
+        var drawn = await sameToken.ExecuteUpdateAsync(
+            setters => setters
+                .SetProperty(row => row.WebhookSecretHash, hash)
+                .SetProperty(row => row.WebhookBaseUrl, (string?)null),
+            cancellationToken);
+        if (drawn == 0)
+        {
+            return;
+        }
+
         var client = scope.ServiceProvider.GetRequiredService<MonobankClient>();
-        switch (await client.SetWebhookAsync(token, wanted ?? string.Empty, cancellationToken))
+        var url = secret is null ? string.Empty : _baseUrl + PathPrefix + secret;
+        switch (await client.SetWebhookAsync(token, url, cancellationToken))
         {
             case WebhookResult.Set:
                 await sameToken.ExecuteUpdateAsync(
                     setters => setters
-                        .SetProperty(row => row.WebhookUrl, wanted)
+                        .SetProperty(row => row.WebhookBaseUrl, _baseUrl)
                         .SetProperty(row => row.WebhookFailedAt, (DateTimeOffset?)null)
                         .SetProperty(row => row.WebhookFailure, (SyncFailure?)null),
                     cancellationToken);
@@ -253,7 +264,7 @@ internal sealed class MonobankWebhooks : BackgroundService
     {
         try
         {
-            return _encryptor.Decrypt(encryptedToken);
+            return _encryptor.Decrypt(encryptedToken, ownerId);
         }
         catch (CryptographicException exception)
         {

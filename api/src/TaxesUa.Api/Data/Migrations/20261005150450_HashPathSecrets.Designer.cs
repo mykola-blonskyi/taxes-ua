@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxesUa.Api.Data;
@@ -11,9 +12,11 @@ using TaxesUa.Api.Data;
 namespace TaxesUa.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005150450_HashPathSecrets")]
+    partial class HashPathSecrets
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -698,6 +701,53 @@ namespace TaxesUa.Api.Data.Migrations
                     b.ToTable("ReserveJars");
                 });
 
+            modelBuilder.Entity("TaxesUa.Api.Features.Notifications.NotificationChannel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<DateTimeOffset?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("LastDeliveryAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastFailure")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("LastFailureAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("LinkedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("NotificationChannels");
+                });
+
             modelBuilder.Entity("TaxesUa.Api.Features.Notifications.NotificationLinkCode", b =>
                 {
                     b.Property<Guid>("Id")
@@ -939,9 +989,6 @@ namespace TaxesUa.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("LearnedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<bool>("LearnedEndRemoved")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("LearnedExternalId")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -963,9 +1010,6 @@ namespace TaxesUa.Api.Data.Migrations
 
                     b.Property<DateOnly?>("LearnedValidUntil")
                         .HasColumnType("date");
-
-                    b.Property<bool>("ManualEndRemoved")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("ManualIban")
                         .HasMaxLength(34)
@@ -999,9 +1043,9 @@ namespace TaxesUa.Api.Data.Migrations
 
                     b.ToTable("TreasuryAccounts", t =>
                         {
-                            t.HasCheckConstraint("CK_TreasuryAccounts_Learned", "(\"LearnedIban\" IS NULL) = (\"LearnedExternalId\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedPaidOn\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedAt\" IS NULL) AND (\"LearnedIban\" IS NOT NULL OR (\"LearnedRecipientName\" IS NULL AND \"LearnedRecipientCode\" IS NULL AND \"LearnedValidUntil\" IS NULL AND NOT \"LearnedEndRemoved\")) AND NOT (\"LearnedEndRemoved\" AND \"LearnedValidUntil\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_TreasuryAccounts_Learned", "(\"LearnedIban\" IS NULL) = (\"LearnedExternalId\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedPaidOn\" IS NULL) AND (\"LearnedIban\" IS NULL) = (\"LearnedAt\" IS NULL) AND (\"LearnedIban\" IS NOT NULL OR (\"LearnedRecipientName\" IS NULL AND \"LearnedRecipientCode\" IS NULL AND \"LearnedValidUntil\" IS NULL))");
 
-                            t.HasCheckConstraint("CK_TreasuryAccounts_Manual", "(\"ManualIban\" IS NULL) = (\"ManualRecipientName\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualRecipientCode\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualUpdatedAt\" IS NULL) AND (\"ManualIban\" IS NOT NULL OR (\"ManualValidUntil\" IS NULL AND NOT \"ManualEndRemoved\")) AND NOT (\"ManualEndRemoved\" AND \"ManualValidUntil\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_TreasuryAccounts_Manual", "(\"ManualIban\" IS NULL) = (\"ManualRecipientName\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualRecipientCode\" IS NULL) AND (\"ManualIban\" IS NULL) = (\"ManualUpdatedAt\" IS NULL) AND (\"ManualIban\" IS NOT NULL OR \"ManualValidUntil\" IS NULL)");
 
                             t.HasCheckConstraint("CK_TreasuryAccounts_Notice", "\"NoticeAt\" IS NULL OR (\"ManualIban\" IS NOT NULL AND \"LearnedIban\" IS NOT NULL)");
                         });
@@ -1159,53 +1203,6 @@ namespace TaxesUa.Api.Data.Migrations
                     b.ToTable("InvoicingPaymentDetails");
                 });
 
-            modelBuilder.Entity("TaxesUa.Api.Features.Settings.NotificationChannel", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Address")
-                        .IsRequired()
-                        .HasMaxLength(320)
-                        .HasColumnType("character varying(320)");
-
-                    b.Property<DateTimeOffset?>("ConfirmedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTimeOffset?>("LastDeliveryAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastFailure")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTimeOffset?>("LastFailureAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("LinkedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId", "Kind")
-                        .IsUnique();
-
-                    b.ToTable("NotificationChannels");
-                });
-
             modelBuilder.Entity("TaxesUa.Api.Features.Settings.Settings", b =>
                 {
                     b.Property<string>("UserId")
@@ -1314,9 +1311,6 @@ namespace TaxesUa.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("integer[]");
 
-                    b.Property<DateOnly?>("MilitaryLevyAccountEnd")
-                        .HasColumnType("date");
-
                     b.Property<int>("MilitaryLevyRateBp")
                         .HasColumnType("integer");
 
@@ -1355,7 +1349,6 @@ namespace TaxesUa.Api.Data.Migrations
                             IncomeLimitKop = 1009104900L,
                             IncomeLimitMinWages = 1167,
                             LimitWarnThresholdsPct = new[] { 85, 100 },
-                            MilitaryLevyAccountEnd = new DateOnly(2026, 12, 31),
                             MilitaryLevyRateBp = 100,
                             MinWageKop = 864700L,
                             SingleTaxRateBp = 500,
@@ -1737,6 +1730,15 @@ namespace TaxesUa.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("TaxesUa.Api.Features.Notifications.NotificationChannel", b =>
+                {
+                    b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TaxesUa.Api.Features.Notifications.NotificationLinkCode", b =>
                 {
                     b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
@@ -1812,15 +1814,6 @@ namespace TaxesUa.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("TaxesUa.Api.Features.Settings.InvoicingPaymentDetails", b =>
-                {
-                    b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("TaxesUa.Api.Features.Settings.NotificationChannel", b =>
                 {
                     b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
                         .WithMany()
