@@ -75,11 +75,14 @@ public static class PaymentsEndpoints
                     return Results.Unauthorized();
                 }
 
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var now = time.GetUtcNow();
                 var row = new BudgetPayment { Id = Guid.NewGuid(), UserId = user.Id, CreatedAt = now };
                 Apply(row, request, now);
                 database.BudgetPayments.Add(row);
                 await database.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
 
                 var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
 
