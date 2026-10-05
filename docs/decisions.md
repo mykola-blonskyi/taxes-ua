@@ -155,6 +155,21 @@ Direct Google until the `login.blonskyi.dev` broker ships, then an OIDC client o
 The broker is designed as the sign-in for every `*.blonskyi.dev` project and is not built yet, so
 the Google handler here is the current step, not the permanent one.
 
+### Amendment, 2026-10-05: tax-year writes need an admin (#257)
+
+The tax-year parameters are the one table with no `UserId`: every user's engine reads the same rows.
+With one owner that is harmless; once the allowlist holds a second person, any signed-in user could
+change the rates the other's declaration is computed from (audit L10 of 2026-10-02).
+
+Reading stays open to every signed-in user. Writing (PUT, verify and clone) requires an admin: an
+address in `Auth__AdminEmails` (comma-separated) or, when that is unset or empty, the first address in
+`Auth__AllowedEmails`, so a single-owner deployment needs no new variable. An admin must also be on the
+allowlist. The check runs on each request against the current configuration, so removing an address
+takes effect at once. A non-admin gets 403 with the code `admin_required`, translated in uk and ru.
+
+`GET /api/auth/me` reports `isAdmin`, and the tax-years tab shows the parameters read-only to a
+non-admin. That is a courtesy; the api refuses the write whatever the screen offers.
+
 ---
 
 ## ADR-006. Deploy via Coolify on the existing VPS, reusing the existing PostgreSQL instance

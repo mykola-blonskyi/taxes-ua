@@ -180,6 +180,7 @@ public sealed partial class CalendarFeedTests(ApiFixture fixture) : IClassFixtur
         await using var application = fixture.CreateApplication(builder =>
         {
             builder.UseSetting("Auth:AllowedEmails", newcomer);
+            builder.UseSetting("Auth:AdminEmails", string.Empty);
             builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(
                 new FakeTime(new DateTimeOffset(year, 6, 15, 9, 0, 0, TimeSpan.Zero))));
         });

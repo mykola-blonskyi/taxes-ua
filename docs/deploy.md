@@ -156,6 +156,7 @@ is disabled.
    | `GOOGLE_CLIENT_ID` | from step 4 |
    | `GOOGLE_CLIENT_SECRET` | from step 4 |
    | `ALLOWED_EMAILS` | the owner's email |
+   | `ADMIN_EMAILS` | empty while the allowlist has one address. With a second user, the addresses (comma-separated) that may change the tax-year parameters; empty means the first address in `ALLOWED_EMAILS`. Everyone else on the allowlist reads them but cannot write (ADR-005) |
    | `ALLOWED_HOSTS` | `taxes.blonskyi.dev` |
    | `PASSKEY_SERVER_DOMAIN` | `taxes.blonskyi.dev` |
    | `MONOBANK_TOKEN_ENCRYPTION_KEY` | `openssl rand -base64 32`, once, kept in the password manager (ADR-011) |

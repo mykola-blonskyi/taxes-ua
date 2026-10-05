@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Auth;
 
 namespace TaxesUa.Api.Features.TaxYears;
 
@@ -86,9 +87,11 @@ public static class TaxYearEndpoints
 
                 return Results.Ok(ToResponse(config));
             })
+            .AddEndpointFilter<AdminOnlyFilter>()
             .Produces<TaxYearConfigResponse>()
             .ProducesFieldProblem()
-            .Produces(StatusCodes.Status401Unauthorized);
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesCodedProblem(StatusCodes.Status403Forbidden);
 
         taxYears.MapPost("/{year:int}/verify", async (
                 int year,
@@ -107,8 +110,10 @@ public static class TaxYearEndpoints
 
                 return Results.Ok(ToResponse(config));
             })
+            .AddEndpointFilter<AdminOnlyFilter>()
             .Produces<TaxYearConfigResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesCodedProblem(StatusCodes.Status403Forbidden)
             .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         taxYears.MapPost("/{year:int}/clone-to/{next:int}", async (
@@ -142,9 +147,11 @@ public static class TaxYearEndpoints
 
                 return Results.Created($"/api/tax-years/{next}", ToResponse(copy));
             })
+            .AddEndpointFilter<AdminOnlyFilter>()
             .Produces<TaxYearConfigResponse>(StatusCodes.Status201Created)
             .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesCodedProblem(StatusCodes.Status403Forbidden)
             .ProducesCodedProblem(StatusCodes.Status404NotFound)
             .ProducesCodedProblem(StatusCodes.Status409Conflict);
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "@/data/api/client";
+import { useMe } from "@/data/auth/useMe";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useCloneTaxYear,
@@ -84,11 +85,20 @@ export function TaxYearTable() {
   const t = useTranslations("settings");
   const tYears = useTranslations("settings.taxYears");
   const query = useTaxYears();
+  const meQuery = useMe();
   const { data } = query;
 
   if (!data) {
     return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
+
+  // The api refuses a non-admin's write whatever the screen offers (ADR-005); this only keeps the controls
+  // from promising what it will refuse. Until /me answers nothing is offered, so the controls never flash.
+  if (!meQuery.data) {
+    return <LoadState query={meQuery} loading={t("loading")} failed={t("loadFailed")} />;
+  }
+
+  const canEdit = meQuery.data.isAdmin;
 
   if (data.length === 0) {
     return <p className="text-sm text-muted-foreground">{tYears("empty")}</p>;
@@ -96,8 +106,8 @@ export function TaxYearTable() {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <NewYearOffer taxYears={data} />
-      <TaxYearRows taxYears={data} />
+      {canEdit ? <NewYearOffer taxYears={data} /> : <p className="text-sm text-muted-foreground">{tYears("readOnly")}</p>}
+      <TaxYearRows taxYears={data} canEdit={canEdit} />
     </div>
   );
 }
@@ -141,7 +151,7 @@ function NewYearOffer({ taxYears }: { taxYears: TaxYearConfigResponse[] }) {
   );
 }
 
-function TaxYearRows({ taxYears: data }: { taxYears: TaxYearConfigResponse[] }) {
+function TaxYearRows({ taxYears: data, canEdit }: { taxYears: TaxYearConfigResponse[]; canEdit: boolean }) {
   const tYears = useTranslations("settings.taxYears");
 
   return (
@@ -183,7 +193,7 @@ function TaxYearRows({ taxYears: data }: { taxYears: TaxYearConfigResponse[] }) 
         </thead>
         <tbody className="flex flex-col gap-3 md:table-row-group">
           {data.map((taxYear) => (
-            <TaxYearRow key={taxYear.year} taxYear={taxYear} />
+            <TaxYearRow key={taxYear.year} taxYear={taxYear} canEdit={canEdit} />
           ))}
         </tbody>
       </table>
@@ -191,7 +201,7 @@ function TaxYearRows({ taxYears: data }: { taxYears: TaxYearConfigResponse[] }) 
   );
 }
 
-function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
+function TaxYearRow({ taxYear, canEdit }: { taxYear: TaxYearConfigResponse; canEdit: boolean }) {
   const t = useTranslations("settings");
   const apiText = useApiErrorText();
   const tYears = useTranslations("settings.taxYears");
@@ -222,6 +232,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           valueKop={form.minWageKop}
           onChange={(value) => setForm((current) => ({ ...current, minWageKop: value }))}
           errors={fieldErrors?.minWageKop}
+          disabled={!canEdit}
         />
       </td>
       <td className="md:table-cell md:p-2">
@@ -233,6 +244,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           valueBp={form.singleTaxRateBp}
           onChange={(value) => setForm((current) => ({ ...current, singleTaxRateBp: value }))}
           errors={fieldErrors?.singleTaxRateBp}
+          disabled={!canEdit}
         />
       </td>
       <td className="md:table-cell md:p-2">
@@ -244,6 +256,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           valueBp={form.militaryLevyRateBp}
           onChange={(value) => setForm((current) => ({ ...current, militaryLevyRateBp: value }))}
           errors={fieldErrors?.militaryLevyRateBp}
+          disabled={!canEdit}
         />
       </td>
       <td className="md:table-cell md:p-2">
@@ -255,6 +268,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           valueBp={form.esvRateBp}
           onChange={(value) => setForm((current) => ({ ...current, esvRateBp: value }))}
           errors={fieldErrors?.esvRateBp}
+          disabled={!canEdit}
         />
       </td>
       <td className="md:table-cell md:p-2">
@@ -266,6 +280,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           valueBp={form.excessRateBp}
           onChange={(value) => setForm((current) => ({ ...current, excessRateBp: value }))}
           errors={fieldErrors?.excessRateBp}
+          disabled={!canEdit}
         />
       </td>
       <td className="md:table-cell md:p-2">
@@ -285,6 +300,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           value={form.incomeLimitMinWages}
           onChange={(value) => setForm((current) => ({ ...current, incomeLimitMinWages: value }))}
           errors={fieldErrors?.incomeLimitMinWages}
+          disabled={!canEdit}
         />
       </td>
       <td className="md:table-cell md:p-2">
@@ -306,6 +322,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           value={form.limitWarnThresholdsPctText}
           onChange={(value) => setForm((current) => ({ ...current, limitWarnThresholdsPctText: value }))}
           errors={fieldErrors?.limitWarnThresholdsPct}
+          disabled={!canEdit}
         />
       </td>
       <td className="md:table-cell md:p-2">
@@ -320,6 +337,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           value={form.esvDeadlineDay}
           onChange={(value) => setForm((current) => ({ ...current, esvDeadlineDay: value }))}
           errors={fieldErrors?.esvDeadlineDay}
+          disabled={!canEdit}
         />
       </td>
       <td className="md:table-cell md:p-2">
@@ -330,6 +348,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           value={form.declarationDays}
           onChange={(value) => setForm((current) => ({ ...current, declarationDays: value }))}
           errors={fieldErrors?.declarationDays}
+          disabled={!canEdit}
         />
       </td>
       <td className="md:table-cell md:p-2">
@@ -342,6 +361,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
             setForm((current) => ({ ...current, taxPaymentDaysAfterDeclaration: value }))
           }
           errors={fieldErrors?.taxPaymentDaysAfterDeclaration}
+          disabled={!canEdit}
         />
       </td>
       <td className="md:table-cell md:p-2">
@@ -352,6 +372,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           value={form.advanceRecommendedDay}
           onChange={(value) => setForm((current) => ({ ...current, advanceRecommendedDay: value }))}
           errors={fieldErrors?.advanceRecommendedDay}
+          disabled={!canEdit}
         />
       </td>
       <td className="md:table-cell md:p-2">
@@ -362,6 +383,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           value={form.group3ApplicationDays}
           onChange={(value) => setForm((current) => ({ ...current, group3ApplicationDays: value }))}
           errors={fieldErrors?.group3ApplicationDays}
+          disabled={!canEdit}
         />
       </td>
       <td className="col-span-2 md:table-cell md:p-2">
@@ -374,6 +396,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           value={form.holidaysText}
           onChange={(value) => setForm((current) => ({ ...current, holidaysText: value }))}
           errors={fieldErrors?.holidays}
+          disabled={!canEdit}
         />
       </td>
       <td className="col-span-2 md:table-cell md:p-2">
@@ -384,6 +407,7 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           value={form.source}
           onChange={(value) => setForm((current) => ({ ...current, source: value }))}
           errors={fieldErrors?.source}
+          disabled={!canEdit}
         />
       </td>
       <td className="col-span-2 text-xs text-muted-foreground md:table-cell md:p-2">
@@ -394,32 +418,36 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
       </td>
       <td className="col-span-2 md:table-cell md:p-2">
         <div className="grid grid-cols-2 gap-2 md:flex md:flex-col">
-          <Button
-            type="button"
-            size="sm"
-            disabled={saveTaxYear.isPending}
-            onClick={() => saveTaxYear.mutate({ year, body: toRequest(form) })}
-          >
-            {saveTaxYear.isPending ? t("saving") : t("save")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={verifyTaxYear.isPending || taxYear.verifiedAt !== null}
-            onClick={() => verifyTaxYear.mutate(year)}
-          >
-            {verifyTaxYear.isPending ? tYears("verifying") : tYears("verify")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={cloneTaxYear.isPending}
-            onClick={() => cloneTaxYear.mutate({ year, next })}
-          >
-            {cloneTaxYear.isPending ? tYears("cloning") : tYears("cloneToNext", { next })}
-          </Button>
+          {canEdit ? (
+            <>
+            <Button
+              type="button"
+              size="sm"
+              disabled={saveTaxYear.isPending}
+              onClick={() => saveTaxYear.mutate({ year, body: toRequest(form) })}
+            >
+              {saveTaxYear.isPending ? t("saving") : t("save")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={verifyTaxYear.isPending || taxYear.verifiedAt !== null}
+              onClick={() => verifyTaxYear.mutate(year)}
+            >
+              {verifyTaxYear.isPending ? tYears("verifying") : tYears("verify")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={cloneTaxYear.isPending}
+              onClick={() => cloneTaxYear.mutate({ year, next })}
+            >
+              {cloneTaxYear.isPending ? tYears("cloning") : tYears("cloneToNext", { next })}
+            </Button>
+            </>
+          ) : null}
           <Button asChild variant="outline" size="sm">
             <Link href={`/history?entity=TaxYearConfig&id=${year}`}>{tYears("history")}</Link>
           </Button>
