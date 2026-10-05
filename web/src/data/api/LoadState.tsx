@@ -15,9 +15,10 @@ export type QueryStatus = {
 };
 
 // The one loading and failure state of every data screen: the query adapter over LoadStateView. A screen
-// renders it in place of its content while the query loads or has failed, and never when it holds data:
+// renders it in place of its content while the query has no data, and never when it holds data, so a failed
+// background refetch leaves the content, and what the owner typed in it, on screen:
 //
-//   if (query.isLoading || query.isError || !query.data) return <LoadState query={query} failed={t("loadFailed")} />;
+//   if (!query.data) return <LoadState query={query} failed={t("loadFailed")} />;
 //
 // A failure is worded with the api's coded reason when this build has words for it (ADR-028), and its retry
 // refetches the failed queries. TanStack resets a failed query that has no data to pending while it

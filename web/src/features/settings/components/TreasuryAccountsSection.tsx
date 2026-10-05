@@ -28,7 +28,7 @@ export function TreasuryAccountsSection() {
   const query = useTreasuryAccounts();
   const { data } = query;
 
-  if (query.isError || !data) {
+  if (!data) {
     return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
