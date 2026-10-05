@@ -481,6 +481,20 @@ domain. Do them now and tick them on their issues:
   payments against it, then import the same file again and confirm the record count does not
   change.
 
+## 10. Host firewall
+
+Only Cloudflare reaches ports 80 and 443 on the VPS, and nothing else a container publishes reaches
+the internet. Docker-published ports bypass UFW, so the rule lives in Docker's `DOCKER-USER` chain (and
+in `mangle` `INPUT` for anything that lands on the host). `deploy/firewall/cloudflare-only.sh` installs
+it, and a systemd unit and timer reapply it whenever Docker starts and refresh Cloudflare's ranges
+weekly. `deploy/firewall/README.md` has the install, outside checks and rollback (#260).
+
+Anything opened as `<vps-ip>:<port>` or through a DNS-only record stops answering from outside once it
+is installed. Containers that must not be public publish on `127.0.0.1` or not at all.
+
+**Check.** `sudo cloudflare-only.sh --check` on the VPS prints only `ok` lines. From outside,
+`https://taxes.blonskyi.dev/` loads, and a request straight to `<vps-ip>` on 443 times out.
+
 ## Rollback
 
 **A bad release without a migration.** Revert the offending commit on `main` and deploy. That is

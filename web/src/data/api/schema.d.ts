@@ -5649,7 +5649,6 @@ export interface components {
             fullName: string;
             phone: string;
             reportEmail: string;
-            confirmedEmail: null | string;
             missingDetails: ("Name" | "Rnokpp" | "TaxOffice" | "Kved" | "Address")[];
             unknownKvedCodes: string[];
         };

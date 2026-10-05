@@ -60,7 +60,10 @@ export function useInvoice(id: string) {
 function useInvalidateInvoices() {
   const queryClient = useQueryClient();
 
-  return () => queryClient.invalidateQueries({ queryKey: invoicesQueryKey });
+  return () => {
+    queryClient.invalidateQueries({ queryKey: invoicesQueryKey });
+    queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
+  };
 }
 
 export function useCreateInvoice() {

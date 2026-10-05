@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useDataReplacements } from "@/data/backup/backup";
 import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
@@ -35,12 +36,13 @@ export function InvoicingForm() {
   const t = useTranslations("settings");
   const query = useInvoicingDetails();
   const { data } = query;
+  const replacements = useDataReplacements();
 
   if (!data) {
     return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
-  return <InvoicingFormBody details={data} />;
+  return <InvoicingFormBody key={replacements} details={data} />;
 }
 
 function InvoicingFormBody({ details }: { details: InvoicingDetailsResponse }) {

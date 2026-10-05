@@ -2,7 +2,6 @@ using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
-using TaxesUa.Api.Features.Settings;
 
 namespace TaxesUa.Api.Features.Notifications;
 

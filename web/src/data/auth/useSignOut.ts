@@ -3,7 +3,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { api } from "@/data/api/client";
-import { meQueryKey } from "./useMe";
 
 export function useSignOut() {
   const router = useRouter();
@@ -12,7 +11,7 @@ export function useSignOut() {
   return useMutation({
     mutationFn: () => api.POST("/api/auth/logout"),
     onSuccess: () => {
-      queryClient.removeQueries({ queryKey: meQueryKey });
+      queryClient.clear();
       router.replace("/login");
     },
   });

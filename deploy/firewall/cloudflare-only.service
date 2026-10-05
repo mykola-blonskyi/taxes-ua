@@ -1,0 +1,16 @@
+[Unit]
+Description=Let only Cloudflare reach ports 80 and 443 (deploy/firewall/README.md)
+After=docker.service ufw.service network-online.target
+Wants=network-online.target
+# A failed download changes nothing, so keep retrying rather than give up after five tries.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cloudflare-only.sh
+Restart=on-failure
+RestartSec=60
+
+[Install]
+# Pulled in whenever Docker starts, so a daemon restart or upgrade gets the rules back at once.
+WantedBy=docker.service
