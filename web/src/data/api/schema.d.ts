@@ -5608,6 +5608,7 @@ export interface components {
             group3: components["schemas"]["Group3StatusResponse"];
             sync: null | components["schemas"]["SyncHealthResponse"];
             newTaxYear: null | components["schemas"]["NewTaxYearStatus"];
+            expiredTreasuryAccounts: components["schemas"]["ExpiredTreasuryAccount"][];
         };
         Deadline: {
             /** Format: date */
@@ -5820,6 +5821,11 @@ export interface components {
         };
         /** @enum {string} */
         EsvRegistrationMonthPolicy: "FullMonth" | "Prorated";
+        ExpiredTreasuryAccount: {
+            kind: components["schemas"]["PaymentKind"];
+            /** Format: date */
+            validUntil: string;
+        };
         FieldProblemDetails: {
             type?: null | string;
             title?: null | string;
@@ -6732,6 +6738,8 @@ export interface components {
             group3ApplicationDays: number | string;
             holidays: string[];
             source: string;
+            /** Format: date */
+            militaryLevyAccountEnd?: null | string;
         };
         TaxYearConfigResponse: {
             /** Format: int32 */
@@ -6764,6 +6772,8 @@ export interface components {
             /** Format: int32 */
             group3ApplicationDays: number | string;
             holidays: string[];
+            /** Format: date */
+            militaryLevyAccountEnd: null | string;
             source: string;
             /** Format: date-time */
             verifiedAt: null | string;
@@ -6882,6 +6892,7 @@ export interface components {
             manualUpdatedAt: null | string;
             /** Format: date */
             manualValidUntil: null | string;
+            manualEndRemoved: boolean;
             learnedIban: null | string;
             learnedRecipientName: null | string;
             learnedRecipientCode: null | string;
@@ -6892,6 +6903,7 @@ export interface components {
             learnedAt: null | string;
             /** Format: date */
             learnedValidUntil: null | string;
+            learnedEndRemoved: boolean;
             /** Format: date-time */
             noticeAt: null | string;
         };
@@ -6922,6 +6934,7 @@ export interface components {
             updatedAt: null | string;
             /** Format: date */
             validUntil: null | string;
+            validUntilSource: null | components["schemas"]["TreasuryEndSource"];
             learned: null | components["schemas"]["TreasuryAccountLearned"];
             hasLearned: boolean;
             missing: string[];
@@ -6933,6 +6946,8 @@ export interface components {
             /** Format: date */
             validUntil: null | string;
         };
+        /** @enum {null|string} */
+        TreasuryEndSource: "Owner" | "Default" | null;
         UnpaidResponse: {
             /** Format: int64 */
             singleTaxKop: number | string;

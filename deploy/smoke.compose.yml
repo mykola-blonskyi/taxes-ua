@@ -9,6 +9,8 @@ services:
       Auth__AllowedEmails: owner@example.com
       AllowedHosts: taxes.test
       Auth__Passkey__ServerDomain: taxes.test
+      # The run's own recovery key from smoke-test.sh; Production refuses to migrate without one.
+      Migrations__DumpAgeRecipient: ${SMOKE_BACKUP_AGE_RECIPIENT:-}
       # What Coolify injects at deploy time.
       SOURCE_COMMIT: ${SOURCE_COMMIT}
     depends_on:

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxesUa.Api.Data;
@@ -11,9 +12,11 @@ using TaxesUa.Api.Data;
 namespace TaxesUa.Api.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005141024_DefaultLevyAccountEnd")]
+    partial class DefaultLevyAccountEnd
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -371,14 +374,14 @@ namespace TaxesUa.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("SecretHash")
+                    b.Property<string>("Secret")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
                     b.HasKey("UserId");
 
-                    b.HasIndex("SecretHash")
+                    b.HasIndex("Secret")
                         .IsUnique();
 
                     b.ToTable("CalendarFeeds");
@@ -649,10 +652,6 @@ namespace TaxesUa.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("RejectedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("WebhookBaseUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.Property<DateTimeOffset?>("WebhookFailedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -660,13 +659,18 @@ namespace TaxesUa.Api.Data.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
-                    b.Property<string>("WebhookSecretHash")
+                    b.Property<string>("WebhookSecret")
+                        .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<string>("WebhookUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.HasKey("UserId");
 
-                    b.HasIndex("WebhookSecretHash")
+                    b.HasIndex("WebhookSecret")
                         .IsUnique();
 
                     b.ToTable("MonobankConnections");

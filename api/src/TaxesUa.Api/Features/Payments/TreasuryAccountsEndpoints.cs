@@ -40,8 +40,9 @@ public static class TreasuryAccountsEndpoints
                 var rows = await database.TreasuryAccounts.AsNoTracking()
                     .Where(row => row.UserId == user.Id)
                     .ToListAsync(cancellationToken);
+                var ends = await LevyAccountEnds.LoadAsync(database, cancellationToken);
 
-                return Results.Ok(Kinds.Select(kind => ToResponse(kind, rows.FirstOrDefault(row => row.Kind == kind))).ToArray());
+                return Results.Ok(Kinds.Select(kind => ToResponse(kind, rows.FirstOrDefault(row => row.Kind == kind), ends)).ToArray());
             })
             .Produces<TreasuryAccountResponse[]>()
             .Produces(StatusCodes.Status401Unauthorized);
@@ -75,21 +76,22 @@ public static class TreasuryAccountsEndpoints
                 await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
                 await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var row = await FindOrAddAsync(database, user.Id, kind, cancellationToken);
-                var (previousManualIban, previousManualEnd) = (row.ManualIban, row.ManualValidUntil);
+                var (previousManualIban, previousManualEnd) = (row.ManualIban, row.ManualEnd);
                 row.ManualIban = normalized.Iban;
                 row.ManualRecipientName = normalized.RecipientName;
                 row.ManualRecipientCode = normalized.RecipientCode;
                 row.ManualUpdatedAt = time.GetUtcNow();
-                // A new IBAN is a new account and starts with no end. Without an explicit end, the same IBAN
-                // keeps the end it had, as Manual or as the Learned account it is being entered over.
-                row.ManualValidUntil = normalized.ValidUntil
-                    ?? (normalized.Iban == previousManualIban ? previousManualEnd
-                        : normalized.Iban == row.LearnedIban ? row.LearnedValidUntil : null);
+                // A new IBAN is a new account, with nothing said about its end yet. Without an explicit end, the
+                // same IBAN keeps the end it had, as Manual or as the Learned account it is being entered over.
+                row.ManualEnd = normalized.ValidUntil is { } validUntil ? new AccountEnd.On(validUntil)
+                    : normalized.Iban == previousManualIban ? previousManualEnd
+                    : normalized.Iban == row.LearnedIban ? row.LearnedEnd
+                    : AccountEnd.Unsaid;
                 row.NoticeAt = null;
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                return Results.Ok(ToResponse(kind, row));
+                return Results.Ok(ToResponse(kind, row, await LevyAccountEnds.LoadAsync(database, cancellationToken)));
             })
             .Produces<TreasuryAccountResponse>()
             .ProducesFieldProblem()
@@ -129,12 +131,12 @@ public static class TreasuryAccountsEndpoints
                 row.ManualRecipientName = null;
                 row.ManualRecipientCode = null;
                 row.ManualUpdatedAt = null;
-                row.ManualValidUntil = null;
+                row.ManualEnd = AccountEnd.Unsaid;
                 row.NoticeAt = null;
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                return Results.Ok(ToResponse(kind, row));
+                return Results.Ok(ToResponse(kind, row, await LevyAccountEnds.LoadAsync(database, cancellationToken)));
             })
             .Produces<TreasuryAccountResponse>()
             .Produces(StatusCodes.Status401Unauthorized)
@@ -177,19 +179,21 @@ public static class TreasuryAccountsEndpoints
                         "There is no account for this kind yet, so there is nothing to end.");
                 }
 
+                // No date is the owner's word that the account does not end, so it also sets a default aside.
+                var end = request.ValidUntil is { } validUntil ? new AccountEnd.On(validUntil) : AccountEnd.Removed;
                 if (row.IsManual)
                 {
-                    row.ManualValidUntil = request.ValidUntil;
+                    row.ManualEnd = end;
                 }
                 else
                 {
-                    row.LearnedValidUntil = request.ValidUntil;
+                    row.LearnedEnd = end;
                 }
 
                 await database.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                return Results.Ok(ToResponse(kind, row));
+                return Results.Ok(ToResponse(kind, row, await LevyAccountEnds.LoadAsync(database, cancellationToken)));
             })
             .Produces<TreasuryAccountResponse>()
             .ProducesFieldProblem()
@@ -285,14 +289,14 @@ public static class TreasuryAccountsEndpoints
             .Where(candidate => candidate.Status == CandidateStatus.Confirmed && candidate.ConfirmedKind == kind)
             .OrderBy(candidate => candidate.PaidOn)
             .ThenBy(candidate => candidate.ResolvedAt);
-        var endedOn = row.LearnedValidUntil;
+        var endedOn = row.LearnedEnd;
         row.LearnedIban = null;
         row.LearnedRecipientName = null;
         row.LearnedRecipientCode = null;
         row.LearnedExternalId = null;
         row.LearnedPaidOn = null;
         row.LearnedAt = null;
-        row.LearnedValidUntil = null;
+        row.LearnedEnd = AccountEnd.Unsaid;
         var standing = confirmations.ToList();
         foreach (var candidate in standing)
         {
@@ -313,7 +317,7 @@ public static class TreasuryAccountsEndpoints
         // The end the owner gave belongs to the IBAN, so it survives only while that IBAN is the one learned.
         if (row.LearnedIban == source.CounterIban)
         {
-            row.LearnedValidUntil = endedOn;
+            row.LearnedEnd = endedOn;
         }
 
         if (row.LearnedIban is null || row.ManualIban is null || row.ManualIban == row.LearnedIban)
@@ -354,7 +358,7 @@ public static class TreasuryAccountsEndpoints
 
         if (!sameIban)
         {
-            row.LearnedValidUntil = null;
+            row.LearnedEnd = AccountEnd.Unsaid;
         }
 
         row.LearnedIban = candidate.CounterIban;
@@ -440,18 +444,15 @@ public static class TreasuryAccountsEndpoints
         : row.LearnedIban is not null ? (TreasuryAccountSource.Learned, row.LearnedIban, row.LearnedRecipientName, row.LearnedRecipientCode)
         : (TreasuryAccountSource.None, null, null, null);
 
-    /// <summary>The last day the account in use can receive a payment, or null when it has no end.</summary>
-    internal static DateOnly? ValidUntilOf(TreasuryAccount row) =>
-        row.IsManual ? row.ManualValidUntil : row.LearnedIban is not null ? row.LearnedValidUntil : null;
-
-    private static TreasuryAccountResponse ToResponse(PaymentKind kind, TreasuryAccount? row)
+    private static TreasuryAccountResponse ToResponse(PaymentKind kind, TreasuryAccount? row, LevyAccountEnds ends)
     {
         if (row is null)
         {
-            return new TreasuryAccountResponse(kind, TreasuryAccountSource.None, null, null, null, null, null, null, false, [], null);
+            return new TreasuryAccountResponse(kind, TreasuryAccountSource.None, null, null, null, null, null, null, null, false, [], null);
         }
 
         var (source, iban, name, code) = InUse(row);
+        var validity = ends.ValidityOf(row);
         string[] missing = source == TreasuryAccountSource.None
             ? []
             : [.. new[] { name is null ? "recipientName" : null, code is null ? "recipientCode" : null }.OfType<string>()];
@@ -472,7 +473,8 @@ public static class TreasuryAccountsEndpoints
             name,
             code,
             source == TreasuryAccountSource.Manual ? row.ManualUpdatedAt : row.LearnedAt,
-            ValidUntilOf(row),
+            validity?.ValidUntil,
+            validity?.Source,
             source == TreasuryAccountSource.Learned ? learned : null,
             learned is not null,
             missing,
@@ -496,7 +498,8 @@ internal sealed record TreasuryAccountValidUntilRequest(DateOnly? ValidUntil);
 /// <c>HasLearned</c> tells whether a Manual account can be reverted to a learned one. <c>Notice</c> is the
 /// learned account a confirmation went to, while it differs from the Manual one and is not dismissed.
 /// <c>Missing</c> names the recipient details the account lacks. <c>ValidUntil</c> is the last day the
-/// account in use can receive a payment (Rule 16), null when it has no end.
+/// account in use can receive a payment (Rule 16), null when it has no end; <c>ValidUntilSource</c> says whether
+/// the owner set it or it is the default of the account's tax year.
 /// </summary>
 internal sealed record TreasuryAccountResponse(
     PaymentKind Kind,
@@ -506,6 +509,7 @@ internal sealed record TreasuryAccountResponse(
     string? RecipientCode,
     DateTimeOffset? UpdatedAt,
     DateOnly? ValidUntil,
+    TreasuryEndSource? ValidUntilSource,
     TreasuryAccountLearned? Learned,
     bool HasLearned,
     string[] Missing,

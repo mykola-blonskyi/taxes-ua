@@ -23,6 +23,8 @@ check '.services.api.environment.Monobank__PublicBaseUrl' "${MONOBANK_PUBLIC_BAS
 check '[.services.api.volumes[] | select(.source == "migration-dumps") | .target] | .[0]' \
   "$(jq -r '.services.api.environment.Migrations__DumpDirectory' <<<"$config")" \
   "the dump volume is mounted where Migrations__DumpDirectory points"
+check '.services.api.environment.Migrations__DumpAgeRecipient' "$(jq -r '.services.backup.environment.BACKUP_AGE_RECIPIENT' <<<"$config")" \
+  "api encrypts its pre-migration dumps to the same BACKUP_AGE_RECIPIENT the backup uses"
 check '.services.api.environment | has("SOURCE_COMMIT") or has("App__Release")' false \
   "compose leaves SOURCE_COMMIT to Coolify, which turns a mention into an empty user variable"
 check '.services.api.healthcheck.start_period' 5m0s "api may take five minutes to dump and migrate before it counts as unhealthy"
