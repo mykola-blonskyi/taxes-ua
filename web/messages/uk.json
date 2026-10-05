@@ -1113,6 +1113,8 @@
       "learnedRecipientCode": "Запам’ятований код отримувача",
       "learnedExternalId": "Операція, з якої запам’ятовано",
       "learnedPaidOn": "Дата платежу, з якого запам’ятовано",
+      "manualUpdatedAt": "Дата зміни (рахунок вручну)",
+      "learnedAt": "Дата, коли рахунок запам’ятовано",
       "manualValidUntil": "Діє до (рахунок вручну)",
       "manualEndRemoved": "Строк дії знято (рахунок вручну)",
       "learnedValidUntil": "Діє до (запам’ятований рахунок)",

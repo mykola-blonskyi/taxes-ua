@@ -1113,6 +1113,8 @@
       "learnedRecipientCode": "Запомненный код получателя",
       "learnedExternalId": "Операция, из которой запомнено",
       "learnedPaidOn": "Дата платежа, из которого запомнено",
+      "manualUpdatedAt": "Дата изменения (счёт вручную)",
+      "learnedAt": "Дата, когда счёт запомнен",
       "manualValidUntil": "Действует до (счёт вручную)",
       "manualEndRemoved": "Срок действия снят (счёт вручную)",
       "learnedValidUntil": "Действует до (запомненный счёт)",

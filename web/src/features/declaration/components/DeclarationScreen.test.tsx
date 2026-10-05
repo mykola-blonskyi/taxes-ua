@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { DeclarationResponse } from "@/data/declarations/useDeclarations";
 import { renderApp, reply, screen, stubFetch, waitFor } from "@/test/harness";
 import { DeclarationScreen } from "./DeclarationScreen";
 
@@ -50,4 +51,49 @@ describe.each(locales)("DeclarationScreen load failure in $locale", ({ locale, f
     expect(button).toHaveFocus();
     expect(calls).toBeGreaterThanOrEqual(3);
   }, 20_000);
+});
+
+const cached = (quarter: number) =>
+  ({
+    year: 2026,
+    quarter,
+    filing: { statutory: "2026-10-09", due: "2026-10-09" },
+    payment: { statutory: "2026-10-19", due: "2026-10-19" },
+    figures: { esvKop: null },
+    limitCrossing: null,
+    singleTaxRateBp: 500,
+    excessRateBp: 1300,
+    militaryLevyRateBp: 100,
+    readiness: { ready: true, group3Confirmed: true, missingDetails: [], unknownKvedCodes: [], unpaid: { singleTaxKop: 0, militaryLevyKop: 0, esvKop: 0 } },
+    filed: null,
+    files: [],
+    fileAvailable: true,
+    fileAvailableFrom: "2026-07-01",
+    cabinet: [],
+  }) as unknown as DeclarationResponse;
+
+describe("DeclarationScreen moving between cached quarters", () => {
+  it("does not carry a failed download or a chosen type over to the other quarter", async () => {
+    stubFetch({
+      [route]: (request) => cached(Number(request.path.split("/").at(-1))),
+      "POST /api/declarations/{year}/{quarter}/files": reply(409, { title: "Not ready" }),
+    });
+    const { user, rerender } = renderApp(<DeclarationScreen year="2025" quarter="1" />);
+    await screen.findByRole("button", { name: "Завантажити XML" });
+    rerender(<DeclarationScreen year="2025" quarter="2" />);
+    await waitFor(() => expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(/півріччя/));
+    await screen.findByRole("button", { name: "Завантажити XML" });
+    // The filing form and the XML section each ask for the type; the XML one is the last.
+    await user.selectOptions(screen.getAllByRole("combobox", { name: "Тип декларації" }).at(-1)!, "Уточнююча");
+    await user.click(screen.getByRole("button", { name: "Завантажити XML" }));
+    expect(await screen.findByRole("alert")).toBeVisible();
+
+    // Both quarters are cached now, so the data is there at once and nothing remounts unless it is keyed.
+    rerender(<DeclarationScreen year="2025" quarter="1" />);
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    for (const select of screen.getAllByRole("combobox", { name: "Тип декларації" })) {
+      expect(select).toHaveValue("Reporting");
+    }
+  });
 });

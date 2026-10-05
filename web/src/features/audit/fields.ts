@@ -130,6 +130,13 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
   DeclarationFiling: ["year", "quarter", "filedOn", "type", "filedIncomeKop"],
 };
 
+// Every audited entity, taken from the same record that orders its fields, so none can be left out.
+export const auditedEntities = Object.keys(FIELD_ORDER) as AuditedEntity[];
+
+export function auditFieldKeys(entity: AuditedEntity): readonly string[] {
+  return FIELD_ORDER[entity];
+}
+
 export function orderFields(entity: AuditedEntity, keys: string[]): string[] {
   const order = FIELD_ORDER[entity];
   const known = order.filter((key) => keys.includes(key));
