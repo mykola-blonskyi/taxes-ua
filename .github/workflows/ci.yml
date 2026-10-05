@@ -50,6 +50,9 @@ jobs:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('api/**/*.csproj', 'api/Directory.Packages.props') }}
           restore-keys: nuget-${{ runner.os }}-
+      # MigrationDumpTests encrypt and decrypt with the real age, as the api image does.
+      - name: Install age
+        run: sudo apt-get update -q && sudo apt-get install -y -q age
       - run: dotnet test api/TaxesUa.slnx --filter "${{ matrix.filter }}" --logger "trx;LogFilePrefix=${{ matrix.shard }}" --results-directory api/TestResults
       - name: Keep the test results of a failed run
         if: failure() || cancelled()
