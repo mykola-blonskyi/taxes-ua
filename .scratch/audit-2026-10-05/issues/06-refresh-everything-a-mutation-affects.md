@@ -1,5 +1,5 @@
 GitHub: #243
-Status: ready-for-agent
+Status: closed
 Blocked by: #241
 
 # Refresh everything a mutation affects

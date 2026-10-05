@@ -1,5 +1,5 @@
 GitHub: #257
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Scope tax-year writes to an admin

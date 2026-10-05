@@ -1,5 +1,5 @@
 GitHub: #249
-Status: ready-for-agent
+Status: closed
 Blocked by: #240
 
 # Tidy backend Lows from the 2026-10-05 audit

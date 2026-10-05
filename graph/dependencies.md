@@ -1,6 +1,6 @@
 # Dependency Analysis
 
-Measured from the compiled code on 2026-10-04 (#185). The feature table below is the allow-list in
+Measured from the compiled code on 2026-10-04 (#185); the table re-checked against the test on 2026-10-05 (#251). The feature table below is the allow-list in
 `api/tests/TaxesUa.Api.Tests/Architecture/FeatureBoundaryTests.cs`; that test fails when the two differ,
 and prints the table to paste here.
 

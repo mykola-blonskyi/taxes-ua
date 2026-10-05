@@ -1,5 +1,5 @@
 GitHub: #247
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Run the tests on Postgres 18

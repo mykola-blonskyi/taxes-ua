@@ -207,9 +207,11 @@ out of its scope. `TaxesUa.Engine` (ADR-002) sits outside this tree entirely, as
 project; any feature that needs a computation references it, never duplicates it.
 
 **Change log.** `Features/Audit/AuditSaveChangesInterceptor` is the only writer of `AuditLog`. On
-every `SaveChangesAsync` it snapshots each added, modified or deleted `Transaction`,
-`BudgetPayment`, `Settings` and `TaxYearConfig` into one entry, in the same database transaction as
-the change. The audited types are an opt-in list, so Identity's rows (password hashes, security
+every `SaveChangesAsync` it snapshots each added, modified or deleted row of twelve entity types into one
+entry, in the same database transaction as the change: `Transaction`, `Client`, `Invoice`, `BudgetPayment`,
+`TreasuryAccount`, `Settings`, `InvoicingDetails` (with its payment-details rows), `TaxYearConfig`,
+`DeclarationDetails`, `DeclarationFiling` and `NotificationChannel`. The list is `Audited` in the interceptor;
+a new owner entity joins it there. The audited types are an opt-in list, so Identity's rows (password hashes, security
 stamps, passkeys) never reach the log. Because it reads the change tracker, an audited table must be
 written through tracked entities: `ExecuteUpdate`, `ExecuteDelete` or raw SQL against one of these
 tables bypasses the log. A database trigger makes `AuditLog` append-only.
@@ -258,7 +260,8 @@ src/
   data/         DAL: fetch client, types generated from OpenAPI, TanStack Query query options
                 and mutations per API resource. Imports only shared.
   features/     one directory per user-facing capability (transactions, payments,
-    <name>/     dashboard, periods, settings, auth, backup)
+    <name>/     appearance, audit, auth, backup, dashboard, declaration, invoices, payments, periods,
+                settings, transactions)
       components/
       hooks/    hooks on top of data: assemble queries and mutations for the feature's scenario
       tests/
@@ -303,6 +306,7 @@ a check in each language: `FeatureBoundaryTests` in C#, `no-restricted-imports` 
   encrypted dump of `taxes_ua` alone to MinIO and an optional bucket off the VPS, with a weekly restore
   check that alerts the owner when it fails ([ADR-031](decisions.md)).
 - Cron: hosted services inside `api`. No external scheduler is needed.
+- Network: only Cloudflare's ranges reach the VPS's web ports (#260); the rule and how to check it are in the runbook.
 - Secrets: Coolify environment variables. `.env.example` in the repository holds no values, and
   the api refuses to start outside Development while a required one is empty.
 - Sessions: the data-protection key ring is persisted in the `dataprotection-keys` volume, so a
@@ -321,8 +325,9 @@ by an already-signed-in owner, and the allowlist is re-checked against the asser
 every passkey sign-in, because a stored credential outlives the email's removal from the list.
 `Features/Auth/PasskeyEndpoints.cs` says why that re-check is the last place it can happen. The
 session cookie, the external sign-in cookie and the passkey ceremony cookie are all
-`HttpOnly; Secure; SameSite=Lax`. A session cannot be revoked server-side, which
-[ADR-009](decisions.md) explains.
+`HttpOnly; Secure; SameSite=Lax`. The session cookie is named `__Host-taxesua.auth`, so a browser refuses it
+unless it is `Secure` with `Path=/` and no `Domain`; it lasts 7 days, sliding. A session cannot be revoked
+server-side, which [ADR-009](decisions.md) explains.
 
 Authorization: every read and write is filtered by the `UserId` from the session. The tax-year
 parameters are the one shared table: any signed-in user reads them, and a write (PUT, verify, clone)
@@ -331,7 +336,11 @@ needs an admin, an address in `Auth__AdminEmails` or, when that is unset, the fi
 web can hide the controls ([ADR-005](decisions.md)).
 
 Secrets management: the bank-token encryption key lives only in the environment. Tokens are
-decrypted at the moment of the bank API call and never appear in logs, responses or the client.
+decrypted at the moment of the bank API call and never appear in logs, responses or the client. A token is
+encrypted with the owner's id as associated data, so a ciphertext copied onto another owner's row does not
+decrypt. The secrets that sit in a URL path, the calendar feed's and the monobank webhook's, are stored only
+as their SHA-256 (`PathSecret`); the full URL is shown once, when it is created or rotated, so a database dump
+yields no working URL (#256).
 
 Other: HTTPS via Traefik. `ALLOWED_HOSTS` pins the host the Google redirect URI is built from, and
 the api refuses to start in Production without it. Host filtering sees the host the container was
@@ -363,7 +372,7 @@ and emails are not.
 
 Metrics: not needed for a single user. `/api/health` with a database check and the running `release`
 (the commit), for Coolify monitoring and for the deploy job, which waits for it to show the new commit
-(ADR-027). Before pending migrations run, `api` dumps the database to the `migration-dumps` volume and
-refuses to migrate if the dump fails.
+(ADR-027). Before pending migrations run, `api` dumps the database to the `migration-dumps` volume, encrypted to
+`BACKUP_AGE_RECIPIENT`, and refuses to migrate if the dump fails or the recipient is empty.
 
 Tracing: none.

@@ -11,7 +11,8 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 
 ## Planned
 
-- [ ] The 2026-10-05 audit (#237): #238–#251 and #253–#257, #260, #261, owner decisions in #252. #238 first (dashboard 500).
+- [ ] The 2026-10-05 audit (#237), what is left: #254 (restore only the current backup schema). #251 (this docs
+      pass) closes with its PR.
 
 ---
 
@@ -35,6 +36,10 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 - [x] Stage 3. Bilingual PDF invoices (#89), declaration readiness and the F0103309 XML (#109).
 - [x] The 2026-10-02 audit (#170): #171–#190. #185 added the API's feature boundary test and
       corrected these docs; #186 split the API files over 600 lines.
+
+- [x] The 2026-10-05 audit (#237), done 2026-10-05: #238–#250, #252, #253, #255–#257, #260, #261, including #245
+      (display settings), #246 (boundary gap), #253 (prototype importer deleted), #255 (`__Host-` cookie),
+      #256 (hashed path secrets) and #257 (admin-only tax years).
 
 ## Open questions for the owner
 

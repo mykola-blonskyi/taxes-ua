@@ -1,5 +1,5 @@
 GitHub: #245
-Status: needs-info
+Status: closed
 Blocked by: none
 
 # Apply or remove the unused display settings

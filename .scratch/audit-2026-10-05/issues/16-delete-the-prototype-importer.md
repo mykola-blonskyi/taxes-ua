@@ -1,5 +1,5 @@
 GitHub: #253
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Delete the prototype importer

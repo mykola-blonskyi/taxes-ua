@@ -1,5 +1,5 @@
 GitHub: #240
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Re-read a bank window whose NBU rate failed

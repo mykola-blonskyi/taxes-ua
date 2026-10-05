@@ -1,5 +1,5 @@
 GitHub: #255
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Use a __Host- session cookie with a shorter lifetime
