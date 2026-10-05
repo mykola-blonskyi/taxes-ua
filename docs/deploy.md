@@ -28,7 +28,8 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
   Its log names the missing variables, and the container exits instead of staying up unhealthy.
 - Every service restarts `unless-stopped`, is memory-limited (`api` 512 MB, `web` 384 MB, `backup`
   256 MB) and rotates its logs (10 MB, 5 files). `api` dumps the database to the `migration-dumps` volume before it runs a
-  pending migration, and does not migrate if that fails (ADR-027, "Rollback").
+  pending migration, encrypted to `BACKUP_AGE_RECIPIENT`, and does not migrate if that fails or the variable is
+  empty (ADR-027, "Rollback").
 - `MONOBANK_TOKEN_ENCRYPTION_KEY` is the one secret that is *not* required to start (ADR-011): left
   empty, the api still comes up and the monobank settings section answers "not configured" instead
   of 500s. Set it whenever the owner is ready to connect monobank.
@@ -403,6 +404,8 @@ item is done by the owner. Nothing here is in the repository.
    `us-west-004`, and R2 wants `auto`. Empty means `us-east-1`. Leave all five empty to run without an
    off-VPS copy, as now. Setting only some of them is a failed backup that names the missing ones.
 4. **Keys into Coolify.** Set `BACKUP_AGE_RECIPIENT` and `BACKUP_CHECK_AGE_IDENTITY`, then Redeploy.
+   `api` encrypts its pre-migration dumps to the same `BACKUP_AGE_RECIPIENT`. While it is empty, a release
+   that carries a migration does not migrate and the deploy fails (see "Rollback").
 
 **Check.** Run one backup and one check by hand, then read what they recorded:
 
@@ -427,10 +430,13 @@ It lists the tables. Delete the key file afterwards. Repeat this after changing 
 **What runs and what is kept.** Each night at 01:00 UTC, one dump goes to `daily/` on every target, plus a
 copy to `weekly/` on Sundays. Retention keeps 14 days of `daily/` and 8 weeks of `weekly/` on each target.
 It deletes only after that night's upload to the target succeeded. On Sundays, after the backup, the
-restore check runs. For each target, it restores the newest copy into a scratch database inside the
-container with `--single-transaction --exit-on-error`. It checks the last `__EFMigrationsHistory` row and
-that the restored tables hold rows, then drops the scratch database. A copy older than 48 hours fails the
-check.
+restore check runs. For each target, it takes the newest copy whose name is not dated more than 5 minutes
+in the future and restores it into a scratch database inside the container with `--single-transaction
+--exit-on-error`, as the unprivileged role `taxes_ua_restore_check`. It checks the last
+`__EFMigrationsHistory` row and that the restored tables hold rows, then drops the scratch database. A copy
+older than 48 hours fails the check. A future-dated name is ignored and listed in the row's `Detail`: nothing
+the service writes is dated ahead, so it means a wrong clock or someone else writing to the bucket. Check the
+clock, then rotate the bucket key and delete the object.
 
 **Alerts.** If the newest check failed, or no check has succeeded for 8 days, the owner is alerted once
 through every switched-on channel (Telegram, email), like a stalled sync (ADR-026). The next successful
@@ -444,8 +450,16 @@ hand before the next check, or it fails.
 
 Use this when the server is lost, or when no pre-migration dump fits (see "Rollback" for those).
 
+Work in a fresh directory outside the repository, so a decrypted dump can never be committed. Run every
+command below from it:
+
+```bash
+cd "$(mktemp -d)"
+```
+
 1. Get the copy. Download the newest `daily/taxes_ua-<time>.dump.age` from MinIO, or from the off-VPS
-   bucket if one is set up and the VPS is gone. Any S3 client works.
+   bucket if one is set up and the VPS is gone. Any S3 client works. Skip any name dated after today: the
+   service never writes one.
 2. Decrypt it on the laptop with the recovery key from the password manager:
 
    ```bash
@@ -465,7 +479,7 @@ Use this when the server is lost, or when no pre-migration dump fits (see "Rollb
    so rename `taxes_ua_restore` to `taxes_ua` directly. Then deploy as in steps 5 to 7. The monobank token
    decrypts only with the same `MONOBANK_TOKEN_ENCRYPTION_KEY`, so take that from the password manager
    too. The owner signs in again, because the key ring volume was on the lost server.
-5. Delete `taxes_ua.dump` and the key file from the laptop.
+5. Delete the directory, with `taxes_ua.dump` and the key file in it: `rm -rf "$PWD"; cd`.
 
 ## 9. Checks that need the real domain
 
@@ -506,15 +520,16 @@ backup from step 8b restores this database alone. It is older than the pre-migra
 more, but it is there when the volume is not ("Restoring from the app backup").
 
 Where the dumps are: the compose volume `migration-dumps`, mounted in `api` at
-`/var/lib/taxes-ua/dumps`. The newest 10 are kept, named
-`taxes_ua-pre-migrate-<UTC time>-from-<last applied migration>-to-<last pending migration>.dump`
-(custom format, compressed). The volume is on the VPS disk, so copy the file off the VPS before a risky
-restore.
+`/var/lib/taxes-ua/dumps`. The newest 3 are kept, named
+`taxes_ua-pre-migrate-<UTC time>-from-<last applied migration>-to-<last pending migration>.dump.age`
+(custom format, compressed, encrypted to `BACKUP_AGE_RECIPIENT`). Only the recovery key in the password
+manager opens them, so the restore below decrypts on the laptop, in a fresh directory outside the repository.
 
 If the dump itself fails, `api` logs `The pre-migration dump failed` at critical level, does not migrate and
 exits. The database is untouched, the deploy fails, and CI's `Wait for this commit to report healthy` step
 fails at its 15-minute timeout. Read the `api` log in Coolify, fix the cause (disk full, volume permissions,
-`pg_dump` older than the server) and redeploy.
+`pg_dump` older than the server, `age` rejecting the recipient) and redeploy. An empty `BACKUP_AGE_RECIPIENT`
+fails the same way, with `Migrations:DumpAgeRecipient is not set` in the log.
 
 1. Find the dump taken before the bad release: the newest file whose name ends in the migration the release
    added. The volume's real name carries Coolify's prefix.
@@ -528,12 +543,20 @@ fails at its 15-minute timeout. Read the `api` log in Coolify, fix the cause (di
 3. Restore that dump into a fresh database, as `postgres`, so a table the bad migration added cannot
    survive. Nothing here touches `taxes_ua` yet.
 
+   Put the recovery key from the password manager in `taxes-ua-recovery.key` in a fresh directory outside the
+   repository. The dump is decrypted in the pipe and never written in clear.
+
    ```bash
+   cd "$(mktemp -d)"
    P='docker exec -i <pg-container>'
    ssh blonskyi "$P psql -U postgres -c 'DROP DATABASE IF EXISTS taxes_ua_restore' -c 'CREATE DATABASE taxes_ua_restore OWNER taxes_ua_app'"
-   ssh blonskyi "docker run --rm -v $V:/d:ro alpine:3 cat /d/<file>.dump" \
+   ssh blonskyi "docker run --rm -v $V:/d:ro alpine:3 cat /d/<file>.dump.age" \
+     | age -d -i taxes-ua-recovery.key \
      | ssh blonskyi "$P pg_restore -U postgres --no-owner --role=taxes_ua_app --single-transaction --exit-on-error -d taxes_ua_restore"
+   rm -rf "$PWD"; cd
    ```
+
+   A dump taken before this change ends in plain `.dump`. Restore it the same way without the `age` line.
 
    Verify it: the last row of `__EFMigrationsHistory` is the migration the dump name says it was taken
    *from*, and the row counts look right.

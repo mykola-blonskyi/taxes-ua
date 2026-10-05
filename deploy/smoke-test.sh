@@ -85,9 +85,14 @@ check "$(request -H "Host: $domain" http://web:3000/login | tr -d '\r' | grep -c
 check "$(header permissions-policy -H "Host: $domain" http://web:3000/login | grep -c 'camera=()')" 1 "/login sends a Permissions-Policy"
 check "$(header x-powered-by -H "Host: $domain" http://web:3000/login)" "" "/login does not advertise the framework"
 
-# The first start migrated an empty database, so it had to dump it first with the real pg_dump.
-dumps=$("${compose[@]}" exec -T api sh -c 'ls /var/lib/taxes-ua/dumps/taxes_ua-pre-migrate-*.dump | wc -l')
-check "$(tr -d '[:space:]' <<<"$dumps")" 1 "api dumped the database before its first migration"
+# The first start migrated an empty database, so it had to dump it first with the real pg_dump, through age.
+dumps=$("${compose[@]}" exec -T api sh -c 'ls /var/lib/taxes-ua/dumps/' | tr -d '\r')
+check "$(grep -c '^taxes_ua-pre-migrate-.*\.dump\.age$' <<<"$dumps" || true)" 1 "api dumped the database, encrypted, before its first migration"
+check "$(grep -cv '\.dump\.age$' <<<"$dumps" || true)" 0 "the dump volume holds no plain dump and no partial file"
+listing=$("${compose[@]}" exec -T -e OWNER_IDENTITY="$owner_identity" api bash -c \
+  'age -d -i <(printf "%s\n" "$OWNER_IDENTITY") /var/lib/taxes-ua/dumps/taxes_ua-pre-migrate-*.dump.age | pg_restore --list') || true
+if grep -q 'TOC Entries' <<<"$listing"; then r=yes; else r=no; fi
+check "$r" yes "the pre-migration dump decrypts with the owner's recovery key and pg_restore lists it"
 
 # The backup sidecar: one dump and one restore check by hand (the schedule would wait for 01:00 UTC),
 # against the database the api just migrated and the S3 stand-in, with two targets. Its DATABASE_URL is the
@@ -96,6 +101,17 @@ parsed=$("${compose[@]}" exec -T backup bash -c '. /usr/local/bin/backup-db
 DATABASE_URL="Server = h1 ;Port=6543; Database=d1;User ID = u 1 ;Password=\"a;b=c\"\"d\" ; Maximum Pool Size=10"
 parse_database_url && printf "%s|%s|%s|%s|%s" "$DB_HOST" "$DB_PORT" "$DB_NAME" "$DB_USER" "$DB_PASS"' | tr -d '\r')
 check "$parsed" 'h1|6543|d1|u 1|a;b=c"d' "backup-db reads a spaced connection string with a quoted password the way Npgsql does"
+# now = 2026-10-05T12:00:00Z; the skew allows up to 12:05:00.
+picked=$("${compose[@]}" exec -T backup bash -c '. /usr/local/bin/backup-db
+pick_latest "taxes_ua-20261004T010000Z.dump.age
+taxes_ua-20261005T120400Z.dump.age
+taxes_ua-20261005T120600Z.dump.age
+taxes_ua-29991231T000000Z.dump.age
+taxes_ua-20261332T000000Z.dump.age
+taxes_ua-20261005T010000Z.dump.age.partial" 1791201600
+printf "%s|%s" "$LATEST" "${FUTURE[*]}"' | tr -d '\r')
+check "$picked" 'taxes_ua-20261005T120400Z.dump.age|taxes_ua-20261005T120600Z.dump.age taxes_ua-29991231T000000Z.dump.age' \
+  "the check picks the newest real time within the clock skew and sets aside what is dated later"
 backup_run() { "${compose[@]}" exec -T backup backup-db "$1" 2>&1; }
 backup_out=$(backup_run backup) && rc=0 || rc=$?
 check "$rc" 0 "backup-db backup succeeds"
@@ -127,7 +143,22 @@ listing=$(s3 -e OWNER_IDENTITY="$owner_identity" backup bash -c "$read_dump") ||
 if grep -q 'TABLE DATA' <<<"$listing"; then r=yes; else r=no; fi
 check "$r" yes "the stored dump decrypts with the owner's recovery key and pg_restore lists it"
 
-logs="$("${compose[@]}" logs backup 2>&1)$backup_out$check_out"
+# An object named for 2999 sorts after every real one; the check must restore the real newest instead.
+s3 backup bash -c 'name=$(rclone lsf SMOKE:taxes-ua-backups/daily/ | head -n 1)
+rclone copyto "SMOKE:taxes-ua-backups/daily/$name" SMOKE:taxes-ua-backups/daily/taxes_ua-29991231T000000Z.dump.age'
+future_out=$(backup_run check) && rc=0 || rc=$?
+check "$rc" 0 "backup-db check passes with a future-dated object in the bucket"
+detail=$("${compose[@]}" exec -T db psql -U taxes_ua -d taxes_ua -At \
+  -c 'select "Detail" from "DatabaseBackupRuns" where "Job" = '"'RestoreCheck'"' order by "Id" desc limit 1' | tr -d '\r')
+case "$detail" in
+  "primary: restored taxes_ua-2"[0-9][0-9][0-9]*" as taxes_ua_restore_check, "*"ignored 1 dated in the future: taxes_ua-29991231T000000Z.dump.age;"*) r=yes ;;
+  *) r=no ;;
+esac
+check "$r" yes "the check restored the real newest dump, as the restore role, and named the future-dated one it ignored"
+case "$detail" in *"offsite: restored taxes_ua-"*" as taxes_ua_restore_check, "*) r=yes ;; *) r=no ;; esac
+check "$r" yes "the offsite target restores as the restore role too"
+
+logs="$("${compose[@]}" logs backup 2>&1)$backup_out$check_out$future_out"
 r=no
 for secret in "$SMOKE_BACKUP_CHECK_AGE_IDENTITY" "$owner_identity" smoke-s3-secret-value "Password=smoke"; do
   case "$logs" in *"$secret"*) r=leaked ;; esac

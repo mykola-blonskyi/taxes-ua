@@ -12,7 +12,8 @@ WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:8080 TZ=Europe/Kyiv
 # pg_dump takes the pre-migration dump (ADR-027). It must be at least the server's major version
 # (the shared instance runs 18), and Debian ships an older one, so it comes from the PostgreSQL repo.
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates tzdata \
+# age encrypts that dump to the backup recovery key on its way to the volume (ADR-031).
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates tzdata age \
     && install -d /usr/share/postgresql-common/pgdg \
     && curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc \
     && . /etc/os-release \
