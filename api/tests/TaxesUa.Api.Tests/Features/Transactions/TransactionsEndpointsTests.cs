@@ -511,6 +511,28 @@ public sealed class TransactionsEndpointsTests(ApiFixture fixture) : IClassFixtu
     }
 
     [Fact]
+    public async Task Concurrent_refunds_of_one_receipt_cannot_add_up_to_more_than_it()
+    {
+        const int attempts = 8;
+        var email = fixture.NewOwner();
+        await using var application = fixture.CreateApplication(_ => { });
+        using var client = await ApiFixture.SignIn(application, email);
+        var receipt = await Create(client, amountMinor: 10_000, valueDate: new DateOnly(2012, 1, 1));
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, attempts).Select(_ => client.PostAsJsonAsync(
+            "/api/transactions",
+            RefundBody(amountMinor: 6_000, valueDate: new DateOnly(2012, 1, 2), refundsTransactionId: receipt.Id),
+            Json)));
+
+        Assert.Equal(1, responses.Count(response => response.StatusCode == HttpStatusCode.Created));
+        foreach (var rejected in responses.Where(response => response.StatusCode != HttpStatusCode.Created))
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            await AssertErrorKey(rejected, "refundsTransactionId");
+        }
+    }
+
+    [Fact]
     public async Task A_receipt_with_linked_refunds_stays_income_and_covers_them()
     {
         const int year = 2013;

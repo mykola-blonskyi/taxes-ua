@@ -102,11 +102,14 @@ public static partial class TransactionsEndpoints
                     return Results.Unauthorized();
                 }
 
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var result = await TransactionRecorder.RecordAsync(
                     database, user.Id, request, provenance: null, rates, time.TodayInKyiv(), time, cancellationToken);
 
                 if (result is RecordTransactionResult.Success recorded)
                 {
+                    await transaction.CommitAsync(cancellationToken);
                     var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
                     var setAside = await SetAsideOfAsync(database, settings, [recorded.Row], cancellationToken);
 
