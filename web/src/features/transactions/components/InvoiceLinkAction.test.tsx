@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { InvoiceSummary } from "@/data/invoices/useInvoices";
 import type { TransactionResponse } from "@/data/transactions/useTransactions";
 import { act, renderApp, reply, screen, stubFetch, waitFor } from "@/test/harness";
 import { InvoiceLinkAction } from "./InvoiceLinkAction";
@@ -10,7 +11,7 @@ const transaction = {
   invoiceId: null,
 } as unknown as TransactionResponse;
 
-const invoice = {
+const invoice: InvoiceSummary = {
   id: "11111111-1111-4111-8111-111111111111",
   status: "Issued",
   standing: "Issued",

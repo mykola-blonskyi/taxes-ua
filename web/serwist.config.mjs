@@ -15,5 +15,8 @@ export default await serwist({
   swSrc: "service-worker/sw.ts",
   swDest: "public/sw.js",
   globIgnores: ["public/offline.html"],
+  // Precache static assets only. A prerendered page in the precache would be served from it ahead of the
+  // worker's NetworkOnly navigation rule, so a future static route would show stale HTML until the next worker.
+  precachePrerendered: false,
   additionalPrecacheEntries: [{ url: "/offline.html", revision: offlineRevision }],
 });

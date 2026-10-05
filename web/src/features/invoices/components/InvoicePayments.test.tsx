@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { InvoiceResponse } from "@/data/invoices/useInvoices";
+import type { InvoiceResponse, ReceiptOption } from "@/data/invoices/useInvoices";
 import { act, renderApp, reply, screen, stubFetch, waitFor } from "@/test/harness";
 import { InvoicePayments } from "./InvoicePayments";
 
@@ -16,7 +16,7 @@ const invoice = {
   receipts: [],
 } as unknown as InvoiceResponse;
 
-const receipt = {
+const receipt: ReceiptOption = {
   id: "33333333-3333-4333-8333-333333333333",
   valueDate: "2026-09-30",
   amountMinor: 100_000,
