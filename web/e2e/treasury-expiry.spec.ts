@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import uk from "../messages/uk.json";
-import { seedRegisteredOwner } from "./support/api";
+import { json, seedRegisteredOwner } from "./support/api";
 import { seedTreasuryAccounts, treasuryAccounts, ukrainianIban } from "./support/seed";
 
 async function openLevyPayPanel(page: Page, year: number, quarter: number) {
@@ -76,14 +76,24 @@ test("a levy account entered with no end shows its tax year's default end until 
   page,
   request,
 }) => {
-  await seedRegisteredOwner(request);
+  const { year } = await seedRegisteredOwner(request);
   await seedTreasuryAccounts(request);
+  // The default end is the one of the tax year the account is entered in, which is the current year, so the
+  // test gives that year an end when the seeded configuration has none (a new year after the seed). Setting
+  // it is idempotent and leaves the year's verification alone.
+  const config = await json<Record<string, unknown>>(await request.get(`/api/tax-years/${year}`));
+  if (config.militaryLevyAccountEnd === null) {
+    const derived = ["year", "esvMonthlyKop", "incomeLimitKop", "verifiedAt"];
+    const body = Object.fromEntries(Object.entries(config).filter(([key]) => !derived.includes(key)));
+    const set = await request.put(`/api/tax-years/${year}`, { data: { ...body, militaryLevyAccountEnd: `${year}-12-31` } });
+    expect(set.ok()).toBe(true);
+  }
   // A new IBAN, since entering the same one again keeps whatever the owner said about its end earlier.
   const levy = { ...treasuryAccounts.MilitaryLevy, iban: ukrainianIban(`899998${"9".padStart(19, "0")}`) };
   expect((await request.put("/api/settings/treasury-accounts/MilitaryLevy", { data: levy })).ok()).toBe(true);
   const defaultEnd = uk.settings.treasury.validUntil.default
-    .replace("{date}", "31 груд. 2026 р.")
-    .replace("{year}", "2026");
+    .replace("{date}", new Intl.DateTimeFormat("uk", { dateStyle: "medium" }).format(new Date(year, 11, 31)))
+    .replace("{year}", String(year));
   const levyCard = () => page.getByRole("heading", { name: uk.payments.kinds.MilitaryLevy }).locator("xpath=ancestor::li[1]");
 
   await page.goto("/settings?tab=treasury");
