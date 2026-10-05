@@ -1,5 +1,5 @@
 GitHub: #261
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Expire the 2026 military-levy account by default and ask for the 2027 one

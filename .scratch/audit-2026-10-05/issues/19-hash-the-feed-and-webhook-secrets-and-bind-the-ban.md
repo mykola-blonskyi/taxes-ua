@@ -1,5 +1,5 @@
 GitHub: #256
-Status: ready-for-agent
+Status: closed
 Blocked by: #246, #247
 
 # Hash the feed and webhook secrets and bind the bank token to its owner

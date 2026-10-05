@@ -1,5 +1,5 @@
 GitHub: #260
-Status: ready-for-human
+Status: closed
 Blocked by: none
 
 # Restrict the VPS's published ports

@@ -1,5 +1,5 @@
 GitHub: #250
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Tidy web Lows from the 2026-10-05 audit

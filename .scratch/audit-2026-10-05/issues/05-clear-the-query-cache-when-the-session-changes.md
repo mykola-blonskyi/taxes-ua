@@ -1,5 +1,5 @@
 GitHub: #242
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Clear the query cache when the session changes

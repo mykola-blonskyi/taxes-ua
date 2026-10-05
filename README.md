@@ -73,7 +73,9 @@ Auth__AllowedEmails=you@example.com dotnet run --project api/src/TaxesUa.Api
 
 It listens on http://localhost:5241. `Auth__AllowedEmails` is the list of emails allowed to sign
 in (comma-separated). The `.env` file is only read by Docker, so outside Docker you pass it like
-this. Without it nobody can sign in.
+this. Without it nobody can sign in. The first address is also the admin who may change tax-year parameters;
+`Auth__AdminEmails` names others. Outside Development (production) the api also needs `BACKUP_AGE_RECIPIENT`
+(passed as `Migrations__DumpAgeRecipient`) to run a migration; see `docs/deploy.md`.
 
 ### 4. Start the web UI
 

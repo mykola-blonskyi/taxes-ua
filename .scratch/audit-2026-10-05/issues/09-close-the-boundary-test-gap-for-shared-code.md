@@ -1,5 +1,5 @@
 GitHub: #246
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Close the boundary-test gap for shared code

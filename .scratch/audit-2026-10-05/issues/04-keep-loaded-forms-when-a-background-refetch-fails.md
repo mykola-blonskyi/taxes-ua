@@ -1,5 +1,5 @@
 GitHub: #241
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Keep loaded forms when a background refetch fails

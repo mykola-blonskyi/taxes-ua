@@ -1,5 +1,5 @@
 GitHub: #244
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Show an error on every failed save

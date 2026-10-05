@@ -1,5 +1,5 @@
 GitHub: #248
-Status: ready-for-agent
+Status: closed
 Blocked by: #247
 
 # Encrypt deploy dumps and authenticate backups

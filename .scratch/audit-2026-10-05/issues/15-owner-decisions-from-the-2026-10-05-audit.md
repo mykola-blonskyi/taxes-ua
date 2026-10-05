@@ -1,5 +1,5 @@
 GitHub: #252
-Status: ready-for-human
+Status: closed
 Blocked by: none
 
 # Owner decisions from the 2026-10-05 audit
