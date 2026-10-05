@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { readProblem } from "@/data/api/client";
-import { meQueryKey } from "@/data/auth/useMe";
 
 export class PasskeyUnsupportedError extends Error {
   constructor() {
@@ -134,7 +133,7 @@ export function usePasskeyCeremony(mode: PasskeyMode) {
     },
     onSuccess: () => {
       if (mode === "signIn") {
-        queryClient.removeQueries({ queryKey: meQueryKey });
+        queryClient.clear();
         router.replace("/");
       }
     },

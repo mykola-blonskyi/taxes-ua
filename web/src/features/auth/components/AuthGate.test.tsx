@@ -34,6 +34,8 @@ describe("AuthGate", () => {
     renderApp(<AuthGate>x</AuthGate>);
 
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/login"));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(router.replace).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("status")).toHaveTextContent("Завантаження…");
   });
 });
