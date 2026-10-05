@@ -35,7 +35,7 @@ Stop with `Ctrl+C`. To also wipe the Docker database, run
 
 Faster to restart while coding. You need:
 
-- PostgreSQL 16 on `localhost:5432` (`brew install postgresql@16 && brew services start postgresql@16`)
+- PostgreSQL 18 on `localhost:5432` (`brew install postgresql@18 && brew services start postgresql@18`)
 - .NET SDK 10
 - Node.js 20+ and pnpm (`corepack enable`)
 
