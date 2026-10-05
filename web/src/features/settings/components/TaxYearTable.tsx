@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
 import { useMe } from "@/data/auth/useMe";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
@@ -33,6 +33,7 @@ type FormState = {
   advanceRecommendedDay: number;
   group3ApplicationDays: number;
   holidaysText: string;
+  militaryLevyAccountEnd: string;
   source: string;
 };
 
@@ -51,6 +52,7 @@ function toFormState(taxYear: TaxYearConfigResponse): FormState {
     advanceRecommendedDay: Number(taxYear.advanceRecommendedDay),
     group3ApplicationDays: Number(taxYear.group3ApplicationDays),
     holidaysText: taxYear.holidays.join(", "),
+    militaryLevyAccountEnd: taxYear.militaryLevyAccountEnd ?? "",
     source: taxYear.source,
   };
 }
@@ -77,6 +79,7 @@ function toRequest(form: FormState): TaxYearConfigRequest {
       .split(",")
       .map((value) => value.trim())
       .filter((value) => value.length > 0),
+    militaryLevyAccountEnd: form.militaryLevyAccountEnd === "" ? null : form.militaryLevyAccountEnd,
     source: form.source,
   };
 }
@@ -132,7 +135,7 @@ function NewYearOffer({ taxYears }: { taxYears: TaxYearConfigResponse[] }) {
     return null;
   }
 
-  const failure = cloneTaxYear.error instanceof ApiError ? cloneTaxYear.error : null;
+  const failure = cloneTaxYear.error;
 
   return (
     <section className="flex min-w-0 flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-4 text-sm">
@@ -186,6 +189,10 @@ function TaxYearRows({ taxYears: data, canEdit }: { taxYears: TaxYearConfigRespo
               {tYears("holidays")}
               <span className="block font-normal">{tYears("holidaysHint")}</span>
             </th>
+            <th className="min-w-24 p-2 font-medium">
+              {tYears("militaryLevyAccountEnd")}
+              <span className="block font-normal">{tYears("militaryLevyAccountEndHint")}</span>
+            </th>
             <th className="min-w-24 p-2 font-medium">{tYears("source")}</th>
             <th className="min-w-24 p-2 font-medium">{tYears("verifiedAt")}</th>
             <th className="p-2 font-medium" />
@@ -214,11 +221,9 @@ function TaxYearRow({ taxYear, canEdit }: { taxYear: TaxYearConfigResponse; canE
   const cloneTaxYear = useCloneTaxYear();
   const [form, setForm] = useState<FormState>(() => toFormState(taxYear));
 
-  const saveFailure = saveTaxYear.error instanceof ApiError ? saveTaxYear.error : null;
+  const saveFailure = saveTaxYear.error;
   const fieldErrors = apiText.fieldTexts(saveFailure);
-  const actionFailure = [verifyTaxYear.error, cloneTaxYear.error].find(
-    (error) => error instanceof ApiError,
-  );
+  const actionFailure = verifyTaxYear.error ?? cloneTaxYear.error;
 
   return (
     <tr className="grid grid-cols-2 gap-3 rounded-lg border p-3 align-top md:table-row md:rounded-none md:border-0 md:border-b md:p-0">
@@ -401,6 +406,19 @@ function TaxYearRow({ taxYear, canEdit }: { taxYear: TaxYearConfigResponse; canE
       </td>
       <td className="col-span-2 md:table-cell md:p-2">
         <TextField
+          type="date"
+          hint={tYears("militaryLevyAccountEndHint")}
+          hintClassName="md:hidden"
+          id={`military-levy-account-end-${year}`}
+          label={`${tYears("militaryLevyAccountEnd")} ${year}`}
+          labelClassName="text-xs text-muted-foreground md:sr-only"
+          value={form.militaryLevyAccountEnd}
+          onChange={(value) => setForm((current) => ({ ...current, militaryLevyAccountEnd: value }))}
+          errors={fieldErrors?.militaryLevyAccountEnd}
+        />
+      </td>
+      <td className="col-span-2 md:table-cell md:p-2">
+        <TextField
           id={`source-${year}`}
           label={`${tYears("source")} ${year}`}
           labelClassName="text-xs text-muted-foreground md:sr-only"
@@ -451,7 +469,7 @@ function TaxYearRow({ taxYear, canEdit }: { taxYear: TaxYearConfigResponse; canE
           <Button asChild variant="outline" size="sm">
             <Link href={`/history?entity=TaxYearConfig&id=${year}`}>{tYears("history")}</Link>
           </Button>
-          {saveFailure && Object.keys(saveFailure.fieldCodes).length === 0 ? (
+          {saveFailure && Object.keys(problemOf(saveFailure)?.fieldCodes ?? {}).length === 0 ? (
             <p className="text-xs text-destructive">{apiText.withReason(t("saveFailed"), saveFailure)}</p>
           ) : null}
           {actionFailure ? (

@@ -89,7 +89,7 @@ public sealed class AuthEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFi
 
         var sessionCookie = Assert.Single(
             response.Headers.GetValues("Set-Cookie"),
-            header => header.StartsWith("taxesua.auth=", StringComparison.Ordinal));
+            header => header.StartsWith("__Host-taxesua.auth=", StringComparison.Ordinal));
         Assert.Contains("httponly", sessionCookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("secure", sessionCookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("samesite=lax", sessionCookie, StringComparison.OrdinalIgnoreCase);

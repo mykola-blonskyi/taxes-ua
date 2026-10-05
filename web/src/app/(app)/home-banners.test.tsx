@@ -30,6 +30,7 @@ const dashboard = {
   nextStep: { state: "AllDone", now: [], later: [] },
   credits: [],
   needsReviewCount: 0,
+  expiredTreasuryAccounts: [],
   overdueInvoiceCount: 0,
   group3: { group3Start: null, confirmed: true, applicationDeadline: null, applicationDaysLeft: null, beforeGroup3: null },
   sync: null,

@@ -104,6 +104,15 @@ env/
 *.sqlite
 *.sqlite3
 
+# Database dumps, plain or encrypted, finished or not. The repository is public.
+*.dump
+*.dump.age
+*.dump.partial
+*.dump.age.partial
+
+# Screenshots saved at the root can carry real figures.
+/*.png
+
 # ============================================================
 # Docker
 # ============================================================

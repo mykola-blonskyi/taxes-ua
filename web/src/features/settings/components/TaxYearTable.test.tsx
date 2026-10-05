@@ -29,6 +29,7 @@ const year2026: TaxYearConfigResponse = {
   advanceRecommendedDay: 15,
   group3ApplicationDays: 10,
   holidays: ["2026-01-01", "2026-08-24"],
+  militaryLevyAccountEnd: null,
   source: "Закон про держбюджет",
   verifiedAt: null,
 };

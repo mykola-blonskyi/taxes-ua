@@ -56,6 +56,7 @@ services:
       Smtp__From: ${SMTP_FROM:-}
       App__PublicUrl: ${APP_PUBLIC_URL:-}
       Migrations__DumpDirectory: /var/lib/taxes-ua/dumps
+      Migrations__DumpAgeRecipient: ${BACKUP_AGE_RECIPIENT:-}
     volumes:
       - dataprotection-keys:/var/lib/taxes-ua/keys
       - migration-dumps:/var/lib/taxes-ua/dumps

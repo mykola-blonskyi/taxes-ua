@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { Download, ExternalLink } from "lucide-react";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   invoicePdfUrl,
   useCancelInvoice,
@@ -29,6 +30,7 @@ export function InvoiceDetail({
 }) {
   const t = useTranslations("invoices.detail");
   const tErrors = useTranslations("invoices.errors");
+  const apiText = useApiErrorText();
   const tUnits = useTranslations("invoices.units");
   const locale = useLocale();
   const cancelInvoice = useCancelInvoice();
@@ -42,7 +44,7 @@ export function InvoiceDetail({
   const reasonMissing = reason.trim() === "";
 
   function report(error: unknown) {
-    setFailure(error instanceof ApiError && error.status === 409 ? tErrors("conflict") : tErrors("generic"));
+    setFailure(problemOf(error)?.status === 409 ? tErrors("conflict") : apiText.withReason(tErrors("generic"), error));
   }
 
   function cancel() {
@@ -56,7 +58,7 @@ export function InvoiceDetail({
           setReason("");
         },
         onError: (error) =>
-          invoice.receipts.length > 0 && error instanceof ApiError && error.status === 409
+          invoice.receipts.length > 0 && problemOf(error)?.status === 409
             ? setFailure(tErrors("cancelLinked"))
             : report(error),
       },

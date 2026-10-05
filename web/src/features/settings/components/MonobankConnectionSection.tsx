@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { LoadState } from "@/data/api/LoadState";
-import { ApiError } from "@/data/api/client";
+import { ApiError, problemOf } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useDisconnectMonobank,
@@ -51,11 +51,11 @@ function MonobankConnectionBody({
   const [token, setToken] = useState("");
   const [editingToken, setEditingToken] = useState(!connection.connected);
 
-  const tokenFailure = saveToken.error instanceof ApiError ? saveToken.error : null;
-  const tokenErrors = tokenFailure?.fieldCodes.token?.map(apiText.ofCode);
-  const accountsFailure = saveAccounts.error instanceof ApiError ? saveAccounts.error : null;
-  const disconnectFailure = disconnect.error instanceof ApiError ? disconnect.error : null;
-  const syncFailure = sync.error instanceof ApiError ? sync.error : null;
+  const tokenFailure = saveToken.error;
+  const tokenErrors = problemOf(tokenFailure)?.fieldCodes.token?.map(apiText.ofCode);
+  const accountsFailure = saveAccounts.error;
+  const disconnectFailure = disconnect.error;
+  const syncFailure = sync.error;
   const fopAccounts = connection.accounts.filter((account) => account.isFop);
   const followedCount = fopAccounts.filter((account) => account.isFollowed).length;
   const syncing = connection.accounts.some((account) => account.syncPending);
@@ -140,7 +140,7 @@ function MonobankConnectionBody({
             errors={tokenErrors}
           />
           {tokenFailure && !tokenErrors ? (
-            <p className="text-sm text-destructive">{t("saveFailed")}</p>
+            <p className="text-sm text-destructive">{apiText.withReason(t("saveFailed"), tokenFailure)}</p>
           ) : null}
           <div className="flex items-center gap-2">
             <Button type="submit" disabled={saveToken.isPending || token.length === 0}>

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { proxy } from "./proxy";
 import { contentSecurityPolicy } from "@/shared/security/csp";
 
-const SIGNED_IN = { cookie: "taxesua.auth=ticket" };
+const SIGNED_IN = { cookie: "__Host-taxesua.auth=ticket" };
 
 function page(path: string, headers: Record<string, string> = {}) {
   return new NextRequest(`https://taxes.example${path}`, { headers });
