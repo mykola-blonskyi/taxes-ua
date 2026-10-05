@@ -37,9 +37,7 @@ public static partial class DeclarationDetailsEndpoints
                 var invoicing = await database.InvoicingDetails.AsNoTracking()
                     .FirstOrDefaultAsync(row => row.UserId == user.Id, cancellationToken);
 
-                var confirmedEmail = await ConfirmedEmailAsync(database, user.Id, cancellationToken);
-
-                return Results.Ok(ToResponse(invoicing, details ?? new DeclarationDetails { UserId = user.Id }, confirmedEmail));
+                return Results.Ok(ToResponse(invoicing, details ?? new DeclarationDetails { UserId = user.Id }));
             })
             .Produces<DeclarationDetailsResponse>()
             .Produces(StatusCodes.Status401Unauthorized);
@@ -75,9 +73,8 @@ public static partial class DeclarationDetailsEndpoints
 
                 var invoicing = await database.InvoicingDetails.AsNoTracking()
                     .FirstOrDefaultAsync(row => row.UserId == user.Id, cancellationToken);
-                var confirmedEmail = await ConfirmedEmailAsync(database, user.Id, cancellationToken);
 
-                return Results.Ok(ToResponse(invoicing, details, confirmedEmail));
+                return Results.Ok(ToResponse(invoicing, details));
             })
             .Produces<DeclarationDetailsResponse>()
             .ProducesFieldProblem()
@@ -238,15 +235,7 @@ public static partial class DeclarationDetailsEndpoints
         details.ReportEmail = request.ReportEmail;
     }
 
-    // What the form offers as the report email until the owner saves one of their own.
-    private static Task<string?> ConfirmedEmailAsync(AppDbContext database, string userId, CancellationToken cancellationToken) =>
-        database.NotificationChannels.AsNoTracking()
-            .Where(row => row.UserId == userId && row.Kind == NotificationChannelKind.Email && row.ConfirmedAt != null)
-            .Select(row => row.Address)
-            .FirstOrDefaultAsync(cancellationToken);
-
-    private static DeclarationDetailsResponse ToResponse(
-        InvoicingDetails? invoicing, DeclarationDetails details, string? confirmedEmail) => new(
+    private static DeclarationDetailsResponse ToResponse(InvoicingDetails? invoicing, DeclarationDetails details) => new(
         invoicing?.SellerNameUk ?? string.Empty,
         invoicing?.Rnokpp ?? string.Empty,
         details.TaxOfficeRegion,
@@ -257,7 +246,6 @@ public static partial class DeclarationDetailsEndpoints
         details.FullName,
         details.Phone,
         details.ReportEmail,
-        confirmedEmail,
         DeclarationDetails.Missing(invoicing, details),
         DeclarationDetails.UnknownKvedCodes(details));
 
@@ -287,8 +275,7 @@ internal sealed record DeclarationDetailsRequest(
 /// <summary>
 /// <c>Name</c> and <c>Rnokpp</c> are read-only here: they are the invoicing details' own
 /// <c>SellerNameUk</c> and <c>Rnokpp</c>, sent so the form can show where they come from.
-/// <c>ConfirmedEmail</c> is the email channel's confirmed address, which the form offers for
-/// <c>ReportEmail</c> while that is empty. <c>UnknownKvedCodes</c> are the stored codes the classifier does
+/// <c>UnknownKvedCodes</c> are the stored codes the classifier does
 /// not know; they keep the declaration from being ready, and the form words them under the code.
 /// </summary>
 internal sealed record DeclarationDetailsResponse(
@@ -302,7 +289,6 @@ internal sealed record DeclarationDetailsResponse(
     string FullName,
     string Phone,
     string ReportEmail,
-    string? ConfirmedEmail,
     DeclarationDetailField[] MissingDetails,
     string[] UnknownKvedCodes);
 

@@ -113,8 +113,8 @@ the invoicing name); `Phone` (HTEL, stored as `+380` and nine digits, typed with
 or from `0XXXXXXXXX`; empty leaves it out); `ReportEmail` (HEMAIL, empty leaves it out; its own setting,
 which stays empty until saved; the form offers the confirmed email channel's address as a one-click suggestion). The RNOKPP and the invoicing name
 are not stored here: they are `InvoicingDetails.SellerNameUk` and `Rnokpp`, and `GET
-/api/settings/declaration` echoes them read-only, with the confirmed email channel's address as
-`ConfirmedEmail`. An incomplete set saves; completeness is a readiness
+/api/settings/declaration` echoes them read-only. The suggestion comes from the channels the web loads
+from `GET /api/notifications/channels`, not from this endpoint. An incomplete set saves; completeness is a readiness
 item (`MissingDetails: Name | Rnokpp | TaxOffice | Kved | Address`; `TaxOffice` covers the codes and
 the name). A stored code the classifier does not know, which only a restored backup can hold, is its own
 readiness item (`UnknownKvedCodes`, also on `GET /api/settings/declaration`) and blocks the declaration; the

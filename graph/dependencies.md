@@ -16,9 +16,12 @@ and prints the table to paste here.
 ### API features
 
 A feature reaches only the features on its row. A layer is one more than the highest layer the feature
-reaches, so every edge points down and no cycle can form. Every feature may also use the shared code in
-`TaxesUa.Api` (`Problems`, `TextRules`, `KyivTime`, `Incident`, `Limits`) and `TaxesUa.Api.Data` (`AppDbContext`,
-`OwnerLock`), which itself reaches no feature, `AppDbContext` aside.
+reaches, so every edge points down and no cycle can form. Every feature may also use the shared code, which
+is every file of the api outside `Features/`: today `TaxesUa.Api` (`Problems`, `TextRules`, `KyivTime`,
+`Incident`, `Limits`, `CrossSiteGuard`) and `TaxesUa.Api.Data` (`AppDbContext`, `OwnerLock`). Shared code
+reaches no feature, by type or by const and enum value; `Program` and `AppDbContext` aside, since one wires
+every feature and the other maps every feature's entities. A file's namespace must match its folder, so a
+type is shared exactly when its file is.
 
 | Feature | Layer | Reaches |
 | --- | --- | --- |
@@ -35,20 +38,22 @@ reaches, so every edge points down and no cycle can form. Every feature may also
 | Periods | 4 | Auth, Payments, Settings, TaxYears, Transactions |
 | Declarations | 5 | Auth, Payments, Periods, Settings, TaxYears, Transactions |
 | Invoices | 5 | Auth, Export, Fx, Settings, Transactions |
-| Audit | 6 | Auth, Declarations, Invoices, Payments, Settings, TaxYears, Transactions |
 | Clients | 6 | Auth, Fx, Invoices, Transactions |
 | Dashboard | 6 | Auth, Declarations, Invoices, Monobank, Payments, Periods, Settings, TaxYears, Transactions |
 | Notifications | 6 | Auth, Declarations, Export, Periods, Settings |
-| Backup | 7 | Audit, Auth, Banking, Declarations, Fx, Invoices, Monobank, Notifications, Payments, Periods, Settings, TaxYears, Transactions |
+| Audit | 7 | Auth, Declarations, Invoices, Notifications, Payments, Settings, TaxYears, Transactions |
 | Calendar | 7 | Auth, Notifications, Periods, Settings, TaxYears |
+| Backup | 8 | Audit, Auth, Banking, Declarations, Fx, Invoices, Monobank, Notifications, Payments, Periods, Settings, TaxYears, Transactions |
 
-82 edges over 19 features. Before #185 the same measurement found 85 edges, and ten features
+83 edges over 19 features. Audit -> Notifications came with #246, when the notification channel moved
+back from Settings to Notifications. Before #185 the same measurement found 85 edges, and ten features
 (Declarations, Export, Invoices, Monobank, Notifications, Payments, Periods, Settings, TaxYears,
 Transactions) formed one cycle. ADR-008's amendment lists what moved to break it.
 
 The test reads type references from IL: signatures, attributes with their `typeof` and enum
 arguments, generic constraints, locals and every token in method bodies. The compiler inlines a const
-or enum value as a number, so a second check (`ConstEdgeScan`) parses the sources with Roslyn and
+or enum value as a number, so a second check (`ConstEdgeScan`) parses every source of the api, shared
+files included, with Roslyn and
 reads `Type.Member` pairs of another feature's literal fields from the syntax tree. Comments and string
 literals are not code, so they never match. It reads every adjacent pair of a chain, so a partly
 qualified `Monobank.SyncHealthState.Stale` counts, and a chain split over whitespace or lines counts.
