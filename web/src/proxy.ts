@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { contentSecurityPolicy, newNonce } from "@/shared/security/csp";
 
-const SESSION_COOKIE = "taxesua.auth";
+const SESSION_COOKIE = "__Host-taxesua.auth";
 
 // Presence check only, never decode: the api owns the cookie and is the real authority, returning
 // 401 when it is missing, expired, or otherwise invalid. This is a fast UX redirect, not a

@@ -57,8 +57,8 @@ curl -sS -b /tmp/taxesua.jar http://localhost:3000/api/auth/me
 ```
 
 In a browser, navigate to that same URL once; the session cookie is then held for the rest of the
-run. Chrome accepts the cookie over `http://localhost` despite its `Secure` flag, because localhost
-counts as a trustworthy origin.
+run. Chrome accepts the cookie, named `__Host-taxesua.auth`, over `http://localhost` despite its
+`Secure` flag, because localhost counts as a trustworthy origin.
 
 Sign in through this seam rather than stubbing auth in the browser. Read trap 1 before you consider
 intercepting a request.
