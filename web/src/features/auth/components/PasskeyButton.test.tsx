@@ -4,16 +4,23 @@ import { renderApp, reply, router, screen, stubFetch, waitFor } from "@/test/har
 import { PasskeyButton } from "./PasskeyButton";
 
 describe("PasskeyButton", () => {
+  const originalNavigator = navigator;
+  const getCredential = vi.fn<() => Promise<unknown>>();
+
   beforeEach(() => {
+    getCredential.mockReset().mockResolvedValue({ id: "key" });
     vi.stubGlobal("PublicKeyCredential", {
       parseRequestOptionsFromJSON: () => ({}),
       parseCreationOptionsFromJSON: () => ({}),
     });
-    vi.stubGlobal("navigator", { ...navigator, credentials: { get: async () => ({ id: "key" }) } });
+    vi.stubGlobal("navigator", { ...navigator, credentials: { get: getCredential } });
   });
 
+  // Not vi.unstubAllGlobals(): that would also remove the fetch and Request stubs vitest.setup.ts installs,
+  // and every later test would reach for the real network.
   afterEach(() => {
-    vi.unstubAllGlobals();
+    vi.stubGlobal("navigator", originalNavigator);
+    vi.stubGlobal("PublicKeyCredential", undefined);
   });
 
   it("starts a signed-in session from an empty cache, so another owner's data never shows", async () => {
@@ -33,8 +40,8 @@ describe("PasskeyButton", () => {
   });
 
   it.each([
-    ["uk", "Увійти за допомогою passkey", "Не вдалося виконати дію з passkey. Спробуйте ще раз. Немає зв'язку з сервером. Перевірте мережу й спробуйте ще раз."],
-    ["ru", "Войти с помощью passkey", "Не удалось выполнить действие с passkey. Попробуйте снова. Нет связи с сервером. Проверьте сеть и попробуйте ещё раз."],
+    ["uk", "Увійти за допомогою passkey", "Не вдалося виконати дію з passkey: Немає зв'язку з сервером. Перевірте мережу й спробуйте ще раз."],
+    ["ru", "Войти с помощью passkey", "Не удалось выполнить действие с passkey: Нет связи с сервером. Проверьте сеть и попробуйте ещё раз."],
   ] as const)("says so in %s when the api cannot be reached", async (locale, name, message) => {
     stubFetch({
       "POST /api/auth/passkey/login/options": () => {
@@ -46,5 +53,19 @@ describe("PasskeyButton", () => {
     await user.click(await screen.findByRole("button", { name }));
 
     expect(await screen.findByText(message)).toBeVisible();
+  });
+
+  it.each([
+    ["uk", "Увійти за допомогою passkey", "Не вдалося виконати дію з passkey: Щось пішло не так. Спробуйте ще раз."],
+    ["ru", "Войти с помощью passkey", "Не удалось выполнить действие с passkey: Что-то пошло не так. Попробуйте ещё раз."],
+  ] as const)("does not blame the network in %s for a WebAuthn error that is not a cancellation", async (locale, name, message) => {
+    getCredential.mockRejectedValue(new DOMException("The authenticator was used before.", "InvalidStateError"));
+    stubFetch({ "POST /api/auth/passkey/login/options": {} });
+    const { user } = renderApp(<PasskeyButton mode="signIn" />, { locale });
+
+    await user.click(await screen.findByRole("button", { name }));
+
+    expect(await screen.findByText(message)).toBeVisible();
+    expect(screen.queryByText(/зв'язку|связи/)).not.toBeInTheDocument();
   });
 });

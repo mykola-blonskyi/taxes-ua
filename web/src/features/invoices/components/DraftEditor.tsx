@@ -142,7 +142,7 @@ export function DraftEditor({
       const result = id ? await updateInvoice.mutateAsync({ id, body }) : await createInvoice.mutateAsync(body);
 
       if (!result) {
-        setFailure(tErrors("generic"));
+        setFailure(apiText.ofCode(null));
 
         return null;
       }
