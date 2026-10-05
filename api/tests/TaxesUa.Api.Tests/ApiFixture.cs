@@ -40,7 +40,7 @@ public sealed class ApiFixture : IAsyncLifetime
 
     public const string TelegramTestToken = "123456:" + TelegramTestSecret;
 
-    private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:16-alpine").Build();
+    private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:18-alpine").Build();
 
     private WebApplicationFactory<Program> _application = null!;
 
