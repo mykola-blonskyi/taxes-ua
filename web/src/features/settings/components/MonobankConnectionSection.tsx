@@ -23,13 +23,13 @@ import { ReserveJarSection } from "./ReserveJarSection";
 export function MonobankConnectionSection() {
   const t = useTranslations("settings.monobank");
   const query = useMonobankConnection();
-  const { data, isLoading, isError, error } = query;
+  const { data, isError, error } = query;
 
-  if (!isLoading && isError && error instanceof ApiError && error.status === 503) {
+  if (!data && isError && error instanceof ApiError && error.status === 503) {
     return <p className="text-sm text-muted-foreground">{t("notConfigured")}</p>;
   }
 
-  if (isLoading || isError || !data) {
+  if (!data) {
     return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 

@@ -22,7 +22,7 @@ export function DashboardScreen() {
   const query = useDashboard();
   const { data, isFetching } = query;
 
-  if (query.isLoading || query.isError || !data) {
+  if (!data) {
     return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
