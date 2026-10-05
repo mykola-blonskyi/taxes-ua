@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { useDashboard, type DashboardResponse, type KindDebt } from "@/data/dashboard/useDashboard";
 import { declarationHref } from "@/shared/constants/navigation";
+import { formatDateOnly } from "@/shared/lib/dates";
 import { formatMoney, formatRate } from "@/shared/lib/money";
 import { formatLongDate } from "./debt";
 import { DaysLeft, DebtPeriod } from "./DebtParts";
@@ -71,6 +72,8 @@ function NoticeView({ name, data }: { name: Notice; data: DashboardResponse }) {
       return data.limitCrossing ? <LimitCrossingWarning crossing={data.limitCrossing} /> : null;
     case "declaration":
       return data.declaration ? <DeclarationDue due={data.declaration} today={data.today} /> : null;
+    case "treasuryExpired":
+      return <TreasuryExpiredNotice accounts={data.expiredTreasuryAccounts} />;
     case "newTaxYear":
       return data.newTaxYear ? <NewTaxYearNotice status={data.newTaxYear} /> : null;
     case "review":
@@ -82,6 +85,7 @@ function NoticeView({ name, data }: { name: Notice; data: DashboardResponse }) {
 function useNoticeTitles(data: DashboardResponse): Record<Notice, string> {
   const t = useTranslations("dashboard");
   const tDeclaration = useTranslations("declaration");
+  const tKinds = useTranslations("payments.kinds");
   const syncKey =
     data.sync?.state === "Stale" ? "stale" : data.sync?.state === "TokenUnreadable" ? "tokenUnreadable" : "tokenRejected";
   const crossing = data.limitCrossing;
@@ -95,6 +99,7 @@ function useNoticeTitles(data: DashboardResponse): Record<Notice, string> {
       : "",
     group3: isGroup3Unconfirmed(data.group3) ? t("group3.unconfirmedShort") : t("group3.beforeGroup3Title"),
     declaration: due ? tDeclaration("title", { quarter: Number(due.quarter), year: Number(due.year) }) : "",
+    treasuryExpired: treasuryExpiredTitle(data.expiredTreasuryAccounts, t, tKinds),
     newTaxYear: data.newTaxYear ? t("newTaxYear.title", { year: Number(data.newTaxYear.year) }) : "",
     review: t("review.title", { count: Number(data.needsReviewCount) }),
     overdueInvoices: t("overdueInvoices.title", { count: Number(data.overdueInvoiceCount) }),
@@ -260,6 +265,49 @@ function DeclarationDue({ due, today }: { due: NonNullable<DashboardResponse["de
         className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
       >
         {t("cta")}
+      </Link>
+    </section>
+  );
+}
+
+type ExpiredAccounts = DashboardResponse["expiredTreasuryAccounts"];
+
+function treasuryExpiredTitle(
+  accounts: ExpiredAccounts,
+  t: (key: "treasuryExpired.title" | "treasuryExpired.titleLevy", values?: { kinds: string }) => string,
+  tKinds: (kind: ExpiredAccounts[number]["kind"]) => string,
+): string {
+  if (accounts.length === 1 && accounts[0]?.kind === "MilitaryLevy") {
+    return t("treasuryExpired.titleLevy");
+  }
+
+  return t("treasuryExpired.title", { kinds: accounts.map((account) => tKinds(account.kind)).join(", ") });
+}
+
+function TreasuryExpiredNotice({ accounts }: { accounts: ExpiredAccounts }) {
+  const t = useTranslations("dashboard");
+  const tKinds = useTranslations("payments.kinds");
+  const locale = useLocale();
+
+  return (
+    <section
+      role="status"
+      className="flex min-w-0 flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-4 text-sm"
+    >
+      <h3 className="break-words font-semibold text-amber-800 dark:text-amber-300">
+        {treasuryExpiredTitle(accounts, t, tKinds)}
+      </h3>
+      {accounts.map((account) => (
+        <p key={account.kind} className="break-words">
+          {t("treasuryExpired.text", {
+            kind: tKinds(account.kind),
+            date: formatDateOnly(account.validUntil, locale),
+            year: Number(account.validUntil.slice(0, 4)) + 1,
+          })}
+        </p>
+      ))}
+      <Link href="/settings?tab=treasury" className="w-fit font-medium text-primary underline-offset-4 hover:underline">
+        {t("treasuryExpired.cta")}
       </Link>
     </section>
   );

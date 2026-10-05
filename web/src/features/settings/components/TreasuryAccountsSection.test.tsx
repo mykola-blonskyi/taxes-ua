@@ -18,6 +18,7 @@ function account(overrides: Partial<TreasuryAccount>): TreasuryAccount {
     recipientCode: null,
     updatedAt: "2026-07-02T08:00:00Z",
     validUntil: "2026-12-31",
+    validUntilSource: "Owner",
     learned: null,
     hasLearned: true,
     missing: ["recipientCode"],

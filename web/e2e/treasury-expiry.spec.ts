@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import uk from "../messages/uk.json";
 import { seedRegisteredOwner } from "./support/api";
-import { seedTreasuryAccounts, treasuryAccounts } from "./support/seed";
+import { seedTreasuryAccounts, treasuryAccounts, ukrainianIban } from "./support/seed";
 
 async function openLevyPayPanel(page: Page, year: number, quarter: number) {
   await page.goto("/payments");
@@ -30,6 +30,20 @@ test("an expired Treasury account hides the details and the QR in the pay panel 
   });
   expect(ended.ok()).toBe(true);
 
+  await page.goto("/");
+  // Another notice may hold the banner slot; the expired account then waits in the folded list.
+  const notice = page.getByRole("heading", { name: uk.dashboard.treasuryExpired.titleLevy });
+  const folded = page.locator("details > summary");
+  await expect(notice.or(folded)).toBeVisible();
+  if (await folded.isVisible()) {
+    await folded.click();
+  }
+  await expect(notice).toBeVisible();
+  await expect(page.getByRole("link", { name: uk.dashboard.treasuryExpired.cta })).toHaveAttribute(
+    "href",
+    "/settings?tab=treasury",
+  );
+
   const panel = await openLevyPayPanel(page, year, quarter);
 
   await expect(panel.getByText(uk.pay.expiredSettingsLink)).toBeVisible();
@@ -56,4 +70,29 @@ test("an account whose end the owner removes is offered again", async ({ page, r
 
   await expect(panel.getByText(levy.iban, { exact: true })).toBeVisible();
   await expect(page.getByText(uk.pay.expiredSettingsLink)).toBeHidden();
+});
+
+test("a levy account entered with no end shows its tax year's default end until the owner removes it", async ({
+  page,
+  request,
+}) => {
+  await seedRegisteredOwner(request);
+  await seedTreasuryAccounts(request);
+  // A new IBAN, since entering the same one again keeps whatever the owner said about its end earlier.
+  const levy = { ...treasuryAccounts.MilitaryLevy, iban: ukrainianIban(`899998${"9".padStart(19, "0")}`) };
+  expect((await request.put("/api/settings/treasury-accounts/MilitaryLevy", { data: levy })).ok()).toBe(true);
+  const defaultEnd = uk.settings.treasury.validUntil.default
+    .replace("{date}", "31 груд. 2026 р.")
+    .replace("{year}", "2026");
+  const levyCard = () => page.getByRole("heading", { name: uk.payments.kinds.MilitaryLevy }).locator("xpath=ancestor::li[1]");
+
+  await page.goto("/settings?tab=treasury");
+  await expect(levyCard().getByText(defaultEnd)).toBeVisible();
+
+  const removed = await request.put("/api/settings/treasury-accounts/MilitaryLevy/valid-until", { data: { validUntil: null } });
+  expect(removed.ok()).toBe(true);
+
+  await page.reload();
+  await expect(levyCard().getByText(uk.settings.treasury.validUntil.none)).toBeVisible();
+  await expect(page.getByText(defaultEnd)).toBeHidden();
 });

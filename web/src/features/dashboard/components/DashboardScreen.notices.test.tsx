@@ -22,6 +22,7 @@ const everything = {
   nextStep: { state: "Pay", now: [debt], later: [] },
   credits: [],
   needsReviewCount: 3,
+  expiredTreasuryAccounts: [],
   overdueInvoiceCount: 2,
   group3: {
     group3Start: "2026-09-28",
@@ -124,7 +125,7 @@ describe.each(locales)("Dashboard notices in $locale", ({ locale, banner, overdu
 describe("Dashboard notice priority", () => {
   const withNotices = (patch: object) => asData({ ...quiet, ...patch });
 
-  it("ranks by consequence: broken sync, limit crossing, group 3, declaration, new tax year, stale sync, review, overdue invoices", () => {
+  it("ranks by consequence: broken sync, limit crossing, group 3, declaration, expired Treasury account, new tax year, stale sync, review, overdue invoices", () => {
     const stale = { ...everything, sync: { state: "Stale", lastSyncedAt: "2026-09-28T00:05:00Z" } };
 
     expect(activeNotices(asData(everything))).toEqual([
@@ -148,6 +149,7 @@ describe("Dashboard notice priority", () => {
       "limitCrossing",
       "group3",
       "declaration",
+      "treasuryExpired",
       "newTaxYear",
       "syncStale",
       "review",
@@ -323,5 +325,84 @@ describe.each(["uk", "ru"] as const)("Dashboard new tax year notice in %s", (loc
 
     expect(folded.querySelector("summary")).toHaveTextContent(words.title);
     expect(before(hero(), folded)).toBe(true);
+  });
+});
+
+const expired = {
+  uk: {
+    title: "Рахунок військового збору закрито",
+    text: "Рахунок «Військовий збір» діяв до 31 груд. 2026 р. включно. Внесіть новий рахунок 2027 року з Електронного кабінету.",
+    cta: "Відкрити рахунки казначейства",
+    generic: "Закрито рахунки казначейства: Єдиний податок, ЄСВ",
+    folded: /Рахунок військового збору закрито/,
+  },
+  ru: {
+    title: "Счёт военного сбора закрыт",
+    text: "Счёт «Военный сбор» действовал до 31 дек. 2026 г. включительно. Внесите новый счёт 2027 года из Электронного кабинета.",
+    cta: "Открыть счета казначейства",
+    generic: "Закрыты счета казначейства: Единый налог, ЕСВ",
+    folded: /Счёт военного сбора закрыт/,
+  },
+} as const;
+
+describe.each(["uk", "ru"] as const)("Dashboard expired Treasury account notice in %s", (locale) => {
+  const words = expired[locale];
+  const levyEnded = [{ kind: "MilitaryLevy", validUntil: "2026-12-31" }] as const;
+
+  it("is the warning banner above the hero, names the new year's account and opens the Treasury tab", async () => {
+    stubFetch({ "GET /api/dashboard": { ...quiet, today: "2027-01-05", expiredTreasuryAccounts: levyEnded } });
+    renderApp(<DashboardScreen />, { locale });
+
+    const title = await screen.findByRole("heading", { name: words.title });
+    const notice = title.closest("section")!;
+
+    expect(before(title, hero())).toBe(true);
+    expect(within(notice).getByText(words.text)).toBeVisible();
+    expect(within(notice).getByRole("link", { name: words.cta })).toHaveAttribute("href", "/settings?tab=treasury");
+    expect(document.querySelector("details")).toBeNull();
+  });
+
+  it("names every kind in the generic title", async () => {
+    const accounts = [
+      { kind: "SingleTax", validUntil: "2026-12-31" },
+      { kind: "Esv", validUntil: "2026-12-31" },
+    ] as const;
+    stubFetch({ "GET /api/dashboard": { ...quiet, expiredTreasuryAccounts: accounts } });
+    renderApp(<DashboardScreen />, { locale });
+
+    expect(await screen.findByRole("heading", { name: words.generic })).toBeVisible();
+  });
+
+  it("folds under the hero behind a declaration, keeping at most one notice above it", async () => {
+    stubFetch({
+      "GET /api/dashboard": { ...quiet, declaration: everything.declaration, expiredTreasuryAccounts: levyEnded },
+    });
+    renderApp(<DashboardScreen />, { locale });
+
+    await screen.findByText(/17/);
+    const folded = document.querySelector("details")!;
+
+    expect(before(hero(), folded)).toBe(true);
+    expect(folded.querySelector("summary")).toHaveTextContent(words.folded);
+    expect(folded).toHaveAttribute("data-severity", "warning");
+  });
+});
+
+describe("Dashboard expired Treasury account notice priority", () => {
+  it("ranks under a declaration and over the new tax year, and is absent with no expired account", () => {
+    const withNotices = (patch: object) => asData({ ...quiet, ...patch });
+    const expiredAccounts = [{ kind: "MilitaryLevy", validUntil: "2026-12-31" }] as const;
+
+    expect(
+      activeNotices(
+        withNotices({
+          expiredTreasuryAccounts: expiredAccounts,
+          newTaxYear: { year: 2027, state: "Missing" },
+          declaration: everything.declaration,
+        }),
+      ),
+    ).toEqual(["declaration", "treasuryExpired", "newTaxYear"]);
+    expect(activeNotices(withNotices({}))).toEqual([]);
+    expect(mostSevere(["treasuryExpired"])).toBe("warning");
   });
 });
