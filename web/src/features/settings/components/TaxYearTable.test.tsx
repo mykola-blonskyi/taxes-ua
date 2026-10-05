@@ -117,7 +117,7 @@ describe.each(["uk", "ru"] as const)("TaxYearTable in %s", (locale) => {
 
   it("shows the verified day in Kyiv, not in the browser's zone", async () => {
     // 23:30 UTC on the 5th is 01:30 on the 6th in Kyiv; the suite's browser zone (Los Angeles) is still on the 5th.
-    stubFetch({ [list]: [{ ...verified2025, verifiedAt: "2026-01-05T23:30:00Z" }] });
+    stubFetch({ [me]: admin, [list]: [{ ...verified2025, verifiedAt: "2026-01-05T23:30:00Z" }] });
     renderApp(<TaxYearTable />, { locale });
 
     expect((await screen.findAllByText(/0?6\.01\.2026/)).length).toBeGreaterThan(0);
