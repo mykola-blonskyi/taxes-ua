@@ -36,7 +36,7 @@ Full spec: `/Users/mykola/Documents/obsidian-notes/tsxes-ua/SPEC.md` (outside th
 | Client | TanStack Query; types generated from OpenAPI via `openapi-typescript` | One source of types, the API contract is never hand-duplicated. Tables and forms are plain React over shadcn/ui; TanStack Table and Form are not used. |
 | UI | Tailwind CSS + shadcn/ui, next-intl (uk by default, ru), PWA via Serwist | Responsive layout, light and dark theme, installable on a phone. |
 | State | Zustand only when actually needed | No global client state in the MVP. |
-| Database | PostgreSQL 16+ | Owner's preference. Already running on the VPS. |
+| Database | PostgreSQL 18 | Owner's preference. Already running on the VPS. |
 | Deploy | Coolify on the `blonskyi-dev` VPS, Docker Compose from the repository | Traefik with auto-TLS, existing PostgreSQL instance, backups. |
 
 **PWA.** The service worker (`web/service-worker/sw.ts`) precaches the build's static files and

@@ -32,7 +32,7 @@ export function NotificationsSection({
   const telegram = data?.find((channel) => channel.kind === "Telegram");
   const email = data?.find((channel) => channel.kind === "Email");
 
-  if (query.isLoading || query.isError || !telegram || !email) {
+  if (!telegram || !email) {
     return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
