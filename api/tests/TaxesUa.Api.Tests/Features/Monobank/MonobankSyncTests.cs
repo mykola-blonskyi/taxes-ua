@@ -150,6 +150,55 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
     }
 
     [Fact]
+    public async Task A_receipt_whose_NBU_rate_failed_in_an_old_window_is_recorded_once_the_rate_returns()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-nbu-gap", ("nbu-gap-usd", 840));
+        bank.Put("nbu-gap-usd", new Operation("op-nbu-gap", At(2081, 2, 10, 9), 300_00, 840, CounterName: "Zeta LLC"));
+        var nbuDown = true;
+        var nbu = new StubNbuHandler(_ => nbuDown
+            ? new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+            : StubNbuHandler.Json(StubNbuHandler.Row("USD", new DateOnly(2081, 2, 10), "40.0000")));
+        await using var app = Create(At(2081, 5, 20, 10), bank, nbu);
+        using var owner = await Connect(app, _ownerEmail, "token-nbu-gap", new DateOnly(2081, 1, 1));
+        await Drain(app, owner);
+        Assert.Empty((await List(owner, 2081)).Items);
+
+        nbuDown = false;
+        Assert.Equal(HttpStatusCode.Accepted, (await owner.PostAsync("/api/monobank/sync", null)).StatusCode);
+        await DrainUntil(app, owner, "nbu-gap-usd", account => account.BackfillComplete && !account.SyncPending);
+        await Sync(app, owner);
+
+        var row = Assert.Single((await List(owner, 2081)).Items);
+        Assert.Equal((300_00L, 400_000, 12_000_00L), (row.AmountMinor, row.RateE4, row.AmountUahKop));
+        Assert.Null((await Status(owner)).Accounts.Single(account => account.ExternalId == "nbu-gap-usd").LastFailure);
+    }
+
+    [Fact]
+    public async Task A_persistent_NBU_failure_holds_the_cursor_before_its_window_and_the_backfill_goes_stale()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-nbu-down", ("nbu-down-usd", 840));
+        var receivedAt = At(2082, 2, 10, 9);
+        bank.Put("nbu-down-usd", new Operation("op-nbu-down", receivedAt, 300_00, 840));
+        var nbu = new StubNbuHandler(_ => new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+        await using var app = Create(At(2082, 5, 20, 10), bank, nbu);
+        using var owner = await Connect(app, _ownerEmail, "token-nbu-down", new DateOnly(2082, 1, 1));
+        await Drain(app, owner);
+
+        var account = (await Status(owner)).Accounts.Single(row => row.ExternalId == "nbu-down-usd");
+        Assert.Equal("NbuRateUnavailable", account.LastFailure?.Reason.ToString());
+        Assert.True(account.SyncedThrough < receivedAt, $"the cursor moved past the receipt to {account.SyncedThrough:O}");
+        Assert.False(account.BackfillComplete);
+
+        app.Clock.Advance(TimeSpan.FromDays(4));
+        await Sync(app, owner);
+
+        Assert.Empty((await List(owner, 2082)).Items);
+        Assert.Equal("Stale", (await Health(owner))!["state"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task Only_settled_credits_in_a_known_currency_dated_by_Kyiv_are_recorded()
     {
         var bank = new FakeBank();
