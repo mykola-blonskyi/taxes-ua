@@ -41,6 +41,7 @@ services:
       Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
       Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
       Auth__AllowedEmails: ${ALLOWED_EMAILS:-}
+      Auth__AdminEmails: ${ADMIN_EMAILS:-}
       AllowedHosts: ${ALLOWED_HOSTS:-}
       Auth__Passkey__ServerDomain: ${PASSKEY_SERVER_DOMAIN:-}
       DataProtection__KeysPath: /var/lib/taxes-ua/keys

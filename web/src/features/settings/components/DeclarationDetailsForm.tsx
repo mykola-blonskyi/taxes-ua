@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useDataReplacements } from "@/data/backup/backup";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useDeclarationDetails,
@@ -72,8 +72,8 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
   const channels = useNotificationChannels({ awaitingLink: false });
   const [form, setForm] = useState<FormState>(() => toFormState(details));
 
-  const failure = save.error instanceof ApiError ? save.error : null;
-  const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
+  const failure = save.error;
+  const rejected = Object.keys(problemOf(failure)?.fieldCodes ?? {}).length > 0;
   const missing = details.missingDetails;
   const unknownKved = details.unknownKvedCodes;
   const confirmedEmail = channels.data?.find((channel) => channel.kind === "Email" && channel.confirmed)?.address;
@@ -81,7 +81,7 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
   const sentKved = form.kvedCodes.flatMap((code, index) => (code.trim() === "" ? [] : [index]));
 
   function fieldErrors(key: string): string[] | undefined {
-    return failure?.fieldCodes[key]?.map(apiText.ofCode);
+    return problemOf(failure)?.fieldCodes[key]?.map(apiText.ofCode);
   }
 
   function kvedErrors(index: number): string[] | undefined {

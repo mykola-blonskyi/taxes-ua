@@ -55,7 +55,7 @@ public static class InvoicingPrefillEndpoints
                 string token;
                 try
                 {
-                    token = encryptor.Decrypt(connection.EncryptedToken);
+                    token = encryptor.Decrypt(connection.EncryptedToken, connection.UserId);
                 }
                 catch (CryptographicException)
                 {

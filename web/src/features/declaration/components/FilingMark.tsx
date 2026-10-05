@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useMarkDeclarationFiled,
   useUndoDeclarationFiling,
@@ -50,6 +51,7 @@ function Filed({ filed, period }: { filed: DeclarationFiling; period: Period }) 
   const t = useTranslations("declaration.filing");
   const tTypes = useTranslations("declaration.types");
   const locale = useLocale();
+  const apiText = useApiErrorText();
   const undo = useUndoDeclarationFiling(period.year, period.quarter);
 
   return (
@@ -67,7 +69,7 @@ function Filed({ filed, period }: { filed: DeclarationFiling; period: Period }) 
           {t("changedSinceFiling", { filed: formatMoney(Number(filed.filedIncomeKop), locale) })}
         </p>
       ) : null}
-      {undo.isError ? <p className="text-sm text-destructive">{t("undoFailed")}</p> : null}
+      {undo.isError ? <p className="text-sm text-destructive">{apiText.withReason(t("undoFailed"), undo.error)}</p> : null}
     </div>
   );
 }
@@ -75,12 +77,12 @@ function Filed({ filed, period }: { filed: DeclarationFiling; period: Period }) 
 function MarkForm({ period, today }: { period: Period; today: string }) {
   const t = useTranslations("declaration.filing");
   const tTypes = useTranslations("declaration.types");
+  const apiText = useApiErrorText();
   const mark = useMarkDeclarationFiled(period.year, period.quarter);
   const [filedOn, setFiledOn] = useState(today);
   const [type, setType] = useState<DeclarationType>("Reporting");
 
-  const failure = mark.error instanceof ApiError ? mark.error : null;
-  const dateRejected = failure?.fieldCodes.filedOn !== undefined;
+  const dateRejected = problemOf(mark.error)?.fieldCodes.filedOn !== undefined;
 
   return (
     <form
@@ -110,7 +112,7 @@ function MarkForm({ period, today }: { period: Period; today: string }) {
           options={declarationTypes.map((value) => ({ value, label: tTypes(value) }))}
         />
       </div>
-      {mark.isError && !dateRejected ? <p className="text-sm text-destructive">{t("markFailed")}</p> : null}
+      {mark.isError && !dateRejected ? <p className="text-sm text-destructive">{apiText.withReason(t("markFailed"), mark.error)}</p> : null}
       <div>
         <Button type="submit" disabled={mark.isPending}>
           {mark.isPending ? t("marking") : t("mark")}

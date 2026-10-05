@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { LoadState } from "@/data/api/LoadState";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useLinkReceipt, usePayableInvoices, useUnlinkReceipt } from "@/data/invoices/useInvoices";
 import type { TransactionResponse } from "@/data/transactions/useTransactions";
 import { formatDateOnly } from "@/shared/lib/dates";
@@ -13,6 +14,7 @@ import { Button } from "@/shared/ui/button";
 // Rendered inside the row's wrapping action bar; the picker and any failure take a full line of it.
 export function InvoiceLinkAction({ transaction, rowName }: { transaction: TransactionResponse; rowName: string }) {
   const t = useTranslations("transactions.row.invoiceLink");
+  const apiText = useApiErrorText();
   const locale = useLocale();
   const linkReceipt = useLinkReceipt();
   const unlinkReceipt = useUnlinkReceipt();
@@ -22,7 +24,7 @@ export function InvoiceLinkAction({ transaction, rowName }: { transaction: Trans
   const { data: options } = optionsQuery;
 
   function report(error: unknown) {
-    setFailure(error instanceof ApiError && error.status === 409 ? t("conflict") : t("failed"));
+    setFailure(problemOf(error)?.status === 409 ? t("conflict") : apiText.withReason(t("failed"), error));
   }
 
   if (transaction.invoiceId) {

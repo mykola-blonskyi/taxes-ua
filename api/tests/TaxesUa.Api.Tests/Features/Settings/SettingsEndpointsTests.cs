@@ -99,6 +99,147 @@ public sealed class SettingsEndpointsTests(ApiFixture fixture) : IClassFixture<A
     }
 
     [Fact]
+    public async Task Put_appearance_changes_only_the_fields_sent()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        await ForgetAppearanceTimes();
+        var body = Body();
+        body["paymentMode"] = nameof(PaymentMode.MonthlyAdvance);
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", body, Json)).StatusCode);
+        var now = WholeSeconds(DateTimeOffset.UtcNow);
+
+        var language = await Appearance(owner, new { locale = "ru", chosenAt = now.AddSeconds(1) });
+        Assert.Equal(("ru", "system", PaymentMode.MonthlyAdvance), (language.Locale, language.Theme, language.PaymentMode));
+
+        var theme = await Appearance(owner, new { theme = "dark", chosenAt = now.AddSeconds(2) });
+        Assert.Equal(("ru", "dark", PaymentMode.MonthlyAdvance), (theme.Locale, theme.Theme, theme.PaymentMode));
+        Assert.Equal((now.AddSeconds(1), now.AddSeconds(2)), (theme.LocaleChosenAt, theme.ThemeChosenAt));
+        var read = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
+        Assert.Equal((theme.Locale, theme.LocaleChosenAt, theme.Theme, theme.ThemeChosenAt), (read!.Locale, read.LocaleChosenAt, read.Theme, read.ThemeChosenAt));
+    }
+
+    [Fact]
+    public async Task Put_appearance_takes_a_newer_choice_and_ignores_an_older_or_repeated_one()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        await ForgetAppearanceTimes();
+        var now = WholeSeconds(DateTimeOffset.UtcNow);
+
+        var phone = await Appearance(owner, new { locale = "ru", theme = "dark", chosenAt = now.AddSeconds(3) });
+        var latePc = await Appearance(owner, new { locale = "uk", theme = "light", chosenAt = now.AddSeconds(-30) });
+        var repeated = await Appearance(owner, new { locale = "uk", chosenAt = now.AddSeconds(3) });
+
+        Assert.Equal(("ru", "dark", now.AddSeconds(3)), (phone.Locale, phone.Theme, phone.LocaleChosenAt));
+        Assert.Equal(("ru", "dark", now.AddSeconds(3)), (latePc.Locale, latePc.Theme, latePc.LocaleChosenAt));
+        Assert.Equal(("ru", now.AddSeconds(3)), (repeated.Locale, repeated.LocaleChosenAt));
+
+        var newer = await Appearance(owner, new { locale = "uk", chosenAt = now.AddSeconds(4) });
+        Assert.Equal(("uk", now.AddSeconds(4), "dark", now.AddSeconds(3)), (newer.Locale, newer.LocaleChosenAt, newer.Theme, newer.ThemeChosenAt));
+    }
+
+    [Fact]
+    public async Task Put_appearance_holds_a_time_from_the_future_to_the_server_clock()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        await ForgetAppearanceTimes();
+        var before = DateTimeOffset.UtcNow;
+
+        var ahead = await Appearance(owner, new { theme = "dark", chosenAt = before.AddDays(1) });
+
+        Assert.Equal("dark", ahead.Theme);
+        Assert.InRange(ahead.ThemeChosenAt!.Value, before, DateTimeOffset.UtcNow);
+
+        // The clamped choice is not stuck on top: a choice made a moment later, elsewhere, still wins.
+        var later = await Appearance(owner, new { theme = "light", chosenAt = DateTimeOffset.UtcNow.AddSeconds(1) });
+        Assert.Equal("light", later.Theme);
+    }
+
+    [Fact]
+    public async Task Put_settings_without_locale_and_theme_keeps_them_and_their_times()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        await ForgetAppearanceTimes();
+        var chosenAt = WholeSeconds(DateTimeOffset.UtcNow).AddSeconds(5);
+        await Appearance(owner, new { locale = "ru", theme = "dark", chosenAt });
+        var body = Body();
+        body.Remove("locale");
+        body.Remove("theme");
+
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", body, Json)).StatusCode);
+
+        var settings = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
+        Assert.Equal(("ru", "dark", chosenAt, chosenAt), (settings!.Locale, settings.Theme, settings.LocaleChosenAt, settings.ThemeChosenAt));
+    }
+
+    [Fact]
+    public async Task Put_appearance_sent_at_once_for_an_owner_without_a_row_keeps_the_newest_of_each()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        await using (var scope = fixture.CreateScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userId = await database.Users.Where(user => user.Email == ApiFixture.AllowedEmail).Select(user => user.Id).SingleAsync();
+            await database.Settings.Where(row => row.UserId == userId).ExecuteDeleteAsync();
+        }
+        var now = WholeSeconds(DateTimeOffset.UtcNow);
+
+        var responses = await Task.WhenAll(Enumerable.Range(0, 8).Select(index => owner.PutAsJsonAsync(
+            "/api/settings/appearance",
+            index % 2 == 0
+                ? new { locale = (string?)(index == 6 ? "ru" : "uk"), theme = (string?)null, chosenAt = now.AddSeconds(index) }
+                : new { locale = (string?)null, theme = (string?)(index == 7 ? "dark" : "light"), chosenAt = now.AddSeconds(index) },
+            Json)));
+
+        Assert.All(responses, response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
+        var settings = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
+        Assert.Equal(("ru", now.AddSeconds(6), "dark", now.AddSeconds(7)), (settings!.Locale, settings.LocaleChosenAt, settings.Theme, settings.ThemeChosenAt));
+    }
+
+    [Fact]
+    public async Task Put_settings_that_changes_the_locale_counts_as_a_choice_made_now()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        await ForgetAppearanceTimes();
+        var before = WholeSeconds(DateTimeOffset.UtcNow);
+        await Appearance(owner, new { locale = "uk", chosenAt = before.AddSeconds(-1) });
+        var body = Body();
+        body["locale"] = "ru";
+
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", body, Json)).StatusCode);
+
+        var settings = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
+        Assert.Equal("ru", settings!.Locale);
+        Assert.InRange(settings.LocaleChosenAt!.Value, before, DateTimeOffset.UtcNow);
+    }
+
+    [Theory]
+    [InlineData("""{"locale":"de","chosenAt":"2026-10-05T10:00:00Z"}""", "locale")]
+    [InlineData("""{"theme":"solarized","chosenAt":"2026-10-05T10:00:00Z"}""", "theme")]
+    [InlineData("""{"chosenAt":"2026-10-05T10:00:00Z"}""", "locale")]
+    [InlineData("""{"locale":"ru"}""", "chosenAt")]
+    public async Task Put_appearance_rejects_a_value_the_interface_does_not_ship_and_stores_nothing(string json, string field)
+    {
+        using var owner = await SignIn(ApiFixture.SecondAllowedEmail);
+
+        var response = await owner.PutAsync(
+            "/api/settings/appearance", new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains(field, await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.False(await HasStoredSettings(ApiFixture.SecondAllowedEmail));
+    }
+
+    [Fact]
+    public async Task Put_appearance_needs_a_signed_in_owner()
+    {
+        using var client = fixture.CreateClient();
+
+        var response = await client.PutAsJsonAsync("/api/settings/appearance", new { locale = "ru", chosenAt = DateTimeOffset.UtcNow }, Json);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Put_rejects_a_repeated_weekend_day()
     {
         var body = Body();
@@ -240,6 +381,13 @@ public sealed class SettingsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         Assert.Equal("UAH", settings.DefaultCurrency);
     }
 
+    private static async Task<SettingsResponse> Appearance(HttpClient owner, object body)
+    {
+        var response = await owner.PutAsJsonAsync("/api/settings/appearance", body, Json);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<SettingsResponse>(Json))!;
+    }
+
     private static Dictionary<string, object?> Body() => new()
     {
         ["fopRegistrationDate"] = null,
@@ -253,6 +401,24 @@ public sealed class SettingsEndpointsTests(ApiFixture fixture) : IClassFixture<A
         ["theme"] = "system",
         ["defaultCurrency"] = "UAH",
     };
+
+    // Postgres keeps microseconds, so a time sent with .NET's ticks would not read back equal.
+    private static DateTimeOffset WholeSeconds(DateTimeOffset time) => time.AddTicks(-(time.Ticks % TimeSpan.TicksPerSecond));
+
+    // The tests share one owner, and a later choice always wins, so each starts from times the server
+    // does not know rather than from whatever an earlier test stamped.
+    private async Task ForgetAppearanceTimes()
+    {
+        await using var scope = fixture.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userId = await database.Users
+            .Where(user => user.Email == ApiFixture.AllowedEmail)
+            .Select(user => user.Id)
+            .SingleAsync();
+        await database.Settings
+            .Where(row => row.UserId == userId)
+            .ExecuteUpdateAsync(set => set.SetProperty(row => row.LocaleChosenAt, (DateTimeOffset?)null).SetProperty(row => row.ThemeChosenAt, (DateTimeOffset?)null));
+    }
 
     private async Task<bool> HasStoredSettings(string email)
     {

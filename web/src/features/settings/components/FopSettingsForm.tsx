@@ -4,10 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useDataReplacements } from "@/data/backup/backup";
-import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useSaveSettings, useSettings, type SettingsRequest } from "@/data/settings/useSettings";
-import { locales } from "@/i18n/locales";
 import { Button } from "@/shared/ui/button";
 import { LoadState } from "@/data/api/LoadState";
 import { CheckboxField, FieldErrors, SelectField, TextField, FieldForm } from "@/shared/ui/fields";
@@ -39,7 +37,6 @@ const weekdayLabelKeys = {
   Friday: "weekdays.friday",
   Saturday: "weekdays.saturday",
 } as const satisfies Record<DayOfWeek, string>;
-const themeOptions = ["light", "dark", "system"] as const;
 const currencyOptions = ["UAH", "USD", "EUR"] as const;
 
 type FormState = {
@@ -50,8 +47,6 @@ type FormState = {
   taxPaymentCountsFromStatutoryDeclarationDate: boolean;
   shiftTaxPaymentFromWeekend: boolean;
   weekendDays: DayOfWeek[];
-  locale: string;
-  theme: string;
   defaultCurrency: string;
   backOnGroup3FromYear: string;
   backOnGroup3FromQuarter: string;
@@ -66,8 +61,6 @@ function toFormState(settings: SettingsRequest): FormState {
     taxPaymentCountsFromStatutoryDeclarationDate: settings.taxPaymentCountsFromStatutoryDeclarationDate,
     shiftTaxPaymentFromWeekend: settings.shiftTaxPaymentFromWeekend,
     weekendDays: settings.weekendDays,
-    locale: settings.locale,
-    theme: settings.theme,
     defaultCurrency: settings.defaultCurrency,
     backOnGroup3FromYear: settings.backOnGroup3From ? String(settings.backOnGroup3From.year) : "",
     backOnGroup3FromQuarter: settings.backOnGroup3From ? String(settings.backOnGroup3From.quarter) : "",
@@ -103,12 +96,10 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
   const t = useTranslations("settings");
   const tFop = useTranslations("settings.fop");
   const apiText = useApiErrorText();
-  const tLanguage = useTranslations("language");
-  const tTheme = useTranslations("theme");
   const saveSettings = useSaveSettings();
   const [form, setForm] = useState<FormState>(() => toFormState(initial));
 
-  const failure = saveSettings.error instanceof ApiError ? saveSettings.error : null;
+  const failure = saveSettings.error;
   const fieldErrors = apiText.fieldTexts(failure);
   const rejectedFields = Object.keys(fieldErrors).length > 0;
 
@@ -175,24 +166,6 @@ function SettingsFormBody({ initial }: { initial: SettingsRequest }) {
                 : tFop("esvRegistrationMonthPolicyProrated"),
           }))}
           errors={fieldErrors?.esvRegistrationMonthPolicy}
-        />
-
-        <SelectField
-          id="locale"
-          label={tFop("locale")}
-          value={form.locale}
-          onChange={(value) => setForm((current) => ({ ...current, locale: value }))}
-          options={locales.map((code) => ({ value: code, label: tLanguage(code) }))}
-          errors={fieldErrors?.locale}
-        />
-
-        <SelectField
-          id="theme"
-          label={tFop("theme")}
-          value={form.theme}
-          onChange={(value) => setForm((current) => ({ ...current, theme: value }))}
-          options={themeOptions.map((value) => ({ value, label: tTheme(value) }))}
-          errors={fieldErrors?.theme}
         />
 
         <SelectField

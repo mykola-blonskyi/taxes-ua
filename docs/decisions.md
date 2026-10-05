@@ -155,6 +155,21 @@ Direct Google until the `login.blonskyi.dev` broker ships, then an OIDC client o
 The broker is designed as the sign-in for every `*.blonskyi.dev` project and is not built yet, so
 the Google handler here is the current step, not the permanent one.
 
+### Amendment, 2026-10-05: tax-year writes need an admin (#257)
+
+The tax-year parameters are the one table with no `UserId`: every user's engine reads the same rows.
+With one owner that is harmless; once the allowlist holds a second person, any signed-in user could
+change the rates the other's declaration is computed from (audit L10 of 2026-10-02).
+
+Reading stays open to every signed-in user. Writing (PUT, verify and clone) requires an admin: an
+address in `Auth__AdminEmails` (comma-separated) or, when that is unset or empty, the first address in
+`Auth__AllowedEmails`, so a single-owner deployment needs no new variable. An admin must also be on the
+allowlist. The check runs on each request against the current configuration, so removing an address
+takes effect at once. A non-admin gets 403 with the code `admin_required`, translated in uk and ru.
+
+`GET /api/auth/me` reports `isAdmin`, and the tax-years tab shows the parameters read-only to a
+non-admin. That is a courtesy; the api refuses the write whatever the screen offers.
+
 ---
 
 ## ADR-006. Deploy via Coolify on the existing VPS, reusing the existing PostgreSQL instance
@@ -397,7 +412,7 @@ deploy and the owner signs in once.
 
 Date: 2026-09-27
 
-Status: Accepted
+Status: Accepted, amended 2026-10-05 (the ring stays unencrypted at rest, see the amendment)
 
 ### Context
 
@@ -438,13 +453,20 @@ restarting the api rotates the keys and ends every session at once, which is ADR
 a stolen cookie. `deploy/check-compose.sh` fails CI if the mount and the configured path drift
 apart. A local Docker run persists its keys in the same volume under its own project.
 
+### Amendment, 2026-10-05: the ring stays unencrypted at rest (#256)
+
+The audit of 2026-10-02 (Security L9) listed the unencrypted key ring beside the plaintext feed and webhook
+secrets and the unbound bank token. #256 fixes the other two and leaves the ring as this decision accepts it.
+Encrypting it needs a key or certificate stored somewhere other than the volume, which only moves the secret,
+and reading the volume already takes root on the VPS. The startup warning stays.
+
 ---
 
 ## ADR-011. Encrypt the monobank token with a standalone key, not the Data Protection ring
 
 Date: 2026-09-28
 
-Status: Accepted
+Status: Accepted, amended 2026-10-05 (the token is bound to its owner, see the amendment)
 
 ### Context
 
@@ -504,12 +526,30 @@ replace from monobank, asking for a reconnect is an acceptable cost.  The Coolif
 the key once during the runbook's setup step (`docs/deploy.md`) and treats it exactly like the
 Google client secret: set once, rotated by hand when needed.
 
+### Amendment, 2026-10-05: the token is bound to its owner (#256)
+
+A ciphertext had nothing tying it to its row, so one copied onto another owner's `MonobankConnection`
+decrypted there. Every token is now written as v2: a version byte `0x02`, then the nonce, the ciphertext and
+the tag, sealed with the owner's `UserId` (UTF-8) as AES-GCM associated data. A v2 ciphertext moved to another
+owner fails its tag check, and every reader treats that as an unreadable token.
+
+A v1 ciphertext (nonce, ciphertext and tag, no associated data) still decrypts. Its nonce is random, so its
+first byte is `0x02` once in 256; a ciphertext that starts with `0x02` and fails as v2 is therefore tried as
+v1, and the tag still rejects anything forged. `TokenUpgrade` runs at startup, after the migrations and
+before any worker reads a token: it rewrites every v1 row as v2, guarded by the old ciphertext so a token
+saved meanwhile is kept, and leaves v2 rows alone, so it is safe to run on every start. Rows are rewritten
+at startup rather than on use because the workers find their row again by its ciphertext; a ciphertext that
+changed under a running worker would make it drop its write. The v1 read stays because a database restored
+from a dump taken before this change brings v1 rows back, and the next start upgrades them.
+
+Rolling back to a release before #256 leaves it v2 rows it cannot read. It shows the token as unreadable,
+and the owner connects monobank again.
 
 ## ADR-012. The monobank webhook is a signal to sync, found by a secret path
 
 Date: 2026-09-29
 
-Status: Accepted
+Status: Accepted, amended 2026-10-05 (only the secret's hash is stored, see the amendment)
 
 ### Context
 
@@ -566,6 +606,33 @@ queue and the gate bound; it never lets them read or write data. The secret appe
 proxy logs request paths, so replacing the token is the way to rotate it. A webhook the bank
 disabled costs at most a day's delay, because the nightly run re-reads the last 31 days and sets the
 webhook again.
+
+### Amendment, 2026-10-05: only the secret's hash is stored (#256)
+
+A database dump held working webhook URLs. `MonobankConnection` now keeps `WebhookSecretHash`, the SHA-256 of
+the path secret as 64 lowercase hex characters (`PathSecret`), and `WebhookBaseUrl`, the public base URL
+under which monobank accepted the URL of that secret. The full URL, which carried the secret, is no longer
+stored. A request is matched by hashing its path segment and looking the hash up by its unique index. The
+index comparison is not constant-time, but its timing can only reveal how much of a stored hash a guess's
+hash shares, which gives nothing towards the secret.
+
+The registrar cannot rebuild a URL from a hash, so every registration draws a new secret: on a token save,
+on start for a connection whose `WebhookBaseUrl` is not the configured one, and on the nightly run. It
+stores the new hash and clears `WebhookBaseUrl` before it calls the bank, because the bank checks the URL
+with a GET before accepting it, and records the base URL once the bank accepts. The URL registered before
+stops answering at that moment. A token save clears both columns, so the old token's URL stops answering at
+once. Settings shows `Registered` when `WebhookBaseUrl` is the configured base URL.
+
+Two costs follow. A failed registration leaves no working URL until the next one, a night or a restart
+later; the nightly run reads the last 31 days, so the cost is the day's delay this decision already accepts
+for a webhook the bank disabled. And a notification in flight while the nightly run replaces the URL
+answers 404. In return the URL changes at least once a day, so a leaked one stops working by the next
+morning.
+
+The migration `HashPathSecrets` hashes each stored secret in place and keeps the base URL of a URL
+registered for the current secret, so the webhook monobank holds keeps answering and nothing is
+registered again. Its Down cannot restore a secret: each hash becomes the secret with no registered URL,
+and the earlier release registers that secret's URL on its next start.
 
 ---
 
@@ -807,7 +874,7 @@ tests. Stored files do not follow later edits: preparing the file again replaces
 
 Date: 2026-09-30
 
-Status: Accepted
+Status: Accepted, amended 2026-10-05 (only the secret's hash is stored, see the amendment)
 
 ### Context
 
@@ -858,6 +925,23 @@ Anyone with the link sees the owner's deadlines until the owner rotates. Rotatin
 subscriptions by design; the owner subscribes again. The path appears wherever a proxy in front of the
 app logs request paths, which this app does not control. Alarms are a calendar-side nudge at 09:00
 local; the reminders of #108 remain the message that names what is owed.
+
+### Amendment, 2026-10-05: only the secret's hash is stored (#256)
+
+The owner agreed (#252) that a database dump must not yield a working feed URL, at the price this decision
+rejected: the link is shown once. `CalendarFeed` keeps `SecretHash`, the SHA-256 of the path secret as 64
+lowercase hex characters (`PathSecret`), instead of the secret. The feed is found by hashing the path segment
+and looking the hash up by its unique index; as for the webhook (ADR-012), the index comparison's timing can
+only reveal how much of a stored hash a guess's hash shares.
+
+`POST /api/calendar/feed/rotate` is the only answer that carries the path, with the link's `createdAt`.
+`GET /api/calendar/feed` answers `createdAt` alone, null while the owner has no link. Settings shows a new
+link with a note to copy it now, and later says when the link was created and that rotating shows a new one,
+which stops the old one.
+
+The migration `HashPathSecrets` hashes each stored secret in place, so a calendar already subscribed keeps
+updating. Its Down cannot restore a secret: it stores the hash as the secret, so the old URL answers 404
+and the owner rotates the link.
 
 ---
 
@@ -1927,3 +2011,49 @@ restored that object as the scratch cluster's superuser.
 3. **Not done: recording a hash of each upload.** The app could store each object's SHA-256 and the check
    could require a match. That is a second trust store for the same question, and a restore that runs
    unprivileged already bounds what a planted object can do. Revisit it if the check ever needs more privilege.
+
+## ADR-032. One language menu and one theme toggle, saved to the server (#245)
+
+**Status:** accepted, 2026-10-05.
+
+The settings form had its own language and theme selects beside the shell's menus. The shell's menus only
+wrote the browser (a cookie, next-themes' storage), the form's selects only wrote `Settings`, and the server
+reads `Settings.Locale` for every message it originates: reminders, Telegram replies, the email and Telegram
+tests and the calendar feed. Two switches for one thing disagreed. `Settings.Theme` had no server reader at
+all, and the owner wants both to follow them from phone to PC.
+
+1. **The form loses both selects; the shell keeps one switch each.** A menu choice writes the browser first
+   (instant, and the only thing that happens signed out) and, when signed in, sends `PUT
+   /api/settings/appearance` with just the fields it changed, without being awaited, with `keepalive` so a
+   navigation started the same instant does not cancel it. The cookie is set before the request is made, so
+   the very next navigation carries the new language (#193).
+2. **`PUT /api/settings` treats an absent `locale` or `theme` as keep.** The form no longer sends them, and a
+   form opened before a menu change must not put the old choice back.
+3. **The newest choice wins, field by field.** `Settings` keeps `LocaleChosenAt` and `ThemeChosenAt` (UTC,
+   nullable) beside the values, and the browser keeps each choice's time next to the value the page reads:
+   the `locale-chosen-at` cookie beside `locale`, and `theme-chosen-at` in `localStorage` beside next-themes'
+   `theme`. `PUT /api/settings/appearance` takes `{ locale?, theme?, chosenAt }` and applies a field only
+   when `chosenAt` is later than the stored time, so a repeated or late request changes nothing; it answers
+   with the whole settings, times included. A `chosenAt` more than two minutes ahead of the server clock is
+   taken as the server's now, so a device whose clock runs ahead cannot win every later choice. The write
+   holds the owner's lock, because a browser sends the language and the theme as two requests at once and
+   both could otherwise add the first row or land out of order. A value
+   written through `PUT /api/settings` counts as chosen at that moment.
+   On every signed-in load, and each time the tab regains focus (the settings are read again then, however
+   fresh), the browser compares each field: the server's later choice is applied (the language refreshes
+   the route once, only when it actually changes and the cookie took it), and the browser's later choice is
+   sent. That covers a choice made signed out on the sign-in page and a save that was cut off, with no
+   separate store of unsent changes. A browser with no choice of its own takes the
+   server's. A time that is missing counts as the oldest: a browser or a row from before the times were
+   kept gives way to any timed choice, and two untimed sides are left as they are until the owner next
+   chooses. Two devices that each chose therefore converge on the later choice the next time either loads.
+   The server keeps that choice, which is what the messages it writes follow.
+4. **`system` syncs as the literal choice.** Each device resolves it for itself, so a phone in the light
+   and a PC in the dark both stay on "system".
+5. **The backup does not carry the two times (schema stays 19).** They only order choices between the
+   owner's devices. A restore leaves them null, so the restored language and theme count as the oldest
+   and each device's own later choice wins over the file's.
+6. **What remains.** The first paint uses the browser's own value; when the server's later choice arrives
+   the theme switches and the route refreshes once into the language. A tab left open sees another device's
+   change when it regains focus, not while it is in view. Default currency is untouched:
+   nothing reads it, and the owner decided to leave it as it is.

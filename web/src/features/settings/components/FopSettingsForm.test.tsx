@@ -59,8 +59,8 @@ describe("FopSettingsForm rejection", () => {
       [read]: settings,
       [write]: reply(400, {
         code: "validation_failed",
-        errors: { theme: ["theme must be one of light, dark, system."] },
-        errorCodes: { theme: ["a_code_from_the_future"] },
+        errors: { defaultCurrency: ["defaultCurrency must be one of UAH, USD, EUR."] },
+        errorCodes: { defaultCurrency: ["a_code_from_the_future"] },
       }),
     });
     const { user } = renderApp(<FopSettingsForm />);
@@ -68,7 +68,22 @@ describe("FopSettingsForm rejection", () => {
     await user.click(await screen.findByRole("button", { name: "Зберегти" }));
 
     expect(await screen.findByText("Не вдалося виконати дію. Спробуйте ще раз.")).toBeVisible();
-    expect(screen.queryByText(/theme must be/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/defaultCurrency must be/)).not.toBeInTheDocument();
+  });
+});
+
+describe("FopSettingsForm language and theme", () => {
+  it("has no language or theme field and never sends either, so a save cannot put an old choice back", async () => {
+    const fetchStub = stubFetch({ [read]: settings, [write]: settings });
+    const { user } = renderApp(<FopSettingsForm />);
+
+    await user.click(await screen.findByRole("button", { name: "Зберегти" }));
+
+    expect(screen.queryByLabelText("Мова інтерфейсу")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Тема")).not.toBeInTheDocument();
+    await waitFor(() => expect(fetchStub.requestsTo(write)).toHaveLength(1));
+    expect(fetchStub.requestsTo(write)[0].body).not.toHaveProperty("locale");
+    expect(fetchStub.requestsTo(write)[0].body).not.toHaveProperty("theme");
   });
 });
 

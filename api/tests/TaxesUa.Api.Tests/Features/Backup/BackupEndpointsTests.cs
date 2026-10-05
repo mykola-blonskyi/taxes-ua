@@ -1142,6 +1142,10 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             nameof(NotificationChannel.LastFailureAt),
         ];
 
+        // When the language and theme were chosen only orders choices between the owner's devices (ADR-032).
+        // A restore leaves them unknown, the oldest, so each device's own later choice wins over the file's.
+        string[] appearanceTimesNotBackedUp = [nameof(SettingsEntity.LocaleChosenAt), nameof(SettingsEntity.ThemeChosenAt)];
+
         foreach (var (entity, record) in backedUp)
         {
             var columns = model.FindEntityType(entity)!.GetProperties().Select(property => property.Name)
@@ -1155,6 +1159,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 // The total is the sum of the lines, recomputed on restore rather than trusted from the file.
                 .Where(name => entity != typeof(Invoice) || name != nameof(Invoice.TotalMinor))
                 .Where(name => entity != typeof(BankAccount) || !syncStateNotBackedUp.Contains(name))
+                .Where(name => entity != typeof(SettingsEntity) || !appearanceTimesNotBackedUp.Contains(name))
                 // The year and the quarter of the return to group 3 travel as one YearQuarter, and the group 3
                 // receipt's date and number as one confirmation.
                 .Select(name => entity == typeof(SettingsEntity) && name.StartsWith(nameof(SettingsEntity.BackOnGroup3From), StringComparison.Ordinal)

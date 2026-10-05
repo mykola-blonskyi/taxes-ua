@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { LoadState } from "@/data/api/LoadState";
 import { useClients } from "@/data/clients/useClients";
@@ -114,7 +113,7 @@ export function TransactionForm({
   const [form, setForm] = useState<FormState>(() => (editing ? toFormState(editing) : emptyForm()));
 
   const mutation = editing ? updateTransaction : createTransaction;
-  const failure = mutation.error instanceof ApiError ? mutation.error : null;
+  const failure = mutation.error;
   const fieldErrors = apiText.fieldTexts(failure);
   const rejectedFields = Object.keys(fieldErrors).length > 0;
 

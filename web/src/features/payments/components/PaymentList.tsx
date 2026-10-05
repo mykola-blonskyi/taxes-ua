@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
-import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useDeletePayment, type PaymentResponse } from "@/data/payments/usePayments";
 import { formatDateOnly } from "@/shared/lib/dates";
@@ -35,7 +34,7 @@ function PaymentRow({ payment, onEdit }: { payment: PaymentResponse; onEdit: (pa
   const deletePayment = useDeletePayment();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const deleteFailure = deletePayment.error instanceof ApiError ? deletePayment.error : null;
+  const deleteFailure = deletePayment.error;
   const formattedDate = formatDateOnly(payment.paidOn, locale);
   const formattedAmount = formatMoney(Number(payment.amountKop), locale);
   const period =

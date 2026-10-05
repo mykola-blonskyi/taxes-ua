@@ -3,6 +3,11 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Monobank;
 
@@ -55,6 +60,35 @@ public sealed partial class MonobankSyncTests
     }
 
     [Fact]
+    public async Task Setting_the_webhook_again_draws_a_new_url_and_only_its_hash_is_stored()
+    {
+        var bank = new FakeBank();
+        bank.Connect("token-rehook", ("rehook-uah", 980));
+        await using var app = Create(At(2073, 3, 5, 10), bank, publicBaseUrl: PublicBaseUrl);
+        using var owner = await Connect(app, _ownerEmail, "token-rehook");
+        using var monobank = ApiFixture.CreateClient(app.Factory);
+        await WebhookSettled(app, owner);
+        var first = RegisteredPath(bank);
+
+        await using var scope = app.Factory.Services.CreateAsyncScope();
+        var user = (await scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByEmailAsync(_ownerEmail))!;
+        app.Factory.Services.GetRequiredService<MonobankWebhooks>().Reconcile(user.Id);
+        await Quiet(app);
+        Assert.Equal(WebhookState.Registered, (await Status(owner)).Webhook!.State);
+        var second = RegisteredPath(bank);
+
+        Assert.NotEqual(first, second);
+        Assert.Equal(HttpStatusCode.NotFound, (await monobank.GetAsync(first)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await monobank.GetAsync(second)).StatusCode);
+
+        var secret = second[MonobankWebhooks.PathPrefix.Length..];
+        Assert.DoesNotContain(secret, await owner.GetStringAsync("/api/monobank/connection"));
+        var stored = await scope.ServiceProvider.GetRequiredService<AppDbContext>().MonobankConnections
+            .AsNoTracking().SingleAsync(row => row.UserId == user.Id);
+        Assert.Equal((PathSecret.Hash(secret), PublicBaseUrl), (stored.WebhookSecretHash, stored.WebhookBaseUrl));
+    }
+
+    [Fact]
     public async Task A_webhook_post_queues_a_statement_read_and_its_forged_body_inserts_nothing()
     {
         var bank = new FakeBank();
@@ -95,7 +129,7 @@ public sealed partial class MonobankSyncTests
         using var monobank = ApiFixture.CreateClient(app.Factory);
         var calls = bank.StatementCalls(app.Handler).Length;
 
-        foreach (var secret in new[] { MonobankWebhooks.NewSecret(), "not-a-secret", string.Concat(Enumerable.Repeat("0", 64)) })
+        foreach (var secret in new[] { PathSecret.New(), "not-a-secret", string.Concat(Enumerable.Repeat("0", 64)) })
         {
             var path = MonobankWebhooks.PathPrefix + secret;
             Assert.Equal(HttpStatusCode.NotFound, (await monobank.GetAsync(path)).StatusCode);

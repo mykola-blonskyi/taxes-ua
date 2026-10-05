@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { LoadState } from "@/data/api/LoadState";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useLinkReceipt,
   useReceiptOptions,
@@ -16,6 +17,7 @@ import { Button } from "@/shared/ui/button";
 
 export function InvoicePayments({ invoice }: { invoice: InvoiceResponse }) {
   const t = useTranslations("invoices.payments");
+  const apiText = useApiErrorText();
   const locale = useLocale();
   const linkReceipt = useLinkReceipt();
   const unlinkReceipt = useUnlinkReceipt();
@@ -29,7 +31,7 @@ export function InvoicePayments({ invoice }: { invoice: InvoiceResponse }) {
   const format = (amountMinor: number | string) => formatAmount(Number(amountMinor), invoice.currency, locale);
 
   function report(error: unknown) {
-    setFailure(error instanceof ApiError && error.status === 409 ? t("conflict") : t("failed"));
+    setFailure(problemOf(error)?.status === 409 ? t("conflict") : apiText.withReason(t("failed"), error));
   }
 
   function link(receiptId: string) {

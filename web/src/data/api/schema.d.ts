@@ -743,6 +743,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/appearance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["AppearanceRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SettingsResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/invoicing": {
         parameters: {
             query?: never;
@@ -2084,6 +2139,15 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
+                    };
+                };
             };
         };
         post?: never;
@@ -2128,6 +2192,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
+                    };
                 };
                 /** @description Not Found */
                 404: {
@@ -2191,6 +2264,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
+                    };
                 };
                 /** @description Not Found */
                 404: {
@@ -5341,7 +5423,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CalendarFeedResponse"];
+                        "application/json": components["schemas"]["CalendarFeedLinkResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -5403,6 +5485,12 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AppearanceRequest: {
+            locale?: null | string;
+            theme?: null | string;
+            /** Format: date-time */
+            chosenAt?: null | string;
+        };
         /** @enum {string} */
         AuditAction: "Create" | "Update" | "Delete" | "Restore";
         /** @enum {string} */
@@ -5507,8 +5595,14 @@ export interface components {
         CabinetKind: "Text" | "Number" | "Amount" | "Date" | "Mark";
         /** @enum {string} */
         CabinetPart: "None" | "Header" | "Period" | "Declaration" | "Footer" | "Annex";
+        CalendarFeedLinkResponse: {
+            path: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
         CalendarFeedResponse: {
-            path: null | string;
+            /** Format: date-time */
+            createdAt: null | string;
         };
         CancelInvoiceRequest: {
             reason: string;
@@ -6238,6 +6332,7 @@ export interface components {
             displayName: null | string;
             /** Format: date-time */
             createdAt: string;
+            isAdmin: boolean;
         };
         MonobankAccountResponse: {
             externalId: string;
@@ -6665,8 +6760,8 @@ export interface components {
             taxPaymentCountsFromStatutoryDeclarationDate: boolean;
             shiftTaxPaymentFromWeekend: boolean;
             weekendDays: ("Sunday" | "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday")[];
-            locale: string;
-            theme: string;
+            locale?: null | string;
+            theme?: null | string;
             defaultCurrency: string;
             backOnGroup3From?: null | components["schemas"]["YearQuarter"];
         };
@@ -6683,6 +6778,10 @@ export interface components {
             theme: string;
             defaultCurrency: string;
             backOnGroup3From: null | components["schemas"]["YearQuarter"];
+            /** Format: date-time */
+            localeChosenAt: null | string;
+            /** Format: date-time */
+            themeChosenAt: null | string;
         };
         /** @enum {string} */
         SyncFailure: "BankUnreachable" | "BankTimeout" | "BankError" | "UnreadableAnswer" | "RateLimited" | "TokenUnreadable" | "TooManyInOneSecond" | "Unexpected" | "NbuRateUnavailable";

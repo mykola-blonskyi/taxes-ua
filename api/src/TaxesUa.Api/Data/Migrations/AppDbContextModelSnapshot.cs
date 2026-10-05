@@ -371,14 +371,14 @@ namespace TaxesUa.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Secret")
+                    b.Property<string>("SecretHash")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
                     b.HasKey("UserId");
 
-                    b.HasIndex("Secret")
+                    b.HasIndex("SecretHash")
                         .IsUnique();
 
                     b.ToTable("CalendarFeeds");
@@ -649,6 +649,10 @@ namespace TaxesUa.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("RejectedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("WebhookBaseUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<DateTimeOffset?>("WebhookFailedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -656,18 +660,13 @@ namespace TaxesUa.Api.Data.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
-                    b.Property<string>("WebhookSecret")
-                        .IsRequired()
+                    b.Property<string>("WebhookSecretHash")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<string>("WebhookUrl")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
                     b.HasKey("UserId");
 
-                    b.HasIndex("WebhookSecret")
+                    b.HasIndex("WebhookSecretHash")
                         .IsUnique();
 
                     b.ToTable("MonobankConnections");
@@ -697,6 +696,53 @@ namespace TaxesUa.Api.Data.Migrations
                     b.HasKey("UserId");
 
                     b.ToTable("ReserveJars");
+                });
+
+            modelBuilder.Entity("TaxesUa.Api.Features.Notifications.NotificationChannel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<DateTimeOffset?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("LastDeliveryAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastFailure")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset?>("LastFailureAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("LinkedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("NotificationChannels");
                 });
 
             modelBuilder.Entity("TaxesUa.Api.Features.Notifications.NotificationLinkCode", b =>
@@ -1160,53 +1206,6 @@ namespace TaxesUa.Api.Data.Migrations
                     b.ToTable("InvoicingPaymentDetails");
                 });
 
-            modelBuilder.Entity("TaxesUa.Api.Features.Settings.NotificationChannel", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Address")
-                        .IsRequired()
-                        .HasMaxLength(320)
-                        .HasColumnType("character varying(320)");
-
-                    b.Property<DateTimeOffset?>("ConfirmedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("Enabled")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Kind")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTimeOffset?>("LastDeliveryAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastFailure")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTimeOffset?>("LastFailureAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("LinkedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId", "Kind")
-                        .IsUnique();
-
-                    b.ToTable("NotificationChannels");
-                });
-
             modelBuilder.Entity("TaxesUa.Api.Features.Settings.Settings", b =>
                 {
                     b.Property<string>("UserId")
@@ -1253,6 +1252,9 @@ namespace TaxesUa.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<DateTimeOffset?>("LocaleChosenAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int>("PaymentMode")
                         .HasColumnType("integer");
 
@@ -1265,6 +1267,9 @@ namespace TaxesUa.Api.Data.Migrations
                     b.Property<string>("Theme")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ThemeChosenAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.PrimitiveCollection<int[]>("WeekendDays")
                         .IsRequired()
@@ -1738,6 +1743,15 @@ namespace TaxesUa.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("TaxesUa.Api.Features.Notifications.NotificationChannel", b =>
+                {
+                    b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TaxesUa.Api.Features.Notifications.NotificationLinkCode", b =>
                 {
                     b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
@@ -1813,15 +1827,6 @@ namespace TaxesUa.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("TaxesUa.Api.Features.Settings.InvoicingPaymentDetails", b =>
-                {
-                    b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("TaxesUa.Api.Features.Settings.NotificationChannel", b =>
                 {
                     b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
                         .WithMany()

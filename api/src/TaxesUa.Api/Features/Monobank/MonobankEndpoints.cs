@@ -195,7 +195,7 @@ public static class MonobankEndpoints
                 {
                     database.MonobankConnections.Remove(connection);
                     await database.SaveChangesAsync(cancellationToken);
-                    if (webhooks.IsConfigured || connection.WebhookUrl is not null)
+                    if (webhooks.IsConfigured || connection.WebhookBaseUrl is not null)
                     {
                         webhooks.Clear(user.Id, connection.EncryptedToken);
                     }
@@ -281,11 +281,14 @@ public static class MonobankEndpoints
         return routes;
     }
 
-    private static Task<string?> OwnerOfSecretAsync(AppDbContext database, string secret, CancellationToken cancellationToken) =>
-        database.MonobankConnections
-            .Where(row => row.WebhookSecret == secret)
+    private static Task<string?> OwnerOfSecretAsync(AppDbContext database, string secret, CancellationToken cancellationToken)
+    {
+        var hash = PathSecret.Hash(secret);
+        return database.MonobankConnections
+            .Where(row => row.WebhookSecretHash == hash)
             .Select(row => row.UserId)
             .FirstOrDefaultAsync(cancellationToken);
+    }
 
     private static IResult NotConfigured() => Problems.Create(
         StatusCodes.Status503ServiceUnavailable,
@@ -326,11 +329,12 @@ public static class MonobankEndpoints
             database.MonobankConnections.Add(connection);
         }
 
-        connection.EncryptedToken = encryptor.Encrypt(token);
+        connection.EncryptedToken = encryptor.Encrypt(token, userId);
         connection.MonobankClientId = info.ClientId;
         connection.ConnectedAt = time.GetUtcNow();
         connection.RejectedAt = null;
-        connection.WebhookSecret = MonobankWebhooks.NewSecret();
+        connection.WebhookSecretHash = null;
+        connection.WebhookBaseUrl = null;
         connection.WebhookFailedAt = null;
         connection.WebhookFailure = null;
         // A rejection or failed registration written by a worker after this row was read must still be

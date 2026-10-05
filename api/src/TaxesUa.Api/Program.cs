@@ -379,6 +379,11 @@ await using (var scope = app.Services.CreateAsyncScope())
         MigrationDump.PgDumpAsync,
         scope.ServiceProvider.GetRequiredService<TimeProvider>(),
         app.Logger);
+    await TokenUpgrade.RunAsync(
+        scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+        scope.ServiceProvider.GetRequiredService<TokenEncryptor>(),
+        app.Logger,
+        CancellationToken.None);
 }
 
 app.Run();

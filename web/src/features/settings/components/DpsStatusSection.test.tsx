@@ -191,3 +191,23 @@ describe("SettingsTabs", () => {
     expect(screen.getByRole("tab", { name: "ФОП" })).toHaveAttribute("aria-selected", "true");
   });
 });
+
+describe("DpsStatusSection network failure", () => {
+  it.each([
+    ["uk", "ФОП зареєстровано", "Зберегти", "Не вдалося зберегти: Немає зв'язку з сервером. Перевірте мережу й спробуйте ще раз."],
+    ["ru", "ФОП зарегистрирован", "Сохранить", "Не удалось сохранить: Нет связи с сервером. Проверьте сеть и попробуйте ещё раз."],
+  ] as const)("says so in %s when the save never reaches the api", async (locale, tick, button, message) => {
+    stubFetch({
+      [read]: unconfirmed,
+      [write]: () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    const { user } = renderApp(<DpsStatusSection />, { locale });
+
+    await user.click(await screen.findByRole("checkbox", { name: tick }));
+    await user.click(screen.getByRole("button", { name: button }));
+
+    expect(await screen.findByText(message)).toBeVisible();
+  });
+});
