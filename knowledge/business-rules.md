@@ -969,11 +969,24 @@ Unverified until the owner scans a Treasury payment with a real banking app: the
 budget account at all, and whether it splits the leading `101` into the payment type field. If banks
 refuse, the QR is hidden for Treasury accounts behind one flag in the panel, with a note.
 
-An account in use may end (#173). The owner may give the Manual account an end when entering it, and may give
-the account in use an end later, in settings; an account learned from a payment carries none until the owner
-sets one, because the app cannot know whether a bank account is temporary. The end is the last day the
-account can receive a payment, and the Pay panel judges it on today in Kyiv, since the panel is used to pay
-now:
+An account in use may end (#173). The end is the last day the account can receive a payment. It is the owner's
+when the owner gave one, else a default from the tax year's parameters (#261):
+
+- The owner may give the Manual account an end when entering it, and may give the account in use an end
+  later, in settings. The owner may also remove the end, which says the account does not end and sets the
+  default aside too (for when the Treasury keeps an account into the next year). An end the owner set or
+  removed is never overwritten by a default.
+- A military-levy account the owner said nothing about ends on the `MilitaryLevyAccountEnd` of the tax year
+  the account arrived in (Rule 9), when the account arrived on or before that day. A learned account arrives
+  on the date of the payment it was learned from, so a December payment imported in January is still that
+  year's temporary account; a Manual account arrives when the owner last entered it, so entering an IBAN
+  after the end, as the next year's account, gives it the next year's default (none when that year has no
+  date). The year the account is used in would not do: the next year has no date, so the old account would
+  stop ending the day it closes. No other kind has a default, because the app cannot know whether another
+  bank account is temporary.
+
+The settings screen and the API say whose end it is (`Owner` or `Default`). The Pay panel judges the end on
+today in Kyiv, since the panel is used to pay now:
 
 - Today is after the end: the account has expired. The details answer says so (`expiry` with state `Expired`)
   and gives no recipient, no copy fields and no QR, so no money goes to a closed account. The panel tells the
@@ -993,9 +1006,20 @@ stops being flagged. Reverting to Learned drops the Manual end and brings the Le
 The temporary military-levy accounts used from 2026-07-01 end on 2026-12-31: Law 4908-IX of 10.06.2026 sends
 the levy to the special fund "з 1 липня 2026 року по 31 грудня 2026 року", and the Treasury opened new
 accounts for that period (https://7eminar.ua/news/3892-yak-fopu-1-2-4-grupi-jep-znaiti-raxunok-dlya, quoting
-the law; the DPS news of 2026-06 at tax.gov.ua/media-tsentr/novini/1025531.html). What applies from
-2027-01-01 is not published, so settings offers 2026-12-31 as a one-tap value for the military levy account
-and applies nothing by itself; the offer is only shown while that day has not passed and the account has no end.
+the law; the DPS news of 2026-06 at tax.gov.ua/media-tsentr/novini/1025531.html). The 2026 tax year is seeded
+with that date as its `MilitaryLevyAccountEnd`, and a migration leaves every existing account without an end
+of the owner's, so a levy account learned or entered in 2026 ends on it. What applies from 2027-01-01 is not
+published, so no other year has a date until the owner enters one in the tax-years tab.
+
+**The prompt for the new account.** From the day after the end of an account in use until the owner enters a
+new account (or moves or removes the end), the dashboard shows one notice: the account has closed, enter the
+new one from the Electronic Cabinet, with a link to the Treasury accounts tab of settings. It ranks under the
+declaration and above the new tax year (ADR-029), and the Pay panel keeps saying `Expired` as above. The state
+is derived, never stored. The same account is an incident (Rule 18) keyed by its kind and end
+(`TreasuryAccountExpired:<kind>:<end>`), sent once per channel from 09:00 Kyiv on the first working day after
+the end: the owner's weekend days and the holidays of that day's tax year, none when the year has no
+parameters yet. For the 2026 levy account that is Friday 2027-01-01, since holidays are working days under
+martial law (Rule 5). An end the owner moves later, then passes, is another key and is alerted again.
 
 Once the bank operation is confirmed (#80), the debt moves as it does for any payment.
 
@@ -1124,11 +1148,12 @@ later key. The first rejection of a token also stays: a later 401 does not overw
 The same mechanism carries other incidents: a new kind of incident and a source that reports it, not a new
 sender. An unproven backup is one (below), the December prompt to prepare the next tax year and the alert for
 a current year with no parameters (both Rule 9, keyed by the year and held until 09:00 Kyiv) are others, and
-an expired Treasury account (#173) will be another.
+so is an expired Treasury account (Rule 16, keyed by its kind and end, held until 09:00 Kyiv on the first
+working day after the end).
 
 A message is plain text in the owner's language: what is wrong, what it means for the figures, and a link to
-the settings tab that fixes it (monobank for a sync incident, tax years for a tax-year one; none when nothing
-in the app fixes it).
+the settings tab that fixes it (monobank for a sync incident, tax years for a tax-year one, Treasury accounts
+for an expired account; none when nothing in the app fixes it).
 
 **Unproven backup.** The database is backed up each night and a restore of the newest copy is tried each
 week (ADR-031). Every run is recorded in `DatabaseBackupRuns`. `RestoreCheckFailed` is open when the newest
