@@ -2017,6 +2017,34 @@ restored that object as the scratch cluster's superuser.
    could require a match. That is a second trust store for the same question, and a restore that runs
    unprivileged already bounds what a planted object can do. Revisit it if the check ever needs more privilege.
 
+### Amendment, 2026-10-05: the JSON backup restores only its current schema (#254)
+
+The audit of 2026-10-05 (Architecture F4) found the owner's JSON backup at schema 18 after 17 bumps in six
+days. Each bump cost an upgrade step and a fixture, and most steps only wrote `null`, `[]` or `""`. They were
+needed because the restore reads with `RespectRequiredConstructorParameters`, so a file without a member was
+refused. This dump is now the disaster backup, so the JSON file no longer has to read every version it ever
+wrote. Its remaining value is a portable copy the owner holds.
+
+1. **The floor is the current version, 19.** `POST /api/restore` reads only
+   `BackupDocument.CurrentSchemaVersion`. An older file is refused with `backup_too_old`, and the screen tells
+   the owner to download a fresh backup from the app. A newer file keeps `backup_version_unsupported`. The
+   upgrade steps for versions 1 to 18 and their fixtures are deleted. The behaviour they carried goes with
+   them, including ADR-018's reading of a version 15 `Prorated` as `FullMonth`. Raising the version later moves
+   the floor with it. After a deploy that raises it, the owner downloads a fresh file.
+2. **An additive optional member needs no bump.** It goes last in its `*Backup` record's parameter list with a
+   default value such as `= null` or `= false`. C# allows only constants there, so a new collection member is
+   nullable with `= null`, and the restore must read null as empty. System.Text.Json treats a parameter with a
+   default as not required, so a file written before the member existed restores with the default. `BackupDocument.ReserveJar = null` is the first such member.
+   `BackupSchemaVersionsTests` proves it with a current file that lacks it.
+3. **A bump is still required** when a member is removed or renamed, when its type or format changes, when
+   the meaning or unit of a value changes (kopecks to hryvnias, an enum value read differently, a date that
+   becomes a time), and when a new member has no safe default, so a file without it would restore wrong.
+4. **Unknown members stay refused.** Every backup record carries
+   `JsonUnmappedMemberHandling.Disallow`. A member the reader does not know means the file came from a newer
+   build or was edited by hand. Dropping it silently would restore less than the file holds, and the owner
+   would not know. A rollback that meets a file with a newer optional member is therefore refused as invalid
+   rather than by its version. That is the safe failure, and the owner restores from this dump instead.
+
 ## ADR-032. One language menu and one theme toggle, saved to the server (#245)
 
 **Status:** accepted, 2026-10-05.

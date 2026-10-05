@@ -227,9 +227,10 @@ A restore from backup is not the owner's edits, so it writes one summary entry
 save as the rows it inserts. A save that carries that summary gets no per-row entries. The log is
 history, not state: a backup does not carry it and a restore does not replace it.
 
-Every backup schema version from 2 up has a fixture in `api/tests/TaxesUa.Api.Tests/Features/Backup/Fixtures/`
-and `BackupSchemaVersionsTests` restores each. Raising `BackupDocument.CurrentSchemaVersion` fails that suite
-until the new version's fixture exists. `UpgradeFromPreviousReleaseTests` migrates a database from an older
+The backup restores only `BackupDocument.CurrentSchemaVersion` (ADR-031 amendment, #254). Its one fixture,
+`api/tests/TaxesUa.Api.Tests/Features/Backup/Fixtures/backup-vNN.json`, is the exporter's output for a small owner,
+and `BackupSchemaVersionsTests` restores it, refuses it under an older or newer version, and restores it without an
+optional member. Raising the version renames the fixture to the new number. `UpgradeFromPreviousReleaseTests` migrates a database from an older
 release's schema, filled with an owner's year, to head and reads the API over it. Move its `PreviousRelease` forward, and extend its seed, whenever a release's
 migrations rewrite existing rows. The current version's fixture must also export back unchanged.
 

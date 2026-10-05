@@ -34,20 +34,12 @@ internal sealed partial record BackupDocument(
     DeclarationFileBackup[] DeclarationFiles,
     TreasuryAccountBackup[] TreasuryAccounts,
     NotificationChannelBackup[] NotificationChannels,
-    ReserveJarBackup? ReserveJar)
+    ReserveJarBackup? ReserveJar = null)
 {
-    // 2 added bankAccounts, importBatches and the transactions' import fields (#76); 3 added
-    // budgetPaymentCandidates and the payments' bank operation (#80); 4 added invoicingDetails (#91); 5 added
-    // the clients' details (#90); 6 added invoices (#92); 7 added declarationDetails and declarationFilings
-    // (#110); 8 added the receipts' invoice links (#93); 9 added treasuryAccounts and the candidates'
-    // counterEdrpou (#98); 10 added the settings' backOnGroup3From (#118); 11 added notificationChannels (#106);
-    // 12 added declarationFiles and the declaration details' taxOfficeName (#111); 13 added the declaration
-    // files' annexFileName and annexContent (#112); 14 added reserveJar (#102); 15 added the notification
-    // channels' confirmedAt, which email needs because an address waits for its link (#107); 16 added the
-    // settings' group3Since, group3Confirmation and the three DPS registration ticks (#172); 17 added the
-    // treasury accounts' manualValidUntil and learnedValidUntil (#173); 18 added the declaration details' fullName,
-    // phone and reportEmail (#222); 19 added the treasury accounts' manualEndRemoved and learnedEndRemoved (#261).
-    // An older file is upgraded to this shape one version at a time before it is read, see Upgrade.
+    // The only version a restore reads; an older file is refused as too old (#254). A new optional member goes
+    // last in its record with a default, so a file written before it restores and the version stays. Removing,
+    // renaming or retyping a member, changing what a value means, or adding a member with no default raises it
+    // (docs/decisions.md, ADR-031 amendment of 2026-10-05).
     public const int CurrentSchemaVersion = 19;
 
     private const int MaxExternalIdLength = 200;

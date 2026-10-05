@@ -5453,7 +5453,7 @@ export interface components {
             declarationFiles: components["schemas"]["DeclarationFileBackup"][];
             treasuryAccounts: components["schemas"]["TreasuryAccountBackup"][];
             notificationChannels: components["schemas"]["NotificationChannelBackup"][];
-            reserveJar: null | components["schemas"]["ReserveJarBackup"];
+            reserveJar?: null | components["schemas"]["ReserveJarBackup"];
         };
         /** @enum {string} */
         Bank: "Monobank" | "PrivatBank" | "Other";

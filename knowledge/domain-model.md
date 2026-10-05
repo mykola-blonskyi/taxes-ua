@@ -538,7 +538,7 @@ never cached.
 
 Responsibilities: one owner's data as a JSON file to download and restore. Not stored.
 
-Fields: `SchemaVersion` (16), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
+Fields: `SchemaVersion` (19), `Settings?`, `Clients`, `Transactions`, `BudgetPayments`,
 `BankAccounts`, `ImportBatches`, `BudgetPaymentCandidates`, `InvoicingDetails?` (with its per-currency
 payment details and the signature as base64 with its content type), `Invoices` (with their lines, their
 number as year and sequence, the frozen snapshot and the frozen signature as base64), `DeclarationDetails?`,
@@ -547,22 +547,13 @@ number as year and sequence, the frozen snapshot and the frozen signature as bas
 bank account's sync state (`SyncedThrough`, `HistoryImportedAt`, `LastFailedAt`, `LastFailure`),
 which a restore clears.
 `TaxYearConfig` and `FxRate` are left out because they are shared. The monobank connection is never
-in it, so the file carries no bank access. Version 2 added the bank accounts, the import batches and
-the transactions' import fields (#76); version 3 added the budget payment candidates, all statuses,
-and the payments' bank operation (#80); version 4 added the invoicing details (#91); version 5 added the
-clients' details (#90); version 6 added the invoices (#92); version 7 added the declaration details and
-the filed marks (#110); version 8 added the receipts' `InvoiceId` (#93); version 9 added the Treasury
-accounts and the candidates' `CounterEdrpou` (#98); version 10 added the settings' `BackOnGroup3From` (#118); version 11 added the notification channels (#106); version 12 added the declaration files and the
-declaration details' `TaxOfficeName` (#111); version 13 added the declaration files' annex (#112); version 14 added the reserve jar (#102); version 15 added the notification channels' `ConfirmedAt` (#107); version 16 added the settings'
-group 3 status: `Group3Since`, the confirmation and the checklist ticks (#172); version 17 added the Treasury accounts' `ManualValidUntil` and `LearnedValidUntil` (#173); version 18 added the declaration details' `FullName`, `Phone` and `ReportEmail` (#222); version 19 added the Treasury accounts' `ManualEndRemoved` and `LearnedEndRemoved` (#261). A version 1 file still restores, read as having none of
-them and every transaction `Confirmed`, a version 2 file as having no candidates and every payment typed by
-the owner, a version 1 to 3 file as having no invoicing details, so the owner's are cleared like the rest, a
-version 1 to 4 file as having no details on any client, a version 1 to 5 file as having no invoices, a
-version 1 to 6 file as having no declaration details and nothing marked filed, a version 1 to 7 file as
-having no receipt linked to an invoice, and a version 1 to 8 file as having no Treasury accounts and
-candidates without a counterparty code, a version 1 to 9 file as having no return to group 3, and a version 1 to 10 file as having no notification channels, and a version 1 to 11 file as having no declaration
-files and no tax office name, a version 1 to 12 file as having no annex on any declaration file, and a version 1 to 13 file as having no reserve jar, and a version 1 to 14 file as having its channels confirmed when they were linked (every channel before email is a Telegram chat), and a version 1 to 15 file as having group 3 from its registration date (null), unconfirmed, with no ticks, and its `Prorated` read as `FullMonth`, and a version 1 to 16 file as having no end on any Treasury account, and a version 7 to 17 file as having no full name, phone or email for reports in its declaration details, and a version 9 to 18 file as having removed no end; a file of a version this build does not know is refused by its
-version number rather than by whichever field it added.
+in it, so the file carries no bank access. A restore reads only the current schema version (#254). A file of
+an older version is refused as too old (`backup_too_old`), and the owner downloads a fresh file; a newer one
+is refused by its version (`backup_version_unsupported`). The nightly encrypted database dump (ADR-031) is the
+disaster backup, not this file. An optional member added with a default needs no new version: a file without
+it restores with the default (`ReserveJar` restores as none when the file lacks it). A removed, renamed or
+retyped member, a changed meaning or unit, or a new member without a safe default raises the version (ADR-031
+amendment of 2026-10-05). A member the reader does not know is refused, so a file is never restored in part.
 
 A restore replaces the owner's settings, invoicing details, declaration details, filed marks, declaration files, clients, invoices, transactions, payments, candidates, Treasury accounts, the reserve jar and import batches in one
 database transaction and passes every row through the endpoints' own validation, refund and invoice links

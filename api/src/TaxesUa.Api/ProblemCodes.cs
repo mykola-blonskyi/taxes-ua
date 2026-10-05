@@ -103,6 +103,7 @@ internal static class ProblemCodes
     public const string BackupInvalid = "backup_invalid";
     public const string BackupNotABackup = "backup_not_a_backup";
     public const string BackupNotValid = "backup_not_valid";
+    public const string BackupTooOld = "backup_too_old";
     public const string BackupVersionUnsupported = "backup_version_unsupported";
     public const string BackupMissingInvoices = "backup_missing_invoices";
     public const string SignatureEmpty = "signature_empty";
