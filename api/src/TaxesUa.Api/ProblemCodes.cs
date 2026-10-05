@@ -98,13 +98,11 @@ internal static class ProblemCodes
     public const string ChannelNotConfirmed = "channel_not_confirmed";
     public const string ChannelDeliveryFailed = "channel_delivery_failed";
 
-    // Backup and import files.
+    // Backup files.
     public const string BackupInvalid = "backup_invalid";
     public const string BackupNotABackup = "backup_not_a_backup";
     public const string BackupNotValid = "backup_not_valid";
     public const string BackupVersionUnsupported = "backup_version_unsupported";
-    public const string PrototypeInvalid = "prototype_invalid";
-    public const string PrototypeNotJson = "prototype_not_json";
     public const string BackupMissingInvoices = "backup_missing_invoices";
     public const string SignatureEmpty = "signature_empty";
     public const string SignatureTooLarge = "signature_too_large";
@@ -184,18 +182,7 @@ internal static class ProblemCodes
     public const string InvoiceNumberLocked = "invoice_number_locked";
     public const string ManualRateNotAllowed = "manual_rate_not_allowed";
 
-    // Field errors: a backup or prototype file.
+    // Field errors: a backup file.
     public const string IdNotUnique = "id_not_unique";
     public const string InconsistentFields = "inconsistent_fields";
-    public const string NotAnObject = "not_an_object";
-    public const string NotAnArray = "not_an_array";
-    public const string NotAPrototypeExport = "not_a_prototype_export";
-    public const string UnknownField = "unknown_field";
-    public const string TooManyRecords = "too_many_records";
-    public const string InvalidMonthKey = "invalid_month_key";
-    public const string NotBoolean = "not_boolean";
-    public const string InvalidDate = "invalid_date";
-    public const string InvalidAmount = "invalid_amount";
-    public const string InvalidRate = "invalid_rate";
-    public const string UahMismatch = "uah_mismatch";
 }

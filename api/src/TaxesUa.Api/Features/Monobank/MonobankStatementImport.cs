@@ -203,9 +203,8 @@ internal sealed partial class MonobankStatementImport(
 
     private static DateTimeOffset Min(DateTimeOffset first, DateTimeOffset second) => first < second ? first : second;
 
-    // One database transaction per window under the owner's advisory lock, the lock restore and the
-    // prototype import take, so a sync never interleaves with a restore's delete and insert. False, with
-    // nothing written, when the walk no longer holds: a restore moved the cursor, the owner unfollowed
+    // One database transaction per window under the owner's advisory lock, the lock restore takes, so a sync never
+    // interleaves with a restore's delete and insert. False, with nothing written, when the walk no longer holds: a restore moved the cursor, the owner unfollowed
     // the account, or the token was replaced, disconnected or rejected since the walk began.
     private async Task<bool> ImportAsync(
         MonobankConnection connection,

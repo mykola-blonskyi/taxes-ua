@@ -146,7 +146,7 @@ export function buildRequest(form: InvoiceForm): BuiltRequest {
     }
 
     if (rateMinor === null) {
-      errors[`lines[${index}].rateMinor`] = ["invalid_amount"];
+      errors[`lines[${index}].rateMinor`] = ["invalid_value"];
     }
 
     if (quantityThousandths !== null && rateMinor !== null) {

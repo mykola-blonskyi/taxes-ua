@@ -111,6 +111,7 @@ as the record.
 - **#12 monthly advances. Closed.** PR #59.
 - **#15 prototype JSON import. Merged, issue stays open.** PR #61. Open for one criterion: the
   owner checking a real prototype export, which needs a real export to check against.
+  Removed 2026-10-05 by owner decision (#253): the importer was never used and its file format was guessed, so it was deleted.
 - **#16 passkey, #18 PWA. Still open for device checks.** Both need `taxes.blonskyi.dev` to exist
   (see #20) — a phone can't reach `localhost`, and a passkey is bound to the Relying Party ID it
   registered against.
@@ -410,6 +411,8 @@ feature — import is a backup-shaped operation, not a standing resource. Idempo
 imported records with a source external key.
 
 Verify: re-importing the same file doesn't change the record count.
+
+Removed 2026-10-05 by owner decision (#253): the importer was never used and its file format was guessed, so it was deleted.
 
 ---
 

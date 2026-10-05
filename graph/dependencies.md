@@ -39,7 +39,7 @@ reaches, so every edge points down and no cycle can form. Every feature may also
 | Clients | 6 | Auth, Fx, Invoices, Transactions |
 | Dashboard | 6 | Auth, Declarations, Invoices, Monobank, Payments, Periods, Settings, TaxYears, Transactions |
 | Notifications | 6 | Auth, Declarations, Export, Periods, Settings |
-| Backup | 7 | Audit, Auth, Banking, Declarations, Fx, Invoices, Monobank, Notifications, Payments, Periods, Settings, TaxYears, Transactions |
+| Backup | 7 | Audit, Auth, Banking, Declarations, Fx, Invoices, Monobank, Notifications, Payments, Settings, Transactions |
 | Calendar | 7 | Auth, Notifications, Periods, Settings, TaxYears |
 
 82 edges over 19 features. Before #185 the same measurement found 85 edges, and ten features

@@ -354,7 +354,6 @@ api.MapPaymentCandidatesApi();
 api.MapTreasuryAccountsApi();
 api.MapPaymentDetailsApi();
 api.MapBackupApi();
-api.MapImportApi();
 api.MapAuditApi();
 api.MapDashboardApi();
 api.MapMonobankApi();
