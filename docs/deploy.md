@@ -122,6 +122,18 @@ Host=<pg-container>;Port=5432;Database=taxes_ua;Username=taxes_ua_app;Password=<
 
 **Check.** Deferred to step 7, where `/api/health` reports `"database":true` only if this works.
 
+**Limits the api adds.** For one owner the api fills in three limits of its own on this string
+(`DatabaseConnection.WithDefaults`), unless the string already names them:
+
+| Npgsql key | Default | Why |
+| --- | --- | --- |
+| `Maximum Pool Size` | `10` | the api and its hosted services need a handful of connections; Npgsql's own 100 could use up Postgres's connection limit |
+| `Command Timeout` | `60` (seconds) | a statement running longer is stuck, not slow |
+| `Options` | `-c lock_timeout=30000` (30 s) | a statement waiting for a lock, the owner's advisory lock included, errors out instead of queueing behind a stuck holder |
+
+To change one, add the key to `DATABASE_URL`, for example `;Maximum Pool Size=20` or
+`;Options=-c lock_timeout=60000`. The `backup` service reads the same string and ignores these keys.
+
 ## 4. Google OAuth client and secret
 
 The client used during development is shared with two of the owner's other projects. Give
