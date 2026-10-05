@@ -79,7 +79,14 @@ income and is excluded the same way (Rule 8).
 Warnings at 85% and 100% of the limit: at or above 85% of the limit is `Warn`, at or above the
 limit itself is `Exceeded`. Both boundaries are inclusive, so income at exactly 85.00% is already
 `Warn` and income at exactly 100.00% is already `Exceeded`; one kopeck under either line stays at
-the level below it. `Exceeded` is a business fact, not a display threshold: it marks that the limit is used up, whatever
+the level below it. The lines are compared in kopecks, never against a percentage rounded to basis
+points: one basis point of the 2026 limit is about 1,009 UAH.
+
+The year's income can be negative: a refund lowers the income of the period it happens in (Rule 1),
+so a January refund of a December receipt, before any new income, leaves the year below zero.
+Negative income evaluates as none of the limit used: `Ok`, 0%, and the whole way to 85% remaining.
+
+`Exceeded` is a business fact, not a display threshold: it marks that the limit is used up, whatever
 warn thresholds happen to be configured, and the switch to another tax system follows once income is
 over it (crossing, below).
 
