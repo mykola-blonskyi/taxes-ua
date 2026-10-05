@@ -1,4 +1,4 @@
-GitHub: #258
+GitHub: #260
 Status: ready-for-human
 Blocked by: none
 

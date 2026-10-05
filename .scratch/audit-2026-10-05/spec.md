@@ -147,7 +147,7 @@ The owner sees a dashboard that always opens and a limit bar that is exact to th
   - #253: importer deletion.
   - #254: backup floor.
   - #255–#257: older Lows.
-  - #258: host firewall, an owner action.
+  - #260: host firewall, an owner action.
 - Order:
   1. #238, #239 and #240 first. These are correctness and data loss.
   2. Then #241–#244. These are where the owner sees wrong or lost data.
@@ -155,3 +155,5 @@ The owner sees a dashboard that always opens and a limit bar that is exact to th
   4. The tidies last.
 - #254 ships with a release note: download a fresh JSON backup after it deploys.
 - Every merge to main deploys to production, so merges wait for an independent review and the owner's go-ahead.
+
+
