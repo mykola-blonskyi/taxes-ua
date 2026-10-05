@@ -1,5 +1,5 @@
 GitHub: #238
-Status: ready-for-agent
+Status: closed
 Blocked by: none
 
 # Keep the dashboard up when the year's income is negative
