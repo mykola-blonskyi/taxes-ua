@@ -1724,7 +1724,7 @@ pattern for reached the owner in English.
    failure response; no other code calls `Results.Problem` or `Results.ValidationProblem` (a test scans the
    sources). `Problems.Create` writes a ProblemDetails with the extension `code`; `Problems.Validation` writes a
    400 (or 422) ProblemDetails whose `code` is `validation_failed` unless a more specific one is given
-   (`invoice_incomplete`, `backup_invalid`, `prototype_invalid`). `title` and `detail` stay English sentences for
+   (`invoice_incomplete`, `backup_invalid`). `title` and `detail` stay English sentences for
    logs and for a person reading a response; the web never shows them. The failures the framework writes itself carry none: a malformed JSON or binding 400, the bodyless 401,
    the 400 for a forwarded host outside `ALLOWED_HOSTS`, and an unhandled 500. The web shows the `unknown`
    sentence for them. The `type` URIs of the earlier problems are
@@ -1769,10 +1769,15 @@ rule.
 Adding a failure means adding a constant and its two texts; the tests fail until both exist. Rewording a sentence, or changing it to name a limit, touches no web file. The texts carry no limits
 (a text says "too long", not "at most 64 characters"), because the code carries none; where a limit matters the
 screen's own hint says it. The English sentence of a field error is still useful in logs and in the API tests'
-failure messages, and the tests assert codes. The backup and import file errors use a small set of generic codes
+failure messages, and the tests assert codes. The backup file errors use a small set of generic codes
 (`id_not_unique`, `unknown_reference`, `inconsistent_fields`, `duplicate_value`) beside the field path the screen
 prints, since the owner reads them as a list of places in a file, not as prose. The declaration screen no longer
 lists the XML schema checker's own messages: they are English diagnostics, which the api still sends in `errors` for the logs.
+
+Amendment, 2026-10-05 (#253): the prototype importer (`POST /api/import/prototype`, issue #15) was removed by owner
+decision; it was never used and its file format had been guessed. Its codes `prototype_invalid`,
+`prototype_not_json`, `not_a_prototype_export`, `not_an_object`, `not_an_array`, `unknown_field`,
+`too_many_records`, `invalid_month_key` and `not_boolean` went with it.
 
 ---
 

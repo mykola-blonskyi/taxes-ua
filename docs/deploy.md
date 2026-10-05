@@ -490,9 +490,6 @@ domain. Do them now and tick them on their issues:
 - **#16 Passkey.** While signed in, open `/login` and add a passkey, sign out, and sign in with it
   on Android Chrome and desktop. iOS is not a target.
 - **#18 PWA.** Install the app from Chrome on Android and confirm it opens in standalone mode.
-- **#15 Prototype import.** Import a real export from the prototype, check the receipts and
-  payments against it, then import the same file again and confirm the record count does not
-  change.
 
 ## 10. Host firewall
 
