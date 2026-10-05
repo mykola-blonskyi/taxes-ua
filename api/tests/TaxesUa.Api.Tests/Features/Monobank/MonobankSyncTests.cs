@@ -670,6 +670,7 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
             .ConfigureTestServices(services =>
             {
                 services.AddSingleton<TimeProvider>(clock);
+                ApiFixture.KeepSessionAcrossClockJumps(services);
                 services.AddHttpClient<MonobankClient>().ConfigurePrimaryHttpMessageHandler(() => handler);
                 services.AddHttpClient<NbuRateClient>().ConfigurePrimaryHttpMessageHandler(() => nbu ?? Nbu());
             }));

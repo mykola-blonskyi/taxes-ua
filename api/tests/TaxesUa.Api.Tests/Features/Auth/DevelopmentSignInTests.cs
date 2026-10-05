@@ -24,10 +24,18 @@ public sealed class DevelopmentSignInTests(ApiFixture fixture) : IClassFixture<A
 
         var sessionCookie = Assert.Single(
             callback.Headers.GetValues("Set-Cookie"),
-            header => header.StartsWith("taxesua.auth=", StringComparison.Ordinal));
+            header => header.StartsWith("__Host-taxesua.auth=", StringComparison.Ordinal));
         Assert.Contains("httponly", sessionCookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("secure", sessionCookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("samesite=lax", sessionCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("path=/", sessionCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("domain=", sessionCookie, StringComparison.OrdinalIgnoreCase);
+        // Persistent, 7 days: the cookie carries an Expires roughly a week out.
+        var expires = DateTimeOffset.Parse(
+            sessionCookie.Split(';', StringSplitOptions.TrimEntries)
+                .Single(part => part.StartsWith("expires=", StringComparison.OrdinalIgnoreCase))["expires=".Length..],
+            System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(expires - DateTimeOffset.UtcNow, TimeSpan.FromDays(7) - TimeSpan.FromMinutes(5), TimeSpan.FromDays(7) + TimeSpan.FromMinutes(5));
 
         var me = await client.GetFromJsonAsync<MeResponse>("/api/auth/me");
 
