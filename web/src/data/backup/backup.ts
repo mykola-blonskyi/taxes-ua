@@ -1,4 +1,5 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSyncExternalStore } from "react";
+import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api } from "@/data/api/client";
 import type { components, paths } from "@/data/api/schema";
 
@@ -26,6 +27,33 @@ export class NotJsonError extends Error {
     super("Not a JSON file");
     this.name = "NotJsonError";
   }
+}
+
+let replacements = 0;
+const replacementListeners = new Set<() => void>();
+
+function subscribeToReplacements(listener: () => void) {
+  replacementListeners.add(listener);
+
+  return () => {
+    replacementListeners.delete(listener);
+  };
+}
+
+// Counts the restores and imports that replaced the owner's data. A form that copies server data into its
+// own state keys itself by it, so it re-seeds after a replacement and keeps an edit through any other refetch.
+export function useDataReplacements() {
+  return useSyncExternalStore(
+    subscribeToReplacements,
+    () => replacements,
+    () => 0,
+  );
+}
+
+async function refreshAfterReplacement(queryClient: QueryClient) {
+  await queryClient.invalidateQueries();
+  replacements += 1;
+  replacementListeners.forEach((listener) => listener());
 }
 
 async function readJsonText(file: File) {
@@ -60,9 +88,9 @@ export function useImportPrototype() {
 
       return data;
     },
-    onSuccess: (_data, { dryRun }) => {
+    onSuccess: async (_data, { dryRun }) => {
       if (!dryRun) {
-        queryClient.invalidateQueries();
+        await refreshAfterReplacement(queryClient);
       }
     },
   });
@@ -91,8 +119,6 @@ export function useRestoreBackup() {
 
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries();
-    },
+    onSuccess: () => refreshAfterReplacement(queryClient),
   });
 }
