@@ -1,5 +1,3 @@
-using TaxesUa.Api.Features.Monobank;
-
 namespace TaxesUa.Api;
 
 /// <summary>
@@ -13,6 +11,12 @@ namespace TaxesUa.Api;
 /// </summary>
 internal static class CrossSiteGuard
 {
+    // The monobank webhook within the /api group. It lives here, where shared code may read it, because the
+    // guard lets it through; the Monobank feature maps its endpoints from it.
+    public const string MonobankWebhookRoute = "/monobank/webhook/";
+
+    private const string MonobankWebhookPath = "/api" + MonobankWebhookRoute;
+
     public static IApplicationBuilder UseCrossSiteGuard(this IApplicationBuilder app) =>
         app.Use(async (context, next) =>
         {
@@ -41,7 +45,7 @@ internal static class CrossSiteGuard
         // monobank's server posts here with no browser involved and no cookie: the path secret is the
         // credential (ADR-012). It is the only machine-to-machine route that takes an unsafe method; the
         // calendar feed and the Google callback are GETs, and a passkey sign-in is a page's own POST.
-        if (request.Path.StartsWithSegments(MonobankWebhooks.PathPrefix.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+        if (request.Path.StartsWithSegments(MonobankWebhookPath.TrimEnd('/'),StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }

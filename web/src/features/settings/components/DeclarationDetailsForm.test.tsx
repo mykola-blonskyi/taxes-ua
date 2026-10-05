@@ -5,6 +5,7 @@ import { DeclarationDetailsForm } from "./DeclarationDetailsForm";
 const read = "GET /api/settings/declaration" as const;
 const write = "PUT /api/settings/declaration" as const;
 const classes = "GET /api/settings/declaration/kved-classes" as const;
+const channels = "GET /api/notifications/channels" as const;
 
 const classifier = {
   [classes]: [
@@ -12,7 +13,10 @@ const classifier = {
     { code: "62.02", name: "Консультування з питань інформатизації" },
     { code: "85.59", name: "Інші види освіти, н.в.і.у." },
   ],
+  [channels]: [],
 };
+
+const telegram = { kind: "Telegram" as const, linked: true, confirmed: true, address: null };
 
 const details = {
   name: "Іваненко Іван",
@@ -25,16 +29,16 @@ const details = {
   fullName: "",
   phone: "",
   reportEmail: "",
-  confirmedEmail: null as string | null,
   missingDetails: [],
   unknownKvedCodes: [] as string[],
 };
 
 describe("DeclarationDetailsForm contacts", () => {
-  it("leaves the report email empty, offers the notification address in one click, and saves the three fields", async () => {
+  it("leaves the report email empty, offers the confirmed email channel's address in one click, and saves the three fields", async () => {
     const api = stubFetch({
       ...classifier,
-      [read]: { ...details, confirmedEmail: "fop@example.com" },
+      [channels]: [telegram, { kind: "Email", linked: true, confirmed: true, address: "fop@example.com" }],
+      [read]: details,
       [write]: { ...details, fullName: "Тестенко Тест Тестович", phone: "+380501234567", reportEmail: "fop@example.com" },
     });
     const { user } = renderApp(<DeclarationDetailsForm />);
@@ -42,7 +46,7 @@ describe("DeclarationDetailsForm contacts", () => {
     const email = await screen.findByLabelText("Пошта для звітності");
     expect(email).toHaveValue("");
     expect(email).toHaveAttribute("type", "email");
-    await user.click(screen.getByRole("button", { name: "Взяти адресу для сповіщень: fop@example.com" }));
+    await user.click(await screen.findByRole("button", { name: "Взяти адресу для сповіщень: fop@example.com" }));
     expect(email).toHaveValue("fop@example.com");
     expect(screen.queryByRole("button", { name: /Взяти адресу для сповіщень/ })).not.toBeInTheDocument();
     const phone = screen.getByLabelText("Телефон");
@@ -65,25 +69,43 @@ describe("DeclarationDetailsForm contacts", () => {
   });
 
   it("keeps the stored report email over the notification address", async () => {
-    stubFetch({
+    const api = stubFetch({
       ...classifier,
-      [read]: { ...details, fullName: "Тестенко Тест Тестович", phone: "+380501234567", reportEmail: "reports@example.com", confirmedEmail: "fop@example.com" },
+      [channels]: [{ kind: "Email", linked: true, confirmed: true, address: "fop@example.com" }],
+      [read]: { ...details, fullName: "Тестенко Тест Тестович", phone: "+380501234567", reportEmail: "reports@example.com" },
     });
     renderApp(<DeclarationDetailsForm />);
 
     const email = await screen.findByLabelText("Пошта для звітності");
     expect(email).toHaveValue("reports@example.com");
+    await waitFor(() => expect(api.requestsTo(channels)).toHaveLength(1));
     expect(screen.getByText("Друкується в шапці декларації.")).toBeVisible();
     expect(screen.queryByRole("button", { name: /Взяти адресу для сповіщень/ })).not.toBeInTheDocument();
     expect(screen.getByLabelText("Телефон")).toHaveValue("+380501234567");
     expect(screen.getByLabelText("Повне ім’я для декларації")).toHaveValue("Тестенко Тест Тестович");
   });
 
-  it("leaves the email empty when there is no confirmed address", async () => {
-    stubFetch({ ...classifier, [read]: details });
+  it("offers no address the owner has not confirmed yet", async () => {
+    const api = stubFetch({
+      ...classifier,
+      [channels]: [telegram, { kind: "Email", linked: true, confirmed: false, address: "fop@example.com" }],
+      [read]: details,
+    });
     renderApp(<DeclarationDetailsForm />);
 
     expect(await screen.findByLabelText("Пошта для звітності")).toHaveValue("");
+    await waitFor(() => expect(api.requestsTo(channels)).toHaveLength(1));
+    expect(screen.queryByRole("button", { name: /Взяти адресу для сповіщень/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps the form usable without a suggestion when the channels fail to load", async () => {
+    const api = stubFetch({ ...classifier, [channels]: reply(500, { code: "internal_error" }), [read]: details });
+    renderApp(<DeclarationDetailsForm />);
+
+    const email = await screen.findByLabelText("Пошта для звітності");
+    await waitFor(() => expect(api.requestsTo(channels)).not.toHaveLength(0));
+    expect(email).toHaveValue("");
+    expect(email).toBeEnabled();
     expect(screen.queryByRole("button", { name: /Взяти адресу для сповіщень/ })).not.toBeInTheDocument();
   });
 
@@ -212,6 +234,7 @@ describe.each([
     });
     stubFetch({
       [read]: details,
+      [channels]: [],
       [classes]: async () => {
         await gate;
 
@@ -229,7 +252,7 @@ describe.each([
   });
 
   it("says the names could not be loaded and keeps the form usable", async () => {
-    stubFetch({ [read]: details, [classes]: reply(500, { code: "internal_error" }) });
+    stubFetch({ [read]: details, [channels]: [], [classes]: reply(500, { code: "internal_error" }) });
     renderApp(<DeclarationDetailsForm />, { locale });
 
     expect(await screen.findByRole("alert")).toBeVisible();

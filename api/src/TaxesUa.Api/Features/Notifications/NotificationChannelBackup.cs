@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.Json.Serialization;
-using TaxesUa.Api.Features.Settings;
 
 namespace TaxesUa.Api.Features.Notifications;
 

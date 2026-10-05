@@ -11,6 +11,7 @@ import {
   useSaveDeclarationDetails,
   type DeclarationDetailsResponse,
 } from "@/data/declarations/useDeclarations";
+import { useNotificationChannels } from "@/data/notifications/useNotificationChannels";
 import { Button } from "@/shared/ui/button";
 import { LoadState } from "@/data/api/LoadState";
 import { FieldErrors, TextAreaField, TextField, FieldForm } from "@/shared/ui/fields";
@@ -66,13 +67,15 @@ function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsRe
   const apiText = useApiErrorText();
   const save = useSaveDeclarationDetails();
   const kvedClasses = useKvedClasses();
+  const channels = useNotificationChannels({ awaitingLink: false });
   const [form, setForm] = useState<FormState>(() => toFormState(details));
 
   const failure = save.error instanceof ApiError ? save.error : null;
   const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
   const missing = details.missingDetails;
   const unknownKved = details.unknownKvedCodes;
-  const suggestedEmail = form.reportEmail === "" ? details.confirmedEmail : null;
+  const confirmedEmail = channels.data?.find((channel) => channel.kind === "Email" && channel.confirmed)?.address;
+  const suggestedEmail = form.reportEmail === "" ? confirmedEmail : null;
   const sentKved = form.kvedCodes.flatMap((code, index) => (code.trim() === "" ? [] : [index]));
 
   function fieldErrors(key: string): string[] | undefined {

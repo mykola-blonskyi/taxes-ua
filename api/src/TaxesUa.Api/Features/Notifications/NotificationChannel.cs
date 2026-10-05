@@ -1,4 +1,4 @@
-namespace TaxesUa.Api.Features.Settings;
+namespace TaxesUa.Api.Features.Notifications;
 
 internal enum NotificationChannelKind
 {
