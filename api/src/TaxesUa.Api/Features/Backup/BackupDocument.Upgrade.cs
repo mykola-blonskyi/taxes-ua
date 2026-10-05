@@ -92,6 +92,11 @@ internal sealed partial record BackupDocument
         {
             UpgradeFromVersion17(root);
         }
+
+        if (version <= 18)
+        {
+            UpgradeFromVersion18(root);
+        }
     }
 
     // A version 3 file predates the invoicing details.
@@ -308,12 +313,26 @@ internal sealed partial record BackupDocument
     // A version 17 file predates the full name, phone and email the declaration's header prints: none was set.
     private static void UpgradeFromVersion17(JsonObject root)
     {
-        root["schemaVersion"] = CurrentSchemaVersion;
+        root["schemaVersion"] = 18;
         if (root["declarationDetails"] is JsonObject details)
         {
             details["fullName"] = string.Empty;
             details["phone"] = string.Empty;
             details["reportEmail"] = string.Empty;
+        }
+    }
+
+    // A version 18 file predates removing an end: an account without one had nothing said about it.
+    private static void UpgradeFromVersion18(JsonObject root)
+    {
+        root["schemaVersion"] = CurrentSchemaVersion;
+        if (root["treasuryAccounts"] is JsonArray accounts)
+        {
+            foreach (var account in accounts.OfType<JsonObject>())
+            {
+                account["manualEndRemoved"] = false;
+                account["learnedEndRemoved"] = false;
+            }
         }
     }
 }

@@ -43,7 +43,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     private static readonly DateOnly NbuDate = new(2031, 3, 2);
 
     private const string Empty =
-        """{"schemaVersion":18,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
+        """{"schemaVersion":19,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
 
     private static readonly Guid ClientId = Guid.Parse("0f0a0000-0000-0000-0000-000000000001");
     private static readonly Guid UahReceiptId = Guid.Parse("1f0a0000-0000-0000-0000-000000000001");
@@ -941,6 +941,8 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         { "manual treasury account outside the Treasury", "treasuryAccounts[0].manualIban" },
         { "manual treasury account with a 7 digit code", "treasuryAccounts[0].manualIban" },
         { "treasury account end without an account", "treasuryAccounts[1].manualValidUntil" },
+        { "treasury account end both set and removed", "treasuryAccounts[0].manualEndRemoved" },
+        { "removed treasury account end without an account", "treasuryAccounts[1].manualEndRemoved" },
         { "two treasury accounts of one kind", "treasuryAccounts[1].kind" },
         { "notice without a manual account", "treasuryAccounts[1].noticeAt" },
         { "learned treasury account without its operation", "treasuryAccounts[1].learnedIban" },
@@ -1341,12 +1343,12 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             ],
             [
                 new TreasuryAccountBackup(
-                    PaymentKind.SingleTax, TreasuryIban, "ГУК у м.Києві", "37993783", created, new DateOnly(2031, 12, 31),
+                    PaymentKind.SingleTax, TreasuryIban, "ГУК у м.Києві", "37993783", created, new DateOnly(2031, 12, 31), false,
                     LearnedTreasuryIban, "ГУК у м.Києві/Печерс.р-н", "37993784", "op-learned", new DateOnly(2031, 4, 15), created,
-                    new DateOnly(2032, 6, 30), created),
+                    new DateOnly(2032, 6, 30), false, created),
                 new TreasuryAccountBackup(
-                    PaymentKind.Esv, null, null, null, null, null,
-                    LearnedTreasuryIban, null, null, "op-learned-esv", new DateOnly(2031, 4, 16), created, null, null),
+                    PaymentKind.Esv, null, null, null, null, null, false,
+                    LearnedTreasuryIban, null, null, "op-learned-esv", new DateOnly(2031, 4, 16), created, null, false, null),
             ],
             [new NotificationChannelBackup(NotificationChannelKind.Telegram, "424242", true, created, created)],
             new ReserveJarBackup("jar-taxes", "На податки", 12_345_00, created.AddHours(3)));
@@ -1526,6 +1528,13 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 break;
             case "treasury account end without an account":
                 file["treasuryAccounts"]![1]!["manualValidUntil"] = "2031-12-31";
+                break;
+            case "treasury account end both set and removed":
+                file["treasuryAccounts"]![0]!["manualValidUntil"] = "2031-12-31";
+                file["treasuryAccounts"]![0]!["manualEndRemoved"] = true;
+                break;
+            case "removed treasury account end without an account":
+                file["treasuryAccounts"]![1]!["manualEndRemoved"] = true;
                 break;
             case "two treasury accounts of one kind":
                 file["treasuryAccounts"]![1]!["kind"] = "SingleTax";

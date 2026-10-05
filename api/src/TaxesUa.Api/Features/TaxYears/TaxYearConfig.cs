@@ -38,6 +38,10 @@ internal sealed class TaxYearConfig
 
     public DateOnly[] Holidays { get; set; } = [];
 
+    // The last day of the year's temporary military-levy Treasury accounts: the end a levy account learned or
+    // entered in this year has unless the owner says otherwise (Rule 16). Null when the year has none.
+    public DateOnly? MilitaryLevyAccountEnd { get; set; }
+
     public string Source { get; set; } = string.Empty;
 
     // DateTimeOffset where knowledge/domain-model.md writes DateTime?, matching
@@ -84,6 +88,7 @@ internal sealed class TaxYearConfig
             AdvanceRecommendedDay = AdvanceRecommendedDay,
             Group3ApplicationDays = Group3ApplicationDays,
             Holidays = [.. Holidays],
+            // Not copied: the end names this year's temporary accounts, and the next year's are not known.
             Source = Source,
         };
 
