@@ -2029,17 +2029,31 @@ all, and the owner wants both to follow them from phone to PC.
    the very next navigation carries the new language (#193).
 2. **`PUT /api/settings` treats an absent `locale` or `theme` as keep.** The form no longer sends them, and a
    form opened before a menu change must not put the old choice back.
-3. **Which side wins.** An explicit choice in a menu always wins and is saved. A choice the server has not
-   acknowledged (the request failed or was cut off) is kept in `localStorage` (`appearance-pending`) and sent
-   again on the next signed-in load before anything is taken from the server. Otherwise, on the first
-   signed-in load, a browser with no choice of its own (no `locale` cookie, no stored theme: a new device)
-   takes the server's language and theme, so it matches the owner's other devices. A browser that already
-   has a choice keeps it, including a language picked on the sign-in page. The server's value is therefore a
-   seed, not a pull: a change made on another device reaches a browser that has its own choice only when the
-   owner makes the same choice there. The server keeps the last choice made anywhere, which is what the
-   messages it writes follow.
+3. **The newest choice wins, field by field.** `Settings` keeps `LocaleChosenAt` and `ThemeChosenAt` (UTC,
+   nullable) beside the values, and the browser keeps each choice's time next to the value the page reads:
+   the `locale-chosen-at` cookie beside `locale`, and `theme-chosen-at` in `localStorage` beside next-themes'
+   `theme`. `PUT /api/settings/appearance` takes `{ locale?, theme?, chosenAt }` and applies a field only
+   when `chosenAt` is later than the stored time, so a repeated or late request changes nothing; it answers
+   with the whole settings, times included. A `chosenAt` more than two minutes ahead of the server clock is
+   taken as the server's now, so a device whose clock runs ahead cannot win every later choice. The write
+   holds the owner's lock, because a browser sends the language and the theme as two requests at once and
+   both could otherwise add the first row or land out of order. A value
+   written through `PUT /api/settings` counts as chosen at that moment.
+   On every signed-in load, and each time the tab regains focus (the settings are read again then, however
+   fresh), the browser compares each field: the server's later choice is applied (the language refreshes
+   the route once, only when it actually changes and the cookie took it), and the browser's later choice is
+   sent. That covers a choice made signed out on the sign-in page and a save that was cut off, with no
+   separate store of unsent changes. A browser with no choice of its own takes the
+   server's. A time that is missing counts as the oldest: a browser or a row from before the times were
+   kept gives way to any timed choice, and two untimed sides are left as they are until the owner next
+   chooses. Two devices that each chose therefore converge on the later choice the next time either loads.
+   The server keeps that choice, which is what the messages it writes follow.
 4. **`system` syncs as the literal choice.** Each device resolves it for itself, so a phone in the light
    and a PC in the dark both stay on "system".
-5. **What remains.** The first paint uses the browser's own value; a new device shows the default
-   language and theme until the settings arrive after sign-in, then the route refreshes once. Default currency is untouched: nothing reads it, and the owner
-   decided to leave it as it is.
+5. **The backup does not carry the two times (schema stays 19).** They only order choices between the
+   owner's devices. A restore leaves them null, so the restored language and theme count as the oldest
+   and each device's own later choice wins over the file's.
+6. **What remains.** The first paint uses the browser's own value; when the server's later choice arrives
+   the theme switches and the route refreshes once into the language. A tab left open sees another device's
+   change when it regains focus, not while it is in view. Default currency is untouched:
+   nothing reads it, and the owner decided to leave it as it is.

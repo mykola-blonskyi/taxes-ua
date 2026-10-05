@@ -1,12 +1,13 @@
 import { expect, test } from "@playwright/test";
 import ru from "../messages/ru.json";
 import uk from "../messages/uk.json";
+import { chooseLanguage, resetAppearance } from "./support/appearance";
 
-// The owner's language is saved to the server, and a browser with no choice of its own takes it. Every test here
-// leaves the server on Ukrainian so a later spec, which starts without a cookie, still opens in Ukrainian.
+// The owner's language and theme are saved to the server and the newest choice from any browser wins. Every
+// test here leaves the server on Ukrainian as the newest choice, so a later spec, which starts without a
+// cookie, still opens in Ukrainian.
 test.afterEach(async ({ request }) => {
-  const response = await request.put("/api/settings/appearance", { data: { locale: "uk", theme: "system" } });
-  expect(response.ok()).toBe(true);
+  await resetAppearance(request);
 });
 
 test("switching the language changes the interface from Ukrainian to Russian and back", async ({ page }) => {
@@ -41,7 +42,7 @@ const directions = [
 
 for (const { from, to, fromLang, toLang } of directions) {
   test(`a language chosen in the menu holds on the very next navigation (${fromLang} to ${toLang})`, async ({ page, context, baseURL }) => {
-    await context.addCookies([{ name: "locale", value: fromLang, url: baseURL! }]);
+    await chooseLanguage(context, baseURL!, fromLang);
     await page.goto("/");
     await expect(page.locator("html")).toHaveAttribute("lang", fromLang);
     await page.waitForLoadState("networkidle");
@@ -57,6 +58,44 @@ for (const { from, to, fromLang, toLang } of directions) {
     await expect(page.getByRole("navigation", { name: to.nav.label }).getByRole("link", { name: to.nav.payments })).toBeVisible();
   });
 }
+
+test("a language and theme chosen in one browser reach another browser that has its own choice", async ({ browser, baseURL, storageState }) => {
+  const phone = await browser.newContext({ baseURL, storageState });
+  const pc = await browser.newContext({ baseURL, storageState });
+  try {
+    const onPc = await pc.newPage();
+    await onPc.goto("/");
+    await onPc.waitForLoadState("networkidle");
+    await onPc.getByRole("button", { name: uk.theme.label }).click();
+    await onPc.getByRole("menuitemradio", { name: uk.theme.light }).click();
+    await expect(onPc.locator("html")).toHaveClass(/\blight\b/);
+
+    const onPhone = await phone.newPage();
+    await onPhone.goto("/");
+    await onPhone.waitForLoadState("networkidle");
+    await onPhone.getByRole("button", { name: uk.language.label }).click();
+    await onPhone.getByRole("menuitemradio", { name: ru.language.ru }).click();
+    await expect(onPhone.locator("html")).toHaveAttribute("lang", "ru");
+    await onPhone.getByRole("button", { name: ru.theme.label }).click();
+    await onPhone.getByRole("menuitemradio", { name: ru.theme.dark }).click();
+    await expect(onPhone.locator("html")).toHaveClass(/\bdark\b/);
+    await expect
+      .poll(async () => {
+        const settings = (await (await onPhone.request.get("/api/settings")).json()) as { locale: string; theme: string };
+        return `${settings.locale} ${settings.theme}`;
+      })
+      .toBe("ru dark");
+
+    await onPc.reload();
+
+    await expect(onPc.locator("html")).toHaveAttribute("lang", "ru");
+    await expect(onPc.getByRole("navigation", { name: ru.nav.label })).toBeVisible();
+    await expect(onPc.locator("html")).toHaveClass(/\bdark\b/);
+  } finally {
+    await phone.close();
+    await pc.close();
+  }
+});
 
 test("the language chosen in the menu is saved to the server, and a new browser opens in it", async ({ page, request, browser, baseURL }) => {
   await page.goto("/");

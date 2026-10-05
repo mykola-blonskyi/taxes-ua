@@ -19,6 +19,8 @@ public static class SettingsEndpoints
 
     private static readonly string[] Currencies = ["UAH", "USD", "EUR"];
 
+    private static readonly TimeSpan AllowedClockSkew = TimeSpan.FromMinutes(2);
+
     public static IEndpointRouteBuilder MapSettingsApi(this IEndpointRouteBuilder routes)
     {
         var settings = routes.MapGroup("/settings").WithTags("Settings").RequireAuthorization();
@@ -47,6 +49,7 @@ public static class SettingsEndpoints
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 HttpContext http,
+                TimeProvider time,
                 CancellationToken cancellationToken) =>
             {
                 if (Validate(request) is { } errors)
@@ -76,7 +79,18 @@ public static class SettingsEndpoints
                     database.Settings.Add(stored);
                 }
 
+                var (locale, theme) = (stored.Locale, stored.Theme);
                 Apply(stored, request);
+                if (stored.Locale != locale)
+                {
+                    stored.LocaleChosenAt = time.GetUtcNow();
+                }
+
+                if (stored.Theme != theme)
+                {
+                    stored.ThemeChosenAt = time.GetUtcNow();
+                }
+
                 // Only a quarter start after the registration date stays a start of its own; anything else
                 // was "from registration", which null says without going stale when the date moves (Rule 8).
                 if (stored.Group3Since is { } since
@@ -94,14 +108,16 @@ public static class SettingsEndpoints
             .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
-        // The shell's language menu and theme toggle save their choice alone, so one switch drives the
-        // screens on every device and the messages the server writes (reminders, Telegram, the calendar
-        // feed). Only the fields sent change; no other setting is touched.
+        // The shell's language menu and theme toggle save each choice with the moment it was made, and the
+        // newest choice from any device wins (ADR-032). A field is applied only when its time is later than
+        // the stored one, so a repeated or late request changes nothing, and the answer is what the server
+        // holds afterwards, for the browser to take when it lost.
         settings.MapPut("/appearance", async (
                 AppearanceRequest request,
                 UserManager<ApplicationUser> users,
                 AppDbContext database,
                 HttpContext http,
+                TimeProvider time,
                 CancellationToken cancellationToken) =>
             {
                 var errors = new FieldErrors();
@@ -126,6 +142,11 @@ public static class SettingsEndpoints
                         $"{nameof(request.Theme)} must be one of {string.Join(", ", Themes)}.");
                 }
 
+                if (request.ChosenAt is null)
+                {
+                    errors.Set(Field(nameof(request.ChosenAt)), ProblemCodes.InvalidValue, "ChosenAt is required.");
+                }
+
                 if (errors.OrNull() is { } rejected)
                 {
                     return Problems.Validation(rejected);
@@ -137,6 +158,10 @@ public static class SettingsEndpoints
                     return Results.Unauthorized();
                 }
 
+                // A browser sends the language and the theme as two requests at once, so without the lock both
+                // could add the owner's first row, or both read the same time and the older write land last.
+                await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+                await OwnerLock.AcquireAsync(database, user.Id, cancellationToken);
                 var stored = await database.Settings.FindAsync([user.Id], cancellationToken);
                 if (stored is null)
                 {
@@ -144,9 +169,28 @@ public static class SettingsEndpoints
                     database.Settings.Add(stored);
                 }
 
-                stored.Locale = request.Locale ?? stored.Locale;
-                stored.Theme = request.Theme ?? stored.Theme;
+                // A device whose clock runs ahead would otherwise win every later choice made elsewhere.
+                var now = time.GetUtcNow();
+                var chosenAt = request.ChosenAt!.Value.ToUniversalTime();
+                if (chosenAt > now + AllowedClockSkew)
+                {
+                    chosenAt = now;
+                }
+
+                if (request.Locale is { } locale && IsNewer(chosenAt, stored.LocaleChosenAt))
+                {
+                    stored.Locale = locale;
+                    stored.LocaleChosenAt = chosenAt;
+                }
+
+                if (request.Theme is { } theme && IsNewer(chosenAt, stored.ThemeChosenAt))
+                {
+                    stored.Theme = theme;
+                    stored.ThemeChosenAt = chosenAt;
+                }
+
                 await database.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
 
                 return Results.Ok(ToResponse(stored));
             })
@@ -156,6 +200,8 @@ public static class SettingsEndpoints
 
         return routes;
     }
+
+    private static bool IsNewer(DateTimeOffset chosenAt, DateTimeOffset? stored) => stored is null || chosenAt > stored;
 
     // The absent row answers with the defaults, as GET /api/settings does, so an owner who never saved
     // settings is treated as having no registration date rather than as an error. Shared by every
@@ -195,7 +241,9 @@ public static class SettingsEndpoints
         settings.Locale,
         settings.Theme,
         settings.DefaultCurrency,
-        settings.BackOnGroup3From);
+        settings.BackOnGroup3From,
+        settings.LocaleChosenAt,
+        settings.ThemeChosenAt);
 
     internal static FieldErrors? Validate(SettingsRequest request)
     {
@@ -302,6 +350,8 @@ internal sealed record SettingsResponse(
     string Locale,
     string Theme,
     string DefaultCurrency,
-    YearQuarter? BackOnGroup3From);
+    YearQuarter? BackOnGroup3From,
+    DateTimeOffset? LocaleChosenAt,
+    DateTimeOffset? ThemeChosenAt);
 
-internal sealed record AppearanceRequest(string? Locale = null, string? Theme = null);
+internal sealed record AppearanceRequest(string? Locale = null, string? Theme = null, DateTimeOffset? ChosenAt = null);

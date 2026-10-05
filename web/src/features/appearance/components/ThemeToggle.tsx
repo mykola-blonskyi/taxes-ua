@@ -18,7 +18,7 @@ const themeOptions = ["light", "dark", "system"] as const;
 export function ThemeToggle() {
   const t = useTranslations("theme");
   const { theme, setTheme } = useTheme();
-  const { save } = useAppearance();
+  const { choose } = useAppearance();
 
   return (
     <DropdownMenu>
@@ -28,10 +28,13 @@ export function ThemeToggle() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuRadioGroup value={theme} onValueChange={(value) => {
+        <DropdownMenuRadioGroup
+          value={theme}
+          onValueChange={(value) => {
             setTheme(value);
-            save({ theme: value });
-          }}>
+            choose("theme", value);
+          }}
+        >
           {themeOptions.map((value) => (
             <DropdownMenuRadioItem key={value} value={value}>
               {t(value)}

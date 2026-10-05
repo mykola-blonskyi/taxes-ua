@@ -3,65 +3,56 @@
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { useTheme } from "next-themes";
-import { useEffect, useRef } from "react";
-import { useAppearance, type Appearance } from "@/data/settings/appearance";
+import { useEffect } from "react";
+import {
+  appearanceFields,
+  browserChoice,
+  rememberChosenAt,
+  resolve,
+  serverChoice,
+  useAppearance,
+} from "@/data/settings/appearance";
 import { useSettings } from "@/data/settings/useSettings";
-import { localeCookieName } from "@/i18n/locales";
 import { setLocale } from "@/i18n/setLocale";
 
-// next-themes' own storage key.
-const themeStorageKey = "theme";
-
-function hasLocaleChoice(): boolean {
-  return document.cookie.split("; ").some((entry) => entry.startsWith(`${localeCookieName}=`));
-}
-
-function hasThemeChoice(): boolean {
-  try {
-    return window.localStorage.getItem(themeStorageKey) !== null;
-  } catch {
-    return false;
-  }
-}
-
-// Mounted once the owner is signed in. When the settings arrive it decides, once per load:
-//  - a choice the server has not acknowledged (the menu was used a moment ago and the request was cut off
-//    or failed) is sent again;
-//  - a browser with no choice of its own, a new device, takes the server's language and theme, so it
-//    matches the owner's other devices from the first screen after sign-in;
-//  - a browser that already has a choice keeps it: a choice made in the menu is explicit and wins, and is
-//    already saved to the server by the menu.
-// "system" is a choice like the others: it syncs as that literal value and each device resolves it for
-// itself. What remains is one paint in the browser's own default (Ukrainian, system) on a new device
-// before the server's value arrives, and no pull of a change the owner made on another device into a
-// browser that has a choice of its own.
+// Mounted once the owner is signed in. Each time the settings arrive (the load, and every return to the
+// tab) it compares the browser's choice with the server's, field by field, and the later one wins: a newer
+// server value is applied here, a newer browser value (a choice made signed out, or a save that never got
+// through) is sent. The first paint keeps the browser's own value; the server's replaces it when it comes.
+// Once both sides agree on a field's time it resolves to keep, so running again changes nothing.
 export function AppearanceSync() {
-  const { data } = useSettings();
-  const { save, pending } = useAppearance();
+  const { data } = useSettings({ refetchOnWindowFocus: "always" });
+  const { send } = useAppearance();
   const router = useRouter();
   const locale = useLocale();
-  const { theme, setTheme } = useTheme();
-  const done = useRef(false);
+  const { setTheme } = useTheme();
 
   useEffect(() => {
-    if (!data || done.current) {
+    if (!data) {
       return;
     }
-    done.current = true;
 
-    const waiting: Appearance = pending();
+    for (const field of appearanceFields) {
+      const browser = browserChoice(field);
+      const server = serverChoice(data, field);
+      const resolution = resolve(browser, server);
 
-    if (waiting.locale === undefined && !hasLocaleChoice() && data.locale !== locale) {
-      setLocale(data.locale);
-      router.refresh();
+      if (resolution === "send" && browser !== null) {
+        send(field, browser);
+      } else if (resolution === "take" && field === "locale") {
+        setLocale(server.value);
+        rememberChosenAt(field, server.chosenAt);
+        // Only when the language changes, and only once the cookie holds it: a browser that refuses the
+        // cookie would otherwise refresh on every load.
+        if (server.value !== locale && browserChoice(field)?.value === server.value) {
+          router.refresh();
+        }
+      } else if (resolution === "take") {
+        setTheme(server.value);
+        rememberChosenAt(field, server.chosenAt);
+      }
     }
-    if (waiting.theme === undefined && !hasThemeChoice() && data.theme !== (theme ?? "system")) {
-      setTheme(data.theme);
-    }
-    if (waiting.locale !== undefined || waiting.theme !== undefined) {
-      save(waiting);
-    }
-  }, [data, pending, save, router, locale, theme, setTheme]);
+  }, [data, send, locale, router, setTheme]);
 
   return null;
 }

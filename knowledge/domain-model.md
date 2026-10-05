@@ -37,6 +37,8 @@ Fields:
   (reminders, Telegram replies, the calendar feed, test messages) in the language the owner chose. `PUT
   /api/settings` leaves both alone when they are absent. `system` is stored as that literal choice and each
   device resolves it for itself.
+- `LocaleChosenAt`, `ThemeChosenAt: DateTimeOffset?` (UTC) when each was chosen. The newest choice from any
+  device wins, and a missing time counts as the oldest (ADR-032). Not in the backup; a restore leaves them null.
 - `DefaultCurrency`.
 - `BackOnGroup3From: YearQuarter?` (stored as `BackOnGroup3FromYear` and `BackOnGroup3FromQuarter`,
   both set or both null) the quarter the FOP is back on group 3 from after a limit crossing (Rule 4).

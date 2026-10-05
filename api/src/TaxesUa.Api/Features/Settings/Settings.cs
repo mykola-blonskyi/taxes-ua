@@ -28,6 +28,12 @@ internal sealed class Settings
 
     public string Theme { get; set; } = "system";
 
+    // When the owner chose each, in UTC, so the newest choice from any device wins (ADR-032). Null is a
+    // value from before the times were kept, or a restore, and counts as the oldest.
+    public DateTimeOffset? LocaleChosenAt { get; set; }
+
+    public DateTimeOffset? ThemeChosenAt { get; set; }
+
     public string DefaultCurrency { get; set; } = "UAH";
 
     // Rule 4: the quarter the FOP is back on group 3 from after a limit crossing. Both set or both null,

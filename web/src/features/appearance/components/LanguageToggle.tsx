@@ -19,7 +19,7 @@ export function LanguageToggle() {
   const t = useTranslations("language");
   const locale = useLocale();
   const router = useRouter();
-  const { save } = useAppearance();
+  const { choose } = useAppearance();
 
   return (
     <DropdownMenu>
@@ -33,7 +33,7 @@ export function LanguageToggle() {
           value={locale}
           onValueChange={(value) => {
             setLocale(value);
-            save({ locale: parseLocale(value) });
+            choose("locale", parseLocale(value));
             router.refresh();
           }}
         >

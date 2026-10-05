@@ -5488,6 +5488,8 @@ export interface components {
         AppearanceRequest: {
             locale?: null | string;
             theme?: null | string;
+            /** Format: date-time */
+            chosenAt?: null | string;
         };
         /** @enum {string} */
         AuditAction: "Create" | "Update" | "Delete" | "Restore";
@@ -6776,6 +6778,10 @@ export interface components {
             theme: string;
             defaultCurrency: string;
             backOnGroup3From: null | components["schemas"]["YearQuarter"];
+            /** Format: date-time */
+            localeChosenAt: null | string;
+            /** Format: date-time */
+            themeChosenAt: null | string;
         };
         /** @enum {string} */
         SyncFailure: "BankUnreachable" | "BankTimeout" | "BankError" | "UnreadableAnswer" | "RateLimited" | "TokenUnreadable" | "TooManyInOneSecond" | "Unexpected" | "NbuRateUnavailable";
