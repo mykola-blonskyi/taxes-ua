@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { dashboardQueryKey } from "@/data/dashboard/useDashboard";
-import { renderApp, router, screen, stubFetch, waitFor } from "@/test/harness";
+import { renderApp, reply, router, screen, stubFetch, waitFor } from "@/test/harness";
 import { SignOutButton } from "./SignOutButton";
 
 describe("SignOutButton", () => {
   it("leaves nothing of the owner's data in the cache and sends them to the sign-in page", async () => {
-    const api = stubFetch({ "POST /api/auth/logout": {} });
+    const api = stubFetch({ "POST /api/auth/logout": reply(204) });
     const { queryClient, user } = renderApp(<SignOutButton />);
     queryClient.setQueryData(["me"], { id: "u1" });
     queryClient.setQueryData(dashboardQueryKey, { year: 2026 });

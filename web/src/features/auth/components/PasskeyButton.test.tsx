@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dashboardQueryKey } from "@/data/dashboard/useDashboard";
-import { renderApp, router, screen, stubFetch, waitFor } from "@/test/harness";
+import { renderApp, reply, router, screen, stubFetch, waitFor } from "@/test/harness";
 import { PasskeyButton } from "./PasskeyButton";
 
 describe("PasskeyButton", () => {
@@ -19,7 +19,7 @@ describe("PasskeyButton", () => {
   it("starts a signed-in session from an empty cache, so another owner's data never shows", async () => {
     stubFetch({
       "POST /api/auth/passkey/login/options": {},
-      "POST /api/auth/passkey/login": {},
+      "POST /api/auth/passkey/login": reply(204),
     });
     const { queryClient, user } = renderApp(<PasskeyButton mode="signIn" />);
     queryClient.setQueryData(["me"], { id: "u1" });
