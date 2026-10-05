@@ -325,17 +325,6 @@ public sealed class InvoicePaymentsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Contains("invoiceId", await refused.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         Assert.Equal(InvoiceStanding.Issued, (await Get(owner, invoice.Id)).Standing);
         Assert.Equal(400_00, (await Get(owner, invoice.Id)).PaidMinor);
-
-        var version7 = JsonNode.Parse(backup)!.AsObject();
-        version7["schemaVersion"] = 7;
-        foreach (var each in version7["transactions"]!.AsArray())
-        {
-            each!.AsObject().Remove("invoiceId");
-        }
-
-        Assert.Equal(HttpStatusCode.OK, (await Restore(owner, version7.ToJsonString())).StatusCode);
-        Assert.Empty((await Get(owner, invoice.Id)).Receipts);
-        Assert.Equal(HttpStatusCode.OK, (await Restore(owner, Encoding.UTF8.GetString(backup))).StatusCode);
     }
 
     [Fact]

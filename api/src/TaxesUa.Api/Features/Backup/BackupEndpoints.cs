@@ -1,6 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -452,20 +451,27 @@ public static class BackupEndpoints
                 return false;
             }
 
-            if (number is < 1 or > BackupDocument.CurrentSchemaVersion)
+            // Only the schema this build writes restores (#254); the nightly database dump covers older states.
+            if (number < BackupDocument.CurrentSchemaVersion)
             {
                 reason = new Issue(
-                    ProblemCodes.BackupVersionUnsupported,
-                    $"Backup schemaVersion {number} is not supported. This version restores schemaVersion "
-                    + $"1 to {BackupDocument.CurrentSchemaVersion}.");
+                    ProblemCodes.BackupTooOld,
+                    $"Backup schemaVersion {number} is older than {BackupDocument.CurrentSchemaVersion}, the only one "
+                    + "this version restores. Download a fresh backup and restore that.");
                 return false;
             }
 
-            var upgraded = JsonNode.Parse(body)!.AsObject();
-            BackupDocument.Upgrade(upgraded, number);
+            if (number > BackupDocument.CurrentSchemaVersion)
+            {
+                reason = new Issue(
+                    ProblemCodes.BackupVersionUnsupported,
+                    $"Backup schemaVersion {number} is newer than {BackupDocument.CurrentSchemaVersion}, the only one "
+                    + "this version restores.");
+                return false;
+            }
 
             // An object root never deserializes to null.
-            document = upgraded.Deserialize<BackupDocument>(options)!;
+            document = JsonSerializer.Deserialize<BackupDocument>(body, options)!;
             reason = null;
             return true;
         }

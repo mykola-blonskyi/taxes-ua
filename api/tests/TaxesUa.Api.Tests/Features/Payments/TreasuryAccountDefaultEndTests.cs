@@ -21,7 +21,7 @@ namespace TaxesUa.Api.Tests.Features.Payments;
 public sealed class TreasuryAccountDefaultEndTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
     private const string Empty =
-        """{"schemaVersion":9,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"treasuryAccounts":[]}""";
+        """{"schemaVersion":19,"settings":null,"clients":[],"transactions":[],"budgetPayments":[],"bankAccounts":[],"importBatches":[],"budgetPaymentCandidates":[],"invoicingDetails":null,"invoices":[],"declarationDetails":null,"declarationFilings":[],"declarationFiles":[],"treasuryAccounts":[],"notificationChannels":[],"reserveJar":null}""";
 
     private const string LearnedIban = "UA018999980333159998000026011";
 

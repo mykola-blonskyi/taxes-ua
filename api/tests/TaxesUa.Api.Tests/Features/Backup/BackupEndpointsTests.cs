@@ -124,130 +124,17 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task A_version_1_file_restores_with_every_row_as_the_owners_own()
-    {
-        await using var application = CreateApplication();
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        var current = Baseline();
-        var version1 = Baseline();
-        version1["schemaVersion"] = 1;
-        version1.Remove("treasuryAccounts");
-        version1.Remove("declarationFiles");
-        version1.Remove("bankAccounts");
-        version1.Remove("importBatches");
-        version1.Remove("invoicingDetails");
-        RemoveClientDetails(version1);
-        foreach (var row in version1["transactions"]!.AsArray().OfType<JsonObject>())
-        {
-            foreach (var field in new[] { "bankAccountId", "externalId", "bankTime", "counterparty", "importBatchId", "reviewStatus" })
-            {
-                row.Remove(field);
-            }
-        }
-
-        await DropInvoices();
-        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version1.ToJsonString()));
-
-        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
-        Assert.Equal(
-            current["transactions"]!.AsArray().Count,
-            backup["transactions"]!.AsArray().Count(row => row!["reviewStatus"]!.GetValue<string>() == "Confirmed"));
-    }
-
-    [Theory]
-    [InlineData(15, "FullMonth")]
-    [InlineData(16, "Prorated")]
-    public async Task Prorated_restores_as_the_full_month_only_from_a_file_older_than_version_16(int version, string restored)
+    public async Task Prorated_restores_as_the_owners_choice()
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
         var file = Baseline();
-        file["schemaVersion"] = version;
         file["settings"]!["esvRegistrationMonthPolicy"] = "Prorated";
-        if (version == 15)
-        {
-            foreach (var key in new[] { "group3Since", "group3Confirmation", "dpsFopRegistered", "dpsEsvRegistered", "dpsAccountsRegistered" })
-            {
-                file["settings"]!.AsObject().Remove(key);
-            }
-        }
 
         await Restore(owner, file.ToJsonString());
 
         var settings = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
-        Assert.Equal(restored, settings!.EsvRegistrationMonthPolicy.ToString());
-    }
-
-    [Fact]
-    public async Task A_version_2_file_restores_with_every_payment_typed_by_the_owner()
-    {
-        await using var application = CreateApplication();
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        var current = Baseline();
-        current["invoicingDetails"] = null;
-        current["declarationDetails"] = null;
-        current["declarationFilings"] = new JsonArray();
-        NullClientDetails(current);
-        current["invoices"] = new JsonArray();
-        current["treasuryAccounts"] = new JsonArray();
-        current["notificationChannels"] = new JsonArray();
-        current["reserveJar"] = null;
-        current["declarationFiles"] = new JsonArray();
-        current["settings"]!["backOnGroup3From"] = null;
-        current["settings"]!["group3Confirmation"] = null;
-        current["settings"]!["dpsFopRegistered"] = false;
-        current["settings"]!["dpsEsvRegistered"] = false;
-        var version2 = current.DeepClone().AsObject();
-        version2["schemaVersion"] = 2;
-        version2.Remove("treasuryAccounts");
-        version2.Remove("notificationChannels");
-        version2.Remove("reserveJar");
-        version2.Remove("declarationFiles");
-        version2.Remove("invoicingDetails");
-        version2.Remove("declarationDetails");
-        version2.Remove("declarationFilings");
-        RemoveClientDetails(version2);
-        version2.Remove("budgetPaymentCandidates");
-        foreach (var row in version2["budgetPayments"]!.AsArray().OfType<JsonObject>())
-        {
-            row.Remove("bankAccountId");
-            row.Remove("externalId");
-        }
-
-        await DropInvoices();
-        await Restore(owner, current.ToJsonString());
-        var restored = await Backup(owner);
-
-        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version2.ToJsonString()));
-
-        Assert.Equal(restored, await Backup(owner));
-    }
-
-    [Fact]
-    public async Task A_version_3_file_restores_and_leaves_the_owner_without_invoicing_details()
-    {
-        await using var application = CreateApplication();
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Baseline().ToJsonString());
-        Assert.True((await owner.GetFromJsonAsync<InvoicingDetailsResponse>("/api/settings/invoicing", Json))!.HasSignature);
-        var version3 = Baseline();
-        version3["schemaVersion"] = 3;
-        version3.Remove("treasuryAccounts");
-        version3.Remove("declarationFiles");
-        version3.Remove("invoicingDetails");
-        RemoveClientDetails(version3);
-
-        await DropInvoices();
-        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version3.ToJsonString()));
-
-        var details = await owner.GetFromJsonAsync<InvoicingDetailsResponse>("/api/settings/invoicing", Json);
-        Assert.False(details!.HasSignature);
-        Assert.Empty(details.PaymentDetails);
-        Assert.Equal(InvoicingDefaults.AcceptanceEn, details.AcceptanceClauseEn);
-        Assert.Equal(HttpStatusCode.NotFound, (await owner.GetAsync("/api/settings/invoicing/signature")).StatusCode);
-        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
-        Assert.Null(backup["invoicingDetails"]);
+        Assert.Equal("Prorated", settings!.EsvRegistrationMonthPolicy.ToString());
     }
 
     [Fact]
@@ -272,32 +159,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task A_version_6_file_restores_and_leaves_no_declaration_details_or_filed_marks()
-    {
-        await using var application = CreateApplication();
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Baseline().ToJsonString());
-        var version6 = Baseline();
-        version6["schemaVersion"] = 6;
-        version6.Remove("treasuryAccounts");
-        version6.Remove("declarationFiles");
-        version6.Remove("declarationDetails");
-        version6.Remove("declarationFilings");
-
-        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version6.ToJsonString()));
-
-        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
-        Assert.Null(backup["declarationDetails"]);
-        Assert.Empty(backup["declarationFilings"]!.AsArray());
-        var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>("/api/settings/declaration", Json);
-        Assert.Equal(
-            [DeclarationDetailField.TaxOffice, DeclarationDetailField.Kved, DeclarationDetailField.Address],
-            details!.MissingDetails);
-    }
-
-    [Fact]
-    public async Task A_restore_brings_back_the_return_to_group_3_and_a_version_9_file_has_none()
+    public async Task A_restore_brings_back_the_return_to_group_3()
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
@@ -305,21 +167,12 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
         await Restore(owner, Baseline().ToJsonString());
         var restored = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
-        var version9 = Baseline();
-        version9["schemaVersion"] = 9;
-        version9["settings"]!.AsObject().Remove("backOnGroup3From");
-        version9.Remove("declarationFiles");
-        version9["declarationDetails"]!.AsObject().Remove("taxOfficeName");
-        await Restore(owner, version9.ToJsonString());
-        var upgraded = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
 
         Assert.Equal(new YearQuarter(2032, 2), restored!.BackOnGroup3From);
-        Assert.Null(upgraded!.BackOnGroup3From);
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
     }
 
     [Fact]
-    public async Task A_restore_brings_back_the_telegram_channel_and_a_version_10_file_has_none()
+    public async Task A_restore_brings_back_the_telegram_channel()
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
@@ -327,22 +180,15 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
         await Restore(owner, Baseline().ToJsonString());
         var restored = (await owner.GetFromJsonAsync<JsonArray>("/api/notifications/channels"))!.Single(channel => channel!["kind"]!.GetValue<string>() == "Telegram")!;
-        var version10 = Baseline();
-        version10["schemaVersion"] = 10;
-        version10.Remove("notificationChannels");
-        await Restore(owner, version10.ToJsonString());
-        var upgraded = (await owner.GetFromJsonAsync<JsonArray>("/api/notifications/channels"))!.Single(channel => channel!["kind"]!.GetValue<string>() == "Telegram")!;
 
         Assert.True(restored["linked"]!.GetValue<bool>());
         Assert.False(restored["confirmed"]!.GetValue<bool>());
         Assert.False(restored["enabled"]!.GetValue<bool>());
         Assert.Null(restored["lastDeliveryAt"]);
-        Assert.False(upgraded["linked"]!.GetValue<bool>());
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
     }
 
     [Fact]
-    public async Task A_restore_brings_back_the_reserve_jar_with_the_time_of_its_balance_and_a_version_13_file_has_none()
+    public async Task A_restore_brings_back_the_reserve_jar_with_the_time_of_its_balance_and_a_file_without_one_clears_it()
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
@@ -351,10 +197,9 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         await Restore(owner, Baseline().ToJsonString());
         var restored = await owner.GetFromJsonAsync<ReserveJarStateResponse>("/api/monobank/reserve-jar", Json);
         var backup = JsonSerializer.Deserialize<BackupDocument>(await Backup(owner), Json)!;
-        var version13 = Baseline();
-        version13["schemaVersion"] = 13;
-        version13.Remove("reserveJar");
-        await Restore(owner, version13.ToJsonString());
+        var withoutJar = Baseline();
+        withoutJar.Remove("reserveJar");
+        await Restore(owner, withoutJar.ToJsonString());
         var upgraded = await owner.GetFromJsonAsync<ReserveJarStateResponse>("/api/monobank/reserve-jar", Json);
 
         var expected = new ReserveJarBackup("jar-taxes", "На податки", 12_345_00, new DateTimeOffset(2031, 5, 1, 12, 30, 0, TimeSpan.Zero));
@@ -363,7 +208,6 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             ("jar-taxes", "На податки", 12_345_00L, expected.FetchedAt),
             (restored!.Jar!.JarId, restored.Jar.Title, restored.Jar.BalanceKop, restored.Jar.FetchedAt));
         Assert.Null(upgraded!.Jar);
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
     }
 
     [Fact]
@@ -397,7 +241,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task A_restore_brings_back_the_dps_status_and_a_version_15_file_has_group_3_from_registration_unconfirmed()
+    public async Task A_restore_brings_back_the_dps_status()
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
@@ -405,53 +249,10 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
 
         await Restore(owner, Baseline().ToJsonString());
         var restored = await owner.GetFromJsonAsync<DpsStatusResponse>("/api/settings/dps-status", Json);
-        var version15 = Baseline();
-        version15["schemaVersion"] = 15;
-        var settings = version15["settings"]!.AsObject();
-        foreach (var key in new[] { "group3Since", "group3Confirmation", "dpsFopRegistered", "dpsEsvRegistered", "dpsAccountsRegistered" })
-        {
-            settings.Remove(key);
-        }
-
-        await Restore(owner, version15.ToJsonString());
-        var upgraded = await owner.GetFromJsonAsync<DpsStatusResponse>("/api/settings/dps-status", Json);
 
         Assert.Equal(
             ((DateOnly?)null, new Group3ConfirmationDto(new DateOnly(2031, 1, 5), "9123456789"), true, true, false),
             (restored!.Group3Since, restored.Confirmation, restored.FopRegistered, restored.EsvRegistered, restored.AccountsRegistered));
-        Assert.Equal(
-            ((DateOnly?)null, (Group3ConfirmationDto?)null, false, false, false),
-            (upgraded!.Group3Since, upgraded.Confirmation, upgraded.FopRegistered, upgraded.EsvRegistered, upgraded.AccountsRegistered));
-        Assert.Equal(new DateOnly(2031, 1, 1), upgraded.Group3Start);
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, JsonNode.Parse(await Backup(owner))!["schemaVersion"]!.GetValue<int>());
-    }
-
-    [Theory]
-    [InlineData(13)]
-    [InlineData(14)]
-    public async Task A_version_13_or_14_file_without_confirmations_still_restores_with_its_channel_unconfirmed(int version)
-    {
-        await using var application = CreateApplication();
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Wipe(owner);
-        var file = Baseline();
-        file["schemaVersion"] = version;
-        if (version == 13)
-        {
-            file.Remove("reserveJar");
-        }
-
-        file["notificationChannels"]![0]!.AsObject().Remove("confirmedAt");
-
-        await Restore(owner, file.ToJsonString());
-        var saved = JsonNode.Parse(await Backup(owner))!["notificationChannels"]![0]!;
-
-        Assert.Null(saved["confirmedAt"]);
-        var telegram = (await owner.GetFromJsonAsync<JsonArray>("/api/notifications/channels"))!
-            .Single(row => row!["kind"]!.GetValue<string>() == "Telegram")!;
-        Assert.True(telegram["linked"]!.GetValue<bool>());
-        Assert.False(telegram["confirmed"]!.GetValue<bool>());
-        Assert.False(telegram["enabled"]!.GetValue<bool>());
     }
 
     // A tampered file could name any chat id. Reminders must not follow it until the owner presses Start
@@ -564,122 +365,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
     }
 
     [Fact]
-    public async Task A_version_12_file_restores_its_declaration_files_without_an_annex()
-    {
-        await using var application = CreateApplication();
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Wipe(owner);
-        var version12 = Baseline();
-        version12["schemaVersion"] = 12;
-        foreach (var file in version12["declarationFiles"]!.AsArray())
-        {
-            file!.AsObject().Remove("annexFileName");
-            file.AsObject().Remove("annexContent");
-        }
-
-        await Restore(owner, version12.ToJsonString());
-
-        var backup = JsonSerializer.Deserialize<BackupDocument>(await Backup(owner), Json)!;
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup.SchemaVersion);
-        Assert.Equal(
-            [(DeclarationFileBytes, (byte[]?)null, (string?)null), (new byte[] { 0x3C, 0x00, 0xFF }, null, null)],
-            backup.DeclarationFiles.OrderBy(file => file.Type).Select(file => (file.Content, file.AnnexContent, file.AnnexFileName)));
-    }
-
-    [Fact]
-    public async Task A_version_11_file_restores_with_no_declaration_files_and_no_tax_office_name()
-    {
-        await using var application = CreateApplication();
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Wipe(owner);
-        var version11 = Baseline();
-        version11["schemaVersion"] = 11;
-        version11.Remove("declarationFiles");
-        version11["declarationDetails"]!.AsObject().Remove("taxOfficeName");
-
-        await Restore(owner, version11.ToJsonString());
-
-        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
-        Assert.Empty(backup["declarationFiles"]!.AsArray());
-        Assert.Equal(string.Empty, backup["declarationDetails"]!["taxOfficeName"]!.GetValue<string>());
-        var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>("/api/settings/declaration", Json);
-        Assert.Equal([DeclarationDetailField.TaxOffice], details!.MissingDetails);
-    }
-
-    [Fact]
-    public async Task A_version_4_file_restores_its_clients_with_no_details()
-    {
-        await using var application = CreateApplication();
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        var version4 = Baseline();
-        version4["schemaVersion"] = 4;
-        version4.Remove("treasuryAccounts");
-        version4.Remove("declarationFiles");
-        RemoveClientDetails(version4);
-
-        await DropInvoices();
-        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version4.ToJsonString()));
-
-        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
-        var acme = backup["clients"]!.AsArray().OfType<JsonObject>().Single(row => row["name"]!.GetValue<string>() == "Acme");
-        foreach (var field in new[] { "address", "country", "vatId", "email", "defaultCurrency", "notes" })
-        {
-            Assert.Null(acme[field]);
-        }
-    }
-
-    [Fact]
-    public async Task A_version_5_file_restores_with_no_invoices()
-    {
-        await using var application = CreateApplication();
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Restore(owner, Baseline().ToJsonString());
-        Assert.Equal(2, JsonNode.Parse(await Backup(owner))!["invoices"]!.AsArray().Count);
-        var version5 = Baseline();
-        version5["schemaVersion"] = 5;
-        version5.Remove("treasuryAccounts");
-        version5.Remove("declarationFiles");
-        version5.Remove("invoices");
-
-        await DropInvoices();
-        Assert.Equal(new RestoreResponse(2, 4, 2), await Restore(owner, version5.ToJsonString()));
-
-        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
-        Assert.Empty(backup["invoices"]!.AsArray());
-        Assert.Equal("Acme", backup["clients"]![0]!["name"]!.GetValue<string>());
-    }
-
-    [Fact]
-    public async Task A_version_8_file_restores_with_no_treasury_accounts_and_candidates_without_a_counterparty_code()
-    {
-        await using var application = CreateApplication();
-        using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
-        await Wipe(owner);
-        var version8 = Baseline();
-        version8["schemaVersion"] = 8;
-        version8.Remove("treasuryAccounts");
-        version8.Remove("declarationFiles");
-        var account = AddAccount(version8);
-        AddCandidate(version8, account, TreasuryIban, "Pending", null);
-        version8["budgetPaymentCandidates"]![0]!.AsObject().Remove("counterEdrpou");
-
-        await Restore(owner, version8.ToJsonString());
-
-        var backup = JsonNode.Parse(await Backup(owner))!.AsObject();
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, backup["schemaVersion"]!.GetValue<int>());
-        Assert.Empty(backup["treasuryAccounts"]!.AsArray());
-        Assert.Null(backup["budgetPaymentCandidates"]![0]!["counterEdrpou"]);
-        Assert.Equal("ЄСВ", backup["budgetPaymentCandidates"]![0]!["purpose"]!.GetValue<string>());
-        await Wipe(owner);
-        await using var scope = fixture.CreateScope();
-        await scope.ServiceProvider.GetRequiredService<AppDbContext>().BankAccounts.ExecuteDeleteAsync();
-    }
-
-    [Fact]
-    public async Task A_restore_brings_back_the_end_of_each_treasury_account_and_a_version_16_file_has_none()
+    public async Task A_restore_brings_back_the_end_of_each_treasury_account()
     {
         await using var application = CreateApplication();
         using var owner = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
@@ -691,22 +377,6 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             (kept[0]!["manualValidUntil"]!.GetValue<string>(), kept[0]!["learnedValidUntil"]!.GetValue<string>()));
         var single = (await owner.GetFromJsonAsync<JsonElement>("/api/settings/treasury-accounts", Json)).EnumerateArray().First();
         Assert.Equal("2031-12-31", single.GetProperty("validUntil").GetString());
-
-        var version16 = Baseline();
-        version16["schemaVersion"] = 16;
-        foreach (var account in version16["treasuryAccounts"]!.AsArray().OfType<JsonObject>())
-        {
-            account.Remove("manualValidUntil");
-            account.Remove("learnedValidUntil");
-        }
-
-        await Restore(owner, version16.ToJsonString());
-
-        var upgraded = JsonNode.Parse(await Backup(owner))!;
-        Assert.Equal(BackupDocument.CurrentSchemaVersion, upgraded["schemaVersion"]!.GetValue<int>());
-        Assert.All(
-            upgraded["treasuryAccounts"]!.AsArray(),
-            account => Assert.Equal((null, null), (account!["manualValidUntil"], account["learnedValidUntil"])));
     }
 
     [Fact]
@@ -1751,28 +1421,6 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal("taxes-ua-backup-2031-06-01.json", response.Content.Headers.ContentDisposition?.FileNameStar);
         return await response.Content.ReadAsStringAsync();
-    }
-
-    private static void NullClientDetails(JsonObject file)
-    {
-        foreach (var row in file["clients"]!.AsArray().OfType<JsonObject>())
-        {
-            foreach (var field in new[] { "address", "country", "vatId", "email", "defaultCurrency", "notes" })
-            {
-                row[field] = null;
-            }
-        }
-    }
-
-    private static void RemoveClientDetails(JsonObject file)
-    {
-        foreach (var row in file["clients"]!.AsArray().OfType<JsonObject>())
-        {
-            foreach (var field in new[] { "address", "country", "vatId", "email", "defaultCurrency", "notes" })
-            {
-                row.Remove(field);
-            }
-        }
     }
 
     private static string Normalized(string json) => JsonNode.Parse(json)!.ToJsonString();
