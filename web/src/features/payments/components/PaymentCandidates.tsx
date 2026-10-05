@@ -54,7 +54,7 @@ export function PaymentCandidates() {
   // Kept here: a confirmed card leaves the list as soon as it reloads.
   const [notices, setNotices] = useState<ConfirmedNotice[]>([]);
 
-  if (candidates.isLoading || dashboard.isLoading || candidates.isError || !candidates.data) {
+  if (!candidates.data || !dashboard.data) {
     return <LoadState query={[candidates, dashboard]} loading={t("loading")} failed={t("loadFailed")} />;
   }
 

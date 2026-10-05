@@ -10,7 +10,6 @@ images=(
   mcr.microsoft.com/dotnet/sdk:10.0
   mcr.microsoft.com/dotnet/aspnet:10.0
   node:24-alpine
-  postgres:16-alpine
   postgres:18-alpine
   curlimages/curl:8.10.1
 )

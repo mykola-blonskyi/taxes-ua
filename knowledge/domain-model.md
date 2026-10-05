@@ -226,7 +226,7 @@ written in the same transaction as them; null until the first window lands, see 
 history counts as imported whatever the cursor's age, and a restore clears it with the cursor),
 `LastFailedAt?` and `LastFailure?` (the last failed sync other than a rejected token, one of
 `BankUnreachable | BankTimeout | BankError | UnreadableAnswer | RateLimited | TokenUnreadable |
-TooManyInOneSecond | Unexpected`; both set or both null, cleared when a window of the account imports). Unique per
+TooManyInOneSecond | Unexpected | NbuRateUnavailable`; both set or both null, cleared when a window of the account imports). Unique per
 (`UserId`, `Bank`, `ExternalId`).
 
 Settings shows, per followed account, the month its cursor has reached (or that the history is

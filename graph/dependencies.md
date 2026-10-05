@@ -94,7 +94,7 @@ Test-only: xunit, `Microsoft.AspNetCore.Mvc.Testing`, `Testcontainers.PostgreSql
 
 ### External services
 
-- PostgreSQL 16, the shared instance on the VPS (ADR-006).
+- PostgreSQL 18, the shared instance on the VPS (ADR-006).
 - NBU exchange-rate API, read through `Features/Fx/NbuRateClient`, cached in `FxRates`.
 - monobank personal API, one statement call per owner per 60 seconds (`MonobankRateGate`).
 - Telegram Bot API, by long polling (ADR-015). SMTP for email (ADR-022).

@@ -75,7 +75,7 @@ jobs:
     services:
       # Only the schema check below uses this: it starts the API in Development, which migrates on start.
       postgres:
-        image: postgres:16-alpine
+        image: postgres:18-alpine
         env:
           POSTGRES_DB: taxes_ua
           POSTGRES_USER: taxes_ua
