@@ -143,7 +143,7 @@ internal sealed partial class MonobankStatementImport(
                     continue;
 
                 case StatementResult.RateLimited:
-                    logger.LogWarning("monobank kept rate-limiting the statement of account {AccountId}.", account.ExternalId);
+                    logger.LogWarning("monobank kept rate-limiting the statement of account {AccountId}.", account.Id);
                     await RecordFailureAsync(account.Id, SyncFailure.RateLimited, cancellationToken);
                     return null;
 
@@ -160,7 +160,7 @@ internal sealed partial class MonobankStatementImport(
                 case StatementResult.Unavailable unavailable:
                     logger.LogWarning(
                         "monobank statement for account {AccountId} was not read: {Failure}.",
-                        account.ExternalId,
+                        account.Id,
                         unavailable.Failure);
                     await RecordFailureAsync(account.Id, unavailable.Failure, cancellationToken);
                     return null;
@@ -179,7 +179,7 @@ internal sealed partial class MonobankStatementImport(
             {
                 logger.LogWarning(
                     "monobank statement for account {AccountId} has a full page within one second, so its window is not committed.",
-                    account.ExternalId);
+                    account.Id);
                 await RecordFailureAsync(account.Id, SyncFailure.TooManyInOneSecond, cancellationToken);
                 return null;
             }

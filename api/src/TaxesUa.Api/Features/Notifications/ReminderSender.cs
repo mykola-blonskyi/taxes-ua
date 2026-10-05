@@ -12,7 +12,8 @@ namespace TaxesUa.Api.Features.Notifications;
 /// at this Kyiv moment goes to each such channel once. Each send is claimed in
 /// <see cref="SentReminder"/> first. A failure that may pass (Telegram down, a 429, the channel
 /// switched off meanwhile) gives the claim back so a later pass tries again within the window; a
-/// failure that will not pass (blocked, rejected) keeps it, and so does a pass cut off mid-send.
+/// failure that will not pass (blocked, rejected) keeps it. A send that has begun is not cut off by the host
+/// stopping, so a claim is never left undecided.
 /// The same pass sends the open <see cref="Incident"/>s of every <see cref="IIncidentSource"/>, each
 /// claimed once per channel under its own key.
 /// </summary>
@@ -217,6 +218,8 @@ internal sealed class ReminderSender(
         ReminderMessage message,
         CancellationToken cancellationToken)
     {
+        // A stop requested before the claim is a plain stop: nothing is claimed, so the next start sends it.
+        cancellationToken.ThrowIfCancellationRequested();
         database.SentReminders.Add(claim);
         try
         {
@@ -231,7 +234,11 @@ internal sealed class ReminderSender(
             return;
         }
 
-        var result = await channel.SendAsync(claim.UserId, message, cancellationToken);
+        // From here the claim is outstanding, so the send and the save that settles it run to their
+        // end even when the host is stopping: the channel's own timeout bounds the send, and a send cut
+        // off by the host would leave a claim that is neither delivered nor given back, so the reminder
+        // would never be sent again.
+        var result = await channel.SendAsync(claim.UserId, message, CancellationToken.None);
         if (result.Outcome == DeliveryOutcome.Sent)
         {
             claim.DeliveredAt = time.GetUtcNow();
@@ -248,6 +255,6 @@ internal sealed class ReminderSender(
             return;
         }
 
-        await database.SaveChangesAsync(cancellationToken);
+        await database.SaveChangesAsync(CancellationToken.None);
     }
 }
