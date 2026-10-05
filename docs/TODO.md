@@ -5,12 +5,15 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 
 ## Backlog
 
-- [ ] Stage 3. The yearly document archive (invoices and the XML declaration are done, below).
+- [ ] None.
 
 ---
 
 ## Planned
 
+- [ ] Stage 3. The yearly document archive, spec #283: #284 keep-until date, #285 archive screen,
+      #286 the year as one ZIP (after #285), #287 the reminder after Q4 is filed (after #284, #286).
+      Owner decisions 2026-10-06: only documents the app makes; one reminder after Q4 is filed.
 
 ---
 
