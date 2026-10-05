@@ -11,6 +11,7 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 
 ## Planned
 
+- [ ] The 2026-10-05 audit (#237): #238–#251, owner decisions in #252. #238 first (dashboard 500).
 
 ---
 
