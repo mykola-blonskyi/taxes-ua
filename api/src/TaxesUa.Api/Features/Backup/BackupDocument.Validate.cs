@@ -1,5 +1,6 @@
 using TaxesUa.Api.Features.Banking;
 using TaxesUa.Api.Features.Declarations;
+using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.Transactions;
