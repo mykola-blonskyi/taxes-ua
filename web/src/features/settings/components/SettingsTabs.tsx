@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Tabs } from "radix-ui";
 import { useTreasuryAccounts } from "@/data/treasury/useTreasuryAccounts";
@@ -28,7 +29,14 @@ export function SettingsTabs({ initialTab, confirmEmailToken }: { initialTab?: s
   // token was spent and post it again when the owner comes back.
   const [pendingEmailToken, setPendingEmailToken] = useState(confirmEmailToken);
   const t = useTranslations("settings");
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "fop");
+  const [seenInitialTab, setSeenInitialTab] = useState(initialTab);
+  // The URL is the other way to pick a tab (a link to ?tab=...), so when it changes the tab follows it.
+  if (seenInitialTab !== initialTab) {
+    setSeenInitialTab(initialTab);
+    setTab(isTab(initialTab) ? initialTab : "fop");
+  }
   const listRef = useRef<HTMLDivElement>(null);
   const treasuryNotice = useTreasuryAccounts().data?.some((account) => account.notice) ?? false;
 
@@ -37,7 +45,11 @@ export function SettingsTabs({ initialTab, confirmEmailToken }: { initialTab?: s
   }, [tab]);
 
   return (
-    <Tabs.Root value={tab} onValueChange={(value) => setTab(value as Tab)} className="flex min-w-0 flex-col gap-4">
+    <Tabs.Root value={tab} onValueChange={(value) => {
+        setTab(value as Tab);
+        // Written to the URL so a link to the tab already shown is no longer a link to the open URL.
+        router.replace(`/settings?tab=${value}`, { scroll: false });
+      }} className="flex min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Tabs.List ref={listRef} data-scroll-strip="settings-tabs" className="flex min-w-0 max-w-full gap-1 overflow-x-auto border-b">
           {tabs.map((name) => (

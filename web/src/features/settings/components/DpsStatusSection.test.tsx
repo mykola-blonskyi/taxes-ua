@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DpsStatusResponse } from "@/data/settings/useDpsStatus";
-import { reply, renderApp, screen, stubFetch, waitFor } from "@/test/harness";
+import { reply, renderApp, router, screen, stubFetch, waitFor } from "@/test/harness";
 import { DpsStatusSection } from "./DpsStatusSection";
 import { SettingsTabs } from "./SettingsTabs";
 
@@ -168,6 +168,27 @@ describe("SettingsTabs", () => {
 
     expect(screen.getByRole("tab", { name: "Статус у ДПС" })).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByRole("checkbox", { name: "ФОП зареєстровано" })).toBeVisible();
+  });
+
+  // The registration-date link points at ?tab=fop. Opening the DPS tab by hand leaves the page on that same
+  // URL, so the link only works if the tab choice is written to the URL too.
+  it("records a hand-picked tab in the URL and follows a later link to another tab", async () => {
+    stubFetch({
+      "GET /api/settings": reply(500, { title: "Boom" }),
+      [read]: reply(500, { title: "Boom" }),
+      "GET /api/settings/treasury-accounts": [],
+    });
+    const { user, rerender } = renderApp(<SettingsTabs initialTab="fop" />);
+
+    await user.click(screen.getByRole("tab", { name: "Статус у ДПС" }));
+
+    expect(router.replace).toHaveBeenCalledWith("/settings?tab=dps", { scroll: false });
+    rerender(<SettingsTabs initialTab="dps" />);
+    expect(screen.getByRole("tab", { name: "Статус у ДПС" })).toHaveAttribute("aria-selected", "true");
+
+    rerender(<SettingsTabs initialTab="fop" />);
+
+    expect(screen.getByRole("tab", { name: "ФОП" })).toHaveAttribute("aria-selected", "true");
   });
 });
 

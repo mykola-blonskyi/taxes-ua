@@ -19,14 +19,14 @@ export function CalendarFeedSection() {
   const path = rotate.data?.path ?? null;
   const url = path ? `${window.location.origin}${path}` : null;
   const createdAt = query.data?.createdAt ?? null;
-  const loaded = !query.isLoading && !query.isError;
+  const loaded = query.data !== undefined;
 
   return (
     <div className="flex max-w-xl flex-col gap-3">
       <h3 className="text-sm font-medium">{t("title")}</h3>
       <p className="text-sm text-muted-foreground">{t("intro")}</p>
 
-      {query.isLoading || query.isError ? (
+      {!loaded ? (
         <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />
       ) : null}
 

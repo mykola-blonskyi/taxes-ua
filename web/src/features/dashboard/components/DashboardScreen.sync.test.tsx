@@ -74,3 +74,27 @@ describe("DashboardScreen sync health", () => {
     expect(screen.queryByText(/Потребує уваги/)).not.toBeInTheDocument();
   });
 });
+
+describe("DashboardScreen state cards that point at settings", () => {
+  it("sends a missing tax year to the tax-year tab, not the first one", async () => {
+    stubFetch({
+      "GET /api/dashboard": { ...base, nextStep: { state: "MissingTaxYear", missingTaxYear: 2027 }, sync: null },
+    });
+    renderApp(<DashboardScreen />);
+
+    await screen.findByRole("heading", { name: "Баланс недоступний" });
+
+    expect(screen.getByRole("link", { name: "Перейти до налаштувань" })).toHaveAttribute("href", "/settings?tab=taxYears");
+  });
+
+  it("sends an unset registration date to the first tab", async () => {
+    stubFetch({
+      "GET /api/dashboard": { ...base, nextStep: { state: "RegistrationDateNotSet" }, sync: null },
+    });
+    renderApp(<DashboardScreen />);
+
+    await screen.findByRole("heading", { name: "Вкажіть дату реєстрації ФОП" });
+
+    expect(screen.getByRole("link", { name: "Перейти до налаштувань" })).toHaveAttribute("href", "/settings");
+  });
+});

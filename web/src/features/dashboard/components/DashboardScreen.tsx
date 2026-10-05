@@ -166,7 +166,7 @@ function StateCard({ response }: { response: DashboardResponse }) {
     case "MissingTaxYear":
       return (
         <Card title={t("missingTaxYear")} text={tPeriods("warnings.missingTaxYear", { year: Number(nextStep.missingTaxYear) })}>
-          <SettingsLink />
+          <SettingsLink tab="taxYears" />
         </Card>
       );
     case "Pay":
@@ -344,11 +344,11 @@ function OverdueInvoicesNotice({ count }: { count: number }) {
   );
 }
 
-function SettingsLink() {
+function SettingsLink({ tab }: { tab?: "taxYears" }) {
   const t = useTranslations("dashboard");
 
   return (
-    <Link href="/settings" className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
+    <Link href={tab ? `/settings?tab=${tab}` : "/settings"} className="text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
       {t("settingsCta")}
     </Link>
   );

@@ -431,7 +431,7 @@ function TaxYearRow({ taxYear, canEdit }: { taxYear: TaxYearConfigResponse; canE
       <td className="col-span-2 text-xs text-muted-foreground md:table-cell md:p-2">
         <span className="font-medium md:hidden">{tYears("verifiedAt")}: </span>
         {taxYear.verifiedAt
-          ? tYears("verified", { date: new Intl.DateTimeFormat(locale).format(new Date(taxYear.verifiedAt)) })
+          ? tYears("verified", { date: new Intl.DateTimeFormat(locale, { timeZone: "Europe/Kyiv" }).format(new Date(taxYear.verifiedAt)) })
           : tYears("unverified")}
       </td>
       <td className="col-span-2 md:table-cell md:p-2">

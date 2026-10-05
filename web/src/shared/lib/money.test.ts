@@ -161,6 +161,10 @@ describe("formatPlainAmount", () => {
     [100, "1.00"],
     [123_456, "1234.56"],
     [10_000_000_000, "100000000.00"],
+    [-5, "-0.05"],
+    [-100, "-1.00"],
+    [-150, "-1.50"],
+    [-123_456, "-1234.56"],
   ])("writes %i kopecks as %s", (kopecks, plain) => {
     expect(formatPlainAmount(kopecks)).toBe(plain);
   });

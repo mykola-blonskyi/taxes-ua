@@ -50,7 +50,7 @@ export function DeclarationScreen({ year, quarter }: { year?: string; quarter?: 
         <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} resetKey={`${period.year}-${period.quarter}`} />
       ) : null}
 
-      {data ? <Declaration declaration={data} period={period} today={today} /> : null}
+      {data ? <Declaration key={`${period.year}-${period.quarter}`} declaration={data} period={period} today={today} /> : null}
     </section>
   );
 }
