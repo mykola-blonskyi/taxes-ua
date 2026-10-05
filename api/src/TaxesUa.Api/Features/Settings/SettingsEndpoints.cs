@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Identity;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
@@ -93,6 +94,66 @@ public static class SettingsEndpoints
             .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
+        // The shell's language menu and theme toggle save their choice alone, so one switch drives the
+        // screens on every device and the messages the server writes (reminders, Telegram, the calendar
+        // feed). Only the fields sent change; no other setting is touched.
+        settings.MapPut("/appearance", async (
+                AppearanceRequest request,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                var errors = new FieldErrors();
+                if (request.Locale is null && request.Theme is null)
+                {
+                    errors.Set(Field(nameof(request.Locale)), ProblemCodes.InvalidValue, "Locale or Theme is required.");
+                }
+
+                if (request.Locale is not null && !Locales.Contains(request.Locale, StringComparer.Ordinal))
+                {
+                    errors.Set(
+                        Field(nameof(request.Locale)),
+                        ProblemCodes.InvalidValue,
+                        $"{nameof(request.Locale)} must be one of {string.Join(", ", Locales)}.");
+                }
+
+                if (request.Theme is not null && !Themes.Contains(request.Theme, StringComparer.Ordinal))
+                {
+                    errors.Set(
+                        Field(nameof(request.Theme)),
+                        ProblemCodes.InvalidValue,
+                        $"{nameof(request.Theme)} must be one of {string.Join(", ", Themes)}.");
+                }
+
+                if (errors.OrNull() is { } rejected)
+                {
+                    return Problems.Validation(rejected);
+                }
+
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                var stored = await database.Settings.FindAsync([user.Id], cancellationToken);
+                if (stored is null)
+                {
+                    stored = new Settings { UserId = user.Id };
+                    database.Settings.Add(stored);
+                }
+
+                stored.Locale = request.Locale ?? stored.Locale;
+                stored.Theme = request.Theme ?? stored.Theme;
+                await database.SaveChangesAsync(cancellationToken);
+
+                return Results.Ok(ToResponse(stored));
+            })
+            .Produces<SettingsResponse>()
+            .ProducesFieldProblem()
+            .Produces(StatusCodes.Status401Unauthorized);
+
         return routes;
     }
 
@@ -114,8 +175,10 @@ public static class SettingsEndpoints
             request.TaxPaymentCountsFromStatutoryDeclarationDate;
         settings.ShiftTaxPaymentFromWeekend = request.ShiftTaxPaymentFromWeekend;
         settings.WeekendDays = [.. request.WeekendDays];
-        settings.Locale = request.Locale;
-        settings.Theme = request.Theme;
+        // Absent means keep: the shell's menus own both, and a form that loaded before the owner switched
+        // must not put the old value back.
+        settings.Locale = request.Locale ?? settings.Locale;
+        settings.Theme = request.Theme ?? settings.Theme;
         settings.DefaultCurrency = request.DefaultCurrency;
         settings.BackOnGroup3FromYear = request.BackOnGroup3From?.Year;
         settings.BackOnGroup3FromQuarter = request.BackOnGroup3From?.Quarter;
@@ -145,7 +208,7 @@ public static class SettingsEndpoints
                      (nameof(request.DefaultCurrency), request.DefaultCurrency, Currencies),
                  })
         {
-            if (!allowed.Contains(value, StringComparer.Ordinal))
+            if (value is not null && !allowed.Contains(value, StringComparer.Ordinal))
             {
                 errors.Set(
                     Field(name),
@@ -191,10 +254,42 @@ internal sealed record SettingsRequest(
     bool TaxPaymentCountsFromStatutoryDeclarationDate,
     bool ShiftTaxPaymentFromWeekend,
     DayOfWeek[] WeekendDays,
-    string Locale,
-    string Theme,
+    string? Locale,
+    string? Theme,
     string DefaultCurrency,
-    YearQuarter? BackOnGroup3From = null);
+    YearQuarter? BackOnGroup3From = null)
+{
+    // What the wire reads. Locale and Theme are optional there (absent keeps the stored value), and a
+    // positional parameter can only be optional at the end, so the wire constructor lists them last. The
+    // constructor above stays the one callers use.
+    [JsonConstructor]
+    private SettingsRequest(
+        DateOnly? fopRegistrationDate,
+        PaymentMode paymentMode,
+        EsvRegistrationMonthPolicy esvRegistrationMonthPolicy,
+        bool esvExempt,
+        bool taxPaymentCountsFromStatutoryDeclarationDate,
+        bool shiftTaxPaymentFromWeekend,
+        DayOfWeek[] weekendDays,
+        string defaultCurrency,
+        YearQuarter? backOnGroup3From = null,
+        string? locale = null,
+        string? theme = null)
+        : this(
+            fopRegistrationDate,
+            paymentMode,
+            esvRegistrationMonthPolicy,
+            esvExempt,
+            taxPaymentCountsFromStatutoryDeclarationDate,
+            shiftTaxPaymentFromWeekend,
+            weekendDays,
+            locale,
+            theme,
+            defaultCurrency,
+            backOnGroup3From)
+    {
+    }
+}
 
 internal sealed record SettingsResponse(
     DateOnly? FopRegistrationDate,
@@ -208,3 +303,5 @@ internal sealed record SettingsResponse(
     string Theme,
     string DefaultCurrency,
     YearQuarter? BackOnGroup3From);
+
+internal sealed record AppearanceRequest(string? Locale = null, string? Theme = null);

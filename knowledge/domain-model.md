@@ -31,7 +31,13 @@ Fields:
 - `TaxPaymentCountsFromStatutoryDeclarationDate: bool`, defaults to `true`.
 - `ShiftTaxPaymentFromWeekend: bool`, defaults to `true`.
 - `WeekendDays: DayOfWeek[]`, defaults to Saturday and Sunday.
-- `Locale`, `Theme`, `DefaultCurrency`.
+- `Locale: uk | ru` and `Theme: light | dark | system`, defaults `uk` and `system`. They are not on the settings
+  form: the shell's language menu and theme toggle own them and save each to the server (`PUT
+  /api/settings/appearance`), so the owner's phone and PC match and the server writes its messages
+  (reminders, Telegram replies, the calendar feed, test messages) in the language the owner chose. `PUT
+  /api/settings` leaves both alone when they are absent. `system` is stored as that literal choice and each
+  device resolves it for itself.
+- `DefaultCurrency`.
 - `BackOnGroup3From: YearQuarter?` (stored as `BackOnGroup3FromYear` and `BackOnGroup3FromQuarter`,
   both set or both null) the quarter the FOP is back on group 3 from after a limit crossing (Rule 4).
   Null by default, and then nothing after a crossing is computed. Audited with the rest of the row and

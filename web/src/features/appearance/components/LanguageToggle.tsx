@@ -3,7 +3,8 @@
 import { Languages } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { locales } from "@/i18n/locales";
+import { useAppearance } from "@/data/settings/appearance";
+import { locales, parseLocale } from "@/i18n/locales";
 import { setLocale } from "@/i18n/setLocale";
 import { Button } from "@/shared/ui/button";
 import {
@@ -18,6 +19,7 @@ export function LanguageToggle() {
   const t = useTranslations("language");
   const locale = useLocale();
   const router = useRouter();
+  const { save } = useAppearance();
 
   return (
     <DropdownMenu>
@@ -31,6 +33,7 @@ export function LanguageToggle() {
           value={locale}
           onValueChange={(value) => {
             setLocale(value);
+            save({ locale: parseLocale(value) });
             router.refresh();
           }}
         >

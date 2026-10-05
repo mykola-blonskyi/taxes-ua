@@ -1,3 +1,4 @@
+import { AppearanceMenus, AppearanceSync } from "@/features/appearance";
 import { AuthGate, SignOutButton } from "@/features/auth";
 import { AppHeader } from "@/shared/shell/AppHeader";
 import { AppNav } from "@/shared/shell/AppNav";
@@ -6,8 +7,9 @@ import { Disclaimer } from "@/shared/shell/Disclaimer";
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
     <AuthGate>
+      <AppearanceSync />
       <div className="flex min-h-full flex-1 flex-col">
-        <AppHeader actions={<SignOutButton />} />
+        <AppHeader preferences={<AppearanceMenus />} actions={<SignOutButton />} />
         <div className="flex flex-1 flex-col md:flex-row">
           <AppNav />
           <div className="flex min-w-0 flex-1 flex-col">

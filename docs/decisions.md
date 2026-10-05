@@ -1996,3 +1996,35 @@ restored that object as the scratch cluster's superuser.
 3. **Not done: recording a hash of each upload.** The app could store each object's SHA-256 and the check
    could require a match. That is a second trust store for the same question, and a restore that runs
    unprivileged already bounds what a planted object can do. Revisit it if the check ever needs more privilege.
+
+## ADR-032. One language menu and one theme toggle, saved to the server (#245)
+
+**Status:** accepted, 2026-10-05.
+
+The settings form had its own language and theme selects beside the shell's menus. The shell's menus only
+wrote the browser (a cookie, next-themes' storage), the form's selects only wrote `Settings`, and the server
+reads `Settings.Locale` for every message it originates: reminders, Telegram replies, the email and Telegram
+tests and the calendar feed. Two switches for one thing disagreed. `Settings.Theme` had no server reader at
+all, and the owner wants both to follow them from phone to PC.
+
+1. **The form loses both selects; the shell keeps one switch each.** A menu choice writes the browser first
+   (instant, and the only thing that happens signed out) and, when signed in, sends `PUT
+   /api/settings/appearance` with just the fields it changed, without being awaited, with `keepalive` so a
+   navigation started the same instant does not cancel it. The cookie is set before the request is made, so
+   the very next navigation carries the new language (#193).
+2. **`PUT /api/settings` treats an absent `locale` or `theme` as keep.** The form no longer sends them, and a
+   form opened before a menu change must not put the old choice back.
+3. **Which side wins.** An explicit choice in a menu always wins and is saved. A choice the server has not
+   acknowledged (the request failed or was cut off) is kept in `localStorage` (`appearance-pending`) and sent
+   again on the next signed-in load before anything is taken from the server. Otherwise, on the first
+   signed-in load, a browser with no choice of its own (no `locale` cookie, no stored theme: a new device)
+   takes the server's language and theme, so it matches the owner's other devices. A browser that already
+   has a choice keeps it, including a language picked on the sign-in page. The server's value is therefore a
+   seed, not a pull: a change made on another device reaches a browser that has its own choice only when the
+   owner makes the same choice there. The server keeps the last choice made anywhere, which is what the
+   messages it writes follow.
+4. **`system` syncs as the literal choice.** Each device resolves it for itself, so a phone in the light
+   and a PC in the dark both stay on "system".
+5. **What remains.** The first paint uses the browser's own value; a new device shows the default
+   language and theme until the settings arrive after sign-in, then the route refreshes once. Default currency is untouched: nothing reads it, and the owner
+   decided to leave it as it is.

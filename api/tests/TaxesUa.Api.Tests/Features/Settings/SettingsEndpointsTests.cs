@@ -99,6 +99,68 @@ public sealed class SettingsEndpointsTests(ApiFixture fixture) : IClassFixture<A
     }
 
     [Fact]
+    public async Task Put_appearance_changes_only_the_fields_sent()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        var body = Body();
+        body["paymentMode"] = nameof(PaymentMode.MonthlyAdvance);
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", body, Json)).StatusCode);
+
+        var language = await owner.PutAsJsonAsync("/api/settings/appearance", new { locale = "ru" }, Json);
+        Assert.Equal(HttpStatusCode.OK, language.StatusCode);
+        var afterLanguage = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
+        Assert.Equal(("ru", "system", PaymentMode.MonthlyAdvance), (afterLanguage!.Locale, afterLanguage.Theme, afterLanguage.PaymentMode));
+
+        var theme = await owner.PutAsJsonAsync("/api/settings/appearance", new { theme = "dark" }, Json);
+        Assert.Equal(HttpStatusCode.OK, theme.StatusCode);
+        var afterTheme = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
+        Assert.Equal(("ru", "dark", PaymentMode.MonthlyAdvance), (afterTheme!.Locale, afterTheme.Theme, afterTheme.PaymentMode));
+    }
+
+    [Fact]
+    public async Task Put_without_locale_and_theme_keeps_the_stored_ones()
+    {
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        Assert.Equal(
+            HttpStatusCode.OK,
+            (await owner.PutAsJsonAsync("/api/settings/appearance", new { locale = "ru", theme = "dark" }, Json)).StatusCode);
+        var body = Body();
+        body.Remove("locale");
+        body.Remove("theme");
+
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/settings", body, Json)).StatusCode);
+
+        var settings = await owner.GetFromJsonAsync<SettingsResponse>("/api/settings", Json);
+        Assert.Equal(("ru", "dark"), (settings!.Locale, settings.Theme));
+    }
+
+    [Theory]
+    [InlineData("""{"locale":"de"}""", "locale")]
+    [InlineData("""{"theme":"solarized"}""", "theme")]
+    [InlineData("""{}""", "locale")]
+    public async Task Put_appearance_rejects_a_value_the_interface_does_not_ship_and_stores_nothing(string json, string field)
+    {
+        using var owner = await SignIn(ApiFixture.SecondAllowedEmail);
+
+        var response = await owner.PutAsync(
+            "/api/settings/appearance", new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains(field, await response.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.False(await HasStoredSettings(ApiFixture.SecondAllowedEmail));
+    }
+
+    [Fact]
+    public async Task Put_appearance_needs_a_signed_in_owner()
+    {
+        using var client = fixture.CreateClient();
+
+        var response = await client.PutAsJsonAsync("/api/settings/appearance", new { locale = "ru" }, Json);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Put_rejects_a_repeated_weekend_day()
     {
         var body = Body();
