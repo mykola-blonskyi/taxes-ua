@@ -1,4 +1,5 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSyncExternalStore } from "react";
+import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api } from "@/data/api/client";
 import type { components, paths } from "@/data/api/schema";
 
@@ -27,6 +28,33 @@ export class NotJsonError extends Error {
   }
 }
 
+let replacements = 0;
+const replacementListeners = new Set<() => void>();
+
+function subscribeToReplacements(listener: () => void) {
+  replacementListeners.add(listener);
+
+  return () => {
+    replacementListeners.delete(listener);
+  };
+}
+
+// Counts the restores that replaced the owner's data. A form that copies server data into its
+// own state keys itself by it, so it re-seeds after a replacement and keeps an edit through any other refetch.
+export function useDataReplacements() {
+  return useSyncExternalStore(
+    subscribeToReplacements,
+    () => replacements,
+    () => 0,
+  );
+}
+
+async function refreshAfterReplacement(queryClient: QueryClient) {
+  await queryClient.invalidateQueries();
+  replacements += 1;
+  replacementListeners.forEach((listener) => listener());
+}
+
 export function useRestoreBackup() {
   const queryClient = useQueryClient();
 
@@ -50,8 +78,6 @@ export function useRestoreBackup() {
 
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries();
-    },
+    onSuccess: () => refreshAfterReplacement(queryClient),
   });
 }

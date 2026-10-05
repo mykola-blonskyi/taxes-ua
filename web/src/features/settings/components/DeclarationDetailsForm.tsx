@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useDataReplacements } from "@/data/backup/backup";
 import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
@@ -51,12 +52,13 @@ export function DeclarationDetailsForm() {
   const t = useTranslations("settings");
   const query = useDeclarationDetails();
   const { data } = query;
+  const replacements = useDataReplacements();
 
   if (!data) {
     return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 
-  return <DeclarationDetailsFormBody details={data} />;
+  return <DeclarationDetailsFormBody key={replacements} details={data} />;
 }
 
 function DeclarationDetailsFormBody({ details }: { details: DeclarationDetailsResponse }) {
