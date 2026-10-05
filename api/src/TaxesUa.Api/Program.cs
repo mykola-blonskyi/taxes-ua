@@ -242,10 +242,14 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    options.Cookie.Name = "taxesua.auth";
+    // The __Host- prefix makes browsers refuse the cookie unless it is Secure, Path=/ and has no
+    // Domain, so a sibling subdomain cannot plant a same-named cookie. Do not set Domain or Path.
+    options.Cookie.Name = "__Host-taxesua.auth";
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Lax;
+    options.ExpireTimeSpan = TimeSpan.FromDays(7);
+    options.SlidingExpiration = true;
     // Answering 401 rather than redirecting is also what stops web/src/proxy.ts looping: a 302 to a
     // login path would come back through the Next rewrite as another gated request.
     options.Events.OnRedirectToLogin = context =>

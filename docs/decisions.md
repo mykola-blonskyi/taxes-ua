@@ -371,6 +371,18 @@ Revisit when a second account appears, when the api runs as more than one instan
 owner wants to end a session from the interface. A ticket store is the smaller of the two changes
 and the one to reach for then.
 
+### Amendment 2026-10-05 (#255)
+
+The cookie is now `__Host-taxesua.auth` and its lifetime is 7 days, sliding, down from the 14-day
+default. The `__Host-` prefix makes a browser refuse the cookie unless it is Secure, has Path=/ and
+carries no Domain, so a sibling `*.blonskyi.dev` app can no longer plant a same-named cookie with
+`Domain=.blonskyi.dev`. The api already sets Secure always, Path=/ by default and no Domain, in every
+environment, so the local `http://localhost` stack keeps working: Chrome treats localhost as a
+trustworthy origin and accepts a Secure cookie there, prefix included. `web/src/proxy.ts` names the
+cookie and follows. A shorter lifetime narrows the replay window this ADR accepts, for one extra
+sign-in a week from a machine the owner does not use daily. Sessions under the old name end on
+deploy and the owner signs in once.
+
 ---
 
 ## ADR-010. Persist the data-protection key ring to a volume

@@ -420,6 +420,7 @@ public sealed partial class MonobankSyncTests
             .ConfigureTestServices(services =>
             {
                 services.AddSingleton<TimeProvider>(clock);
+                ApiFixture.KeepSessionAcrossClockJumps(services);
                 services.AddHttpClient<MonobankClient>().ConfigurePrimaryHttpMessageHandler(() => handler);
                 services.AddHttpClient<NbuRateClient>().ConfigurePrimaryHttpMessageHandler(() => Nbu());
                 services.AddHttpClient<TelegramClient>().ConfigurePrimaryHttpMessageHandler(() => telegram);
