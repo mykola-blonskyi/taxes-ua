@@ -97,10 +97,23 @@ live() {
   )
 }
 
-# Runs a command against the throwaway cluster, over its unix socket.
+# Runs a command against the throwaway cluster, over its unix socket, as its superuser.
 scratch() {
   (
     export PGHOST="$SCRATCH" PGUSER=postgres
+    unset PGPORT PGDATABASE PGPASSWORD
+    exec "$@"
+  )
+}
+
+# The role the check restores and reads as. Anyone holding the bucket key and the check's public key can
+# encrypt a dump the check will open, so what a dump carries runs with no more than this role's rights.
+RESTORE_ROLE=taxes_ua_restore_check
+
+# Runs a command against the throwaway cluster as RESTORE_ROLE.
+restorer() {
+  (
+    export PGHOST="$SCRATCH" PGUSER="$RESTORE_ROLE"
     unset PGPORT PGDATABASE PGPASSWORD
     exec "$@"
   )
@@ -304,33 +317,68 @@ start_scratch() {
     STEP_ERR="pg_ctl start: $(last_error "$ERR" "$SCRATCH/pg.log")"
     return 1
   fi
+  if ! scratch createuser --no-superuser --no-createdb --no-createrole --no-replication "$RESTORE_ROLE" 2>"$ERR"; then
+    STEP_ERR="createuser: $(last_error "$ERR")"
+    return 1
+  fi
 }
 
-# The newest stored dump must be under 48 hours old, decrypt with the check identity, restore, carry a
-# migration the live database has too, and hold rows. Sets CHECK_DETAIL on success.
+# How far a dump's name may run ahead of this container's clock before it is ignored as not yet possible.
+CLOCK_SKEW_SECONDS=300
+
+# Picks, from a listing of daily/, the newest dump whose name is a real UTC time no later than now plus the
+# skew. Sets LATEST and LATEST_EPOCH (empty and 0 when none qualifies) and FUTURE, the names it ignored as
+# dated ahead. $2 is now in epoch seconds.
+pick_latest() {
+  local listing=$1 now=$2 name ts epoch
+  LATEST="" LATEST_EPOCH=0 FUTURE=()
+  while IFS= read -r name; do
+    [[ $name =~ ^taxes_ua-([0-9]{8}T[0-9]{6}Z)\.dump\.age$ ]] || continue
+    ts=${BASH_REMATCH[1]}
+    epoch=$(date -u -d "${ts:0:4}-${ts:4:2}-${ts:6:2} ${ts:9:2}:${ts:11:2}:${ts:13:2}" +%s 2>/dev/null) || continue
+    # A name like 20261332T000000Z is not a time; date may roll it over instead of failing.
+    [ "$(date -u -d "@$epoch" +%Y%m%dT%H%M%SZ)" = "$ts" ] || continue
+    if [ "$epoch" -gt $((now + CLOCK_SKEW_SECONDS)) ]; then
+      FUTURE+=("$name")
+      continue
+    fi
+    if [ "$epoch" -gt "$LATEST_EPOCH" ]; then
+      LATEST=$name
+      LATEST_EPOCH=$epoch
+    fi
+  done <<<"$listing"
+}
+
+# The newest stored dump must be under 48 hours old, decrypt with the check identity, restore as
+# RESTORE_ROLE, carry a migration the live database has too, and hold rows. Sets CHECK_DETAIL on success.
 check_target() {
-  local t=$1 bucket listing latest ts epoch hours last_migration known rows
+  local t=$1 bucket listing latest ts now hours last_migration known rows privileged skipped=""
   bucket=$(target_get "$t" BUCKET)
   if ! listing=$(rclone lsf --files-only "$t:$bucket/daily/" 2>"$ERR"); then
     STEP_ERR="cannot list daily/: $(last_error "$ERR")"
     return 1
   fi
-  latest=$(printf '%s\n' "$listing" | grep -E '^taxes_ua-[0-9]{8}T[0-9]{6}Z\.dump\.age$' | sort | tail -n 1 || true)
+  now=$(date -u +%s)
+  pick_latest "$listing" "$now"
+  if [ "${#FUTURE[@]}" -gt 0 ]; then
+    skipped="; ignored ${#FUTURE[@]} dated in the future: $(join_by ', ' "${FUTURE[@]}")"
+    log "$t: ignoring daily/ objects dated in the future: $(join_by ', ' "${FUTURE[@]}")"
+  fi
+  latest=$LATEST
   if [ -z "$latest" ]; then
-    STEP_ERR="no backup under daily/"
+    STEP_ERR="no backup under daily/$skipped"
     return 1
   fi
   ts=${latest#taxes_ua-}
   ts=${ts%%.*}
-  epoch=$(date -u -d "${ts:0:4}-${ts:4:2}-${ts:6:2} ${ts:9:2}:${ts:11:2}:${ts:13:2}" +%s)
-  hours=$((($(date -u +%s) - epoch) / 3600))
+  hours=$(((now - LATEST_EPOCH) / 3600))
   if [ "$hours" -ge 48 ]; then
-    STEP_ERR="latest backup is from ${ts:0:4}-${ts:4:2}-${ts:6:2} ${ts:9:2}:${ts:11:2} UTC ($hours hours old): $latest"
+    STEP_ERR="latest backup is from ${ts:0:4}-${ts:4:2}-${ts:6:2} ${ts:9:2}:${ts:11:2} UTC ($hours hours old): $latest$skipped"
     return 1
   fi
 
   scratch dropdb --if-exists taxes_ua_restore 2>/dev/null || true
-  if ! scratch createdb taxes_ua_restore 2>"$ERR"; then
+  if ! scratch createdb --owner="$RESTORE_ROLE" taxes_ua_restore 2>"$ERR"; then
     STEP_ERR="createdb: $(last_error "$ERR")"
     return 1
   fi
@@ -340,12 +388,22 @@ check_target() {
   : >"$ERR3"
   if ! rclone cat "$t:$bucket/daily/$latest" 2>"$ERR" \
     | age -d -i <(printf '%s\n' "$BACKUP_CHECK_AGE_IDENTITY") 2>"$ERR2" \
-    | scratch pg_restore --no-owner --no-privileges --single-transaction --exit-on-error -d taxes_ua_restore 2>"$ERR3"; then
+    | restorer pg_restore --no-owner --no-privileges --single-transaction --exit-on-error -d taxes_ua_restore 2>"$ERR3"; then
     STEP_ERR="restoring $latest: $(last_error "$ERR2" "$ERR" "$ERR3")"
     return 1
   fi
 
-  if ! last_migration=$(scratch psql -X -At -d taxes_ua_restore \
+  if ! privileged=$(restorer psql -X -At -d taxes_ua_restore \
+    -c 'select rolsuper or rolcreatedb or rolcreaterole or rolreplication or rolbypassrls from pg_roles where rolname = current_user' 2>"$ERR"); then
+    STEP_ERR="reading the restore role: $(last_error "$ERR")"
+    return 1
+  fi
+  if [ "$privileged" != f ]; then
+    STEP_ERR="the restore ran as a privileged role"
+    return 1
+  fi
+
+  if ! last_migration=$(restorer psql -X -At -d taxes_ua_restore \
     -c 'select "MigrationId" from "__EFMigrationsHistory" order by 1 desc limit 1' 2>"$ERR"); then
     STEP_ERR="reading the restored migration history: $(last_error "$ERR")"
     return 1
@@ -363,7 +421,7 @@ check_target() {
     STEP_ERR="restored migration $last_migration is not in the live database"
     return 1
   fi
-  if ! rows=$(scratch psql -X -At -d taxes_ua_restore -c "select coalesce(sum((xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', schemaname, tablename), false, true, '')))[1]::text::bigint), 0) from pg_tables where schemaname = 'public' and tablename not in ('__EFMigrationsHistory', 'DatabaseBackupRuns')" 2>"$ERR"); then
+  if ! rows=$(restorer psql -X -At -d taxes_ua_restore -c "select coalesce(sum((xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', schemaname, tablename), false, true, '')))[1]::text::bigint), 0) from pg_tables where schemaname = 'public' and tablename not in ('__EFMigrationsHistory', 'DatabaseBackupRuns')" 2>"$ERR"); then
     STEP_ERR="counting restored rows: $(last_error "$ERR")"
     return 1
   fi
@@ -372,7 +430,7 @@ check_target() {
     return 1
   fi
   scratch dropdb taxes_ua_restore 2>/dev/null || true
-  CHECK_DETAIL="restored $latest, migration $last_migration, $rows rows"
+  CHECK_DETAIL="restored $latest as $RESTORE_ROLE, migration $last_migration, $rows rows$skipped"
 }
 
 cmd_check() {
