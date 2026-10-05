@@ -36,6 +36,15 @@ describe("UploadFailure", () => {
     expect(alert).not.toHaveTextContent("breaks the rules");
   });
 
+  it("tells the owner to download a fresh backup when the file is of an older schema", () => {
+    const error = new ApiError(400, { message: "Backup schemaVersion 18 is older.", code: "backup_too_old" });
+
+    renderApp(<UploadFailure error={error} {...words} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Завантажте свіжу резервну копію в цьому застосунку.");
+    expect(screen.queryByText(/schemaVersion/)).not.toBeInTheDocument();
+  });
+
   it("shows the generic sentence for a code it has no words for, never the English", () => {
     const error = new ApiError(400, { message: "Something English.", code: "a_code_from_the_future" });
 
