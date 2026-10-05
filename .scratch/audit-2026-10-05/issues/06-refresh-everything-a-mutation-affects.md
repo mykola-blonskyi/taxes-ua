@@ -1,6 +1,6 @@
 GitHub: #243
 Status: ready-for-agent
-Blocked by: none
+Blocked by: #241
 
 # Refresh everything a mutation affects
 
@@ -20,6 +20,6 @@ The dashboard stays stale after a monobank sync (`useMonobank.ts:25-28` skips th
 
 ## Blocked by
 
-None (can start immediately)
+- #241
 
 Details: reports/audits/2026-10-05-full-audit.md, Web M3, M4, M5.

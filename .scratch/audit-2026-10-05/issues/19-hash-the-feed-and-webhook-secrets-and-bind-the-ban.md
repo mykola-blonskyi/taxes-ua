@@ -1,6 +1,6 @@
 GitHub: #256
 Status: ready-for-agent
-Blocked by: none
+Blocked by: #247, #246
 
 # Hash the feed and webhook secrets and bind the bank token to its owner
 
@@ -20,6 +20,7 @@ Owner said yes on 2026-10-05 (#252) to the untriaged L9 of 2026-10-02. The calen
 
 ## Blocked by
 
-None (can start immediately)
+- #247
+- #246
 
 Details: reports/audits/2026-10-02-full-audit.md, Security L9.

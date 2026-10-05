@@ -1,6 +1,6 @@
 GitHub: #248
 Status: ready-for-agent
-Blocked by: none
+Blocked by: #247
 
 # Encrypt deploy dumps and authenticate backups
 
@@ -20,6 +20,6 @@ Blocked by: none
 
 ## Blocked by
 
-None (can start immediately)
+- #247
 
 Details: reports/audits/2026-10-05-full-audit.md, Security N1, N2, N4.

@@ -1,6 +1,6 @@
 GitHub: #249
 Status: ready-for-agent
-Blocked by: none
+Blocked by: #240
 
 # Tidy backend Lows from the 2026-10-05 audit
 
@@ -21,6 +21,6 @@ Small items, each with file:line in the report: monobank `account.ExternalId` lo
 
 ## Blocked by
 
-None (can start immediately)
+- #240
 
 Details: reports/audits/2026-10-05-full-audit.md, Security N3, N6; Architecture F7.

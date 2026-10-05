@@ -1,6 +1,6 @@
 GitHub: #254
 Status: ready-for-agent
-Blocked by: none
+Blocked by: #253
 
 # Restore only the current backup schema and stop bumping it for additive fields
 
@@ -21,6 +21,6 @@ Owner decision 2026-10-05 (#252). The JSON backup schema is at v18 after 17 bump
 
 ## Blocked by
 
-None (can start immediately)
+- #253
 
 Details: reports/audits/2026-10-05-full-audit.md, Architecture F4.

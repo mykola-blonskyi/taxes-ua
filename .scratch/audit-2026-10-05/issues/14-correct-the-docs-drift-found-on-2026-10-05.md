@@ -1,6 +1,6 @@
 GitHub: #251
 Status: ready-for-agent
-Blocked by: none
+Blocked by: #246, #253, #254
 
 # Correct the docs drift found on 2026-10-05
 
@@ -18,6 +18,8 @@ Blocked by: none
 
 ## Blocked by
 
-None (can start immediately)
+- #246
+- #253
+- #254
 
 Details: reports/audits/2026-10-05-full-audit.md, Architecture F8.
