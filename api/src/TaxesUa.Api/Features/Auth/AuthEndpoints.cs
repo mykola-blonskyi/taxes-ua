@@ -48,12 +48,17 @@ public static class AuthEndpoints
             })
             .Produces(StatusCodes.Status204NoContent);
 
-        auth.MapGet("/me", async (UserManager<ApplicationUser> users, HttpContext http) =>
+        auth.MapGet("/me", async (UserManager<ApplicationUser> users, EmailAllowlist allowlist, HttpContext http) =>
             {
                 var user = await users.GetUserAsync(http.User);
                 return user is null
                     ? Results.Unauthorized()
-                    : Results.Ok(new MeResponse(user.Id, user.Email ?? string.Empty, user.DisplayName, user.CreatedAt));
+                    : Results.Ok(new MeResponse(
+                        user.Id,
+                        user.Email ?? string.Empty,
+                        user.DisplayName,
+                        user.CreatedAt,
+                        allowlist.IsAdmin(user.Email)));
             })
             .RequireAuthorization()
             .Produces<MeResponse>()
@@ -149,4 +154,9 @@ public static class AuthEndpoints
             : "/";
 }
 
-internal sealed record MeResponse(string Id, string Email, string? DisplayName, DateTimeOffset CreatedAt);
+internal sealed record MeResponse(
+    string Id,
+    string Email,
+    string? DisplayName,
+    DateTimeOffset CreatedAt,
+    bool IsAdmin);

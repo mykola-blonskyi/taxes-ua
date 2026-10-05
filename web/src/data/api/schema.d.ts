@@ -2139,6 +2139,15 @@ export interface paths {
                     };
                     content?: never;
                 };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
+                    };
+                };
             };
         };
         post?: never;
@@ -2183,6 +2192,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
+                    };
                 };
                 /** @description Not Found */
                 404: {
@@ -2246,6 +2264,15 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
+                    };
                 };
                 /** @description Not Found */
                 404: {
@@ -6303,6 +6330,7 @@ export interface components {
             displayName: null | string;
             /** Format: date-time */
             createdAt: string;
+            isAdmin: boolean;
         };
         MonobankAccountResponse: {
             externalId: string;

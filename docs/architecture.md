@@ -328,7 +328,11 @@ session cookie, the external sign-in cookie and the passkey ceremony cookie are 
 `HttpOnly; Secure; SameSite=Lax`. A session cannot be revoked server-side, which
 [ADR-009](decisions.md) explains.
 
-Authorization: every read and write is filtered by the `UserId` from the session.
+Authorization: every read and write is filtered by the `UserId` from the session. The tax-year
+parameters are the one shared table: any signed-in user reads them, and a write (PUT, verify, clone)
+needs an admin, an address in `Auth__AdminEmails` or, when that is unset, the first address in
+`Auth__AllowedEmails`. A non-admin gets 403 `admin_required`; `/api/auth/me` carries `isAdmin` so the
+web can hide the controls ([ADR-005](decisions.md)).
 
 Secrets management: the bank-token encryption key lives only in the environment. Tokens are
 decrypted at the moment of the bank API call and never appear in logs, responses or the client.

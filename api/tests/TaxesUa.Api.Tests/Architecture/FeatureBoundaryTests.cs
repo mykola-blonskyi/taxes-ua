@@ -38,7 +38,7 @@ public sealed class FeatureBoundaryTests
         ["Payments"] = ["Auth", "Banking", "Settings", "TaxYears"],
         ["Periods"] = ["Auth", "Payments", "Settings", "TaxYears", "Transactions"],
         ["Settings"] = ["Auth", "Banking", "Fx", "TaxYears"],
-        ["TaxYears"] = [],
+        ["TaxYears"] = ["Auth"],
         ["Transactions"] = ["Auth", "Banking", "Fx", "Settings", "TaxYears"],
     };
 
