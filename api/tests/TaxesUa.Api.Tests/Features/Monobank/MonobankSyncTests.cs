@@ -5,9 +5,11 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Banking;
@@ -16,6 +18,7 @@ using TaxesUa.Api.Features.Monobank;
 using TaxesUa.Api.Features.Settings;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Api.Tests.Features.Fx;
+using TaxesUa.Api.Tests.Features.Notifications;
 
 namespace TaxesUa.Api.Tests.Features.Monobank;
 
@@ -559,6 +562,26 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
     }
 
     [Fact]
+    public async Task A_sync_that_warns_about_an_account_never_logs_the_banks_id_for_it_or_the_token()
+    {
+        var logs = new CapturedLogs();
+        var bank = new FakeBank();
+        bank.Connect("token-log-secret", ("acct-log-private-9z8y", 980));
+        var now = At(2099, 6, 30, 10);
+        for (var i = 0; i < MonobankClient.StatementPageSize; i++)
+        {
+            bank.Put("acct-log-private-9z8y", new Operation($"log-{i}", now.AddHours(-1), 1_00, 980));
+        }
+
+        await using var app = Create(now, bank, logs: logs);
+        using var owner = await Connect(app, _ownerEmail, "token-log-secret");
+
+        Assert.Contains(logs.Lines, line => line.Contains("full page within one second", StringComparison.Ordinal));
+        Assert.DoesNotContain(logs.Lines, line => line.Contains("acct-log-private-9z8y", StringComparison.Ordinal));
+        Assert.DoesNotContain(logs.Lines, line => line.Contains("token-log-secret", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task One_owners_sync_never_reads_or_writes_another_owners_accounts()
     {
         var bank = new FakeBank();
@@ -661,12 +684,22 @@ public sealed partial class MonobankSyncTests(ApiFixture fixture) : IClassFixtur
             return StubNbuHandler.Json(match.Currency is null ? "[]" : StubNbuHandler.Row(match.Currency, match.Date, match.Rate));
         });
 
-    private SyncApp Create(DateTimeOffset now, FakeBank bank, StubNbuHandler? nbu = null, string? publicBaseUrl = null)
+    private SyncApp Create(
+        DateTimeOffset now, FakeBank bank, StubNbuHandler? nbu = null, string? publicBaseUrl = null, CapturedLogs? logs = null)
     {
         var clock = new FakeTimeProvider(now);
         var handler = new StubMonobankHandler(bank.Respond, clock);
         var factory = fixture.CreateApplication(builder => builder
             .UseSetting("Monobank:PublicBaseUrl", publicBaseUrl ?? string.Empty)
+            .ConfigureLogging(logging =>
+            {
+                if (logs is not null)
+                {
+                    logging.ClearProviders();
+                    logging.AddFilter((_, _, _) => true);
+                    logging.AddProvider(logs);
+                }
+            })
             .ConfigureTestServices(services =>
             {
                 services.AddSingleton<TimeProvider>(clock);

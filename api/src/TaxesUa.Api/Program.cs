@@ -131,7 +131,7 @@ builder.Services.AddOpenApi(options => options.AddSchemaTransformer<EnumSchemaTr
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<AuditSaveChangesInterceptor>();
 builder.Services.AddDbContext<AppDbContext>((services, options) => options
-    .UseNpgsql(builder.Configuration.GetConnectionString("Default"))
+    .UseNpgsql(DatabaseConnection.WithDefaults(builder.Configuration.GetConnectionString("Default")))
     .AddInterceptors(services.GetRequiredService<AuditSaveChangesInterceptor>()));
 
 builder.Services.AddSingleton<EmailAllowlist>();
