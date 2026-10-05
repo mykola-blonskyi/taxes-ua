@@ -157,7 +157,7 @@ public sealed class StartupTests(ApiFixture fixture) : IClassFixture<ApiFixture>
                 var login = await client.GetAsync($"/api/auth/login/development?email={ApiFixture.AllowedEmail}");
                 var callback = await client.GetAsync(login.Headers.Location);
                 sessionCookie = callback.Headers.GetValues("Set-Cookie")
-                    .Single(header => header.StartsWith("taxesua.auth=", StringComparison.Ordinal))
+                    .Single(header => header.StartsWith("__Host-taxesua.auth=", StringComparison.Ordinal))
                     .Split(';')[0];
             }
 
