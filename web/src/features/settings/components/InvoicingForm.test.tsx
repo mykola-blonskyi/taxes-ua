@@ -86,3 +86,23 @@ describe("InvoicingForm rejection", () => {
     expect(await screen.findByText("Заполните это поле.")).toBeVisible();
   });
 });
+
+describe("InvoicingForm network failure", () => {
+  it.each([
+    ["uk", "Зберегти", "Не вдалося зберегти. Спробуйте ще раз. Немає зв'язку з сервером. Перевірте мережу й спробуйте ще раз."],
+    ["ru", "Сохранить", "Не удалось сохранить. Попробуйте ещё раз. Нет связи с сервером. Проверьте сеть и попробуйте ещё раз."],
+  ] as const)("says so in %s when the save never reaches the api", async (locale, button, message) => {
+    stubFetch({
+      [read]: details,
+      [connection]: { connected: false, accounts: [] },
+      [write]: () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    const { user } = renderApp(<InvoicingForm />, { locale });
+
+    await user.click(await screen.findByRole("button", { name: button }));
+
+    expect(await screen.findByText(message)).toBeVisible();
+  });
+});

@@ -31,4 +31,20 @@ describe("PasskeyButton", () => {
     expect(queryClient.getQueryCache().getAll()).toHaveLength(0);
     expect(queryClient.getQueryData(dashboardQueryKey)).toBeUndefined();
   });
+
+  it.each([
+    ["uk", "Увійти за допомогою passkey", "Не вдалося виконати дію з passkey. Спробуйте ще раз. Немає зв'язку з сервером. Перевірте мережу й спробуйте ще раз."],
+    ["ru", "Войти с помощью passkey", "Не удалось выполнить действие с passkey. Попробуйте снова. Нет связи с сервером. Проверьте сеть и попробуйте ещё раз."],
+  ] as const)("says so in %s when the api cannot be reached", async (locale, name, message) => {
+    stubFetch({
+      "POST /api/auth/passkey/login/options": () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    const { user } = renderApp(<PasskeyButton mode="signIn" />, { locale });
+
+    await user.click(await screen.findByRole("button", { name }));
+
+    expect(await screen.findByText(message)).toBeVisible();
+  });
 });
