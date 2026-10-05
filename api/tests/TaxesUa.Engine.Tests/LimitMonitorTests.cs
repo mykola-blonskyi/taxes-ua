@@ -86,7 +86,34 @@ public class LimitMonitorTests
         Assert.Equal(0, status.RemainingKop);
     }
 
+    // A refund in January of a December receipt, before any new income, leaves the year negative.
     [Fact]
-    public void Negative_income_is_rejected() =>
-        Assert.Throws<ArgumentOutOfRangeException>(() => LimitMonitor.Evaluate(-1, Config));
+    public void Negative_income_uses_none_of_the_limit()
+    {
+        var status = LimitMonitor.Evaluate(-100_000, Config);
+
+        Assert.Equal(new LimitStatus(0, 10_000_000, 0, LimitLevel.Ok, 8_500_000, 0, 0), status);
+    }
+
+    // The 2026 limit, 1_167 x 864_700 kop: one basis point of it is about 1_009 UAH, so a percentage
+    // rounded to whole basis points would call income just under 85% Warn.
+    private static readonly TaxYearConfigInput Config2026 = Config with { IncomeLimitKop = 1_009_104_900 };
+
+    private const long Exactly85PercentOf2026Kop = 857_739_165;
+
+    [Fact]
+    public void One_kopeck_under_85_percent_of_the_2026_limit_is_Ok()
+    {
+        var status = LimitMonitor.Evaluate(Exactly85PercentOf2026Kop - 1, Config2026);
+
+        Assert.Equal((LimitLevel.Ok, 1L), (status.Level, status.RemainingKop));
+    }
+
+    [Fact]
+    public void Exactly_85_percent_of_the_2026_limit_is_Warn()
+    {
+        var status = LimitMonitor.Evaluate(Exactly85PercentOf2026Kop, Config2026);
+
+        Assert.Equal((LimitLevel.Warn, 1_009_104_900L - Exactly85PercentOf2026Kop), (status.Level, status.RemainingKop));
+    }
 }
