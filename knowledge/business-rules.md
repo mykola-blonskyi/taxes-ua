@@ -435,7 +435,7 @@ for a new token, and saving one clears the mark and queues the followed accounts
 their cursors. Saving a token, replaced or not, and following an account queue the followed accounts the
 same way, so a walk stopped by a replacement, a reconnect or an unfollow picks up again. Any other failure (monobank unreachable or slow, an error status, an unreadable answer,
 a token that cannot be decrypted, a window with 500 or more operations in one second, which the bank's
-paging cannot split and which is therefore not committed, an unexpected error) is kept on the account with its time and reason
+paging cannot split and which is therefore not committed, a credit whose NBU rate is unavailable, an unexpected error) is kept on the account with its time and reason
 and shown in settings until a window of that account is imported again.
 
 It records an operation as a transaction only when it is a credit (`amount > 0`) that the bank
@@ -488,8 +488,14 @@ A sync only inserts. An operation is the bank's `id` on its account; once a row 
 sync leaves that row as the owner last saved it, whatever the bank now says, so an owner's edit and
 the fixed rate always win. The one exception is the sale pairing above, which moves an unreviewed
 row's suggestion and nothing else: an unreviewed row carries no owner decision to override. A credit
-that could not be recorded (on hold, another currency, a failed check, an NBU rate not yet
-published) writes nothing and is counted as skipped; the next sync tries it again. A new budget payment
+that could not be recorded (on hold, another currency, a failed check) writes nothing and is counted
+as skipped; a held one is read again by a later sync's 31-day re-read once it settles. A credit whose NBU
+rate cannot be had (NBU unreachable, or no rate published yet) is different, since a later sync could
+record it: its whole window is not committed, the cursor stays before it and the walk stops, so the
+next sync reads that window again, however old, and the operation id keeps every receipt in it
+recorded once. The account shows the failure until the window imports, and a backfill held there
+writes no batch, so a failure that persists is reported as a stale sync (Rule 17) rather than retried
+unnoticed. A new budget payment
 candidate counts as imported. Other debits and operations already recorded count as neither imported
 nor skipped, so a repeated sync reads 0 and 0.
 

@@ -70,4 +70,5 @@ internal enum SyncFailure
     TokenUnreadable,
     TooManyInOneSecond,
     Unexpected,
+    NbuRateUnavailable,
 }
