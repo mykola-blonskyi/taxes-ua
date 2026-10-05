@@ -27,11 +27,12 @@ public static class CalendarEndpoints
                     return Results.Unauthorized();
                 }
 
-                var secret = await database.CalendarFeeds
+                // Only the hash is stored, so a read can say that a link exists but never show it again.
+                var createdAt = await database.CalendarFeeds
                     .Where(feed => feed.UserId == user.Id)
-                    .Select(feed => feed.Secret)
+                    .Select(feed => (DateTimeOffset?)feed.CreatedAt)
                     .FirstOrDefaultAsync(cancellationToken);
-                return Results.Ok(new CalendarFeedResponse(secret is null ? null : PathOf(secret)));
+                return Results.Ok(new CalendarFeedResponse(createdAt));
             })
             .Produces<CalendarFeedResponse>()
             .Produces(StatusCodes.Status401Unauthorized);
@@ -57,12 +58,13 @@ public static class CalendarEndpoints
                     database.CalendarFeeds.Add(feed);
                 }
 
-                feed.Secret = CalendarFeed.NewSecret();
+                var secret = PathSecret.New();
+                feed.SecretHash = PathSecret.Hash(secret);
                 feed.CreatedAt = time.GetUtcNow();
                 await database.SaveChangesAsync(cancellationToken);
-                return Results.Ok(new CalendarFeedResponse(PathOf(feed.Secret)));
+                return Results.Ok(new CalendarFeedLinkResponse(PathOf(secret), feed.CreatedAt));
             })
-            .Produces<CalendarFeedResponse>()
+            .Produces<CalendarFeedLinkResponse>()
             .Produces(StatusCodes.Status401Unauthorized);
 
         calendar.MapGet("/deadlines.ics", async (
@@ -90,8 +92,9 @@ public static class CalendarEndpoints
         routes.MapGet(FeedRoute + "/{secret}.ics", async (
                 string secret, AppDbContext database, TimeProvider time, HttpContext http, CancellationToken cancellationToken) =>
             {
+                var hash = PathSecret.Hash(secret);
                 var ownerId = await database.CalendarFeeds
-                    .Where(feed => feed.Secret == secret)
+                    .Where(feed => feed.SecretHash == hash)
                     .Select(feed => feed.UserId)
                     .FirstOrDefaultAsync(cancellationToken);
                 if (ownerId is null)
@@ -121,4 +124,8 @@ public static class CalendarEndpoints
     }
 }
 
-internal sealed record CalendarFeedResponse(string? Path);
+// CreatedAt is null while the owner has no link.
+internal sealed record CalendarFeedResponse(DateTimeOffset? CreatedAt);
+
+// The only answer that carries the URL: the one that draws its secret.
+internal sealed record CalendarFeedLinkResponse(string Path, DateTimeOffset CreatedAt);

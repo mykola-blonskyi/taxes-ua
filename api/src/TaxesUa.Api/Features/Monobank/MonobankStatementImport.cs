@@ -58,7 +58,7 @@ internal sealed partial class MonobankStatementImport(
         string token;
         try
         {
-            token = encryptor.Decrypt(connection.EncryptedToken);
+            token = encryptor.Decrypt(connection.EncryptedToken, connection.UserId);
         }
         catch (CryptographicException exception)
         {

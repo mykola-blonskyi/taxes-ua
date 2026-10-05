@@ -5266,7 +5266,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["CalendarFeedResponse"];
+                        "application/json": components["schemas"]["CalendarFeedLinkResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -5432,8 +5432,14 @@ export interface components {
         CabinetKind: "Text" | "Number" | "Amount" | "Date" | "Mark";
         /** @enum {string} */
         CabinetPart: "None" | "Header" | "Period" | "Declaration" | "Footer" | "Annex";
+        CalendarFeedLinkResponse: {
+            path: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
         CalendarFeedResponse: {
-            path: null | string;
+            /** Format: date-time */
+            createdAt: null | string;
         };
         CancelInvoiceRequest: {
             reason: string;
