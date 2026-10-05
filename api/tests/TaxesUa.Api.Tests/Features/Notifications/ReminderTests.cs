@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -71,32 +72,16 @@ public sealed partial class ReminderTests(ApiFixture fixture) : IClassFixture<Ap
     }
 
     [Fact]
-    public async Task A_restart_in_the_middle_of_a_send_does_not_send_it_again()
+    public async Task A_stop_in_the_middle_of_a_send_lets_it_finish_and_a_restart_does_not_send_it_again()
     {
         var telegram = new StubTelegramHandler();
         var moment = Kyiv(TaxDue.AddDays(-7), 9, 0);
-        using var stop = new CancellationTokenSource();
-        var reached = new TaskCompletionSource();
         await using (var application = fixture.CreateApplication(telegram, new FakeTimeProvider(moment)))
         {
             await Prepare(application, telegram);
-            telegram.Override = call =>
-            {
-                if (call.Method != "sendMessage")
-                {
-                    return null;
-                }
+            await StopDuringSend(application, telegram, () => StubTelegramHandler.Ok(new JsonObject { ["message_id"] = 1 }));
 
-                reached.TrySetResult();
-                stop.Token.WaitHandle.WaitOne();
-                stop.Token.ThrowIfCancellationRequested();
-                return null;
-            };
-
-            var running = application.Services.GetRequiredService<ReminderSender>().RunOnceAsync(stop.Token);
-            await reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
-            await stop.CancelAsync();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+            Assert.NotNull(Assert.Single(await SentLog(application)).DeliveredAt);
         }
 
         var afterRestart = new StubTelegramHandler();
@@ -104,7 +89,48 @@ public sealed partial class ReminderTests(ApiFixture fixture) : IClassFixture<Ap
         await Run(restarted);
 
         Assert.Empty(afterRestart.To("sendMessage"));
-        Assert.Null(Assert.Single(await SentLog(restarted)).DeliveredAt);
+        Assert.NotNull(Assert.Single(await SentLog(restarted)).DeliveredAt);
+    }
+
+    [Fact]
+    public async Task A_stop_in_the_middle_of_a_send_that_then_fails_gives_the_claim_back_and_a_restart_sends_it()
+    {
+        var telegram = new StubTelegramHandler();
+        var moment = Kyiv(TaxDue.AddDays(-7), 9, 0);
+        await using (var application = fixture.CreateApplication(telegram, new FakeTimeProvider(moment)))
+        {
+            await Prepare(application, telegram);
+            // A 429 that asks for longer than a run waits is a failure that may pass, with no backoff.
+            await StopDuringSend(
+                application,
+                telegram,
+                () => StubTelegramHandler.Error(HttpStatusCode.TooManyRequests, "Too Many Requests", retryAfter: 600));
+
+            Assert.Empty(await SentLog(application));
+        }
+
+        var afterRestart = new StubTelegramHandler();
+        await using var restarted = fixture.CreateApplication(afterRestart, new FakeTimeProvider(moment + TimeSpan.FromMinutes(5)));
+        await Run(restarted);
+
+        Assert.Equal([WeekBeforeText], Texts(afterRestart));
+        Assert.NotNull(Assert.Single(await SentLog(restarted)).DeliveredAt);
+    }
+
+    [Fact]
+    public async Task A_stop_before_the_claim_claims_and_sends_nothing()
+    {
+        var telegram = new StubTelegramHandler();
+        await using var application = fixture.CreateApplication(telegram, new FakeTimeProvider(Kyiv(TaxDue.AddDays(-7), 9, 0)));
+        await Prepare(application, telegram);
+        using var stopped = new CancellationTokenSource();
+        await stopped.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => application.Services.GetRequiredService<ReminderSender>().RunOnceAsync(stopped.Token));
+
+        Assert.Empty(telegram.To("sendMessage"));
+        Assert.Empty(await SentLog(application));
     }
 
     [Fact]
@@ -157,6 +183,34 @@ public sealed partial class ReminderTests(ApiFixture fixture) : IClassFixture<Ap
                 "Податки: строк минув учора, 20.05.2031." + items,
             ],
             Texts(telegram));
+    }
+
+    // Stops the host while the first sendMessage is in flight, lets the stub answer only after that, and
+    // waits for the pass to end. The pass may end cancelled, since the stop reaches what follows the send.
+    private static async Task StopDuringSend(
+        WebApplicationFactory<Program> application, StubTelegramHandler telegram, Func<HttpResponseMessage> answer)
+    {
+        using var stop = new CancellationTokenSource();
+        using var release = new ManualResetEventSlim();
+        var reached = new TaskCompletionSource();
+        telegram.Override = call =>
+        {
+            if (call.Method != "sendMessage")
+            {
+                return null;
+            }
+
+            reached.TrySetResult();
+            release.Wait();
+            return answer();
+        };
+
+        var running = application.Services.GetRequiredService<ReminderSender>().RunOnceAsync(stop.Token);
+        await reached.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        await stop.CancelAsync();
+        release.Set();
+        var ended = await Record.ExceptionAsync(() => running);
+        Assert.True(ended is null or OperationCanceledException, ended?.ToString());
     }
 
     private static DateTimeOffset Kyiv(DateOnly date, int hour, int minute) => date.InKyiv(new TimeOnly(hour, minute));
