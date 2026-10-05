@@ -155,5 +155,3 @@ The owner sees a dashboard that always opens and a limit bar that is exact to th
   4. The tidies last.
 - #254 ships with a release note: download a fresh JSON backup after it deploys.
 - Every merge to main deploys to production, so merges wait for an independent review and the owner's go-ahead.
-
-
