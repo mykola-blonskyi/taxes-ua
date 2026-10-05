@@ -204,6 +204,9 @@ Impact in 2026: none. The payment dates 05-20, 08-19, 11-19 and 2027-02-19 are a
 
 Verdict: UNVERIFIED. The safe choice is not to shift, or to pay the business day before.
 
+Correction, 2026-10-06: Tax Code art. 57.1 does shift a payment deadline that falls on a weekend or
+holiday to the next operational day, so shifting is right. Rule 5 now cites it.
+
 ## 6. LOW: NBU QR format 003 (Rule 16, `api/src/TaxesUa.Engine/NbuQr.cs`)
 
 **CORRECT:**
