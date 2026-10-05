@@ -366,8 +366,11 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     await MigrationDump.MigrateAsync(
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-        app.Configuration["Migrations:DumpDirectory"],
-        app.Configuration.GetValue("Migrations:DumpKeep", MigrationDump.DefaultKeep),
+        new MigrationDumpOptions(
+            app.Configuration["Migrations:DumpDirectory"],
+            app.Configuration.GetValue("Migrations:DumpKeep", MigrationDump.DefaultKeep),
+            app.Configuration["Migrations:DumpAgeRecipient"],
+            RequireEncryption: app.Environment.IsProduction()),
         MigrationDump.PgDumpAsync,
         scope.ServiceProvider.GetRequiredService<TimeProvider>(),
         app.Logger);

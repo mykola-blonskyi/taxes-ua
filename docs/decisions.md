@@ -1526,7 +1526,7 @@ while the current Kyiv year has no row, so the alert survives the rollover when 
 
 Date: 2026-10-02
 
-Status: Accepted
+Status: Accepted, amended 2026-10-05 (the dumps are encrypted and three are kept, see the amendment)
 
 ### Context
 
@@ -1582,6 +1582,27 @@ rollback of a release with a migration restores the matching dump (see "Rollback
 concurrency still cancels an older run on `main` when a newer push arrives, including its deploy job while it
 polls; Coolify keeps deploying, and the newer run reports the result. A run for commit A whose webhook builds a
 newer `main` never sees A in `/api/health` and fails at the timeout, although the newer release is up.
+
+### Amendment, 2026-10-05: the dumps are encrypted, and three are kept (#248)
+
+The audit of 2026-10-05 (Security N1) found that up to ten plain dumps of the whole database sat on the VPS
+disk, around the encryption ADR-031 gives the nightly backup. Any host-level snapshot of the volume copied them
+out in clear.
+
+1. **Encrypted to the recovery key.** `api` gets `Migrations__DumpAgeRecipient` from the same
+   `BACKUP_AGE_RECIPIENT` the `backup` service uses, so there is no new variable for the owner to set. `pg_dump`
+   writes to its stdout, `api` pipes that into `age --encrypt --recipient`, and `age` writes
+   `<name>.dump.age.partial`, renamed to `<name>.dump.age` only once both processes exit cleanly and the dump
+   wrote at least one byte. No plain byte of the dump reaches the disk. The image installs Debian's `age`.
+   The private half stays in the password manager, so a rollback decrypts on the laptop (`docs/deploy.md`,
+   "Rollback").
+2. **No recipient in Production is a failed dump.** In `Production`, with a dump directory and no recipient,
+   `api` logs a critical line and does not migrate, the same as any failed dump in item 2. Writing a plain dump
+   with a warning would quietly undo this amendment the day the variable went missing, and nobody reads
+   warnings in a log that is otherwise fine. Outside `Production` (a local run, the tests) a missing recipient
+   writes a plain `.dump` with a warning. An invalid recipient fails in `age` and also stops the migration.
+3. **Three are kept** (`Migrations__DumpKeep` still overrides). A rollback needs the dump before the bad
+   release, which is the newest or the one before it. Pruning counts plain and encrypted dumps together.
 
 
 ---
@@ -1788,7 +1809,7 @@ satisfy for this app would be disabled in `accessibilityViolations` with a comme
 
 Date: 2026-10-03
 
-Status: Accepted
+Status: Accepted, amended 2026-10-05 (the check ignores future-dated objects and restores as an unprivileged role, see the amendment)
 
 ### Context
 
@@ -1877,3 +1898,25 @@ the shared instance to a newer PostgreSQL major means bumping the base image her
 owner chose on 2026-10-03 to run without the off-VPS target for now. Until its variables are set, every copy is
 on the VPS disk, so this decision makes restores proven and per-database but does not yet survive losing the
 server. Turning it on is five Coolify variables and no code change.
+
+### Amendment, 2026-10-05: the check trusts no object more than its role allows (#248)
+
+The audit of 2026-10-05 (Security N2) noted that age proves who can read a file, not who wrote it. Anyone
+with a bucket key and the check's public key can store an object the check will decrypt. The check took the
+newest object by name, so a name dated far ahead would win every later week and hide real failures, and it
+restored that object as the scratch cluster's superuser.
+
+1. **The newest real time wins, and the future is ignored.** The check reads the UTC time in each name, skips
+   a name that is not a real time, and ignores one dated more than 5 minutes ahead of the container's clock
+   (allowing for skew between the VPS and the storage). It restores the newest of the rest, and the 48-hour
+   staleness rule applies to that one. Ignored names appear in the log and in the run's `Detail`, so the owner
+   sees them. They do not fail the check on their own, because a check that a planted object can fail is an
+   alarm anyone with the bucket key can trip.
+2. **An unprivileged role restores and reads.** The scratch cluster gets `taxes_ua_restore_check`, with no
+   superuser, `CREATEDB`, `CREATEROLE`, replication or `BYPASSRLS`. The cluster's superuser creates the scratch
+   database owned by that role. `pg_restore` and every query on the restored data run as the role. The check
+   reads the role's attributes back after the restore and fails if any is set. The schema needs no extension,
+   so an owner can restore all of it.
+3. **Not done: recording a hash of each upload.** The app could store each object's SHA-256 and the check
+   could require a match. That is a second trust store for the same question, and a restore that runs
+   unprivileged already bounds what a planted object can do. Revisit it if the check ever needs more privilege.
