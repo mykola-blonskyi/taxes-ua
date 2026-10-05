@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useDismissTreasuryNotice,
@@ -53,7 +53,8 @@ function AccountCard({ account }: { account: TreasuryAccount }) {
   const [editing, setEditing] = useState(false);
   const revert = useRevertTreasuryAccount();
   const dismiss = useDismissTreasuryNotice();
-  const actionFailed = revert.isError || dismiss.isError;
+  const apiText = useApiErrorText();
+  const actionFailure = revert.error ?? dismiss.error;
 
   const source =
     account.source === "Manual"
@@ -92,9 +93,9 @@ function AccountCard({ account }: { account: TreasuryAccount }) {
               {t("notice.useLearned")}
             </Button>
           </div>
-          {actionFailed ? (
+          {actionFailure ? (
             <p role="alert" className="text-destructive">
-              {t("actionFailed")}
+              {apiText.withReason(t("actionFailed"), actionFailure)}
             </p>
           ) : null}
         </div>
@@ -122,7 +123,7 @@ function AccountCard({ account }: { account: TreasuryAccount }) {
             </p>
           ) : null}
           <TreasuryValidUntil account={account} />
-          {actionFailed && !account.notice ? <p className="text-sm text-destructive">{t("actionFailed")}</p> : null}
+          {actionFailure && !account.notice ? <p className="text-sm text-destructive">{apiText.withReason(t("actionFailed"), actionFailure)}</p> : null}
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
               {account.iban ? t("edit") : t("enter")}
@@ -148,11 +149,11 @@ function AccountEditor({ account, onClose }: { account: TreasuryAccount; onClose
     recipientName: account.recipientName ?? "",
     recipientCode: account.recipientCode ?? "",
   });
-  const failure = save.error instanceof ApiError ? save.error : null;
-  const rejected = Object.keys(failure?.fieldCodes ?? {}).length > 0;
+  const failure = save.error;
+  const rejected = Object.keys(problemOf(failure)?.fieldCodes ?? {}).length > 0;
 
   function fieldErrors(field: keyof FormState): string[] | undefined {
-    return failure?.fieldCodes[field]?.map(apiText.ofCode);
+    return problemOf(failure)?.fieldCodes[field]?.map(apiText.ofCode);
   }
 
   function update(field: keyof FormState) {
@@ -201,9 +202,9 @@ function AccountEditor({ account, onClose }: { account: TreasuryAccount; onClose
         <p role="alert" className="text-sm text-destructive">
           {t("validationError")}
         </p>
-      ) : failure || save.isError ? (
+      ) : failure ? (
         <p role="alert" className="text-sm text-destructive">
-          {t("saveFailed")}
+          {apiText.withReason(t("saveFailed"), failure)}
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">

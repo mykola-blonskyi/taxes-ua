@@ -197,3 +197,32 @@ describe("HeroCard mark paid", () => {
     expect(api.requests).toHaveLength(0);
   });
 });
+
+describe("HeroCard mark paid failures", () => {
+  it("shows the api's reason for a refused payment", async () => {
+    stubFetch({ [post]: reply(400, { title: "English.", code: "validation_failed" }) });
+    const { user } = renderCard([singleTax]);
+
+    await user.click(screen.getByRole("button", { name: "Позначити сплаченим" }));
+    await user.click(screen.getByRole("button", { name: "Так, записати" }));
+
+    expect(await screen.findByText("Не вдалося записати платіж. Перевірте виділені поля.")).toBeVisible();
+  });
+
+  it.each([
+    ["uk", "Позначити сплаченим", "Так, записати", "Не вдалося записати платіж. Немає зв'язку з сервером. Перевірте мережу й спробуйте ще раз."],
+    ["ru", "Отметить оплаченным", "Да, записать", "Не удалось записать платёж. Нет связи с сервером. Проверьте сеть и попробуйте ещё раз."],
+  ] as const)("says so in %s when the payment never reaches the api", async (locale, open, confirm, message) => {
+    stubFetch({
+      [post]: () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    const { user } = renderCard([singleTax], locale);
+
+    await user.click(screen.getByRole("button", { name: open }));
+    await user.click(screen.getByRole("button", { name: confirm }));
+
+    expect(await screen.findByText(message)).toBeVisible();
+  });
+});

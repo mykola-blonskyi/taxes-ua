@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { recordedPeriodOf, type KindDebt } from "@/data/dashboard/useDashboard";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useRecordPayments, type PaymentKind } from "@/data/payments/usePayments";
 import { formatMoney, formatPlainAmount, parseHryvnia } from "@/shared/lib/money";
 import { cn } from "@/shared/lib/utils";
@@ -121,8 +122,9 @@ function MarkPaid({
   const t = useTranslations("dashboard");
   const tKinds = useTranslations("payments.kinds");
   const locale = useLocale();
+  const apiText = useApiErrorText();
   const recordPayments = useRecordPayments();
-  const [outcome, setOutcome] = useState<{ saved: PaymentKind[]; failed: PaymentKind[] } | null>(null);
+  const [outcome, setOutcome] = useState<{ saved: PaymentKind[]; failed: { kind: PaymentKind; error: unknown }[] } | null>(null);
   const recording = useRef(false);
   const step = now.map(debtKey).join();
   // The draft belongs to the step it was opened for, so a background refetch that changes the step
@@ -176,7 +178,7 @@ function MarkPaid({
           }
 
           setOutcome({ saved, failed });
-          setDraft({ ...open, debts: debts.filter((debt) => failed.includes(debt.kind)), retry: true });
+          setDraft({ ...open, debts: debts.filter((debt) => failed.some(({ kind }) => kind === debt.kind)), retry: true });
         },
         onSettled: () => {
           recording.current = false;
@@ -245,8 +247,14 @@ function MarkPaid({
       {outcome ? (
         <p role="alert" className="text-sm text-destructive">
           {outcome.saved.length > 0
-            ? t("markPaidPartial", { saved: kindList(outcome.saved), failed: kindList(outcome.failed) })
-            : t("markPaidFailed")}
+            ? apiText.withReason(
+                t("markPaidPartial", {
+                  saved: kindList(outcome.saved),
+                  failed: kindList(outcome.failed.map(({ kind }) => kind)),
+                }),
+                outcome.failed[0].error,
+              )
+            : apiText.withReason(t("markPaidFailed"), outcome.failed[0].error)}
         </p>
       ) : null}
     </div>

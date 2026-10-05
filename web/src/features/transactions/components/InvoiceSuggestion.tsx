@@ -1,7 +1,8 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { useLinkReceipt, type InvoiceSummary } from "@/data/invoices/useInvoices";
 import { formatDateOnly } from "@/shared/lib/dates";
 import { formatAmount } from "@/shared/lib/money";
@@ -26,6 +27,7 @@ export function InvoiceSuggestion({
   onFailure: (message: string | null) => void;
 }) {
   const t = useTranslations("transactions.row.invoiceSuggestion");
+  const apiText = useApiErrorText();
   const locale = useLocale();
   const linkReceipt = useLinkReceipt();
 
@@ -64,7 +66,7 @@ export function InvoiceSuggestion({
                     { invoiceId: invoice.id, receiptId },
                     {
                       onError: (error) =>
-                        onFailure(error instanceof ApiError && error.status === 409 ? t("conflict") : t("failed")),
+                        onFailure(problemOf(error)?.status === 409 ? t("conflict") : apiText.withReason(t("failed"), error)),
                     },
                   );
                 }}

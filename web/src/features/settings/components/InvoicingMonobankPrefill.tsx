@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
 import { usePrefillFromMonobank, type MonobankPrefillResponse } from "@/data/invoicing/useInvoicing";
 import { Button } from "@/shared/ui/button";
 import type { FormState } from "./invoicingFormState";
@@ -20,7 +21,9 @@ export function InvoicingMonobankPrefill({
   const prefill = usePrefillFromMonobank();
   const [suggestion, setSuggestion] = useState<MonobankPrefillResponse | null>(null);
 
-  const failure = prefill.error instanceof ApiError ? prefill.error : null;
+  const apiText = useApiErrorText();
+  const failure = prefill.error;
+  const problem = problemOf(failure);
   const changes = suggestion ? changesFor(suggestion, form, t("name")) : [];
 
   return (
@@ -38,11 +41,11 @@ export function InvoicingMonobankPrefill({
       </div>
       {failure ? (
         <p role="alert" className="text-sm text-destructive">
-          {failure.status === 409
+          {problem?.status === 409
             ? t("notConnected")
-            : failure.status === 429
-              ? t("tryAgainIn", { seconds: failure.retryAfterSeconds ?? 60 })
-              : t("failed")}
+            : problem?.status === 429
+              ? t("tryAgainIn", { seconds: problem.retryAfterSeconds ?? 60 })
+              : apiText.withReason(t("failed"), failure)}
         </p>
       ) : null}
       {suggestion ? (

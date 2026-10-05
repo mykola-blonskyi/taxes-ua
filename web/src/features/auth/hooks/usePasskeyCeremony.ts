@@ -109,7 +109,9 @@ async function runCeremony(mode: PasskeyMode): Promise<void> {
     if (cause instanceof DOMException && cause.name === "NotAllowedError") {
       throw new PasskeyCancelledError();
     }
-    throw cause;
+    // A TypeError here is a malformed option or a browser fault, not a dropped connection, so it must not
+    // reach the screen as one.
+    throw new Error("The passkey ceremony failed", { cause });
   }
 
   if (!credential) {
