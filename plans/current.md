@@ -15,12 +15,12 @@ mirror in `.scratch/mvp/`. Below is each ticket unpacked into steps:
 files, types, verification commands. Order follows the dependency graph (native GitHub
 dependencies). Run `snippets/frontier.sh` for the live frontier instead of reading the order here.
 
-## Status, 2026-10-04
+## Status, 2026-10-05
 
 Stage 1 is done: every MVP ticket (#2–#18, #20) is closed and the app runs on Coolify. Stage 2 (monobank
 sync #71, reminders and the calendar feed #104) and the invoice and declaration parts of Stage 3 (#89,
-#109) are done too. Of the 2026-10-02 audit's tickets (#170), #171–#185 and #187–#190 are done; #186,
-splitting the largest API files, is the one left. The sections below are the MVP plan as it ran, kept
+#109) are done too. Every ticket of the 2026-10-02 audit (#170), #171–#190, is done; #186
+landed last (PR #235). The sections below are the MVP plan as it ran, kept
 as the record.
 
 ## Progress
