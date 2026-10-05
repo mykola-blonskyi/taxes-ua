@@ -52,7 +52,7 @@ export function DeclarationDetailsForm() {
   const query = useDeclarationDetails();
   const { data } = query;
 
-  if (query.isError || !data) {
+  if (!data) {
     return <LoadState query={query} loading={t("loading")} failed={t("loadFailed")} />;
   }
 

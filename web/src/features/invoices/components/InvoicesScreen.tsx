@@ -32,7 +32,7 @@ function OpenInvoice({ id, onBack, onOpen }: { id: string; onBack: () => void; o
   const query = useInvoice(id);
   const { data } = query;
 
-  if (query.isLoading || query.isError || !data) {
+  if (!data) {
     // One LoadState for loading and failure, so a retry keeps keyboard focus on its button.
     return (
       <div className="flex flex-col items-start gap-3">

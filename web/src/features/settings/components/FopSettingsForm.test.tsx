@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderApp, reply, screen, stubFetch } from "@/test/harness";
+import { act, renderApp, reply, screen, stubFetch, waitFor } from "@/test/harness";
 import { FopSettingsForm } from "./FopSettingsForm";
 
 const read = "GET /api/settings" as const;
@@ -69,5 +69,24 @@ describe("FopSettingsForm rejection", () => {
 
     expect(await screen.findByText("Не вдалося виконати дію. Спробуйте ще раз.")).toBeVisible();
     expect(screen.queryByText(/theme must be/)).not.toBeInTheDocument();
+  });
+});
+
+describe("FopSettingsForm background refetch failure", () => {
+  it("keeps the form and the owner's unsaved edit when a refetch fails", async () => {
+    let reads = 0;
+    stubFetch({ [read]: () => (++reads === 1 ? settings : reply(500, { title: "Boom" })) });
+    const { user, queryClient } = renderApp(<FopSettingsForm />);
+
+    const registrationDate = await screen.findByLabelText("Дата реєстрації ФОП");
+    await user.clear(registrationDate);
+    await user.type(registrationDate, "2026-02-20");
+
+    await act(() => queryClient.invalidateQueries({ queryKey: ["settings"] }));
+    await waitFor(() => expect(reads).toBe(2));
+
+    expect(screen.getByLabelText("Дата реєстрації ФОП")).toHaveValue("2026-02-20");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Зберегти" })).toBeVisible();
   });
 });
