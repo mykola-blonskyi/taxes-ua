@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Audit;
-using TaxesUa.Api.Features.Notifications;
 using TaxesUa.Api.Features.Settings;
 
 namespace TaxesUa.Api.Tests.Features.Settings;
@@ -213,34 +212,6 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
     }
 
     [Fact]
-    public async Task The_email_channel_is_offered_for_the_report_email_only_once_it_is_confirmed()
-    {
-        using var owner = await SignIn(ApiFixture.AllowedEmail);
-        await using var scope = fixture.CreateScope();
-        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var userId = await database.Users.Where(user => user.Email == ApiFixture.AllowedEmail).Select(user => user.Id).SingleAsync();
-        var channel = await database.NotificationChannels
-            .SingleOrDefaultAsync(row => row.UserId == userId && row.Kind == NotificationChannelKind.Email);
-        if (channel is null)
-        {
-            channel = new NotificationChannel { Id = Guid.NewGuid(), UserId = userId, Kind = NotificationChannelKind.Email };
-            database.NotificationChannels.Add(channel);
-        }
-
-        channel.Address = "alerts@example.com";
-        channel.ConfirmedAt = null;
-        await database.SaveChangesAsync();
-        Assert.Null((await owner.GetFromJsonAsync<DeclarationDetailsResponse>(Url, Json))!.ConfirmedEmail);
-
-        channel.ConfirmedAt = DateTimeOffset.UtcNow;
-        await database.SaveChangesAsync();
-        var details = (await owner.GetFromJsonAsync<DeclarationDetailsResponse>(Url, Json))!;
-
-        Assert.Equal("alerts@example.com", details.ConfirmedEmail);
-        Assert.NotEqual("alerts@example.com", details.ReportEmail);
-    }
-
-    [Fact]
     public async Task A_full_name_stands_in_for_a_missing_invoicing_name()
     {
         using var owner = await SignIn(ApiFixture.SecondAllowedEmail);
@@ -248,7 +219,6 @@ public sealed class DeclarationDetailsEndpointsTests(ApiFixture fixture) : IClas
         var details = await owner.GetFromJsonAsync<DeclarationDetailsResponse>(Url, Json);
 
         Assert.Contains(DeclarationDetailField.Name, details!.MissingDetails);
-        Assert.Null(details.ConfirmedEmail);
         Assert.DoesNotContain(
             DeclarationDetailField.Name,
             DeclarationDetails.Missing(null, new DeclarationDetails { FullName = "Тестенко Тест Тестович" }));

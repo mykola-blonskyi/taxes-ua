@@ -113,8 +113,8 @@ the invoicing name); `Phone` (HTEL, stored as `+380` and nine digits, typed with
 or from `0XXXXXXXXX`; empty leaves it out); `ReportEmail` (HEMAIL, empty leaves it out; its own setting,
 which stays empty until saved; the form offers the confirmed email channel's address as a one-click suggestion). The RNOKPP and the invoicing name
 are not stored here: they are `InvoicingDetails.SellerNameUk` and `Rnokpp`, and `GET
-/api/settings/declaration` echoes them read-only, with the confirmed email channel's address as
-`ConfirmedEmail`. An incomplete set saves; completeness is a readiness
+/api/settings/declaration` echoes them read-only. The suggestion comes from the channels the web loads
+from `GET /api/notifications/channels`, not from this endpoint. An incomplete set saves; completeness is a readiness
 item (`MissingDetails: Name | Rnokpp | TaxOffice | Kved | Address`; `TaxOffice` covers the codes and
 the name). A stored code the classifier does not know, which only a restored backup can hold, is its own
 readiness item (`UnknownKvedCodes`, also on `GET /api/settings/declaration`) and blocks the declaration; the
@@ -202,6 +202,9 @@ Fields:
 - `Group3ApplicationDays` (10, calendar days after registration to apply for group 3 from the
   registration date, Tax Code 298.1.2). The registration year's value applies.
 - `Holidays: DateOnly[]` non-working holidays. Empty during martial law.
+- `MilitaryLevyAccountEnd: DateOnly?` the last day of the year's temporary military-levy Treasury accounts,
+  the default end of a levy account that arrived in the year (Rule 16). A day of its own year; 2026 is seeded
+  with 2026-12-31, other years have none, and a clone does not copy it.
 - `Source` a reference to the legal source, `VerifiedAt: DateTimeOffset?`. An offset-aware
   timestamp and not a `DateOnly`, because it records when a person checked the numbers rather
   than a tax date. Writing any field of a year clears it, since a verification attests to the
@@ -435,13 +438,22 @@ made it so and the owner has not dismissed it (needs both a Manual and a Learned
 the Manual one when present, else the Learned one; the API reports it with its source
 (`None | Learned | Manual`) and the recipient details it lacks.
 
-Validity (#173, Rule 16): each account may carry an end, `ManualValidUntil?` and `LearnedValidUntil?`, a
-`DateOnly`, the last day it can receive a payment. An end needs its account (a Manual end needs the Manual
-account, a Learned end the Learned IBAN). The Manual end is entered with the Manual account or set later; the
-Learned end is only ever set by the owner and belongs to the Learned IBAN, so it goes when another IBAN becomes
-the Learned account and stays when the same IBAN is learned again. Reverting to Learned drops the Manual end.
-The API reports the end of the account in use as `ValidUntil`. Entering a Manual account without an end keeps
-the end only for the same IBAN (its own, or the Learned account's), else none.
+Validity (#173, #261, Rule 16): each account carries the owner's word on its end, `ManualEnd` and `LearnedEnd`,
+one of `Unsaid` (nothing said, so the tax year's default applies), `On(date)` (the owner's last day) or
+`Removed` (the owner said it does not end, which also sets the default aside). Each is stored in two columns,
+`ManualValidUntil?` and `ManualEndRemoved` (likewise `Learned…`), and a check constraint forbids a date that is
+also removed; the type allows only the three states. An end other than `Unsaid` needs its account (a Manual
+end needs the Manual account, a Learned end the Learned IBAN). The Manual end is entered with the Manual
+account or set later; the Learned end is only ever set by the owner and belongs to the Learned IBAN, so it goes
+back to `Unsaid` when another IBAN becomes the Learned account and stays when the same IBAN is learned again.
+Reverting to Learned drops the Manual end. Entering a Manual account without an end keeps the end only for the
+same IBAN (its own, or the Learned account's), else `Unsaid`.
+
+The effective end of the account in use is the owner's date, else, for a military-levy account left
+`Unsaid`, the `MilitaryLevyAccountEnd` of the tax year it arrived in (the Learned account's `LearnedPaidOn`, the
+Manual account's `ManualUpdatedAt` in Kyiv), when it arrived on or before that day. The API reports it as
+`ValidUntil` with `ValidUntilSource` (`Owner | Default`). An account in use past its effective end is listed on
+the dashboard as `ExpiredTreasuryAccounts` and alerted as an incident (Rule 16, Rule 18).
 
 Relationships: belongs to `User`. Written by confirming a `BudgetPaymentCandidate`, by deleting or retyping its
 payment, by a sync that fills its candidate's code, and by the settings screen.
@@ -533,14 +545,14 @@ clients' details (#90); version 6 added the invoices (#92); version 7 added the 
 the filed marks (#110); version 8 added the receipts' `InvoiceId` (#93); version 9 added the Treasury
 accounts and the candidates' `CounterEdrpou` (#98); version 10 added the settings' `BackOnGroup3From` (#118); version 11 added the notification channels (#106); version 12 added the declaration files and the
 declaration details' `TaxOfficeName` (#111); version 13 added the declaration files' annex (#112); version 14 added the reserve jar (#102); version 15 added the notification channels' `ConfirmedAt` (#107); version 16 added the settings'
-group 3 status: `Group3Since`, the confirmation and the checklist ticks (#172); version 17 added the Treasury accounts' `ManualValidUntil` and `LearnedValidUntil` (#173); version 18 added the declaration details' `FullName`, `Phone` and `ReportEmail` (#222). A version 1 file still restores, read as having none of
+group 3 status: `Group3Since`, the confirmation and the checklist ticks (#172); version 17 added the Treasury accounts' `ManualValidUntil` and `LearnedValidUntil` (#173); version 18 added the declaration details' `FullName`, `Phone` and `ReportEmail` (#222); version 19 added the Treasury accounts' `ManualEndRemoved` and `LearnedEndRemoved` (#261). A version 1 file still restores, read as having none of
 them and every transaction `Confirmed`, a version 2 file as having no candidates and every payment typed by
 the owner, a version 1 to 3 file as having no invoicing details, so the owner's are cleared like the rest, a
 version 1 to 4 file as having no details on any client, a version 1 to 5 file as having no invoices, a
 version 1 to 6 file as having no declaration details and nothing marked filed, a version 1 to 7 file as
 having no receipt linked to an invoice, and a version 1 to 8 file as having no Treasury accounts and
 candidates without a counterparty code, a version 1 to 9 file as having no return to group 3, and a version 1 to 10 file as having no notification channels, and a version 1 to 11 file as having no declaration
-files and no tax office name, a version 1 to 12 file as having no annex on any declaration file, and a version 1 to 13 file as having no reserve jar, and a version 1 to 14 file as having its channels confirmed when they were linked (every channel before email is a Telegram chat), and a version 1 to 15 file as having group 3 from its registration date (null), unconfirmed, with no ticks, and its `Prorated` read as `FullMonth`, and a version 1 to 16 file as having no end on any Treasury account, and a version 7 to 17 file as having no full name, phone or email for reports in its declaration details; a file of a version this build does not know is refused by its
+files and no tax office name, a version 1 to 12 file as having no annex on any declaration file, and a version 1 to 13 file as having no reserve jar, and a version 1 to 14 file as having its channels confirmed when they were linked (every channel before email is a Telegram chat), and a version 1 to 15 file as having group 3 from its registration date (null), unconfirmed, with no ticks, and its `Prorated` read as `FullMonth`, and a version 1 to 16 file as having no end on any Treasury account, and a version 7 to 17 file as having no full name, phone or email for reports in its declaration details, and a version 9 to 18 file as having removed no end; a file of a version this build does not know is refused by its
 version number rather than by whichever field it added.
 
 A restore replaces the owner's settings, invoicing details, declaration details, filed marks, declaration files, clients, invoices, transactions, payments, candidates, Treasury accounts, the reserve jar and import batches in one
@@ -662,7 +674,8 @@ Fields: `UserId`, `Date` (the deadline or advance date the reminder is about), `
 An incident alert (Rule 18, ADR-026) is a row of the same log: `Incident` holds its key (the kind and the
 Unix second the state began, such as `SyncStale:1790000000`), `Kinds` is none, `Offset` is `OnTheDay` and
 `Date` is the day it was claimed. The December prompt for a new tax year (Rule 9) is such a row, keyed
-`NewTaxYear:<year>`. It is unique on (`UserId`, `Incident`, `Channel`) among rows with an
+`NewTaxYear:<year>`, and so is an expired Treasury account (Rule 16), keyed
+`TreasuryAccountExpired:<kind>:<end>`. It is unique on (`UserId`, `Incident`, `Channel`) among rows with an
 `Incident`, so an incident is claimed once per channel however many days it lasts, and the same delivery
 rules apply.
 
