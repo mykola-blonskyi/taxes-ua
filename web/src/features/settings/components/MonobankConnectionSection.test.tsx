@@ -39,7 +39,7 @@ describe("MonobankConnectionSection token rejection", () => {
     await user.type(await screen.findByLabelText(/^Личный токен/), "a-token");
     await user.click(screen.getByRole("button", { name: "Сохранить" }));
 
-    expect(await screen.findByText("Не удалось сохранить. Проверьте токен.")).toBeVisible();
+    expect(await screen.findByText("Не удалось сохранить. Проверьте токен. monobank сейчас недоступен.")).toBeVisible();
     expect(screen.queryByText(/temporarily unavailable/)).not.toBeInTheDocument();
   });
 });

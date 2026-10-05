@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
 import { TriangleAlert } from "lucide-react";
-import { ApiError } from "@/data/api/client";
+import { problemOf } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useConfirmTransaction,
@@ -77,8 +77,8 @@ function TransactionRow({
   const nonIncome = isNonIncomeKind(transaction.kind);
   const amountKop = Number(transaction.amountUahKop);
   const displayAmount = transaction.kind === "RefundToClient" ? -amountKop : amountKop;
-  const deleteFailure = deleteTransaction.error instanceof ApiError ? deleteTransaction.error : null;
-  const confirmFailure = confirmTransaction.error instanceof ApiError ? confirmTransaction.error : null;
+  const deleteFailure = deleteTransaction.error;
+  const confirmFailure = confirmTransaction.error;
   const needsReview = transaction.reviewStatus === "NeedsReview";
   const formattedDate = formatDateOnly(transaction.valueDate, locale);
   const receipt = transaction.refundsReceipt;
@@ -253,7 +253,7 @@ function TransactionRow({
 
       {deleteFailure ? (
         <p className="text-xs text-destructive">
-          {deleteFailure.status === 409
+          {problemOf(deleteFailure)?.status === 409
             ? t("row.deleteLinked")
             : apiText.withReason(t("row.deleteFailed"), deleteFailure)}
         </p>
@@ -261,7 +261,7 @@ function TransactionRow({
 
       {confirmFailure ? (
         <p className="text-xs text-destructive">
-          {confirmFailure.status === 409
+          {problemOf(confirmFailure)?.status === 409
             ? t("row.confirmStale")
             : apiText.withReason(t("row.confirmFailed"), confirmFailure)}
         </p>

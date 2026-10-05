@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   maxSignatureBytes,
@@ -22,7 +21,7 @@ export function InvoicingSignature({ details }: { details: InvoicingDetailsRespo
   const input = useRef<HTMLInputElement>(null);
   const [rejection, setRejection] = useState<string | null>(null);
 
-  const failure = upload.error instanceof ApiError ? upload.error : remove.error instanceof ApiError ? remove.error : null;
+  const failure = upload.error ?? remove.error;
   const message =
     rejection ??
     (failure ? apiText.withReason(t("failed"), failure) : null);

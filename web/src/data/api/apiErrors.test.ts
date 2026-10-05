@@ -19,10 +19,10 @@ describe("the api error catalog", () => {
   it.each([
     ["Ukrainian", uk.apiErrors],
     ["Russian", ru.apiErrors],
-  ])("has %s words for every code, for the generic sentence, and for nothing else", (_language, catalog) => {
+  ])("has %s words for every code, for the generic, network and unexpected sentences, and for nothing else", (_language, catalog) => {
     const words = catalog as Record<string, string>;
 
-    expect(Object.keys(words).sort()).toEqual([...codes, "unknown"].sort());
+    expect(Object.keys(words).sort()).toEqual([...codes, "unknown", "network", "unexpected"].sort());
     for (const [code, text] of Object.entries(words)) {
       expect(text.trim(), code).not.toBe("");
       expect(text, code).not.toMatch(/[{}]/);

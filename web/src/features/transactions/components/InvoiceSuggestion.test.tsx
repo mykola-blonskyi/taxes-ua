@@ -55,7 +55,7 @@ function Host({
 }
 
 const conflictUk = "Не вдалося прив’язати: інвойс уже сплачено, змінено або надходження вже прив’язане.";
-const failedUk = "Не вдалося виконати дію. Спробуйте ще раз.";
+const failedUk = "Не вдалося виконати дію: Щось пішло не так. Спробуйте ще раз.";
 
 describe("InvoiceSuggestion", () => {
   it("offers the invoice and links nothing until the owner confirms it", async () => {

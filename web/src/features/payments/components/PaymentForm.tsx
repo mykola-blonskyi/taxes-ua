@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { ApiError } from "@/data/api/client";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   paymentKinds,
@@ -71,7 +70,7 @@ export function PaymentForm({
   const [form, setForm] = useState<FormState>(() => (editing ? toFormState(editing) : emptyForm(year)));
 
   const mutation = editing ? updatePayment : createPayment;
-  const failure = mutation.error instanceof ApiError ? mutation.error : null;
+  const failure = mutation.error;
   const fieldErrors = apiText.fieldTexts(failure);
   const rejectedFields = Object.keys(fieldErrors).length > 0;
 

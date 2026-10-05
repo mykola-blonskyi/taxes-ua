@@ -86,7 +86,7 @@ describe.each(locales)("LoadState in $locale", ({ locale, loading, offline, retr
   });
 
   it("ties the retry button to the failure text it belongs to", () => {
-    renderApp(<LoadState query={query({ isError: true })} failed="Failure text." />, { locale });
+    renderApp(<LoadState query={query({ isError: true, error: new ApiError(500) })} failed="Failure text." />, { locale });
 
     const button = screen.getByRole("button", { name: retry });
 
