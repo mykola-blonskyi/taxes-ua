@@ -198,6 +198,7 @@ builder.Services.AddScoped<IReminderChannel, EmailReminderChannel>();
 builder.Services.AddScoped<IIncidentSource, SyncIncidentSource>();
 builder.Services.AddScoped<IIncidentSource, NewTaxYearIncidentSource>();
 builder.Services.AddScoped<IIncidentSource, RestoreCheckIncidentSource>();
+builder.Services.AddScoped<IIncidentSource, ExpiredTreasuryAccountIncidentSource>();
 builder.Services.AddSingleton<ReminderSender>();
 builder.Services.AddHostedService<ReminderWorker>();
 
@@ -242,10 +243,14 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
-    options.Cookie.Name = "taxesua.auth";
+    // The __Host- prefix makes browsers refuse the cookie unless it is Secure, Path=/ and has no
+    // Domain, so a sibling subdomain cannot plant a same-named cookie. Do not set Domain or Path.
+    options.Cookie.Name = "__Host-taxesua.auth";
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
     options.Cookie.SameSite = SameSiteMode.Lax;
+    options.ExpireTimeSpan = TimeSpan.FromDays(7);
+    options.SlidingExpiration = true;
     // Answering 401 rather than redirecting is also what stops web/src/proxy.ts looping: a 302 to a
     // login path would come back through the Next rewrite as another gated request.
     options.Events.OnRedirectToLogin = context =>
@@ -366,8 +371,11 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     await MigrationDump.MigrateAsync(
         scope.ServiceProvider.GetRequiredService<AppDbContext>(),
-        app.Configuration["Migrations:DumpDirectory"],
-        app.Configuration.GetValue("Migrations:DumpKeep", MigrationDump.DefaultKeep),
+        new MigrationDumpOptions(
+            app.Configuration["Migrations:DumpDirectory"],
+            app.Configuration.GetValue("Migrations:DumpKeep", MigrationDump.DefaultKeep),
+            app.Configuration["Migrations:DumpAgeRecipient"],
+            RequireEncryption: app.Environment.IsProduction()),
         MigrationDump.PgDumpAsync,
         scope.ServiceProvider.GetRequiredService<TimeProvider>(),
         app.Logger);

@@ -32,6 +32,7 @@ type FormState = {
   advanceRecommendedDay: number;
   group3ApplicationDays: number;
   holidaysText: string;
+  militaryLevyAccountEnd: string;
   source: string;
 };
 
@@ -50,6 +51,7 @@ function toFormState(taxYear: TaxYearConfigResponse): FormState {
     advanceRecommendedDay: Number(taxYear.advanceRecommendedDay),
     group3ApplicationDays: Number(taxYear.group3ApplicationDays),
     holidaysText: taxYear.holidays.join(", "),
+    militaryLevyAccountEnd: taxYear.militaryLevyAccountEnd ?? "",
     source: taxYear.source,
   };
 }
@@ -76,6 +78,7 @@ function toRequest(form: FormState): TaxYearConfigRequest {
       .split(",")
       .map((value) => value.trim())
       .filter((value) => value.length > 0),
+    militaryLevyAccountEnd: form.militaryLevyAccountEnd === "" ? null : form.militaryLevyAccountEnd,
     source: form.source,
   };
 }
@@ -175,6 +178,10 @@ function TaxYearRows({ taxYears: data }: { taxYears: TaxYearConfigResponse[] }) 
             <th className="min-w-24 p-2 font-medium">
               {tYears("holidays")}
               <span className="block font-normal">{tYears("holidaysHint")}</span>
+            </th>
+            <th className="min-w-24 p-2 font-medium">
+              {tYears("militaryLevyAccountEnd")}
+              <span className="block font-normal">{tYears("militaryLevyAccountEndHint")}</span>
             </th>
             <th className="min-w-24 p-2 font-medium">{tYears("source")}</th>
             <th className="min-w-24 p-2 font-medium">{tYears("verifiedAt")}</th>
@@ -372,6 +379,19 @@ function TaxYearRow({ taxYear }: { taxYear: TaxYearConfigResponse }) {
           value={form.holidaysText}
           onChange={(value) => setForm((current) => ({ ...current, holidaysText: value }))}
           errors={fieldErrors?.holidays}
+        />
+      </td>
+      <td className="col-span-2 md:table-cell md:p-2">
+        <TextField
+          type="date"
+          hint={tYears("militaryLevyAccountEndHint")}
+          hintClassName="md:hidden"
+          id={`military-levy-account-end-${year}`}
+          label={`${tYears("militaryLevyAccountEnd")} ${year}`}
+          labelClassName="text-xs text-muted-foreground md:sr-only"
+          value={form.militaryLevyAccountEnd}
+          onChange={(value) => setForm((current) => ({ ...current, militaryLevyAccountEnd: value }))}
+          errors={fieldErrors?.militaryLevyAccountEnd}
         />
       </td>
       <td className="col-span-2 md:table-cell md:p-2">

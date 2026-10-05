@@ -379,6 +379,18 @@ Revisit when a second account appears, when the api runs as more than one instan
 owner wants to end a session from the interface. A ticket store is the smaller of the two changes
 and the one to reach for then.
 
+### Amendment 2026-10-05 (#255)
+
+The cookie is now `__Host-taxesua.auth` and its lifetime is 7 days, sliding, down from the 14-day
+default. The `__Host-` prefix makes a browser refuse the cookie unless it is Secure, has Path=/ and
+carries no Domain, so a sibling `*.blonskyi.dev` app can no longer plant a same-named cookie with
+`Domain=.blonskyi.dev`. The api already sets Secure always, Path=/ by default and no Domain, in every
+environment, so the local `http://localhost` stack keeps working: Chrome treats localhost as a
+trustworthy origin and accepts a Secure cookie there, prefix included. `web/src/proxy.ts` names the
+cookie and follows. A shorter lifetime narrows the replay window this ADR accepts, for one extra
+sign-in a week from a machine the owner does not use daily. Sessions under the old name end on
+deploy and the owner signs in once.
+
 ---
 
 ## ADR-010. Persist the data-protection key ring to a volume
@@ -663,6 +675,28 @@ from 2027-01-01 is not published. Rejected: hiding a levy account by a hardcoded
 the Treasury publishes a longer-lived account, and warning only, which still lets the owner copy a closed
 account. The cost is that the owner must
 set the end once; settings offers 2026-12-31 for the levy in one tap. A backup carries both ends (schema 17).
+
+### Amendment, 2026-10-05: the levy account ends by default, and the owner is asked for the next one (#261)
+
+The owner decided (#252) that waiting for a tap was the wrong default: an owner who never sets the end gets
+the closed 2026 account offered for the Q4 levy due in February 2027. The end is now the owner's word when there
+is one, else a default from the tax year's parameters: `TaxYearConfig.MilitaryLevyAccountEnd`, seeded
+2026-12-31 for 2026 and null elsewhere, editable in the tax-years tab. It applies to a military-levy account
+the owner said nothing about, by the year the account arrived in (the learned payment's date, or when the
+owner entered it), not the year it is used in, which would drop the end the day the next year starts. The
+one-tap offer and its hardcoded date are gone.
+
+The owner's word is one of three states, `Unsaid`, `On(date)` or `Removed`, kept as a type with no fourth
+state and stored as a nullable date plus a "removed" flag under a check constraint. A nullable date alone
+cannot tell "nothing said" from "the owner removed the default", and the second is the owner's escape when the
+Treasury keeps the account. The default is derived on read, not written into the row, so a corrected year
+end applies to every account at once and the owner's own ends are never touched. Backup schema 19 carries the
+flags.
+
+From the day after the end the dashboard shows one notice and an incident alerts each channel once, from
+09:00 on the first working day after the end (Rule 16, Rule 18). Rejected: a scheduled reminder in the Rule 17
+plan, which is built around payment deadlines and would need its own dedup; the incident log already gives
+once per channel per key and clears itself when the owner enters the new account.
 
 ---
 
@@ -1504,7 +1538,7 @@ while the current Kyiv year has no row, so the alert survives the rollover when 
 
 Date: 2026-10-02
 
-Status: Accepted
+Status: Accepted, amended 2026-10-05 (the dumps are encrypted and three are kept, see the amendment)
 
 ### Context
 
@@ -1560,6 +1594,27 @@ rollback of a release with a migration restores the matching dump (see "Rollback
 concurrency still cancels an older run on `main` when a newer push arrives, including its deploy job while it
 polls; Coolify keeps deploying, and the newer run reports the result. A run for commit A whose webhook builds a
 newer `main` never sees A in `/api/health` and fails at the timeout, although the newer release is up.
+
+### Amendment, 2026-10-05: the dumps are encrypted, and three are kept (#248)
+
+The audit of 2026-10-05 (Security N1) found that up to ten plain dumps of the whole database sat on the VPS
+disk, around the encryption ADR-031 gives the nightly backup. Any host-level snapshot of the volume copied them
+out in clear.
+
+1. **Encrypted to the recovery key.** `api` gets `Migrations__DumpAgeRecipient` from the same
+   `BACKUP_AGE_RECIPIENT` the `backup` service uses, so there is no new variable for the owner to set. `pg_dump`
+   writes to its stdout, `api` pipes that into `age --encrypt --recipient`, and `age` writes
+   `<name>.dump.age.partial`, renamed to `<name>.dump.age` only once both processes exit cleanly and the dump
+   wrote at least one byte. No plain byte of the dump reaches the disk. The image installs Debian's `age`.
+   The private half stays in the password manager, so a rollback decrypts on the laptop (`docs/deploy.md`,
+   "Rollback").
+2. **No recipient in Production is a failed dump.** In `Production`, with a dump directory and no recipient,
+   `api` logs a critical line and does not migrate, the same as any failed dump in item 2. Writing a plain dump
+   with a warning would quietly undo this amendment the day the variable went missing, and nobody reads
+   warnings in a log that is otherwise fine. Outside `Production` (a local run, the tests) a missing recipient
+   writes a plain `.dump` with a warning. An invalid recipient fails in `age` and also stops the migration.
+3. **Three are kept** (`Migrations__DumpKeep` still overrides). A rollback needs the dump before the bad
+   release, which is the newest or the one before it. Pruning counts plain and encrypted dumps together.
 
 
 ---
@@ -1661,16 +1716,19 @@ to try again except in `AuthGate`.
    2. Limit crossing. The regime changes for the quarters it names.
    3. Group 3 unconfirmed, or its application deadline. Missing the deadline cannot be undone (Rule 8, ADR-023).
    4. Declaration due.
-   5. New tax year: in December, next year's parameters missing or unconfirmed (Rule 9, #178). It warns a
+   5. Treasury account closed (#261): the account in use has passed its end, so the Pay panel withholds it
+      until the owner enters the new one. The panel stops the money going to a closed account, so this is a
+      prompt rather than a risk, and it ranks under the declaration's legal date and above the new tax year.
+   6. New tax year: in December, next year's parameters missing or unconfirmed (Rule 9, #178). It warns a
       month ahead, with nothing lost yet, but from January a missing year stops the ledger and with it the
       balance, so it ranks above a stale feed. It stays under a declaration, which has a legal date, and is
       never promoted: its only deadline is the new year, and a month is time enough to act.
-   6. Sync stale. Figures may be incomplete, but the feed still works.
-   7. Transactions waiting for review.
-   8. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
+   7. Sync stale. Figures may be incomplete, but the feed still works.
+   8. Transactions waiting for review.
+   9. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
 
-   A debt is the hero itself (red when overdue), so it takes no banner. Treasury account expiry is shown inside
-   the hero's pay panel, where the account is used, so it never takes a banner slot. The quiet "last exchange"
+   A debt is the hero itself (red when overdue), so it takes no banner. An account that ends before a due date
+   is still only a note inside the hero's pay panel; only a closed one takes a notice (5). The quiet "last exchange"
    line of a healthy feed is not a notice and stays under the hero.
 
    A declaration, or a group 3 application, with three days or fewer left (or already past) is promoted above all
@@ -1758,7 +1816,7 @@ satisfy for this app would be disabled in `accessibilityViolations` with a comme
 
 Date: 2026-10-03
 
-Status: Accepted
+Status: Accepted, amended 2026-10-05 (the check ignores future-dated objects and restores as an unprivileged role, see the amendment)
 
 ### Context
 
@@ -1847,3 +1905,25 @@ the shared instance to a newer PostgreSQL major means bumping the base image her
 owner chose on 2026-10-03 to run without the off-VPS target for now. Until its variables are set, every copy is
 on the VPS disk, so this decision makes restores proven and per-database but does not yet survive losing the
 server. Turning it on is five Coolify variables and no code change.
+
+### Amendment, 2026-10-05: the check trusts no object more than its role allows (#248)
+
+The audit of 2026-10-05 (Security N2) noted that age proves who can read a file, not who wrote it. Anyone
+with a bucket key and the check's public key can store an object the check will decrypt. The check took the
+newest object by name, so a name dated far ahead would win every later week and hide real failures, and it
+restored that object as the scratch cluster's superuser.
+
+1. **The newest real time wins, and the future is ignored.** The check reads the UTC time in each name, skips
+   a name that is not a real time, and ignores one dated more than 5 minutes ahead of the container's clock
+   (allowing for skew between the VPS and the storage). It restores the newest of the rest, and the 48-hour
+   staleness rule applies to that one. Ignored names appear in the log and in the run's `Detail`, so the owner
+   sees them. They do not fail the check on their own, because a check that a planted object can fail is an
+   alarm anyone with the bucket key can trip.
+2. **An unprivileged role restores and reads.** The scratch cluster gets `taxes_ua_restore_check`, with no
+   superuser, `CREATEDB`, `CREATEROLE`, replication or `BYPASSRLS`. The cluster's superuser creates the scratch
+   database owned by that role. `pg_restore` and every query on the restored data run as the role. The check
+   reads the role's attributes back after the restore and fails if any is set. The schema needs no extension,
+   so an owner can restore all of it.
+3. **Not done: recording a hash of each upload.** The app could store each object's SHA-256 and the check
+   could require a match. That is a second trust store for the same question, and a restore that runs
+   unprivileged already bounds what a planted object can do. Revisit it if the check ever needs more privilege.

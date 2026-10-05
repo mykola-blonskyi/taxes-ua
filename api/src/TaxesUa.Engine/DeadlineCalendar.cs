@@ -114,27 +114,30 @@ public static class DeadlineCalendar
     private static DateOnly NextBusinessDay(
         DateOnly statutory,
         TaxYearConfigInput config,
-        FopSettingsInput settings)
+        FopSettingsInput settings) =>
+        NextBusinessDay(statutory, config.Holidays, settings.WeekendDays);
+
+    /// <summary>
+    /// <paramref name="date"/> itself when it is a business day, else the first business day after it.
+    /// </summary>
+    public static DateOnly NextBusinessDay(
+        DateOnly date,
+        IReadOnlyList<DateOnly> holidays,
+        IReadOnlyList<DayOfWeek> weekendDays)
     {
-        var scanLimit = statutory.AddYears(1);
-        var date = statutory;
-        while (!IsBusinessDay(date, config, settings))
+        var scanLimit = date.AddYears(1);
+        var day = date;
+        while (weekendDays.Contains(day.DayOfWeek) || holidays.Contains(day))
         {
-            date = date.AddDays(1);
-            if (date > scanLimit)
+            day = day.AddDays(1);
+            if (day > scanLimit)
             {
                 throw new ArgumentException(
                     $"The configured weekend days and holidays leave no business day in the year "
-                    + $"after {statutory:yyyy-MM-dd}.");
+                    + $"after {date:yyyy-MM-dd}.");
             }
         }
 
-        return date;
+        return day;
     }
-
-    private static bool IsBusinessDay(
-        DateOnly date,
-        TaxYearConfigInput config,
-        FopSettingsInput settings) =>
-        !settings.WeekendDays.Contains(date.DayOfWeek) && !config.Holidays.Contains(date);
 }

@@ -35,7 +35,7 @@ public sealed class FeatureBoundaryTests
         ["Invoices"] = ["Auth", "Export", "Fx", "Settings", "Transactions"],
         ["Monobank"] = ["Auth", "Banking", "Fx", "Payments", "Settings", "Transactions"],
         ["Notifications"] = ["Auth", "Declarations", "Export", "Periods", "Settings"],
-        ["Payments"] = ["Auth", "Banking", "Settings"],
+        ["Payments"] = ["Auth", "Banking", "Settings", "TaxYears"],
         ["Periods"] = ["Auth", "Payments", "Settings", "TaxYears", "Transactions"],
         ["Settings"] = ["Auth", "Banking", "Fx", "TaxYears"],
         ["TaxYears"] = [],

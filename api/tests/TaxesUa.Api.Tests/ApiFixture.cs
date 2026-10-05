@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -197,6 +198,12 @@ public sealed class ApiFixture : IAsyncLifetime
     // answer "not configured" instead of ever reaching the encryptor or the bank.
     public WebApplicationFactory<Program> CreateApplicationWithoutMonobankKey() =>
         CreateApplication(builder => builder.UseSetting("Monobank:TokenEncryptionKeyBase64", string.Empty));
+
+    // Tests that move a fake clock by days read the owner's session off the same clock, and the 7-day session
+    // lifetime (ADR-009) would end it mid-test. The lifetime is covered by its own test, so these widen it.
+    public static void KeepSessionAcrossClockJumps(IServiceCollection services) =>
+        services.PostConfigure<CookieAuthenticationOptions>(
+            IdentityConstants.ApplicationScheme, options => options.ExpireTimeSpan = TimeSpan.FromDays(3650));
 
     public static async Task<HttpClient> SignIn(WebApplicationFactory<Program> application, string email)
     {

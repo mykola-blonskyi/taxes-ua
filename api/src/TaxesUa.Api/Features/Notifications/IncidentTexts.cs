@@ -13,6 +13,8 @@ internal static class IncidentTexts
 
     private const string TaxYearsTab = "taxYears";
 
+    private const string TreasuryTab = "treasury";
+
     public static ReminderMessage Render(Incident incident, string locale, string? appUrl)
     {
         var russian = locale == "ru";
@@ -56,6 +58,13 @@ internal static class IncidentTexts
                     "Клонируйте прошлый год на вкладке налоговых лет, поправьте цифры и отметьте год проверенным.", TaxYearsTab)
                 : ($"Параметри {incident.Year} року не задано, баланс недоступний.",
                     "Клонуйте попередній рік на вкладці податкових років, виправте цифри й позначте рік перевіреним.", TaxYearsTab),
+            IncidentKind.TreasuryAccountExpired => russian
+                ? ($"Счёт Казначейства для «{ReminderTexts.KindName(incident.Account!.Kind, locale)}» закрыт с {DayAfter(incident)}.",
+                    "Введите новый счёт из Электронного кабинета в настройках. До тех пор приложение не даёт реквизиты для оплаты.",
+                    TreasuryTab)
+                : ($"Рахунок Казначейства для «{ReminderTexts.KindName(incident.Account!.Kind, locale)}» закрито з {DayAfter(incident)}.",
+                    "Введіть новий рахунок з Електронного кабінету в налаштуваннях. Доти застосунок не дає реквізитів для оплати.",
+                    TreasuryTab),
             _ => throw new ArgumentOutOfRangeException(nameof(incident), incident.Kind, "Unknown incident kind."),
         };
 
@@ -67,4 +76,7 @@ internal static class IncidentTexts
 
         return new ReminderMessage(subject, string.Join('\n', lines));
     }
+
+    private static string DayAfter(Incident incident) =>
+        incident.Account!.ValidUntil.AddDays(1).ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
 }
