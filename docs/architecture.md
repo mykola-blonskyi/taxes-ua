@@ -191,10 +191,15 @@ src/TaxesUa.Api/
 The whole api is one assembly, so `internal` keeps no feature from another. The boundary is a test
 (ADR-008, amended): `api/tests/TaxesUa.Api.Tests/Architecture/FeatureBoundaryTests.cs` reads every type
 reference in the compiled assembly and fails when a feature reaches another along an edge that is not on
-its allow-list, when the listed edges form a cycle, or when the shared code under `TaxesUa.Api` and
-`TaxesUa.Api.Data` reaches a feature (`AppDbContext` aside, since EF Core needs one `DbContext` that maps
-every entity). Const and enum values, which the compiler inlines, are caught by a scan of the sources. The allow-list is the layering, from `Auth`, `Fx` and `TaxYears` at the bottom to `Backup`
-and `Calendar` at the top; [graph/dependencies.md](../graph/dependencies.md) shows it as a table, and the
+its allow-list, when the listed edges form a cycle, or when shared code reaches a feature. Shared code is
+every file of the api outside `Features/`, whatever its namespace; `Program` (which wires every feature)
+and `AppDbContext` (EF Core needs one `DbContext` that maps every entity) are the exceptions. Const and
+enum values, which the compiler inlines, are caught by a scan of every source file, shared ones included.
+The test also fails when a file's namespace does not match its folder, since types are attributed by
+namespace and sources by folder. A constant that both shared code and a feature need lives in shared
+code: the monobank webhook route is `CrossSiteGuard.MonobankWebhookRoute`, which the guard lets through
+and the Monobank feature maps. The allow-list is the layering, from `Auth`, `Fx` and `TaxYears` at the
+bottom to `Backup` at the top; [graph/dependencies.md](../graph/dependencies.md) shows it as a table, and the
 test keeps the two equal. A new edge is a one-line change to the list, made in review. `ClockTests` in the
 same folder fails on any read of the real clock outside `Program`'s top-level statements, endpoint
 lambdas included: every "now" comes from the injected `TimeProvider`. Clocks read inside packages are
