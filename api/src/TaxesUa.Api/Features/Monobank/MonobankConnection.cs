@@ -12,7 +12,8 @@ internal sealed class MonobankConnection
 {
     public string UserId { get; set; } = string.Empty;
 
-    // Nonce (12 bytes) + ciphertext + authentication tag (16 bytes), see TokenEncryptor.
+    // Version byte + nonce (12 bytes) + ciphertext + authentication tag (16 bytes), sealed with UserId
+    // as associated data; see TokenEncryptor.
     public byte[] EncryptedToken { get; set; } = [];
 
     // The monobank clientId the token resolved to at the moment it was saved, kept only to help the
@@ -25,13 +26,14 @@ internal sealed class MonobankConnection
     // stops until a new token is saved, which clears it.
     public DateTimeOffset? RejectedAt { get; set; }
 
-    // The random path segment of this owner's webhook URL (ADR-012), 64 hex characters. A new one is
-    // drawn on every token save, so a URL registered for an earlier token stops answering.
-    public string WebhookSecret { get; set; } = string.Empty;
+    // PathSecret.Hash of the path segment of this owner's webhook URL (ADR-012), unique. MonobankWebhooks
+    // draws a new secret for every registration, and a token save clears it, so a URL registered for an
+    // earlier token stops answering. Null until the first registration of this token.
+    public string? WebhookSecretHash { get; set; }
 
-    // The URL monobank last accepted for this token, or null when none is registered. It differs from
-    // the one MonobankWebhooks wants while a registration is pending or has failed.
-    public string? WebhookUrl { get; set; }
+    // The public base URL under which monobank accepted the URL whose secret WebhookSecretHash holds, or
+    // null while that URL is not registered. Never the URL itself, which would carry the secret.
+    public string? WebhookBaseUrl { get; set; }
 
     // The last failed registration, kept until one succeeds. Both set or both null.
     public DateTimeOffset? WebhookFailedAt { get; set; }
