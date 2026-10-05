@@ -22,8 +22,26 @@ public sealed class EmailAllowlistTests
     public void Only_a_listed_address_is_permitted(string configured, string? candidate, bool expected) =>
         Assert.Equal(expected, Allowlist(configured).Permits(candidate));
 
-    private static EmailAllowlist Allowlist(string? configured) => new(
+    [Theory]
+    [InlineData("owner@example.com;second@example.com", null, "owner@example.com", true)]
+    [InlineData("owner@example.com;second@example.com", null, "second@example.com", false)]
+    [InlineData("owner@example.com;second@example.com", "", "second@example.com", false)]
+    [InlineData("owner@example.com;second@example.com", " ; ", "owner@example.com", true)]
+    [InlineData("owner@example.com;second@example.com", "second@example.com", "second@example.com", true)]
+    [InlineData("owner@example.com;second@example.com", "second@example.com", "owner@example.com", false)]
+    [InlineData("owner@example.com;second@example.com", "SECOND@example.com, owner@example.com", "owner@example.com", true)]
+    [InlineData("owner@example.com", "stranger@example.com", "stranger@example.com", false)]
+    [InlineData("owner@example.com", null, null, false)]
+    public void An_admin_is_the_configured_address_or_else_the_first_allowlisted_one(
+        string allowed, string? admins, string? candidate, bool expected) =>
+        Assert.Equal(expected, Allowlist(allowed, admins).IsAdmin(candidate));
+
+    private static EmailAllowlist Allowlist(string? configured, string? admins = null) => new(
         new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?> { ["Auth:AllowedEmails"] = configured })
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Auth:AllowedEmails"] = configured,
+                ["Auth:AdminEmails"] = admins,
+            })
             .Build());
 }

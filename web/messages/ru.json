@@ -621,6 +621,7 @@
     },
     "taxYears": {
       "history": "История",
+      "readOnly": "Параметры налогов меняет только администратор. Вам они доступны для просмотра.",
       "empty": "Налоговых годов пока нет.",
       "year": "Год",
       "minWageKop": "Минимальная зарплата",
@@ -1533,6 +1534,7 @@
     "google_not_configured": "Вход через Google не настроен на этом сервере.",
     "external_sign_in_incomplete": "Вход не завершён. Начните сначала.",
     "account_not_allowed": "Этому аккаунту вход запрещён.",
+    "admin_required": "Параметры налогов меняет только администратор.",
     "account_create_failed": "Не удалось создать аккаунт.",
     "google_link_failed": "Не удалось привязать вход через Google.",
     "passkey_credential_missing": "Passkey не отправлен.",
