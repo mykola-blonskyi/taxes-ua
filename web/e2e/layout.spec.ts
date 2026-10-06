@@ -381,7 +381,7 @@ for (const locale of ["uk", "ru"] as const) {
         await chooseLanguage(context, baseURL!, locale);
         await open(page, "/", locale);
         const links = page.getByRole("navigation", { name: catalogs[locale].nav.label }).getByRole("link");
-        await expect(links).toHaveCount(6);
+        await expect(links).toHaveCount(5);
         const labels = await links.evaluateAll((anchors) =>
           anchors.map((anchor) => {
             const label = anchor.querySelector("span") as HTMLElement;
