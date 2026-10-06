@@ -52,5 +52,6 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
       month would be exempt under ESV Law art. 4 part 6 only if the employer paid at least the minimum.
 - [x] The prototype's colour palette: no prototype with colours exists, so the neutral palette stays
       (owner, 2026-10-06).
-- [x] Removing an address from `Auth__AllowedEmails` must end its live session: decided 2026-10-06,
-      every request re-checks the allowlist, no ticket store (#289).
+- [x] Does removing an address from `Auth__AllowedEmails` have to end a live session? Yes: the
+      cookie's `OnValidatePrincipal` checks the ticket's email claim against the allowlist, with no
+      ticket store (#289, ADR-005 and ADR-009 amendments of 2026-10-06).
