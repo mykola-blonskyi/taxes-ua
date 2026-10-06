@@ -21,6 +21,7 @@ public sealed class FeatureBoundaryTests
 
     private static readonly Dictionary<string, string[]> Allowed = new(StringComparer.Ordinal)
     {
+        ["Archive"] = ["Auth", "Declarations", "Export", "Invoices", "Payments"],
         ["Audit"] = ["Auth", "Declarations", "Invoices", "Notifications", "Payments", "Settings", "TaxYears", "Transactions"],
         ["Auth"] = [],
         ["Backup"] = ["Audit", "Auth", "Banking", "Declarations", "Fx", "Invoices", "Monobank", "Notifications", "Payments", "Settings", "Transactions"],

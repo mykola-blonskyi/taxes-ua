@@ -58,7 +58,7 @@ public static class ExportEndpoints
                     var exported = new ExportedYear(year, rows, totalIncomeKop, time.NowInKyiv());
 
                     return Results.File(
-                        format.Write(exported), format.ContentType, $"transactions-{year}.{format.Extension}");
+                        format.Write(exported), format.ContentType, FileName(year, format.Extension));
                 })
                 .Produces<byte[]>(StatusCodes.Status200OK, format.ContentType)
                 .ProducesFieldProblem()
@@ -68,17 +68,29 @@ public static class ExportEndpoints
         return routes;
     }
 
+    /// <summary>The statement's formats, by file extension.</summary>
+    internal static IEnumerable<string> Extensions => Formats.Select(format => format.Extension);
+
+    internal static string FileName(int year, string extension) => $"transactions-{year}.{extension}";
+
+    /// <summary>Whether the year has any row for the statement to list.</summary>
+    internal static Task<bool> AnyAsync(
+        AppDbContext database, string userId, int year, CancellationToken cancellationToken) =>
+        RowsOfYear(database, userId, year).AnyAsync(cancellationToken);
+
     // Oldest first, unlike the newest-first list on screen: an accountant reads a ledger forward.
     private static Task<List<Transaction>> LoadRowsAsync(
         AppDbContext database, string userId, int year, CancellationToken cancellationToken) =>
-        database.Transactions
+        RowsOfYear(database, userId, year)
             .Include(row => row.Client)
             .Include(row => row.RefundsTransaction)
-            .Where(row => row.UserId == userId
-                && row.ValueDate >= new DateOnly(year, 1, 1)
-                && row.ValueDate < new DateOnly(year + 1, 1, 1))
             .OrderBy(row => row.ValueDate)
             .ThenBy(row => row.CreatedAt)
             .ThenBy(row => row.Id)
             .ToListAsync(cancellationToken);
+
+    private static IQueryable<Transaction> RowsOfYear(AppDbContext database, string userId, int year) =>
+        database.Transactions.Where(row => row.UserId == userId
+            && row.ValueDate >= new DateOnly(year, 1, 1)
+            && row.ValueDate < new DateOnly(year + 1, 1, 1));
 }

@@ -16,3 +16,7 @@ export const navItems: readonly NavItem[] = [
 export function declarationHref(year: number, quarter: number): string {
   return `/declaration?year=${year}&quarter=${quarter}`;
 }
+
+export function archiveHref(year: number): string {
+  return `/archive?year=${year}`;
+}

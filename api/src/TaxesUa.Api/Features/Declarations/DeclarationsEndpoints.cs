@@ -312,6 +312,10 @@ public static class DeclarationsEndpoints
     private static bool IsStale(DateTimeOffset generatedAt, int year, int quarter) =>
         !Declaration.FileAvailable(year, quarter, generatedAt.KyivDate());
 
+    /// <summary>A stored file the download route serves today: its quarter has ended and it was built after that.</summary>
+    internal static bool Servable(DateTimeOffset generatedAt, int year, int quarter, DateOnly today) =>
+        Declaration.FileAvailable(year, quarter, today) && !IsStale(generatedAt, year, quarter);
+
     /// <summary>The rules a filed mark meets that need no stored row, shared with the restore.</summary>
     internal static FieldErrors? ValidateFiling(int year, int quarter, DateOnly filedOn, DateOnly today)
     {
@@ -391,7 +395,6 @@ public static class DeclarationsEndpoints
             .OrderBy(row => row.Type)
             .Select(row => new DeclarationFileResponse(row.Type, row.FileName, row.AnnexFileName, row.GeneratedAt))
             .ToArrayAsync(cancellationToken);
-        files = [.. files.Where(file => !IsStale(file.GeneratedAt, year, quarter))];
 
         var fileAvailable = Declaration.FileAvailable(year, quarter, today);
         var figures = inGroup3 ? Declaration.ForQuarter(viewed.Accrual, quarter) : null;
@@ -420,7 +423,7 @@ public static class DeclarationsEndpoints
                 settings.Group3Confirmed,
                 ledger),
             filing is null ? null : ToFiling(filing, incomeKop),
-            fileAvailable ? files : [],
+            [.. files.Where(file => Servable(file.GeneratedAt, year, quarter, today))],
             fileAvailable,
             Declaration.FileAvailableFrom(year, quarter),
             figures is null ? [] : ToCabinet(figures, header, today));

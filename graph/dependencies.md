@@ -38,6 +38,7 @@ type is shared exactly when its file is.
 | Periods | 4 | Auth, Payments, Settings, TaxYears, Transactions |
 | Declarations | 5 | Auth, Payments, Periods, Settings, TaxYears, Transactions |
 | Invoices | 5 | Auth, Export, Fx, Settings, Transactions |
+| Archive | 6 | Auth, Declarations, Export, Invoices, Payments |
 | Clients | 6 | Auth, Fx, Invoices, Transactions |
 | Dashboard | 6 | Auth, Declarations, Invoices, Monobank, Payments, Periods, Settings, TaxYears, Transactions |
 | Notifications | 6 | Auth, Declarations, Export, Periods, Settings |
@@ -45,7 +46,8 @@ type is shared exactly when its file is.
 | Calendar | 7 | Auth, Notifications, Periods, Settings, TaxYears |
 | Backup | 8 | Audit, Auth, Banking, Declarations, Fx, Invoices, Monobank, Notifications, Payments, Settings, Transactions |
 
-82 edges over 19 features. TaxYears -> Auth came with #257, when a tax-year write began to ask whether
+87 edges over 20 features. Archive came with #285: it lists a year's documents and reaches only the
+features whose download routes it links. TaxYears -> Auth came with #257, when a tax-year write began to ask whether
 the user is an admin. Audit -> Notifications came with #246, when the notification channel moved
 back from Settings to Notifications; Backup -> Periods and Backup -> TaxYears went with the prototype
 importer (#253). Before #185 the same measurement found 85 edges, and ten features

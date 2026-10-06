@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { LoadState } from "@/data/api/LoadState";
 import { useTaxYears } from "@/data/tax-years/useTaxYears";
 import { usePeriods } from "@/data/periods/usePeriods";
+import { archiveHref } from "@/shared/constants/navigation";
 import { currentYearInKyiv } from "@/shared/lib/dates";
 import { DeclarationNumbers } from "./DeclarationNumbers";
 import { MonthsTable } from "./MonthsTable";
@@ -68,6 +69,9 @@ export function PeriodsScreen() {
             </option>
           ))}
         </select>
+        <Link href={archiveHref(year!)} className="w-fit text-sm font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">
+          {t("archiveLink", { year: year! })}
+        </Link>
       </div>
 
       {periodsLoading || isError ? (
