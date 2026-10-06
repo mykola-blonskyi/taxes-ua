@@ -714,8 +714,9 @@ are offered. It is computed on every read, so it follows a new invoice, a paymen
 
 Retention. An issued or cancelled invoice is kept for at least 1095 days from the day the declaration
 covering its income was filed, or from that declaration's deadline if it was not (Tax Code art. 44.3).
-The period is extended by the time limitation periods were suspended under martial law. The app never
-deletes an issued or cancelled invoice; deleting is only for drafts.
+The period is extended by the time limitation periods were suspended under martial law. Rule 19 turns this
+into the keep-until date of each year. The app never deletes an issued or cancelled invoice; deleting is
+only for drafts.
 
 Restore. A restore replaces the owner's data with a file, but never drops an issued or cancelled invoice: a
 number that is already out in the world must not be reused by the next issue. A file that lacks the
@@ -1166,3 +1167,59 @@ so a failure that then goes overdue is one incident, and the next success re-arm
 switched-on channel gets it, because the database is shared. The message says the check is failing, gives the
 date of the last success (or that there has been none), and points to the `backup` service's log. It has no
 link: nothing in the app fixes it.
+
+---
+
+## Rule 19. Keeping a year's documents
+
+A year's documents (its invoices, receipts, declaration files, payments) are kept until the year's
+keep-until date, shown on the periods screen. The app computes it and never deletes anything.
+
+The period. Tax Code art. 44.3: documents tied to taxes are kept "не менше" 1095 days (44.3.3; the
+1825 days of 44.3.2 bind legal entities and profit-tax payers, and the 2555 days of 44.3.1 transfer
+pricing, neither of which a group 3 FOP is). The days count "з дня подання податкової звітності ... а в
+разі її неподання - з передбаченого цим Кодексом граничного строку подання такої звітності" (44.3,
+second paragraph). Day 1 is the day after that day, as art. 102.1 counts its 1095 days ("1095 дня, що
+настає за останнім днем"), so the last day kept is the start plus 1095 days.
+
+Per year. Every quarter of the year with a group 3 declaration counts: a quarter in group 3 that does not
+end before the registration date, as the periods screen lists it (Rules 4, 8, 15). Its start is the filing
+date of the owner's filed mark (Rule 15), or else the declaration's deadline as shifted off a weekend
+(Rule 5; Tax Code 49.20 makes that the last day of the deadline). The year's date is the latest of its
+quarters', which is normally Q4's, filed in the next year. A year with no group 3 declaration has no date.
+
+The suspension. A suspended day does not count. The suspension is one stretch for every year and every
+owner, `LimitationSuspensionConfig` (its first and last day, the last empty while it lasts), edited by
+the admin on the tax years tab and seeded from the law as verified on zakon.rada.gov.ua (Tax Code as
+amended through 17.09.2026):
+
+- Tax Code 102.9, added by Law 2120-IX of 15.03.2022 (in force on its publication, 17.03.2022), stopped
+  "перебіг строків, визначених цим Кодексом" for the period of martial law; Law 3219-IX of 30.06.2023
+  deleted it from 01.08.2023.
+- Section XX, subsection 10, item 69.9 (as worded by Law 2260-IX of 12.05.2022) stopped the same periods,
+  "до 1 серпня 2023 року" since Law 3219-IX.
+- Item 69.36 (Law 3219-IX, in force 01.08.2023; amended by Law 3453-IX of 09.11.2023) stops the
+  limitation period for the documentary audits not carried out under items 69.2-2, 69.35-1 and 69.35-2,
+  and its second paragraph extends the retention of the art. 44.1 documents by that suspension. It has
+  no end date of its own; item 69 runs until martial law is ended or lifted.
+
+So the seed is a stretch from 17.03.2022 with no end. Item 69.36 is worded per audit, not for every
+payer, and the owner cannot know which audits were not carried out; the app reads it as covering the
+owner, the reading that never lets a document go early. Art. 44.3's last paragraph (extension by the
+102.3 suspensions: a stay abroad, a court ban on audits and the like) is not modelled: those depend on
+facts about the owner the app does not hold.
+
+The arithmetic. With a start S and a suspension from A to B:
+
+- S + 1095 before A: the date is S + 1095, untouched.
+- S on or after B: the same.
+- Otherwise the days from S + 1 to A − 1 have counted and the rest, 1095 less those, count from B + 1;
+  the date is B plus the rest.
+- While the suspension is open (no B), the date is not known: the screen says the period is extended
+  while martial law lasts, gives the number of days that will run after it ends, and the earliest the
+  date can be, S + 1095. A year whose quarters are all past their count before A has a fixed date.
+
+Worked example, 2026 with the seed: Q4 is due 2027-02-09, inside the open suspension, so all 1095 days
+wait for its end and the year shows "not before 2030-02-08". Had the suspension's last day been 2027-06-30,
+the date would be 2030-06-29. A 2015 Q4 declaration filed on 2016-02-01 ends on 2019-01-31, before the
+suspension began.
