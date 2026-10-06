@@ -107,7 +107,7 @@ export async function seedScreensWithContent(owner: APIRequestContext) {
   expect((await owner.post(`/api/invoices/${overdue.id}/issue`)).ok()).toBe(true);
   await created(await owner.post("/api/invoices", { data: invoice(today, shift(today, 14)) }));
 
-  return { longClientName, longForeignClientName, paymentNote };
+  return { longClientName, longForeignClientName, paymentNote, year };
 }
 
 // Stops the owner's sync with a rejected token, so the dashboard shows its warning card and the layout check

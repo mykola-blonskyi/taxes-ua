@@ -336,12 +336,14 @@ test.beforeAll(async ({ playwright }, testInfo) => {
   const { baseURL, storageState } = testInfo.project.use;
   const owner = await playwright.request.newContext({ baseURL, storageState });
   try {
-    const { longClientName, longForeignClientName, paymentNote } = await seedScreensWithContent(owner);
+    const { longClientName, longForeignClientName, paymentNote, year } = await seedScreensWithContent(owner);
     // The pay sheet needs a Treasury account to show its details and the QR that the enlarged-QR state opens.
     await seedTreasuryAccounts(owner);
     seededText["/transactions"] = [longClientName];
     seededText["/payments"] = [paymentNote];
     seededText["/invoices"] = [longForeignClientName];
+    // The seeded income and payments give the year's archive its statement and register files.
+    seededText["/archive"] = [`transactions-${year}.csv`, `payments-${year}.csv`];
     // The dashboard sync card is measured in a problem state, not only as the quiet line.
     await seedRejectedMonobankToken(owner);
   } finally {
@@ -379,7 +381,7 @@ for (const locale of ["uk", "ru"] as const) {
         await chooseLanguage(context, baseURL!, locale);
         await open(page, "/", locale);
         const links = page.getByRole("navigation", { name: catalogs[locale].nav.label }).getByRole("link");
-        await expect(links).toHaveCount(5);
+        await expect(links).toHaveCount(6);
         const labels = await links.evaluateAll((anchors) =>
           anchors.map((anchor) => {
             const label = anchor.querySelector("span") as HTMLElement;
