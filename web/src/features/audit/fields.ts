@@ -88,6 +88,7 @@ const FIELD_ORDER: Record<AuditedEntity, readonly string[]> = {
     "source",
     "verifiedAt",
   ],
+  LimitationSuspension: ["start", "end", "source"],
   Client: ["name", "address", "country", "vatId", "email", "defaultCurrency", "notes"],
   Invoice: [
     "status",

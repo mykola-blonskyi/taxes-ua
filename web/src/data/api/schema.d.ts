@@ -37,6 +37,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/declarations/{year}/keep-until": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["YearKeepUntilResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/payment-details": {
         parameters: {
             query?: never;
@@ -2219,6 +2272,96 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/limitation-suspension": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LimitationSuspensionResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["LimitationSuspensionRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["LimitationSuspensionResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["CodedProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5419,7 +5562,7 @@ export interface components {
         /** @enum {string} */
         AuditAction: "Create" | "Update" | "Delete" | "Restore";
         /** @enum {string} */
-        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "InvoicingDetails" | "TaxYearConfig" | "Backup" | "Client" | "Invoice" | "DeclarationDetails" | "DeclarationFiling" | "TreasuryAccount" | "NotificationChannel";
+        AuditedEntity: "Transaction" | "BudgetPayment" | "Settings" | "InvoicingDetails" | "TaxYearConfig" | "Backup" | "Client" | "Invoice" | "DeclarationDetails" | "DeclarationFiling" | "TreasuryAccount" | "NotificationChannel" | "LimitationSuspension";
         AuditEntryResponse: {
             /** Format: int64 */
             id: number | string;
@@ -6140,6 +6283,15 @@ export interface components {
             /** Format: date-time */
             readAt: string;
         };
+        KeepUntilResponse: {
+            state: components["schemas"]["KeepUntilState"];
+            /** Format: date */
+            date: string;
+            /** Format: int32 */
+            daysAfterSuspension: null | number | string;
+        };
+        /** @enum {string} */
+        KeepUntilState: "Fixed" | "ExtendedWhileSuspended";
         KindCreditResponse: {
             kind: components["schemas"]["PaymentKind"];
             /** Format: int64 */
@@ -6192,6 +6344,20 @@ export interface components {
             importedCount: number | string;
             /** Format: int32 */
             skippedCount: number | string;
+        };
+        LimitationSuspensionRequest: {
+            /** Format: date */
+            start: string;
+            /** Format: date */
+            end: null | string;
+            source: string;
+        };
+        LimitationSuspensionResponse: {
+            /** Format: date */
+            start: string;
+            /** Format: date */
+            end: null | string;
+            source: string;
         };
         LimitCrossingResponse: {
             /** Format: int32 */
@@ -6971,6 +7137,11 @@ export interface components {
             militaryLevy: components["schemas"]["KindYearBalance"];
             esv: components["schemas"]["KindYearBalance"];
             outsideGroup3Payments: components["schemas"]["OutsideGroup3PaymentResponse"][];
+        };
+        YearKeepUntilResponse: {
+            /** Format: int32 */
+            year: number | string;
+            keepUntil: null | components["schemas"]["KeepUntilResponse"];
         };
         YearQuarter: {
             /** Format: int32 */

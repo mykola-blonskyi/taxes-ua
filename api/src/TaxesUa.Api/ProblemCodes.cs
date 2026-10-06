@@ -164,6 +164,7 @@ internal static class ProblemCodes
     public const string QuarterOutOfRange = "quarter_out_of_range";
     public const string MonthOutOfRange = "month_out_of_range";
     public const string WeekendAllDays = "weekend_all_days";
+    public const string SuspensionEndBeforeStart = "suspension_end_before_start";
 
     // Field errors: invoices and receipts.
     public const string TooManyLines = "too_many_lines";

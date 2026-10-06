@@ -14,8 +14,9 @@ namespace TaxesUa.Api.Features.Backup;
 /// <summary>
 /// Everything one owner stored, as the file the owner downloads and restores. The shape is its own
 /// versioned contract rather than the API's request records, so a request gaining a field cannot
-/// silently change what schema version 1 means. TaxYearConfig and FxRates are not here: both are
-/// shared by every owner, and one owner's file must not rewrite another owner's tax parameters.
+/// silently change what schema version 1 means. TaxYearConfig, the limitation suspension and FxRates are
+/// not here: all three are shared by every owner, and one owner's file must not rewrite another owner's
+/// tax parameters.
 /// </summary>
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed partial record BackupDocument(

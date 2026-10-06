@@ -8,6 +8,7 @@ import { useTaxYears } from "@/data/tax-years/useTaxYears";
 import { usePeriods } from "@/data/periods/usePeriods";
 import { currentYearInKyiv } from "@/shared/lib/dates";
 import { DeclarationNumbers } from "./DeclarationNumbers";
+import { KeepUntilLine } from "./KeepUntilLine";
 import { MonthsTable } from "./MonthsTable";
 import { PeriodWarnings } from "./PeriodWarnings";
 import { QuartersTable } from "./QuartersTable";
@@ -69,6 +70,8 @@ export function PeriodsScreen() {
           ))}
         </select>
       </div>
+
+      {year !== undefined ? <KeepUntilLine year={year} /> : null}
 
       {periodsLoading || isError ? (
         <LoadState query={periodsQuery} resetKey={year} loading={t("loading")} failed={t("loadFailed")} />

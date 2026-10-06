@@ -34,6 +34,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<TaxYearConfig> TaxYearConfigs => Set<TaxYearConfig>();
 
+    public DbSet<LimitationSuspensionConfig> LimitationSuspensionConfigs => Set<LimitationSuspensionConfig>();
+
     public DbSet<Transaction> Transactions => Set<Transaction>();
 
     public DbSet<Client> Clients => Set<Client>();

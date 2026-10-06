@@ -12,6 +12,7 @@ import { DeclarationDetailsForm } from "./DeclarationDetailsForm";
 import { DpsStatusSection } from "./DpsStatusSection";
 import { FopSettingsForm } from "./FopSettingsForm";
 import { InvoicingForm } from "./InvoicingForm";
+import { LimitationSuspensionSection } from "./LimitationSuspensionSection";
 import { MonobankConnectionSection } from "./MonobankConnectionSection";
 import { NotificationsSection } from "./NotificationsSection";
 import { TaxYearTable } from "./TaxYearTable";
@@ -76,7 +77,10 @@ export function SettingsTabs({ initialTab, confirmEmailToken }: { initialTab?: s
         <DpsStatusSection />
       </Tabs.Content>
       <Tabs.Content value="taxYears" className="min-w-0">
-        <TaxYearTable />
+        <div className="flex min-w-0 flex-col gap-8">
+          <TaxYearTable />
+          <LimitationSuspensionSection />
+        </div>
       </Tabs.Content>
       <Tabs.Content value="monobank" className="min-w-0">
         <MonobankConnectionSection />
