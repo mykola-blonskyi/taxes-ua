@@ -1254,7 +1254,8 @@ archive reminder), the dashboard shows a notice with the year, its keep-until li
 archive, until the owner downloads the year's ZIP or dismisses the notice. Several finished years waiting
 show the newest; the next takes its place once it is answered. The answer is one row per owner and year
 (`ArchiveNotices`: downloaded or dismissed, and when), overwritten by the next. A ZIP counts once its stream
-has been written to the end. An answer counts only when it came no earlier than the moment the year was
+has been written to the end, and counts from the moment its contents were read, so a mark made during the
+stream is not answered by it. An answer counts only when it came no earlier than the moment the year was
 finished, so a ZIP taken before the last mark, which lacks that mark, leaves the notice up, and so does a mark
 removed and made again after the answer (the reminder is not sent again: its claim stands). The rows are
 not in the JSON backup, like the sent log: they record what the owner did with a file, not the owner's
