@@ -40,22 +40,25 @@ export function ArchiveScreen({ year: yearParam }: { year?: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-4">
       {/* The year's keep-until date goes in this block, beside the year picker. */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor="archive-year" className="text-sm font-medium">
-          {t("yearLabel")}
-        </label>
-        <select
-          id="archive-year"
-          value={year}
-          onChange={(event) => setSelected(Number(event.target.value))}
-          className="w-full max-w-32 rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring pointer-coarse:min-h-11"
-        >
-          {years.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="archive-year" className="text-sm font-medium">
+            {t("yearLabel")}
+          </label>
+          <select
+            id="archive-year"
+            value={year}
+            onChange={(event) => setSelected(Number(event.target.value))}
+            className="w-full max-w-32 rounded-lg border bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring pointer-coarse:min-h-11"
+          >
+            {years.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+        {archiveQuery.data && !isEmpty(archiveQuery.data) ? <YearZipDownload year={year} /> : null}
       </div>
 
       {archiveQuery.data ? (
@@ -63,6 +66,29 @@ export function ArchiveScreen({ year: yearParam }: { year?: string }) {
       ) : (
         <LoadState query={archiveQuery} resetKey={year} loading={t("loading")} failed={t("loadFailed")} />
       )}
+    </div>
+  );
+}
+
+function isEmpty(archive: ArchiveResponse): boolean {
+  return (
+    archive.invoices.length + archive.quarters.length + archive.statements.length + archive.payments.length === 0
+  );
+}
+
+// The server names the file (archive-{year}-{date}.zip) and streams it, so this is a plain link.
+function YearZipDownload({ year }: { year: number }) {
+  const t = useTranslations("archive.zip");
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <Button asChild variant="outline" className="w-fit max-w-full">
+        <a href={`/api/archive/${year}/zip`} download>
+          <Download aria-hidden="true" />
+          {t("download")}
+        </a>
+      </Button>
+      <p className="text-xs text-muted-foreground">{t("hint")}</p>
     </div>
   );
 }
