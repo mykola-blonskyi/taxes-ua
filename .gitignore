@@ -209,3 +209,7 @@ bin/
 obj/
 *.user
 .vs/
+
+# Codex desktop's import of the Claude Code setup; CLAUDE.md and .claude/skills are the source.
+/AGENTS.md
+/.agents/

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
@@ -257,6 +258,23 @@ builder.Services.ConfigureApplicationCookie(options =>
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         return Task.CompletedTask;
+    };
+
+    // The allowlist is read at start and the ticket is self-contained, so without this check a removed
+    // address would keep its session until the 7-day sliding expiry (ADR-005, ADR-009). The email is a
+    // claim in the ticket, so the check reads no database.
+    var validatePrincipal = options.Events.OnValidatePrincipal;
+    options.Events.OnValidatePrincipal = async context =>
+    {
+        var allowlist = context.HttpContext.RequestServices.GetRequiredService<EmailAllowlist>();
+        if (!allowlist.Permits(context.Principal?.FindFirstValue(ClaimTypes.Email)))
+        {
+            context.RejectPrincipal();
+            await context.HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+            return;
+        }
+
+        await validatePrincipal(context);
     };
 });
 

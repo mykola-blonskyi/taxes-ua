@@ -158,14 +158,16 @@ martial law, holidays are treated as business days, so the holiday list is empty
 
 The EP/VZ payment deadline is counted from the declaration's statutory (unshifted) date
 (`TaxPaymentCountsFromStatutoryDeclarationDate`, to confirm). The payment deadline itself is also
-shifted off a weekend (`ShiftTaxPaymentFromWeekend`, to confirm).
+shifted off a weekend (`ShiftTaxPaymentFromWeekend`, default true). Tax Code art. 57.1 settles this:
+"Якщо граничний строк сплати податкового зобов'язання припадає на вихідний або святковий день,
+останнім днем сплати податкового зобов'язання вважається операційний день, що настає за вихідним або
+святковим днем" (verified on zakon.rada.gov.ua, 2026-10-06). It covers the single tax (art. 295.3) and
+the military levy alike; art. 49.20 shifts only the filing date.
 
 `ShiftTaxPaymentFromWeekend` shifts off any non-working day, holidays included, not off weekends
-only (to confirm). The flag is named for the weekend because that is the case the 2026 reference
-exercises, but the paragraph above defines shifting as moving to the next *business* day and names
-holidays in the same breath, so the payment deadline follows the same definition as the other two.
-Its `false` value therefore also leaves a payment deadline sitting on a holiday. No payment date in
-the 2026 reference falls on a weekend or a holiday, so the table cannot settle this.
+only, as art. 57.1 names both. The flag is named for the weekend because that is the case the 2026
+reference exercises. Its `false` value leaves a payment deadline on a weekend or holiday, which the law
+does not ask for; the flag is kept only for an owner who prefers to pay early.
 
 Q4's deadlines fall in January and February of the following year, and they shift against the
 holidays of the year the quarter belongs to, not the year the dates fall in (to confirm). Nothing
