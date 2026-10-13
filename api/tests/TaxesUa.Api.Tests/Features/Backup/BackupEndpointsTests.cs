@@ -755,7 +755,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
             [typeof(NotificationChannel)] = typeof(NotificationChannelBackup),
             [typeof(ReserveJar)] = typeof(ReserveJarBackup),
         };
-        Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(FxRate)];
+        Type[] sharedByEveryOwner = [typeof(TaxYearConfig), typeof(LimitationSuspensionConfig), typeof(FxRate)];
         // The change log is history, not state: a restore does not replay it and does not carry it.
         Type[] historyNotState = [typeof(AuditEntry)];
         // ADR-011: the encrypted token must never leave the database, so the connection it belongs to is

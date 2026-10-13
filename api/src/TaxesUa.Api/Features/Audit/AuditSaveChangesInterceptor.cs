@@ -43,6 +43,7 @@ internal sealed class AuditSaveChangesInterceptor(
         [typeof(InvoicingDetails)] = AuditedEntity.InvoicingDetails,
         [typeof(InvoicingPaymentDetails)] = AuditedEntity.InvoicingDetails,
         [typeof(TaxYearConfig)] = AuditedEntity.TaxYearConfig,
+        [typeof(LimitationSuspensionConfig)] = AuditedEntity.LimitationSuspension,
         [typeof(DeclarationDetails)] = AuditedEntity.DeclarationDetails,
         [typeof(DeclarationFiling)] = AuditedEntity.DeclarationFiling,
         [typeof(NotificationChannel)] = AuditedEntity.NotificationChannel,
@@ -233,8 +234,8 @@ internal sealed class AuditSaveChangesInterceptor(
         entry.Metadata.FindPrimaryKey()!.Properties.Select(property =>
             Convert.ToString(entry.Property(property.Name).CurrentValue, CultureInfo.InvariantCulture)));
 
-    // A record that belongs to a user is logged under that user. TaxYearConfig is one table for every
-    // allowlisted user, so its entry belongs to whoever made the change.
+    // A record that belongs to a user is logged under that user. TaxYearConfig and the limitation
+    // suspension are shared by every allowlisted user, so their entries belong to whoever made the change.
     private string? OwnerOf(EntityEntry entry) =>
         entry.Metadata.FindProperty(nameof(AuditEntry.UserId)) is not null
             ? (string?)entry.Property(nameof(AuditEntry.UserId)).CurrentValue

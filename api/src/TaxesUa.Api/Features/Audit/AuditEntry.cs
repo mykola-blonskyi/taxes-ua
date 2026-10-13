@@ -55,6 +55,7 @@ internal enum AuditedEntity
     DeclarationFiling,
     TreasuryAccount,
     NotificationChannel,
+    LimitationSuspension,
 }
 
 internal enum AuditAction

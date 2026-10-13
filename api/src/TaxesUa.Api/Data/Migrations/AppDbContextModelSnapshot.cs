@@ -1280,6 +1280,39 @@ namespace TaxesUa.Api.Data.Migrations
                     b.ToTable("Settings");
                 });
 
+            modelBuilder.Entity("TaxesUa.Api.Features.TaxYears.LimitationSuspensionConfig", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("End")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("Start")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LimitationSuspensionConfigs", t =>
+                        {
+                            t.HasCheckConstraint("CK_LimitationSuspensionConfigs_EndAfterStart", "\"End\" IS NULL OR \"End\" >= \"Start\"");
+
+                            t.HasCheckConstraint("CK_LimitationSuspensionConfigs_Singleton", "\"Id\" = 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Source = "ПКУ п. 102.9 (ЗУ № 2120-IX, з 17.03.2022 по 31.07.2023), підп. 69.9 та 69.36 п. 69 підрозд. 10 розд. XX (ЗУ № 3219-IX, № 3453-IX)",
+                            Start = new DateOnly(2022, 3, 17)
+                        });
+                });
+
             modelBuilder.Entity("TaxesUa.Api.Features.TaxYears.TaxYearConfig", b =>
                 {
                     b.Property<int>("Year")

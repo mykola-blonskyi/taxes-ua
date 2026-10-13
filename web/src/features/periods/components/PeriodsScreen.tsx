@@ -9,6 +9,7 @@ import { usePeriods } from "@/data/periods/usePeriods";
 import { archiveHref } from "@/shared/constants/navigation";
 import { currentYearInKyiv } from "@/shared/lib/dates";
 import { DeclarationNumbers } from "./DeclarationNumbers";
+import { KeepUntilLine } from "./KeepUntilLine";
 import { MonthsTable } from "./MonthsTable";
 import { PeriodWarnings } from "./PeriodWarnings";
 import { QuartersTable } from "./QuartersTable";
@@ -73,6 +74,8 @@ export function PeriodsScreen() {
           {t("archiveLink", { year: year! })}
         </Link>
       </div>
+
+      {year !== undefined ? <KeepUntilLine year={year} /> : null}
 
       {periodsLoading || isError ? (
         <LoadState query={periodsQuery} resetKey={year} loading={t("loading")} failed={t("loadFailed")} />

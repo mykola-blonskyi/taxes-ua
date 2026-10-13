@@ -2,7 +2,8 @@
 
 Money: `long` in the minor unit of the currency (kopecks, cents). Rate: `int RateE4` = rate × 10⁴.
 Percentages: basis points (`int`, 5% = 500). Operation dates: `DateOnly` by Europe/Kyiv.
-Every entity except `TaxYearConfig` and `FxRate` has a `UserId`. Those two are shared by every owner.
+Every entity except `TaxYearConfig`, `LimitationSuspensionConfig` and `FxRate` has a `UserId`. Those three
+are shared by every owner.
 
 ## Entities
 
@@ -219,6 +220,33 @@ Fields:
   values that were compared against the legal source and not to the row.
 
 Relationships: none. The engine receives the list of configs as input.
+
+---
+
+### LimitationSuspensionConfig
+
+Responsibilities: the martial-law suspension of limitation periods that Rule 19's keep-until date
+follows. One row for every year and every owner, since the law sets one stretch, not one per year. No
+`UserId`.
+
+Fields: `Start: DateOnly` (the first suspended day), `End: DateOnly?` (the last, null while the
+suspension lasts; not before `Start`), `Source`. Seeded from 17.03.2022 with no end (Rule 19). Only the
+admin writes it; audited as `LimitationSuspension`. Not in the backup, like `TaxYearConfig`.
+
+Relationships: none. The engine receives it as `LimitationSuspension`.
+
+---
+
+### KeepUntil (computed)
+
+Responsibilities: the last day a year's documents are kept (Rule 19). Not stored; computed by
+`DocumentRetention.ForYear` from the year's group 3 declarations (each quarter with its filed date, if
+marked), the year's `TaxYearConfig`, the settings and the suspension.
+
+Variants: `On(Date)`, the last day kept; `WhileSuspended(DaysAfterSuspension, NotBefore)`, while the
+suspension is open: the count resumes after it ends and runs that many more days, never ending before
+`NotBefore`. A year with no group 3 declaration has none. `GET /api/declarations/{year}/keep-until` sends
+it; it lives with the declarations because it reads their filed marks, and Periods may not reach them.
 
 ---
 
@@ -571,7 +599,7 @@ Responsibilities: change log for transactions, clients, invoices, budget payment
 row (`AuditEntry`, table `AuditLog`) per created, changed or deleted record. Append-only.
 
 Fields: `Entity: Transaction | BudgetPayment | Settings | InvoicingDetails | TaxYearConfig | Backup | Client |
-Invoice | DeclarationDetails | DeclarationFiling | TreasuryAccount | NotificationChannel`, `EntityId` (the record's key: a GUID, the year, the owner's
+Invoice | DeclarationDetails | DeclarationFiling | TreasuryAccount | NotificationChannel | LimitationSuspension`, `EntityId` (the record's key: a GUID, the year, the owner's
 id for Settings, InvoicingDetails and DeclarationDetails, `ownerId/year/quarter` for DeclarationFiling; empty
 for Backup),
 `Action: Create | Update | Delete | Restore`,
@@ -583,8 +611,8 @@ the key, `UserId`, `CreatedAt` and `UpdatedAt`, and a transaction's snapshot car
 instead of `clientId`, and an invoicing or invoice snapshot carries `signatureImageBytes` instead of the image.
 A save that changes nothing but `UpdatedAt` writes no entry.
 
-`UserId` is the record's owner. `TaxYearConfig` is shared by every allowlisted user, so its entry
-belongs to the user who changed it. Nobody reads another user's entries.
+`UserId` is the record's owner. `TaxYearConfig` and `LimitationSuspensionConfig` are shared by every
+allowlisted user, so their entries belong to the user who changed them. Nobody reads another user's entries.
 
 A restore from backup writes one `Backup`/`Restore` entry with the restored counts instead of one
 entry per inserted row. The log is not part of a backup and a restore never replaces it.
