@@ -21,14 +21,6 @@ export function useArchive(year: number | undefined) {
   });
 }
 
-// A finished ZIP answers the dashboard's archive notice on the server, so the cached dashboard is stale from
-// the moment a download starts.
-export function useArchiveDownloaded() {
-  const queryClient = useQueryClient();
-
-  return () => queryClient.invalidateQueries({ queryKey: dashboardQueryKey });
-}
-
 export function useDismissArchiveNotice() {
   const queryClient = useQueryClient();
 

@@ -22,6 +22,9 @@ export function useDashboard() {
 
       return data;
     },
+    // The dashboard also changes on the server without a write from this tab: a finished ZIP download answers
+    // its archive notice only when the stream ends, so a cached copy is never trusted on return.
+    refetchOnMount: "always",
   });
 }
 
