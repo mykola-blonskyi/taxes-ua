@@ -56,6 +56,33 @@ public static class PaymentsEndpoints
             .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
+        payments.MapGet("/register.csv", async (
+                int year,
+                UserManager<ApplicationUser> users,
+                AppDbContext database,
+                HttpContext http,
+                CancellationToken cancellationToken) =>
+            {
+                if (!InYearRange(year))
+                {
+                    return Problems.Validation("year", ProblemCodes.YearOutOfRange, YearRangeMessage("year"));
+                }
+
+                var user = await users.GetUserAsync(http.User);
+                if (user is null)
+                {
+                    return Results.Unauthorized();
+                }
+
+                return Results.File(
+                    await PaymentRegister.ToCsvAsync(database, user.Id, year, cancellationToken),
+                    "text/csv; charset=utf-8",
+                    PaymentRegister.FileName(year));
+            })
+            .Produces<byte[]>(StatusCodes.Status200OK, "text/csv")
+            .ProducesFieldProblem()
+            .Produces(StatusCodes.Status401Unauthorized);
+
         payments.MapPost("", async (
                 PaymentRequest request,
                 TimeProvider time,

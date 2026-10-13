@@ -3346,6 +3346,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/archive/{year}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ArchiveResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/fx": {
         parameters: {
             query?: never;
@@ -3495,6 +3548,59 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/register.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query: {
+                    year: number | string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/csv": string;
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5415,6 +5521,52 @@ export interface components {
             theme?: null | string;
             /** Format: date-time */
             chosenAt?: null | string;
+        };
+        ArchiveDeclarationFile: {
+            id: string;
+            type: components["schemas"]["DeclarationType"];
+            annex: boolean;
+            name: string;
+            url: string;
+            /** Format: date-time */
+            generatedAt: string;
+        };
+        ArchiveFiling: {
+            /** Format: date */
+            filedOn: string;
+            type: components["schemas"]["DeclarationType"];
+        };
+        ArchiveInvoice: {
+            id: string;
+            name: string;
+            url: string;
+            number: string;
+            status: components["schemas"]["InvoiceStatus"];
+            /** Format: date */
+            issueDate: string;
+            client: string;
+            currency: string;
+            /** Format: int64 */
+            totalMinor: number | string;
+        };
+        ArchiveItem: {
+            id: string;
+            name: string;
+            url: string;
+        };
+        ArchiveQuarter: {
+            /** Format: int32 */
+            quarter: number | string;
+            filed: null | components["schemas"]["ArchiveFiling"];
+            files: components["schemas"]["ArchiveDeclarationFile"][];
+        };
+        ArchiveResponse: {
+            /** Format: int32 */
+            year: number | string;
+            invoices: components["schemas"]["ArchiveInvoice"][];
+            quarters: components["schemas"]["ArchiveQuarter"][];
+            statements: components["schemas"]["ArchiveItem"][];
+            payments: components["schemas"]["ArchiveItem"][];
         };
         /** @enum {string} */
         AuditAction: "Create" | "Update" | "Delete" | "Restore";
