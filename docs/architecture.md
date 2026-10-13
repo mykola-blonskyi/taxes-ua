@@ -58,8 +58,8 @@ Responsibilities:
 - Authentication and sessions. Every data request is filtered by `UserId`.
 - Boundary adapters: import parsing, Europe/Kyiv date conversion, NBU rate, conversion to
   kopecks, validation.
-- Background jobs as `IHostedService`: reminders every 5 minutes (ADR-019), bank-sync queue, Telegram
-  polling (Stage 2).
+- Background jobs as `IHostedService`: reminders every 5 minutes (ADR-019), with the incident alerts of
+  Rule 18 and the archive reminder of Rule 17 in the same pass, bank-sync queue, Telegram polling (Stage 2).
 - Change log.
 
 Dependencies: `TaxesUa.Engine`, PostgreSQL, the NBU API, the Telegram Bot API, SMTP and the

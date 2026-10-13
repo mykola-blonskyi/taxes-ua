@@ -29,9 +29,11 @@ public static class KeepUntilEndpoints
                     return Results.Unauthorized();
                 }
 
-                var response = await LoadAsync(database, user.Id, year, cancellationToken);
+                var retention = await LoadAsync(database, user.Id, year, cancellationToken);
 
-                return response is null ? Problems.TaxYearNotFound(year) : Results.Ok(response);
+                return retention is null
+                    ? Problems.TaxYearNotFound(year)
+                    : Results.Ok(new YearKeepUntilResponse(year, KeepUntilResponse.Of(retention.KeepUntil)));
             })
             .WithTags("Declarations")
             .RequireAuthorization()
@@ -43,10 +45,11 @@ public static class KeepUntilEndpoints
     }
 
     /// <summary>
-    /// The year's keep-until date as the periods screen shows it, or null when the owner has no tax year
-    /// configured for <paramref name="year"/>. Shared with the ZIP's table of contents so both state one date.
+    /// The year's keep-until date and whether its declarations are all marked filed, or null when the owner
+    /// has no tax year configured for <paramref name="year"/>. The periods screen, the ZIP's table of contents
+    /// and the archive reminder all read it, so they state one date and one idea of a finished year.
     /// </summary>
-    internal static async Task<YearKeepUntilResponse?> LoadAsync(
+    internal static async Task<YearRetention?> LoadAsync(
         AppDbContext database, string userId, int year, CancellationToken cancellationToken)
     {
         var loaded = await YearAccruals.LoadAsync(database, userId, year, cancellationToken);
@@ -55,30 +58,42 @@ public static class KeepUntilEndpoints
             return null;
         }
 
-        var filedOn = await database.DeclarationFilings.AsNoTracking()
+        var marks = await database.DeclarationFilings.AsNoTracking()
             .Where(filing => filing.UserId == userId && filing.Year == year)
-            .ToDictionaryAsync(filing => filing.Quarter, filing => filing.FiledOn, cancellationToken);
+            .ToDictionaryAsync(filing => filing.Quarter, filing => new { filing.FiledOn, filing.CreatedAt }, cancellationToken);
         var suspension = await LimitationSuspensionEndpoints.LoadAsync(database, cancellationToken);
 
         var viewed = loaded.Viewed;
         var registered = viewed.Settings.FopRegistrationDate;
-        var declarations = Enumerable.Range(1, 4)
-            .Where(quarter => viewed.Accrual.InGroup3(quarter)
-                && (registered is not { } date || DeclarationsEndpoints.QuarterEnd(year, quarter) >= date))
+        int[] quarters =
+        [
+            .. Enumerable.Range(1, 4).Where(quarter => viewed.Accrual.InGroup3(quarter)
+                && (registered is not { } date || DeclarationsEndpoints.QuarterEnd(year, quarter) >= date)),
+        ];
+        var declarations = quarters
             .Select(quarter => new RetainedDeclaration(
-                quarter, filedOn.TryGetValue(quarter, out var filed) ? filed : null))
+                quarter, marks.TryGetValue(quarter, out var mark) ? mark.FiledOn : null))
             .ToArray();
+        var finishedAt = quarters.Length > 0 && quarters.All(marks.ContainsKey)
+            ? quarters.Max(quarter => marks[quarter].CreatedAt)
+            : (DateTimeOffset?)null;
 
-        return new YearKeepUntilResponse(
-            year,
-            KeepUntilResponse.Of(DocumentRetention.ForYear(
+        return new YearRetention(
+            DocumentRetention.ForYear(
                 year,
                 declarations,
                 viewed.Config.ToEngineInput(),
                 viewed.Settings.ToEngineInput(),
-                suspension.ToEngineInput())));
+                suspension.ToEngineInput()),
+            finishedAt);
     }
 }
+
+/// <summary>
+/// <c>KeepUntil</c> is null for a year with no group 3 declaration. <c>FinishedAt</c> is set once every
+/// declaration the year should have is marked filed: the moment the last of those marks was first recorded.
+/// </summary>
+internal sealed record YearRetention(KeepUntil? KeepUntil, DateTimeOffset? FinishedAt);
 
 /// <summary><c>KeepUntil</c> is null for a year with no group 3 declaration.</summary>
 internal sealed record YearKeepUntilResponse(int Year, KeepUntilResponse? KeepUntil);

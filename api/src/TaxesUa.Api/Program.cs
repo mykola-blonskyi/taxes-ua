@@ -201,6 +201,7 @@ builder.Services.AddScoped<IIncidentSource, SyncIncidentSource>();
 builder.Services.AddScoped<IIncidentSource, NewTaxYearIncidentSource>();
 builder.Services.AddScoped<IIncidentSource, RestoreCheckIncidentSource>();
 builder.Services.AddScoped<IIncidentSource, ExpiredTreasuryAccountIncidentSource>();
+builder.Services.AddScoped<IIncidentSource, ArchiveIncidentSource>();
 builder.Services.AddSingleton<ReminderSender>();
 builder.Services.AddHostedService<ReminderWorker>();
 

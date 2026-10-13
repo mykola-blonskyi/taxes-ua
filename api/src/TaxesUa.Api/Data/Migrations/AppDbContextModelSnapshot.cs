@@ -175,6 +175,27 @@ namespace TaxesUa.Api.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("TaxesUa.Api.Features.Archive.ArchiveNotice", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("UserId", "Year");
+
+                    b.ToTable("ArchiveNotices");
+                });
+
             modelBuilder.Entity("TaxesUa.Api.Features.Audit.AuditEntry", b =>
                 {
                     b.Property<long>("Id")
@@ -1682,6 +1703,15 @@ namespace TaxesUa.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<string>", b =>
+                {
+                    b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TaxesUa.Api.Features.Archive.ArchiveNotice", b =>
                 {
                     b.HasOne("TaxesUa.Api.Features.Auth.ApplicationUser", null)
                         .WithMany()

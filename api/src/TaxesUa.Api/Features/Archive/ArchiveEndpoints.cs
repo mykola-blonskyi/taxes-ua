@@ -69,17 +69,53 @@ public static class ArchiveEndpoints
                     var contents = await ArchiveContents.LoadAsync(database, user.Id, year, time, cancellationToken);
                     var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
                     var today = time.TodayInKyiv();
-                    var keepUntil = (await KeepUntilEndpoints.LoadAsync(database, user.Id, year, cancellationToken))?.KeepUntil;
+                    var keepUntil = KeepUntilResponse.Of(
+                        (await KeepUntilEndpoints.LoadAsync(database, user.Id, year, cancellationToken))?.KeepUntil);
                     var toc = YearZip.TableOfContents(year, contents, settings.Locale, today, keepUntil);
                     http.Response.Headers.CacheControl = "private, no-store";
 
                     return Results.Stream(
-                        stream => YearZip.WriteAsync(
-                            stream, database, user.Id, year, contents, toc, time, cancellationToken),
+                        async stream =>
+                        {
+                            await YearZip.WriteAsync(stream, database, user.Id, year, contents, toc, time, cancellationToken);
+                            await ArchiveNotice.RecordAsync(
+                                database, user.Id, year, ArchiveNoticeOutcome.Downloaded, time.GetUtcNow(), cancellationToken);
+                        },
                         "application/zip",
                         YearZip.FileName(year, today));
                 })
             .Produces<byte[]>(StatusCodes.Status200OK, "application/zip")
+            .ProducesFieldProblem()
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        archive.MapPost("/{year:int}/notice/dismiss", async (
+                    int year,
+                    UserManager<ApplicationUser> users,
+                    AppDbContext database,
+                    TimeProvider time,
+                    HttpContext http,
+                    CancellationToken cancellationToken) =>
+                {
+                    if (year < Limits.MinYear || year > Limits.MaxYear)
+                    {
+                        return Problems.Validation(
+                            "year",
+                            ProblemCodes.YearOutOfRange,
+                            $"year must be between {Limits.MinYear} and {Limits.MaxYear}.");
+                    }
+
+                    var user = await users.GetUserAsync(http.User);
+                    if (user is null)
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    await ArchiveNotice.RecordAsync(
+                        database, user.Id, year, ArchiveNoticeOutcome.Dismissed, time.GetUtcNow(), cancellationToken);
+
+                    return Results.NoContent();
+                })
+            .Produces(StatusCodes.Status204NoContent)
             .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
