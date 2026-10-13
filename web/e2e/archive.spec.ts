@@ -21,3 +21,39 @@ test("the year's archive is reached from the periods and downloads an issued inv
   expect(file.suggestedFilename()).toBe(invoice.pdfFileName);
   expect((await readFile(await file.path())).toString("latin1").startsWith("%PDF-")).toBe(true);
 });
+
+// Entry names from the ZIP's central directory (end-of-central-directory record, then each file header).
+function zipEntryNames(zip: Buffer): string[] {
+  const end = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  expect(end).toBeGreaterThanOrEqual(0);
+  const count = zip.readUInt16LE(end + 10);
+  let offset = zip.readUInt32LE(end + 16);
+  const names: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    expect(zip.readUInt32LE(offset)).toBe(0x02014b50);
+    const nameLength = zip.readUInt16LE(offset + 28);
+    const extraLength = zip.readUInt16LE(offset + 30);
+    const commentLength = zip.readUInt16LE(offset + 32);
+    names.push(zip.subarray(offset + 46, offset + 46 + nameLength).toString("utf8"));
+    offset += 46 + nameLength + extraLength + commentLength;
+  }
+  return names;
+}
+
+test("the archive downloads the whole year as one ZIP with its contents file", async ({ page, request }) => {
+  const { today } = await dashboard(request);
+  const { year } = await seedRegisteredOwner(request);
+  const { invoice } = await seedIssuedInvoice(request, today);
+
+  await page.goto(`/archive?year=${year}`);
+  const download = page.waitForEvent("download");
+  await page.getByRole("link", { name: uk.archive.zip.download }).click();
+  const file = await download;
+
+  expect(file.suggestedFilename()).toMatch(new RegExp(`^archive-${year}-\\d{4}-\\d{2}-\\d{2}\\.zip$`));
+  const bytes = await readFile(await file.path());
+  expect(bytes.subarray(0, 2).toString("latin1")).toBe("PK");
+  const names = zipEntryNames(bytes);
+  expect(names).toContain("contents.txt");
+  expect(names).toContain(`invoices/${invoice.pdfFileName}`);
+});
