@@ -355,7 +355,7 @@ public static partial class InvoicesEndpoints
         $"Invoice {invoice.Number} is {invoice.Status.ToString().ToLowerInvariant()} and cannot be {verb}."
             + (invoice.Status == InvoiceStatus.Issued ? " Cancel it with a reason, or duplicate it as a new draft." : string.Empty));
 
-    private static string ClientName(Invoice invoice) => invoice.Snapshot?.Buyer.Name ?? invoice.Client?.Name ?? string.Empty;
+    internal static string ClientName(Invoice invoice) => invoice.Snapshot?.Buyer.Name ?? invoice.Client?.Name ?? string.Empty;
 
     private static async Task<InvoiceResponse> ResponseAsync(
         AppDbContext database, Invoice invoice, TimeProvider time, CancellationToken cancellationToken)
