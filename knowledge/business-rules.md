@@ -1225,3 +1225,12 @@ Worked example, 2026 with the seed: Q4 is due 2027-02-09, inside the open suspen
 wait for its end and the year shows "not before 2030-02-08". Had the suspension's last day been 2027-06-30,
 the date would be 2030-06-29. A 2015 Q4 declaration filed on 2016-02-01 ends on 2019-01-31, before the
 suspension began.
+
+The archive ZIP. `GET /api/archive/{year}/zip` streams the year as `archive-{year}-{yyyy-MM-dd}.zip` (the
+download date in Kyiv), never stored and never cached. It holds exactly what the archive screen lists, by
+the same read (`ArchiveContents`), in `invoices/`, `declarations/Q{n}/`, `statement/` and `payments/`, plus
+`contents.txt`: plain UTF-8 text with a byte order mark, in the owner's language, giving the title, the
+creation date, the keep-until line worded as the periods screen words it (including the open-suspension
+wording; a year with no group 3 declaration says the period is not determined), then each section with
+its files, or "none" for a section with nothing. Each document is rendered when its turn comes, so memory
+holds one at a time.

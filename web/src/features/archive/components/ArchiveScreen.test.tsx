@@ -104,6 +104,37 @@ describe("ArchiveScreen", () => {
     expect(screen.getByRole("link", { name: "Завантажити payments-2025.csv" })).toHaveAttribute("download", "payments-2025.csv");
   });
 
+  it("offers the whole year as one ZIP that the server names", async () => {
+    stub(full);
+    renderApp(<ArchiveScreen year="2025" />);
+
+    const zip = await screen.findByRole("link", { name: "Завантажити весь рік (ZIP)" });
+
+    expect(zip).toHaveAttribute("href", "/api/archive/2025/zip");
+    expect(zip).toHaveAttribute("download", "");
+  });
+
+  it("points the ZIP at the year the owner picked", async () => {
+    stub(full);
+    const { user } = renderApp(<ArchiveScreen year="2025" />);
+    await screen.findByRole("link", { name: "Завантажити весь рік (ZIP)" });
+
+    await user.selectOptions(screen.getByLabelText("Рік"), "2024");
+
+    expect(await screen.findByRole("link", { name: "Завантажити весь рік (ZIP)" })).toHaveAttribute(
+      "href",
+      "/api/archive/2024/zip",
+    );
+  });
+
+  it("offers no ZIP for a year with nothing in it", async () => {
+    stub(empty);
+    renderApp(<ArchiveScreen year="2025" />);
+    await screen.findByText("За цей рік немає надходжень.");
+
+    expect(screen.queryByRole("link", { name: /ZIP/ })).toBeNull();
+  });
+
   it("shows the filing mark of a quarter, or says it has none", async () => {
     stub(full);
     renderApp(<ArchiveScreen year="2025" />);
@@ -147,6 +178,7 @@ describe("ArchiveScreen", () => {
     expect(await screen.findByRole("region", { name: "Декларации" })).toBeVisible();
     expect(screen.getByRole("region", { name: "Реестр платежей в бюджет" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Скачать payments-2025.csv" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Скачать весь год (ZIP)" })).toBeVisible();
     expect(screen.getByText("Отменён", { exact: false })).toBeVisible();
   });
 });

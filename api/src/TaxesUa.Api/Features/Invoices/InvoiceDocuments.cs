@@ -49,4 +49,13 @@ internal static class InvoiceDocuments
                 InvoicesEndpoints.FileName(invoice))),
         ];
     }
+
+    /// <summary>The owner's invoice as the PDF route serves it, or null when it is not theirs.</summary>
+    public static async Task<byte[]?> PdfAsync(
+        AppDbContext database, string userId, Guid id, CancellationToken cancellationToken)
+    {
+        var invoice = await InvoicesEndpoints.FindAsync(database, userId, id, cancellationToken, tracked: false);
+
+        return invoice is null ? null : await InvoicesEndpoints.PdfAsync(database, userId, invoice, cancellationToken);
+    }
 }

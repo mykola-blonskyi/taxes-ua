@@ -29,34 +29,9 @@ public static class KeepUntilEndpoints
                     return Results.Unauthorized();
                 }
 
-                var loaded = await YearAccruals.LoadAsync(database, user.Id, year, cancellationToken);
-                if (loaded is null)
-                {
-                    return Problems.TaxYearNotFound(year);
-                }
+                var response = await LoadAsync(database, user.Id, year, cancellationToken);
 
-                var filedOn = await database.DeclarationFilings.AsNoTracking()
-                    .Where(filing => filing.UserId == user.Id && filing.Year == year)
-                    .ToDictionaryAsync(filing => filing.Quarter, filing => filing.FiledOn, cancellationToken);
-                var suspension = await LimitationSuspensionEndpoints.LoadAsync(database, cancellationToken);
-
-                var viewed = loaded.Viewed;
-                var registered = viewed.Settings.FopRegistrationDate;
-                var declarations = Enumerable.Range(1, 4)
-                    .Where(quarter => viewed.Accrual.InGroup3(quarter)
-                        && (registered is not { } date || DeclarationsEndpoints.QuarterEnd(year, quarter) >= date))
-                    .Select(quarter => new RetainedDeclaration(
-                        quarter, filedOn.TryGetValue(quarter, out var filed) ? filed : null))
-                    .ToArray();
-
-                return Results.Ok(new YearKeepUntilResponse(
-                    year,
-                    KeepUntilResponse.Of(DocumentRetention.ForYear(
-                        year,
-                        declarations,
-                        viewed.Config.ToEngineInput(),
-                        viewed.Settings.ToEngineInput(),
-                        suspension.ToEngineInput()))));
+                return response is null ? Problems.TaxYearNotFound(year) : Results.Ok(response);
             })
             .WithTags("Declarations")
             .RequireAuthorization()
@@ -65,6 +40,43 @@ public static class KeepUntilEndpoints
             .ProducesCodedProblem(StatusCodes.Status404NotFound);
 
         return routes;
+    }
+
+    /// <summary>
+    /// The year's keep-until date as the periods screen shows it, or null when the owner has no tax year
+    /// configured for <paramref name="year"/>. Shared with the ZIP's table of contents so both state one date.
+    /// </summary>
+    internal static async Task<YearKeepUntilResponse?> LoadAsync(
+        AppDbContext database, string userId, int year, CancellationToken cancellationToken)
+    {
+        var loaded = await YearAccruals.LoadAsync(database, userId, year, cancellationToken);
+        if (loaded is null)
+        {
+            return null;
+        }
+
+        var filedOn = await database.DeclarationFilings.AsNoTracking()
+            .Where(filing => filing.UserId == userId && filing.Year == year)
+            .ToDictionaryAsync(filing => filing.Quarter, filing => filing.FiledOn, cancellationToken);
+        var suspension = await LimitationSuspensionEndpoints.LoadAsync(database, cancellationToken);
+
+        var viewed = loaded.Viewed;
+        var registered = viewed.Settings.FopRegistrationDate;
+        var declarations = Enumerable.Range(1, 4)
+            .Where(quarter => viewed.Accrual.InGroup3(quarter)
+                && (registered is not { } date || DeclarationsEndpoints.QuarterEnd(year, quarter) >= date))
+            .Select(quarter => new RetainedDeclaration(
+                quarter, filedOn.TryGetValue(quarter, out var filed) ? filed : null))
+            .ToArray();
+
+        return new YearKeepUntilResponse(
+            year,
+            KeepUntilResponse.Of(DocumentRetention.ForYear(
+                year,
+                declarations,
+                viewed.Config.ToEngineInput(),
+                viewed.Settings.ToEngineInput(),
+                suspension.ToEngineInput())));
     }
 }
 

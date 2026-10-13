@@ -5,6 +5,7 @@ using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Export;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Payments;
+using TaxesUa.Api.Features.Settings;
 
 namespace TaxesUa.Api.Features.Archive;
 
@@ -12,8 +13,8 @@ public static class ArchiveEndpoints
 {
     public static IEndpointRouteBuilder MapArchiveApi(this IEndpointRouteBuilder routes)
     {
-        routes.MapGroup("/archive").WithTags("Archive").RequireAuthorization()
-            .MapGet("/{year:int}", async (
+        var archive = routes.MapGroup("/archive").WithTags("Archive").RequireAuthorization();
+        archive.MapGet("/{year:int}", async (
                     int year,
                     UserManager<ApplicationUser> users,
                     AppDbContext database,
@@ -35,30 +36,60 @@ public static class ArchiveEndpoints
                         return Results.Unauthorized();
                     }
 
-                    var invoices = await InvoiceDocuments.ListAsync(database, user.Id, year, cancellationToken);
-                    var quarters = await DeclarationDocuments.ListAsync(
-                        database, user.Id, year, time.TodayInKyiv(), cancellationToken);
-                    var hasReceipts = await ExportEndpoints.AnyAsync(database, user.Id, year, cancellationToken);
-                    var hasPayments = await PaymentRegister.AnyAsync(database, user.Id, year, cancellationToken);
+                    var contents = await ArchiveContents.LoadAsync(database, user.Id, year, time, cancellationToken);
 
-                    return Results.Ok(Build(year, invoices, quarters, hasReceipts, hasPayments));
+                    return Results.Ok(Build(year, contents));
                 })
             .Produces<ArchiveResponse>()
+            .ProducesFieldProblem()
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        archive.MapGet("/{year:int}/zip", async (
+                    int year,
+                    UserManager<ApplicationUser> users,
+                    AppDbContext database,
+                    TimeProvider time,
+                    HttpContext http,
+                    CancellationToken cancellationToken) =>
+                {
+                    if (year < Limits.MinYear || year > Limits.MaxYear)
+                    {
+                        return Problems.Validation(
+                            "year",
+                            ProblemCodes.YearOutOfRange,
+                            $"year must be between {Limits.MinYear} and {Limits.MaxYear}.");
+                    }
+
+                    var user = await users.GetUserAsync(http.User);
+                    if (user is null)
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    var contents = await ArchiveContents.LoadAsync(database, user.Id, year, time, cancellationToken);
+                    var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
+                    var today = time.TodayInKyiv();
+                    var keepUntil = (await KeepUntilEndpoints.LoadAsync(database, user.Id, year, cancellationToken))?.KeepUntil;
+                    var toc = YearZip.TableOfContents(year, contents, settings.Locale, today, keepUntil);
+                    http.Response.Headers.CacheControl = "private, no-store";
+
+                    return Results.Stream(
+                        stream => YearZip.WriteAsync(
+                            stream, database, user.Id, year, contents, toc, time, cancellationToken),
+                        "application/zip",
+                        YearZip.FileName(year, today));
+                })
+            .Produces<byte[]>(StatusCodes.Status200OK, "application/zip")
             .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 
         return routes;
     }
 
-    private static ArchiveResponse Build(
-        int year,
-        InvoiceDocument[] invoices,
-        QuarterDocuments[] quarters,
-        bool hasReceipts,
-        bool hasPayments) => new(
+    private static ArchiveResponse Build(int year, ArchiveContents contents) => new(
         year,
         [
-            .. invoices.Select(invoice => new ArchiveInvoice(
+            .. contents.Invoices.Select(invoice => new ArchiveInvoice(
                 $"invoice:{invoice.Id}",
                 invoice.FileName,
                 $"/api/invoices/{invoice.Id}/pdf",
@@ -70,18 +101,18 @@ public static class ArchiveEndpoints
                 invoice.TotalMinor)),
         ],
         [
-            .. quarters.Select(quarter => new ArchiveQuarter(
+            .. contents.Quarters.Select(quarter => new ArchiveQuarter(
                 quarter.Quarter,
                 quarter.Filing is { } filing ? new ArchiveFiling(filing.FiledOn, filing.Type) : null,
                 [.. quarter.Files.SelectMany(file => DeclarationFiles(year, quarter.Quarter, file))])),
         ],
-        hasReceipts
+        contents.HasReceipts
             ? [.. ExportEndpoints.Extensions.Select(extension => new ArchiveItem(
                 $"statement:{year}:{extension}",
                 ExportEndpoints.FileName(year, extension),
                 $"/api/export/transactions.{extension}?year={year}"))]
             : [],
-        hasPayments
+        contents.HasPayments
             ? [new ArchiveItem(
                 $"payments:{year}:csv",
                 PaymentRegister.FileName(year),

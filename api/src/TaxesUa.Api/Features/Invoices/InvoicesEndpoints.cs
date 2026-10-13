@@ -329,7 +329,7 @@ public static partial class InvoicesEndpoints
         invoice.UpdatedAt = now;
     }
 
-    private static async Task<Invoice?> FindAsync(
+    internal static async Task<Invoice?> FindAsync(
         AppDbContext database, string userId, Guid id, CancellationToken cancellationToken, bool tracked = true)
     {
         var query = database.Invoices.Include(invoice => invoice.Client).AsQueryable();
