@@ -10,8 +10,8 @@ using TaxesUa.Api.Features.Payments;
 namespace TaxesUa.Api.Features.Archive;
 
 /// <summary>
-/// A year's archive as one ZIP. Each file is read when its turn comes and written straight to the
-/// response, so memory holds one document at a time, never the year.
+/// A year's archive as one ZIP. Each file is read when its turn comes and passed to the
+/// response through a one-document buffer, so memory holds one document at a time, never the year.
 /// </summary>
 internal static class YearZip
 {
@@ -332,7 +332,7 @@ internal static class YearZip
             ("день", "дні", "днів"),
             "Зміст",
             "цей зміст",
-            "Рахунки",
+            "Інвойси",
             "скасований",
             "Декларації",
             "{0} квартал",
@@ -355,7 +355,7 @@ internal static class YearZip
             ("день", "дня", "дней"),
             "Оглавление",
             "это оглавление",
-            "Счета",
+            "Инвойсы",
             "отменён",
             "Декларации",
             "{0} квартал",
