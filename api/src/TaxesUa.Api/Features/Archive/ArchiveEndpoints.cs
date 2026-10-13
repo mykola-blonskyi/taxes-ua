@@ -50,6 +50,7 @@ public static class ArchiveEndpoints
                     AppDbContext database,
                     TimeProvider time,
                     HttpContext http,
+                    ILogger<ArchiveNotice> logger,
                     CancellationToken cancellationToken) =>
                 {
                     if (year < Limits.MinYear || year > Limits.MaxYear)
@@ -66,20 +67,67 @@ public static class ArchiveEndpoints
                         return Results.Unauthorized();
                     }
 
+                    // The moment the contents are read: a mark made while the ZIP streams is newer than this, so
+                    // the download does not answer it.
+                    var readAt = time.GetUtcNow();
                     var contents = await ArchiveContents.LoadAsync(database, user.Id, year, time, cancellationToken);
                     var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
                     var today = time.TodayInKyiv();
-                    var keepUntil = (await KeepUntilEndpoints.LoadAsync(database, user.Id, year, cancellationToken))?.KeepUntil;
+                    var keepUntil = KeepUntilResponse.Of(
+                        (await KeepUntilEndpoints.LoadAsync(database, user.Id, year, cancellationToken))?.KeepUntil);
                     var toc = YearZip.TableOfContents(year, contents, settings.Locale, today, keepUntil);
                     http.Response.Headers.CacheControl = "private, no-store";
 
                     return Results.Stream(
-                        stream => YearZip.WriteAsync(
-                            stream, database, user.Id, year, contents, toc, time, cancellationToken),
+                        async stream =>
+                        {
+                            await YearZip.WriteAsync(stream, database, user.Id, year, contents, toc, time, cancellationToken);
+                            try
+                            {
+                                await ArchiveNotice.RecordAsync(
+                                    database, user.Id, year, ArchiveNoticeOutcome.Downloaded, readAt, cancellationToken);
+                            }
+                            catch (Exception exception)
+                            {
+                                // The ZIP is already delivered; a missed record only leaves the notice up.
+                                logger.LogWarning(exception, "The download of the {Year} archive was not recorded.", year);
+                            }
+                        },
                         "application/zip",
                         YearZip.FileName(year, today));
                 })
             .Produces<byte[]>(StatusCodes.Status200OK, "application/zip")
+            .ProducesFieldProblem()
+            .Produces(StatusCodes.Status401Unauthorized);
+
+        archive.MapPost("/{year:int}/notice/dismiss", async (
+                    int year,
+                    UserManager<ApplicationUser> users,
+                    AppDbContext database,
+                    TimeProvider time,
+                    HttpContext http,
+                    CancellationToken cancellationToken) =>
+                {
+                    if (year < Limits.MinYear || year > Limits.MaxYear)
+                    {
+                        return Problems.Validation(
+                            "year",
+                            ProblemCodes.YearOutOfRange,
+                            $"year must be between {Limits.MinYear} and {Limits.MaxYear}.");
+                    }
+
+                    var user = await users.GetUserAsync(http.User);
+                    if (user is null)
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    await ArchiveNotice.RecordAsync(
+                        database, user.Id, year, ArchiveNoticeOutcome.Dismissed, time.GetUtcNow(), cancellationToken);
+
+                    return Results.NoContent();
+                })
+            .Produces(StatusCodes.Status204NoContent)
             .ProducesFieldProblem()
             .Produces(StatusCodes.Status401Unauthorized);
 

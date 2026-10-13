@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
 import ru from "../messages/ru.json";
 import uk from "../messages/uk.json";
 import { chooseLanguage, resetAppearance } from "./support/appearance";
-import { seedTreasuryAccounts } from "./support/seed";
+import { seedFinishedYear, seedTreasuryAccounts } from "./support/seed";
 import { removeMonobankToken, seedRejectedMonobankToken, seedScreensWithContent } from "./support/layout-seed";
 
 // Every screen at phone width, in both languages. A page that scrolls sideways, loses its disclaimer or
@@ -25,6 +25,9 @@ const scrollingStrips: readonly { route: string; tab?: string; strip: string; re
 // Text that proves a screen painted its seeded rows and not an empty state or a loading line. It is filled
 // once the seed has run, because the seed picks names that are new on every run.
 const seededText: Record<string, string[]> = {};
+
+// The finished year whose archive notice the dashboard shows, and how to put the owner back afterwards.
+let finishedYear: Awaited<ReturnType<typeof seedFinishedYear>> | undefined;
 
 // A route with a dynamic segment needs a concrete address before it can be opened.
 const dynamicRouteAddresses: Record<string, string> = {};
@@ -346,6 +349,8 @@ test.beforeAll(async ({ playwright }, testInfo) => {
     seededText["/archive"] = [`transactions-${year}.csv`, `payments-${year}.csv`];
     // The dashboard sync card is measured in a problem state, not only as the quiet line.
     await seedRejectedMonobankToken(owner);
+    // And the archive notice with its dismiss button, which lives in the folded list under the rejected token.
+    finishedYear = await seedFinishedYear(owner);
   } finally {
     await owner.dispose();
   }
@@ -356,6 +361,7 @@ test.afterAll(async ({ playwright }, testInfo) => {
   const owner = await playwright.request.newContext({ baseURL, storageState });
   try {
     await removeMonobankToken(owner);
+    await finishedYear?.undo(owner);
     await resetAppearance(owner);
   } finally {
     await owner.dispose();
@@ -460,6 +466,12 @@ for (const { locale, scheme } of runs) {
           await expect(
             rejected,
             "the dashboard should show the rejected-token card",
+          ).toBeVisible();
+          await expect(
+            page.getByRole("heading", {
+              name: catalogs[locale].dashboard.archive.title.replace("{year}", String(finishedYear!.year)),
+            }),
+            "the dashboard should show the archive notice",
           ).toBeVisible();
         }
         const problems = await inspect(page, route, locale, "");

@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Archive;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Backup;
 using TaxesUa.Api.Features.Banking;
@@ -775,6 +776,10 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
         Type[] calendarSecretNotBackedUp = [typeof(CalendarFeed)];
         // The backup sidecar's log of its own runs is the whole database's, with no owner in it.
         Type[] databaseOperationsNotBackedUp = [typeof(DatabaseBackupRun)];
+        // The answer to an archive notice says what the owner did with a ZIP, like the sent log says what
+        // reached the chat. A restore leaves it in place; restored into an empty database, a finished year
+        // shows its notice again, which a download or a dismissal answers.
+        Type[] archiveAnswerNotBackedUp = [typeof(ArchiveNotice)];
 
         var featureTables = model.GetEntityTypes()
             .Select(type => type.ClrType)
@@ -790,6 +795,7 @@ public sealed class BackupEndpointsTests(ApiFixture fixture) : IClassFixture<Api
                 .Concat(telegramRuntimeNotBackedUp)
                 .Concat(calendarSecretNotBackedUp)
                 .Concat(databaseOperationsNotBackedUp)
+                .Concat(archiveAnswerNotBackedUp)
                 .ToHashSet(),
             featureTables);
 

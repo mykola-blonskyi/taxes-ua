@@ -1831,7 +1831,12 @@ to try again except in `AuthGate`.
       never promoted: its only deadline is the new year, and a month is time enough to act.
    7. Sync stale. Figures may be incomplete, but the feed still works.
    8. Transactions waiting for review.
-   9. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
+   9. Year archive ready (#287): every declaration of a year is marked filed, so its ZIP is ready to download
+      and keep until the keep-until date (Rule 19). Nothing in the app changes if it waits and the date is
+      years away, so it ranks under every notice about the figures; the law does require keeping the
+      documents, which puts it above a client's late payment. It is never promoted, and the owner can
+      dismiss it.
+   10. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
 
    A debt is the hero itself (red when overdue), so it takes no banner. An account that ends before a due date
    is still only a note inside the hero's pay panel; only a closed one takes a notice (5). The quiet "last exchange"

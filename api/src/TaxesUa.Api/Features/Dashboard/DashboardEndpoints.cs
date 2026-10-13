@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Archive;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Declarations;
 using TaxesUa.Api.Features.Invoices;
@@ -42,6 +43,9 @@ public static class DashboardEndpoints
                 var newTaxYear = await NewTaxYearCheck.LoadAsync(database, today, cancellationToken);
                 ExpiredTreasuryAccount[] expiredAccounts =
                     [.. await ExpiredTreasuryAccounts.LoadAsync(database, user.Id, today, cancellationToken)];
+                var archive = (await ArchiveReminder.NewestPendingAsync(database, user.Id, cancellationToken)) is { } newest
+                    ? new ArchiveNoticeResponse(newest.Year, KeepUntilResponse.Of(newest.KeepUntil)!)
+                    : null;
 
                 var sync = await SyncHealthCheck.LoadAsync(database, user.Id, time.GetUtcNow(), cancellationToken) is { } health
                     ? new SyncHealthResponse(health.State, health.LastSyncedAt)
@@ -75,7 +79,8 @@ public static class DashboardEndpoints
                         group3,
                         sync,
                         newTaxYear,
-                        expiredAccounts));
+                        expiredAccounts,
+                        archive));
                 }
 
                 var settings = loaded.Viewed.Settings.ToEngineInput();
@@ -115,7 +120,8 @@ public static class DashboardEndpoints
                     group3,
                     sync,
                     newTaxYear,
-                    expiredAccounts));
+                    expiredAccounts,
+                    archive));
             })
             .WithTags("Dashboard")
             .RequireAuthorization()
@@ -292,7 +298,14 @@ internal sealed record DashboardResponse(
     Group3StatusResponse Group3,
     SyncHealthResponse? Sync,
     NewTaxYearStatus? NewTaxYear,
-    ExpiredTreasuryAccount[] ExpiredTreasuryAccounts);
+    ExpiredTreasuryAccount[] ExpiredTreasuryAccounts,
+    ArchiveNoticeResponse? Archive);
+
+/// <summary>
+/// The newest year whose declarations are all marked filed and whose archive the owner has neither
+/// downloaded nor dismissed since (Rule 19). An older pending year takes its place once it is answered.
+/// </summary>
+internal sealed record ArchiveNoticeResponse(int Year, KeepUntilResponse KeepUntil);
 
 /// <summary>
 /// <c>LastSyncedAt</c> is the end of the oldest statement window a followed account has caught up to, null

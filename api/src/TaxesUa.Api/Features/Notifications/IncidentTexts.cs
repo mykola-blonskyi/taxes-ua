@@ -1,10 +1,12 @@
 using System.Globalization;
+using TaxesUa.Api.Features.Declarations;
 
 namespace TaxesUa.Api.Features.Notifications;
 
 /// <summary>
 /// An incident as plain text in the owner's language: a first line that says it, a line of what to do,
-/// and a link to the settings tab that fixes it when the kind has one and the app's address is known.
+/// and a link to the screen that fixes it (a settings tab, or the year's archive) when the kind has one and
+/// the app's address is known.
 /// Anything but "ru" is Ukrainian, like <see cref="ReminderTexts"/>.
 /// </summary>
 internal static class IncidentTexts
@@ -17,6 +19,11 @@ internal static class IncidentTexts
 
     public static ReminderMessage Render(Incident incident, string locale, string? appUrl)
     {
+        if (incident.Kind == IncidentKind.Archive)
+        {
+            return Archive(incident, locale, appUrl);
+        }
+
         var russian = locale == "ru";
         var since = incident.Since is { } at ? at.KyivDate().ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) : "?";
 
@@ -72,6 +79,27 @@ internal static class IncidentTexts
         if (appUrl is not null && settingsTab is not null)
         {
             lines.Add($"{(russian ? "Открыть настройки" : "Відкрити налаштування")}: {appUrl}settings?tab={settingsTab}");
+        }
+
+        return new ReminderMessage(subject, string.Join('\n', lines));
+    }
+
+    // Not a fault but a task: the year is finished, so its archive is ready to download and keep.
+    private static ReminderMessage Archive(Incident incident, string locale, string? appUrl)
+    {
+        var russian = locale == "ru";
+        var year = incident.Year!.Value;
+        var subject = russian
+            ? $"Все декларации за {year} год поданы: скачайте архив года."
+            : $"Усі декларації за {year} рік подано: завантажте архів року.";
+        var lines = new List<string>
+        {
+            subject,
+            KeepUntilWording.Line(locale, year, KeepUntilResponse.Of(incident.KeepUntil)),
+        };
+        if (appUrl is not null)
+        {
+            lines.Add($"{(russian ? "Открыть архив" : "Відкрити архів")}: {appUrl}archive?year={year}");
         }
 
         return new ReminderMessage(subject, string.Join('\n', lines));

@@ -116,7 +116,7 @@ internal static class YearZip
 
         Line(Format(text.Title, year));
         Line($"{text.Created}: {Date(today)}");
-        Line(KeepUntilLine(text, year, keepUntil));
+        Line(KeepUntilWording.Line(locale, year, keepUntil));
         if (keepUntil is not null)
         {
             Line(text.Basis);
@@ -189,20 +189,6 @@ internal static class YearZip
 
         return builder.ToString();
     }
-
-    // The wording the periods screen uses (messages periods.keepUntil), so the file and the screen cannot
-    // tell the owner two things.
-    private static string KeepUntilLine(Texts text, int year, KeepUntilResponse? keepUntil) => keepUntil switch
-    {
-        null => Format(text.KeepUntilNone, year),
-        { State: KeepUntilState.ExtendedWhileSuspended } open => Format(
-            text.KeepUntilExtended,
-            year,
-            Date(open.Date),
-            open.DaysAfterSuspension ?? 0,
-            Plural(open.DaysAfterSuspension ?? 0, text.Days)),
-        _ => Format(text.KeepUntilFixed, year, Date(keepUntil.Date)),
-    };
 
     private static string InvoicePath(InvoiceDocument invoice) => $"invoices/{invoice.FileName}";
 
@@ -286,14 +272,6 @@ internal static class YearZip
     private static string Format(string template, params object[] arguments) =>
         string.Format(CultureInfo.InvariantCulture, template, arguments);
 
-    // One, few and many, which Ukrainian and Russian choose by the same rule.
-    private static string Plural(int count, (string One, string Few, string Many) forms) => (count % 10, count % 100) switch
-    {
-        (1, not 11) => forms.One,
-        ( >= 2 and <= 4, not (>= 12 and <= 14)) => forms.Few,
-        _ => forms.Many,
-    };
-
     private static string Date(DateOnly date) => date.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture);
 
     private static string Amount(long minor) =>
@@ -302,11 +280,7 @@ internal static class YearZip
     private sealed record Texts(
         string Title,
         string Created,
-        string KeepUntilFixed,
-        string KeepUntilExtended,
-        string KeepUntilNone,
         string Basis,
-        (string One, string Few, string Many) Days,
         string Contents,
         string ThisFile,
         string Invoices,
@@ -325,11 +299,7 @@ internal static class YearZip
         private static readonly Texts Uk = new(
             "Архів документів за {0} рік",
             "Сформовано",
-            "Документи за {0} рік зберігати до {1}",
-            "Документи за {0} рік зберігати не менше ніж до {1}. Строк продовжено на час воєнного стану: після його припинення або скасування ще {2} {3}.",
-            "Документи за {0} рік: строк зберігання не визначено, бо за цей рік немає декларації платника третьої групи.",
             "Підстава: п. 44.3 ст. 44 Податкового кодексу.",
-            ("день", "дні", "днів"),
             "Зміст",
             "цей зміст",
             "Інвойси",
@@ -348,11 +318,7 @@ internal static class YearZip
         private static readonly Texts Ru = new(
             "Архив документов за {0} год",
             "Сформировано",
-            "Документы за {0} год хранить до {1}",
-            "Документы за {0} год хранить не менее чем до {1}. Срок продлён на время военного положения: после его прекращения или отмены ещё {2} {3}.",
-            "Документы за {0} год: срок хранения не определён, потому что за этот год нет декларации плательщика третьей группы.",
             "Основание: п. 44.3 ст. 44 Налогового кодекса.",
-            ("день", "дня", "дней"),
             "Оглавление",
             "это оглавление",
             "Инвойсы",

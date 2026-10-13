@@ -658,7 +658,8 @@ An incident alert (Rule 18, ADR-026) is a row of the same log: `Incident` holds 
 Unix second the state began, such as `SyncStale:1790000000`), `Kinds` is none, `Offset` is `OnTheDay` and
 `Date` is the day it was claimed. The December prompt for a new tax year (Rule 9) is such a row, keyed
 `NewTaxYear:<year>`, and so is an expired Treasury account (Rule 16), keyed
-`TreasuryAccountExpired:<kind>:<end>`. It is unique on (`UserId`, `Incident`, `Channel`) among rows with an
+`TreasuryAccountExpired:<kind>:<end>`, and so is the archive reminder for a finished year (Rule 17), keyed
+`Archive:<year>`. It is unique on (`UserId`, `Incident`, `Channel`) among rows with an
 `Incident`, so an incident is claimed once per channel however many days it lasts, and the same delivery
 rules apply.
 
@@ -673,6 +674,23 @@ never touches it, so a restore never resends. Only restoring into a fresh databa
 of a reminder whose window is still open, since Rule 17 never replays a moment older than the latest one
 passed, and a day-after reminder only on its day. Rows are never pruned: about a hundred a year per
 channel.
+
+### ArchiveNotice (Stage 2)
+
+Responsibilities: the owner's last answer to a year's archive notice (#287, Rule 19): the year's ZIP
+downloaded, or the notice dismissed. The dashboard notice and the archive reminder both read it, so one
+answer clears both.
+
+Fields: `UserId`, `Year`, `Outcome: Downloaded | Dismissed`, `At`. Primary key (`UserId`, `Year`): one row
+per owner and year, overwritten in one statement (`INSERT ... ON CONFLICT DO UPDATE`) by the next answer, so a
+download and a dismissal at once leave one row whichever lands second. Deleted with the owner (cascade).
+`At` is the moment the ZIP's contents were read, not when its stream ended, so a mark made while the ZIP
+streams is newer than the answer and keeps the notice up. An answer counts only when `At` is no earlier than
+the moment the year was finished (the first recording of the last of its group 3 marks).
+
+Not audited: it records what the owner did with a file, and no figure or record of theirs changes. Not in the
+backup: a restore leaves the rows in place, and restored into an empty database a finished year shows its
+notice again, which one download or dismissal answers.
 
 ### NotificationLinkCode, TelegramPollState (Stage 2)
 

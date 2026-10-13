@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/data/api/client";
 import type { components } from "@/data/api/schema";
+import { dashboardQueryKey } from "@/data/dashboard/useDashboard";
 
 export type ArchiveResponse = components["schemas"]["ArchiveResponse"];
 
@@ -17,5 +18,16 @@ export function useArchive(year: number | undefined) {
     enabled: year !== undefined,
     // What the year holds changes whenever another screen saves, so a cached listing is never trusted on mount.
     refetchOnMount: "always",
+  });
+}
+
+export function useDismissArchiveNotice() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (year: number) => {
+      await api.POST("/api/archive/{year}/notice/dismiss", { params: { path: { year } } });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: dashboardQueryKey }),
   });
 }

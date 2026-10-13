@@ -39,6 +39,19 @@ function ClientRename() {
 }
 
 describe("what a mutation refreshes", () => {
+  it("reads the dashboard fresh when the owner returns to it, as after an archive download", async () => {
+    const api = stubFetch({ [dashboard]: {}, "GET /api/monobank/connection": { accounts: [] } });
+    const { queryClient, rerender } = renderApp(<DashboardProbe />);
+    // The app's staleTime: without refetchOnMount a cached dashboard is trusted on return.
+    queryClient.setDefaultOptions({ queries: { retry: false, staleTime: 60_000 } });
+    await waitFor(() => expect(api.requestsTo(dashboard)).toHaveLength(1));
+
+    rerender(<></>);
+    rerender(<DashboardProbe />);
+
+    await waitFor(() => expect(api.requestsTo(dashboard)).toHaveLength(2));
+  });
+
   it("refetches the dashboard when a monobank sync finishes", async () => {
     let pending = true;
     const api = stubFetch({

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using TaxesUa.Api.Data;
+using TaxesUa.Api.Features.Archive;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Banking;
@@ -263,6 +264,9 @@ public sealed class AuditLogTests(ApiFixture fixture) : IClassFixture<ApiFixture
             typeof(ReserveJar),
             // The backup sidecar's own log of its runs, written by psql outside the app; no owner is in it.
             typeof(DatabaseBackupRun),
+            // Whether a year's archive notice was answered: a download writes it on its own and a dismissal
+            // only hides a notice, so no figure or record of the owner changes.
+            typeof(ArchiveNotice),
         ];
 
         await using var scope = fixture.CreateScope();

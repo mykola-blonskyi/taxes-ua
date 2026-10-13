@@ -1081,6 +1081,29 @@ A message is plain text in the owner's interface language (uk or ru): the date a
 line per item (the kind and period with the amount owed now, the declaration to file, or the group 3 application to file), and a link to
 the app's home screen, where the pay panel is. The runs are 5 minutes apart.
 
+**The archive reminder.** When every group 3 declaration of a year (the quarters Rule 19 counts) is marked
+filed (Rule 15), the owner is told once to download the year's archive and keep it until its keep-until
+date. Like the reminders above it is computed on every run, not fired by the mark: a year is due while it is
+finished and its archive notice is unanswered (Rule 19). It is claimed once per channel under the key
+`Archive:{year}` in the same sent log, with the same retry rule, so a second mark, an unmark and a new mark,
+a restart or two runs at once send nothing more. It waits for no hour: the owner has just marked the
+declaration, so it goes out on the first run after the mark.
+
+A year is finished at the moment the last of its marks was first recorded (`DeclarationFiling.CreatedAt`,
+set by the server; editing a mark's date or type keeps it, and a restore carries it). The message goes out
+only within 14 days of that moment (`ArchiveReminder.MessageWindow`). Without the bound, the first run after
+this reminder was deployed, or after a restore into a database whose sent log is empty, would message every
+year finished long ago at once. 14 days outlast a Telegram or SMTP outage and a channel connected soon after
+the mark; a year past them still shows its dashboard notice. The filing date the owner enters (`FiledOn`)
+is not the bound: it is the day the declaration reached the DPS, which the owner may record weeks later, and
+a late mark would then never be told.
+
+The message is plain text in the owner's language: that the year's declarations are all filed and its
+archive should be downloaded, the keep-until line in the words of the periods screen and the ZIP's table of
+contents (Rule 19, with the extended wording while the suspension is open), and a link to the year's archive
+(`archive?year=`). A year whose ZIP was downloaded, or whose notice was dismissed, since it was finished is
+not sent.
+
 The same channels and sent log carry incident alerts (Rule 18).
 
 Email is a channel like Telegram, through the same sender, the same sent log (the channel is part of the
@@ -1154,7 +1177,7 @@ The same mechanism carries other incidents: a new kind of incident and a source 
 sender. An unproven backup is one (below), the December prompt to prepare the next tax year and the alert for
 a current year with no parameters (both Rule 9, keyed by the year and held until 09:00 Kyiv) are others, and
 so is an expired Treasury account (Rule 16, keyed by its kind and end, held until 09:00 Kyiv on the first
-working day after the end).
+working day after the end). The archive reminder of Rule 17 rides on it too, keyed by the year.
 
 A message is plain text in the owner's language: what is wrong, what it means for the figures, and a link to
 the settings tab that fixes it (monobank for a sync incident, tax years for a tax-year one, Treasury accounts
@@ -1225,6 +1248,19 @@ Worked example, 2026 with the seed: Q4 is due 2027-02-09, inside the open suspen
 wait for its end and the year shows "not before 2030-02-08". Had the suspension's last day been 2027-06-30,
 the date would be 2030-06-29. A 2015 Q4 declaration filed on 2016-02-01 ends on 2019-01-31, before the
 suspension began.
+
+The archive notice. Once a year is finished (every group 3 declaration of it marked filed, Rule 17's
+archive reminder), the dashboard shows a notice with the year, its keep-until line and a link to its
+archive, until the owner downloads the year's ZIP or dismisses the notice. Several finished years waiting
+show the newest; the next takes its place once it is answered. The answer is one row per owner and year
+(`ArchiveNotices`: downloaded or dismissed, and when), overwritten by the next. A ZIP counts once its stream
+has been written to the end, and counts from the moment its contents were read, so a mark made during the
+stream is not answered by it. An answer counts only when it came no earlier than the moment the year was
+finished, so a ZIP taken before the last mark, which lacks that mark, leaves the notice up, and so does a mark
+removed and made again after the answer (the reminder is not sent again: its claim stands). The rows are
+not in the JSON backup, like the sent log: they record what the owner did with a file, not the owner's
+data. A restore leaves them in place; restored into an empty database, a finished year shows its notice
+again, which a download or a dismissal answers.
 
 The archive ZIP. `GET /api/archive/{year}/zip` streams the year as `archive-{year}-{yyyy-MM-dd}.zip` (the
 download date in Kyiv), never stored and never cached. It holds exactly what the archive screen lists, by

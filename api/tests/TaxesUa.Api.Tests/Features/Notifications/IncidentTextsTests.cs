@@ -1,4 +1,5 @@
 using TaxesUa.Api.Features.Notifications;
+using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Tests.Features.Notifications;
 
@@ -88,5 +89,23 @@ public sealed class IncidentTextsTests
         Assert.Equal(subject, message.Subject);
         Assert.DoesNotContain("http", message.Text, StringComparison.Ordinal);
         Assert.DoesNotContain('?', message.Text);
+    }
+
+    [Theory]
+    [InlineData("uk", "Усі декларації за 2031 рік подано: завантажте архів року.", "Документи за 2031 рік зберігати до 03.02.2035",
+        "Відкрити архів: https://taxes.test/archive?year=2031")]
+    [InlineData("ru", "Все декларации за 2031 год поданы: скачайте архив года.", "Документы за 2031 год хранить до 03.02.2035",
+        "Открыть архив: https://taxes.test/archive?year=2031")]
+    public void A_finished_year_gives_its_fixed_keep_until_date_and_links_to_its_archive(
+        string locale, string subject, string keepUntil, string link)
+    {
+        var incident = new Incident(
+            "Archive:2031", IncidentKind.Archive, null, 2031, KeepUntil: new KeepUntil.On(new DateOnly(2035, 2, 3)));
+
+        var message = IncidentTexts.Render(incident, locale, "https://taxes.test/");
+
+        Assert.Equal(subject, message.Subject);
+        Assert.Equal(string.Join('\n', subject, keepUntil, link), message.Text);
+        Assert.DoesNotContain("http", IncidentTexts.Render(incident, locale, null).Text, StringComparison.Ordinal);
     }
 }

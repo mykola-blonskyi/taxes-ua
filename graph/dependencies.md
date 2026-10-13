@@ -1,6 +1,6 @@
 # Dependency Analysis
 
-Measured from the compiled code on 2026-10-04 (#185); the table re-checked against the test on 2026-10-05 (#251). The feature table below is the allow-list in
+Measured from the compiled code on 2026-10-04 (#185); the table re-checked against the test on 2026-10-13 (#287). The feature table below is the allow-list in
 `api/tests/TaxesUa.Api.Tests/Architecture/FeatureBoundaryTests.cs`; that test fails when the two differ,
 and prints the table to paste here.
 
@@ -40,15 +40,16 @@ type is shared exactly when its file is.
 | Invoices | 5 | Auth, Export, Fx, Settings, Transactions |
 | Archive | 6 | Auth, Declarations, Export, Invoices, Payments, Settings |
 | Clients | 6 | Auth, Fx, Invoices, Transactions |
-| Dashboard | 6 | Auth, Declarations, Invoices, Monobank, Payments, Periods, Settings, TaxYears, Transactions |
 | Notifications | 6 | Auth, Declarations, Export, Periods, Settings |
 | Audit | 7 | Auth, Declarations, Invoices, Notifications, Payments, Settings, TaxYears, Transactions |
 | Calendar | 7 | Auth, Notifications, Periods, Settings, TaxYears |
+| Dashboard | 7 | Archive, Auth, Declarations, Invoices, Monobank, Payments, Periods, Settings, TaxYears, Transactions |
 | Backup | 8 | Audit, Auth, Banking, Declarations, Fx, Invoices, Monobank, Notifications, Payments, Settings, Transactions |
 
-88 edges over 20 features. Archive came with #285: it lists a year's documents and reaches only the
+89 edges over 20 features. Archive came with #285: it lists a year's documents and reaches only the
 features whose download routes it links. Archive -> Settings came with #286: the ZIP's table of contents
-follows the owner's language. TaxYears -> Auth came with #257, when a tax-year write began to ask whether
+follows the owner's language. Dashboard -> Archive came with #287: the archive notice reads which finished
+year is still waiting for its download, which moves Dashboard up to layer 7. TaxYears -> Auth came with #257, when a tax-year write began to ask whether
 the user is an admin. Audit -> Notifications came with #246, when the notification channel moved
 back from Settings to Notifications; Backup -> Periods and Backup -> TaxYears went with the prototype
 importer (#253). Before #185 the same measurement found 85 edges, and ten features

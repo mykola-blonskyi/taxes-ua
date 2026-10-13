@@ -3595,6 +3595,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/archive/{year}/notice/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    year: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["FieldProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/fx": {
         parameters: {
             query?: never;
@@ -5750,6 +5801,11 @@ export interface components {
             name: string;
             url: string;
         };
+        ArchiveNoticeResponse: {
+            /** Format: int32 */
+            year: number | string;
+            keepUntil: components["schemas"]["KeepUntilResponse"];
+        };
         ArchiveQuarter: {
             /** Format: int32 */
             quarter: number | string;
@@ -5970,6 +6026,7 @@ export interface components {
             sync: null | components["schemas"]["SyncHealthResponse"];
             newTaxYear: null | components["schemas"]["NewTaxYearStatus"];
             expiredTreasuryAccounts: components["schemas"]["ExpiredTreasuryAccount"][];
+            archive: null | components["schemas"]["ArchiveNoticeResponse"];
         };
         Deadline: {
             /** Format: date */

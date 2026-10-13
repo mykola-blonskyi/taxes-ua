@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using TaxesUa.Api.Features.Archive;
 using TaxesUa.Api.Features.Audit;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Banking;
@@ -72,6 +73,8 @@ internal sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CalendarFeed> CalendarFeeds => Set<CalendarFeed>();
 
     public DbSet<DatabaseBackupRun> DatabaseBackupRuns => Set<DatabaseBackupRun>();
+
+    public DbSet<ArchiveNotice> ArchiveNotices => Set<ArchiveNotice>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

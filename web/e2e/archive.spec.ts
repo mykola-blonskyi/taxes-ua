@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import uk from "../messages/uk.json";
 import { dashboard, seedRegisteredOwner } from "./support/api";
-import { seedIssuedInvoice } from "./support/seed";
+import { seedFinishedYear, seedIssuedInvoice } from "./support/seed";
 
 test("the year's archive is reached from the periods and downloads an issued invoice", async ({ page, request }) => {
   const { today } = await dashboard(request);
@@ -56,4 +56,41 @@ test("the archive downloads the whole year as one ZIP with its contents file", a
   const names = zipEntryNames(bytes);
   expect(names).toContain("contents.txt");
   expect(names).toContain(`invoices/${invoice.pdfFileName}`);
+});
+
+test("the last filing mark of a year raises the archive notice, and downloading the year's ZIP clears it", async ({
+  page,
+  request,
+}) => {
+  const { year, undo } = await seedFinishedYear(request);
+  const title = uk.dashboard.archive.title.replace("{year}", String(year));
+
+  try {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: uk.dashboard.invoices.title })).toBeVisible();
+    const fold = page.locator("main details > summary");
+    // Another notice may hold the banner, and a closed fold hides what it holds from a role query.
+    if (await fold.isVisible()) {
+      await fold.click();
+    }
+    const notice = page.getByRole("status").filter({ has: page.getByRole("heading", { name: title }) });
+    await expect(notice).toBeVisible();
+
+    await notice.getByRole("link", { name: uk.dashboard.archive.cta }).click();
+    await expect(page).toHaveURL(`/archive?year=${year}`);
+    const download = page.waitForEvent("download");
+    await page.getByRole("link", { name: uk.archive.zip.download }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(new RegExp(`^archive-${year}-`));
+    expect(await file.path()).toBeTruthy();
+
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: uk.dashboard.invoices.title })).toBeVisible();
+    if (await fold.isVisible()) {
+      await fold.click();
+    }
+    await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
+  } finally {
+    await undo(request);
+  }
 });

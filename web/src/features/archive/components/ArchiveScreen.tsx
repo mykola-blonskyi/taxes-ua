@@ -76,7 +76,8 @@ function isEmpty(archive: ArchiveResponse): boolean {
   );
 }
 
-// The server names the file (archive-{year}-{date}.zip) and streams it, so this is a plain link.
+// The server names the file (archive-{year}-{date}.zip) and streams it, so this is a plain link. It records the
+// download when the stream ends, which the dashboard reads fresh on return (useDashboard).
 function YearZipDownload({ year }: { year: number }) {
   const t = useTranslations("archive.zip");
 
