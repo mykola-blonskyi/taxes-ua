@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { LoadState } from "@/data/api/LoadState";
-import { useArchive, type ArchiveResponse } from "@/data/archive/useArchive";
+import { useArchive, useArchiveDownloaded, type ArchiveResponse } from "@/data/archive/useArchive";
 import { useTaxYears } from "@/data/tax-years/useTaxYears";
 import { currentYearInKyiv, formatDateOnly, formatInstantInKyiv } from "@/shared/lib/dates";
 import { formatAmount } from "@/shared/lib/money";
@@ -79,11 +79,12 @@ function isEmpty(archive: ArchiveResponse): boolean {
 // The server names the file (archive-{year}-{date}.zip) and streams it, so this is a plain link.
 function YearZipDownload({ year }: { year: number }) {
   const t = useTranslations("archive.zip");
+  const downloaded = useArchiveDownloaded();
 
   return (
     <div className="flex min-w-0 flex-col gap-1">
       <Button asChild variant="outline" className="w-fit max-w-full">
-        <a href={`/api/archive/${year}/zip`} download>
+        <a href={`/api/archive/${year}/zip`} download onClick={downloaded}>
           <Download aria-hidden="true" />
           {t("download")}
         </a>

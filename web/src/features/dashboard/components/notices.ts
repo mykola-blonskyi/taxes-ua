@@ -19,7 +19,9 @@ import type { DashboardResponse } from "@/data/dashboard/useDashboard";
 //     declaration, which has a legal date.
 //  7. Sync stale. Figures may be incomplete, but the feed still works.
 //  8. Transactions waiting for review.
-//  9. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
+//  9. Year archive ready (every declaration of a year marked filed, the ZIP not yet downloaded). The law
+//     requires keeping the documents, but nothing changes if it waits and the keep-until date is years away.
+// 10. Overdue invoices. A client's late payment has no tax consequence; it is a collections matter.
 //
 // A debt is the hero itself (red when overdue), so it needs no banner. The pay panel also shows a Treasury
 // account's expiry where the account is used; the notice here asks for the new account.
@@ -35,6 +37,7 @@ export const noticePriority = [
   "newTaxYear",
   "syncStale",
   "review",
+  "archive",
   "overdueInvoices",
 ] as const;
 
@@ -52,6 +55,7 @@ export const noticeSeverity: Record<Notice, Severity> = {
   newTaxYear: "warning",
   syncStale: "warning",
   review: "info",
+  archive: "info",
   overdueInvoices: "info",
 };
 
@@ -75,6 +79,7 @@ export function activeNotices(data: DashboardResponse): Notice[] {
     newTaxYear: data.newTaxYear != null,
     syncStale: syncState === "Stale",
     review: Number(data.needsReviewCount) > 0,
+    archive: data.archive != null,
     overdueInvoices: Number(data.overdueInvoiceCount) > 0,
   };
   const urgent: Record<Notice, boolean> = {
@@ -89,6 +94,7 @@ export function activeNotices(data: DashboardResponse): Notice[] {
     newTaxYear: false,
     syncStale: false,
     review: false,
+    archive: false,
     overdueInvoices: false,
   };
   const active = noticePriority.filter((notice) => present[notice]);

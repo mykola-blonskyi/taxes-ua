@@ -125,7 +125,7 @@ describe.each(locales)("Dashboard notices in $locale", ({ locale, banner, overdu
 describe("Dashboard notice priority", () => {
   const withNotices = (patch: object) => asData({ ...quiet, ...patch });
 
-  it("ranks by consequence: broken sync, limit crossing, group 3, declaration, expired Treasury account, new tax year, stale sync, review, overdue invoices", () => {
+  it("ranks by consequence: broken sync, limit crossing, group 3, declaration, expired Treasury account, new tax year, stale sync, review, archive, overdue invoices", () => {
     const stale = { ...everything, sync: { state: "Stale", lastSyncedAt: "2026-09-28T00:05:00Z" } };
 
     expect(activeNotices(asData(everything))).toEqual([
@@ -153,8 +153,17 @@ describe("Dashboard notice priority", () => {
       "newTaxYear",
       "syncStale",
       "review",
+      "archive",
       "overdueInvoices",
     ]);
+  });
+
+  it("ranks a ready archive between review and overdue invoices, and never promotes it", () => {
+    const archive = { year: 2025, keepUntil: { state: "Fixed", date: "2029-02-10", daysAfterSuspension: null } };
+
+    expect(activeNotices(asData({ ...everything, archive })).slice(-3)).toEqual(["review", "archive", "overdueInvoices"]);
+    expect(activeNotices(withNotices({ archive }))).toEqual(["archive"]);
+    expect(mostSevere(["archive", "overdueInvoices"])).toBe("info");
   });
 
   it("ranks the new tax year under a declaration and over a stale sync, and never promotes it", () => {

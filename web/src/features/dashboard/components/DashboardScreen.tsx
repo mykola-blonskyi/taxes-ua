@@ -3,9 +3,12 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
+import { useApiErrorText } from "@/data/api/useApiErrorText";
+import { useDismissArchiveNotice } from "@/data/archive/useArchive";
 import { useDashboard, type DashboardResponse, type KindDebt } from "@/data/dashboard/useDashboard";
 import { declarationHref } from "@/shared/constants/navigation";
-import { formatDateOnly } from "@/shared/lib/dates";
+import { formatDateOnly, formatNumericDate } from "@/shared/lib/dates";
+import { Button } from "@/shared/ui/button";
 import { formatMoney, formatRate } from "@/shared/lib/money";
 import { formatLongDate } from "./debt";
 import { DaysLeft, DebtPeriod } from "./DebtParts";
@@ -78,6 +81,8 @@ function NoticeView({ name, data }: { name: Notice; data: DashboardResponse }) {
       return data.newTaxYear ? <NewTaxYearNotice status={data.newTaxYear} /> : null;
     case "review":
       return <ReviewWarning count={Number(data.needsReviewCount)} />;
+    case "archive":
+      return data.archive ? <ArchiveNotice archive={data.archive} /> : null;
   }
 }
 
@@ -102,6 +107,7 @@ function useNoticeTitles(data: DashboardResponse): Record<Notice, string> {
     treasuryExpired: treasuryExpiredTitle(data.expiredTreasuryAccounts, t, tKinds),
     newTaxYear: data.newTaxYear ? t("newTaxYear.title", { year: Number(data.newTaxYear.year) }) : "",
     review: t("review.title", { count: Number(data.needsReviewCount) }),
+    archive: data.archive ? t("archive.title", { year: Number(data.archive.year) }) : "",
     overdueInvoices: t("overdueInvoices.title", { count: Number(data.overdueInvoiceCount) }),
   };
 }
@@ -327,6 +333,45 @@ function NewTaxYearNotice({ status }: { status: NonNullable<DashboardResponse["n
       <Link href="/settings?tab=taxYears" className="w-fit font-medium text-primary underline-offset-4 hover:underline">
         {t("cta")}
       </Link>
+    </section>
+  );
+}
+
+// The keep-until line reads as the periods screen words it, so the notice and the year cannot disagree.
+function ArchiveNotice({ archive }: { archive: NonNullable<DashboardResponse["archive"]> }) {
+  const t = useTranslations("dashboard.archive");
+  const tKeepUntil = useTranslations("periods.keepUntil");
+  const locale = useLocale();
+  const apiText = useApiErrorText();
+  const dismiss = useDismissArchiveNotice();
+  const year = Number(archive.year);
+  const date = formatNumericDate(archive.keepUntil.date, locale);
+
+  return (
+    <section role="status" className="flex min-w-0 flex-col gap-2 rounded-lg border bg-muted p-4 text-sm">
+      <h3 className="break-words font-semibold">{t("title", { year })}</h3>
+      <p className="break-words">{t("text", { year })}</p>
+      <p className="break-words text-muted-foreground">
+        {archive.keepUntil.state === "ExtendedWhileSuspended"
+          ? tKeepUntil("extended", { year, date, days: Number(archive.keepUntil.daysAfterSuspension ?? 0) })
+          : tKeepUntil("fixed", { year, date })}
+      </p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <Link
+          href={`/archive?year=${year}`}
+          className="font-medium text-primary underline-offset-4 hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
+        >
+          {t("cta")}
+        </Link>
+        <Button variant="ghost" disabled={dismiss.isPending} onClick={() => dismiss.mutate(year)}>
+          {t("dismiss")}
+        </Button>
+      </div>
+      {dismiss.isError ? (
+        <p role="alert" className="break-words text-destructive">
+          {apiText.withReason(t("dismissFailed"), dismiss.error)}
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -111,3 +111,29 @@ export async function seedIssuedInvoice(owner: APIRequestContext, issueDate: str
   const invoice = await json<Invoice>(await owner.post(`/api/invoices/${draft.id}/issue`));
   return { clientName, invoice };
 }
+
+// Finishes last year for the archive notice: the owner registers on its 1 October, so its fourth quarter is
+// the one group 3 declaration it has, and that quarter is marked filed today. `undo` removes the mark and
+// puts the registration date back, since the specs share one owner and an earlier date adds last year's debts.
+// It takes a context of its own, because the one that seeded may be gone by then.
+export async function seedFinishedYear(owner: APIRequestContext) {
+  const { today } = await json<{ today: string }>(await owner.get("/api/dashboard"));
+  const year = Number(today.slice(0, 4)) - 1;
+  const registered = (await json<Record<string, unknown>>(await owner.get("/api/settings"))).fopRegistrationDate;
+  await seedRegisteredOwner(owner, year);
+  const settings = await json<Record<string, unknown>>(await owner.get("/api/settings"));
+  const moved = await owner.put("/api/settings", { data: { ...settings, fopRegistrationDate: `${year}-10-01` } });
+  expect(moved.ok(), `settings answered ${moved.status()}`).toBe(true);
+  const marked = await owner.put(`/api/declarations/${year}/4/filing`, { data: { filedOn: today, type: "Reporting" } });
+  expect(marked.ok(), `the filing mark answered ${marked.status()}: ${await marked.text()}`).toBe(true);
+
+  return {
+    year,
+    undo: async (owner: APIRequestContext) => {
+      expect((await owner.delete(`/api/declarations/${year}/4/filing`)).ok()).toBe(true);
+      const current = await json<Record<string, unknown>>(await owner.get("/api/settings"));
+      const restored = await owner.put("/api/settings", { data: { ...current, fopRegistrationDate: registered } });
+      expect(restored.ok(), `settings answered ${restored.status()}`).toBe(true);
+    },
+  };
+}
