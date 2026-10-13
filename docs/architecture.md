@@ -53,7 +53,7 @@ the tab reloads, so chunks of two builds never mix and a half-filled form is nev
 
 Responsibilities:
 
-- REST API: transactions, payments, settings, year parameters, periods, obligations, export,
+- REST API: transactions, payments, settings, year parameters, periods, obligations, export, the year archive (listing and ZIP),
   backup.
 - Authentication and sessions. Every data request is filtered by `UserId`.
 - Boundary adapters: import parsing, Europe/Kyiv date conversion, NBU rate, conversion to

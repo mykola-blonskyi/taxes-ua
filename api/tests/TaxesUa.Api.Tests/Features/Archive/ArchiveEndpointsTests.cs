@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
@@ -13,6 +14,7 @@ using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.Settings;
+using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Api.Tests.Features.Settings;
 using TaxesUa.Engine;
@@ -188,6 +190,170 @@ public sealed class ArchiveEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         Assert.Equal(HttpStatusCode.BadRequest, (await owner.GetAsync("/api/archive/1999")).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await owner.GetAsync("/api/payments/register.csv?year=2101")).StatusCode);
     }
+
+    [Fact]
+    public async Task The_zip_holds_exactly_the_listing_and_a_contents_file_in_the_owners_language()
+    {
+        const int year = 2018;
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        var userId = await UserId(ApiFixture.AllowedEmail);
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync($"/api/tax-years/{year}", YearRequest(), Json)).StatusCode);
+        await SeedInvoice(userId, year, InvoiceStatus.Issued, 1, new DateOnly(year, 2, 10));
+        await SeedInvoice(userId, year, InvoiceStatus.Cancelled, 2, new DateOnly(year, 3, 1));
+        await SeedInvoice(userId, year, InvoiceStatus.Draft, null, new DateOnly(year, 4, 1));
+        await SeedFile(userId, year, 1, DeclarationType.Reporting, annex: false);
+        await SeedFile(userId, year, 4, DeclarationType.Reporting, annex: true);
+        await SeedFiling(userId, year, 1, new DateOnly(year, 4, 20));
+        await Post(owner, new PaymentRequest(new DateOnly(year, 4, 15), PaymentKind.Esv, 190_234, year, 1, null, null));
+        await PostIncome(owner, new DateOnly(year, 2, 5));
+        var archive = await Get(owner, year);
+
+        var response = await owner.GetAsync($"/api/archive/{year}/zip");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/zip", response.Content.Headers.ContentType!.MediaType);
+        Assert.Equal(
+            $"archive-{year}-{await KyivToday():yyyy-MM-dd}.zip",
+            response.Content.Headers.ContentDisposition!.FileName!.Trim('"'));
+        Assert.Contains("no-store", response.Headers.CacheControl!.ToString());
+        Assert.Contains("private", response.Headers.CacheControl.ToString());
+        using var zip = new ZipArchive(new MemoryStream(await response.Content.ReadAsByteArrayAsync()));
+
+        var listed = archive.Invoices.Select(invoice => $"invoices/{invoice.Name}")
+            .Concat(archive.Quarters.SelectMany(quarter => quarter.Files.Select(file => $"declarations/Q{quarter.Quarter}/{file.Name}")))
+            .Concat(archive.Statements.Select(item => $"statement/{item.Name}"))
+            .Concat(archive.Payments.Select(item => $"payments/{item.Name}"));
+        Assert.Equal(
+            listed.Append("contents.txt").Order(StringComparer.Ordinal),
+            zip.Entries.Select(entry => entry.FullName).Order(StringComparer.Ordinal));
+        Assert.Equal(
+            ["invoices/2018-001_Acme_2018.pdf", "invoices/2018-002_Acme_2018.pdf"],
+            zip.Entries.Where(entry => entry.FullName.StartsWith("invoices/", StringComparison.Ordinal)).Select(entry => entry.FullName));
+        foreach (var invoice in archive.Invoices)
+        {
+            var entry = Bytes(zip, $"invoices/{invoice.Name}");
+            Assert.StartsWith("%PDF-", Encoding.Latin1.GetString(entry, 0, 5));
+        }
+
+        Assert.Equal("<DECLAR/>"u8.ToArray(), Bytes(zip, "declarations/Q1/F0103309_2018_1.xml"));
+        Assert.Equal("<DECLAR/>"u8.ToArray(), Bytes(zip, "declarations/Q4/F0133109_2018_4.xml"));
+        Assert.Equal(
+            await owner.GetByteArrayAsync($"/api/payments/register.csv?year={year}"),
+            Bytes(zip, $"payments/payments-{year}.csv"));
+
+        var contents = Bytes(zip, "contents.txt");
+        Assert.True(contents.AsSpan().StartsWith(Encoding.UTF8.GetPreamble()));
+        var text = Encoding.UTF8.GetString(contents.AsSpan(3));
+        Assert.StartsWith("Архів документів за 2018 рік\r\n", text);
+        Assert.Contains("Документи за 2018 рік зберігати до ", text);
+        Assert.Contains("  invoices/2018-002_Acme_2018.pdf - 2018-002", text);
+        Assert.Contains("скасований", text);
+        Assert.Contains("1 квартал (подано 20.04.2018)", text);
+        Assert.Contains("4 квартал (не подано)", text);
+        Assert.DoesNotContain("#", text);
+        foreach (var path in zip.Entries.Select(entry => entry.FullName))
+        {
+            Assert.Contains(path, text);
+        }
+    }
+
+    [Fact]
+    public async Task The_contents_file_follows_the_language_setting_and_says_when_a_section_is_empty()
+    {
+        const int year = 2019;
+        using var owner = await SignIn(ApiFixture.SecondAllowedEmail);
+        var language = await owner.PutAsJsonAsync(
+            "/api/settings/appearance", new { locale = "ru", chosenAt = DateTimeOffset.UtcNow }, Json);
+        Assert.Equal(HttpStatusCode.OK, language.StatusCode);
+
+        var response = await owner.GetAsync($"/api/archive/{year}/zip");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var zip = new ZipArchive(new MemoryStream(await response.Content.ReadAsByteArrayAsync()));
+        Assert.Equal(["contents.txt"], zip.Entries.Select(entry => entry.FullName));
+        var text = Encoding.UTF8.GetString(Bytes(zip, "contents.txt").AsSpan(3));
+        Assert.StartsWith("Архив документов за 2019 год\r\n", text);
+        Assert.Contains("срок хранения не определён", text);
+        Assert.Equal(4, text.Split("  нет\r\n").Length - 1);
+    }
+
+    [Fact]
+    public void The_zip_states_the_keep_until_date_as_the_periods_screen_words_it()
+    {
+        var keepFixed = new KeepUntilResponse(KeepUntilState.Fixed, new DateOnly(2030, 2, 8), null);
+        var open = new KeepUntilResponse(KeepUntilState.ExtendedWhileSuspended, new DateOnly(2030, 2, 8), 1095);
+        var empty = new ArchiveContents([], [], false, false);
+        var today = new DateOnly(2026, 10, 13);
+
+        Assert.Contains(
+            "Документи за 2026 рік зберігати до 08.02.2030\r\n",
+            YearZip.TableOfContents(2026, empty, "uk", today, keepFixed));
+        Assert.Contains(
+            "Документи за 2026 рік зберігати не менше ніж до 08.02.2030. Строк продовжено на час воєнного стану: після його припинення або скасування ще 1095 днів.",
+            YearZip.TableOfContents(2026, empty, "uk", today, open));
+        Assert.Contains(
+            "Документы за 2026 год хранить не менее чем до 08.02.2030. Срок продлён на время военного положения: после его прекращения или отмены ещё 1 день.",
+            YearZip.TableOfContents(2026, empty, "ru", today, open with { DaysAfterSuspension = 1 }));
+        Assert.Contains("ще 22 дні.", YearZip.TableOfContents(2026, empty, "uk", today, open with { DaysAfterSuspension = 22 }));
+    }
+
+    [Fact]
+    public async Task Another_owner_gets_a_zip_without_the_owners_documents()
+    {
+        const int year = 2020;
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+        await SeedInvoice(await UserId(ApiFixture.AllowedEmail), year, InvoiceStatus.Issued, 1, new DateOnly(year, 2, 10));
+        using var other = await SignIn(ApiFixture.SecondAllowedEmail);
+
+        var owners = new ZipArchive(new MemoryStream(await owner.GetByteArrayAsync($"/api/archive/{year}/zip")));
+        var others = new ZipArchive(new MemoryStream(await other.GetByteArrayAsync($"/api/archive/{year}/zip")));
+
+        Assert.Contains(owners.Entries, entry => entry.FullName.StartsWith("invoices/", StringComparison.Ordinal));
+        Assert.Equal(["contents.txt"], others.Entries.Select(entry => entry.FullName));
+    }
+
+    [Fact]
+    public async Task The_zip_needs_a_session_and_a_year_in_range()
+    {
+        using var visitor = fixture.CreateClient();
+        using var owner = await SignIn(ApiFixture.AllowedEmail);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await visitor.GetAsync("/api/archive/2012/zip")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await owner.GetAsync("/api/archive/1999/zip")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await owner.GetAsync("/api/archive/2101/zip")).StatusCode);
+    }
+
+    private static byte[] Bytes(ZipArchive zip, string path)
+    {
+        using var stream = zip.GetEntry(path)!.Open();
+        using var copy = new MemoryStream();
+        stream.CopyTo(copy);
+
+        return copy.ToArray();
+    }
+
+    private async Task<DateOnly> KyivToday()
+    {
+        await using var scope = fixture.CreateScope();
+
+        return scope.ServiceProvider.GetRequiredService<TimeProvider>().TodayInKyiv();
+    }
+
+    private static TaxYearConfigRequest YearRequest() => new(
+        MinWageKop: 137_800,
+        SingleTaxRateBp: 500,
+        MilitaryLevyRateBp: 0,
+        EsvRateBp: 2200,
+        ExcessRateBp: 1500,
+        IncomeLimitMinWages: 1167,
+        LimitWarnThresholdsPct: [85],
+        EsvDeadlineDay: 19,
+        DeclarationDays: 40,
+        TaxPaymentDaysAfterDeclaration: 10,
+        AdvanceRecommendedDay: 15,
+        Group3ApplicationDays: 10,
+        Holidays: [],
+        Source: "a test source");
 
     private async Task<ArchiveResponse> Get(HttpClient client, int year)
     {
