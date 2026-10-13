@@ -170,6 +170,16 @@ takes effect at once. A non-admin gets 403 with the code `admin_required`, trans
 `GET /api/auth/me` reports `isAdmin`, and the tax-years tab shows the parameters read-only to a
 non-admin. That is a courtesy; the api refuses the write whatever the screen offers.
 
+### Amendment, 2026-10-06: removing an address ends its live session (#289)
+
+The allowlist was an entry gate only: an address removed from `Auth__AllowedEmails` kept any session it
+already held until the 7-day sliding expiry, which use keeps extending. The application cookie's
+`OnValidatePrincipal` now rejects the principal and signs out when the ticket's email claim is not on
+the allowlist, so the next request is 401 and the cookie is cleared. The email is a claim Identity
+writes into the ticket at sign-in, so the check costs no database read. The allowlist is read at start,
+so the removal takes effect on the restart that applies the new setting. Identity's security-stamp
+validation still runs after it for an address that stays.
+
 ---
 
 ## ADR-006. Deploy via Coolify on the existing VPS, reusing the existing PostgreSQL instance
@@ -405,6 +415,13 @@ trustworthy origin and accepts a Secure cookie there, prefix included. `web/src/
 cookie and follows. A shorter lifetime narrows the replay window this ADR accepts, for one extra
 sign-in a week from a machine the owner does not use daily. Sessions under the old name end on
 deploy and the owner signs in once.
+
+### Amendment 2026-10-06 (#289)
+
+Revocation stays absent for a stolen cookie, but an address removed from `Auth__AllowedEmails` no
+longer keeps its live session: `OnValidatePrincipal` re-checks the email claim in the ticket against
+the allowlist on every request and rejects the ticket when it is gone (ADR-005 amendment). No ticket
+store was needed, because the allowlist is in memory and the email travels in the ticket.
 
 ---
 

@@ -5,12 +5,15 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 
 ## Backlog
 
-- [ ] Stage 3. The yearly document archive (invoices and the XML declaration are done, below).
+- [ ] None.
 
 ---
 
 ## Planned
 
+- [ ] Stage 3. The yearly document archive, spec #283: #284 keep-until date, #285 archive screen,
+      #286 the year as one ZIP (after #285), #287 the reminder after Q4 is filed (after #284, #286).
+      Owner decisions 2026-10-06: only documents the app makes; one reminder after Q4 is filed.
 
 ---
 
@@ -42,13 +45,13 @@ Detailed plan in [plans/current.md](../plans/current.md), future work in
 
 ## Open questions for the owner
 
-- [ ] EP/VZ payment deadline: counted from the declaration's statutory date, shifted off a
-      weekend.
+- [x] EP/VZ payment deadline shifted off a weekend or holiday: yes, Tax Code art. 57.1 (Rule 5,
+      2026-10-06). Still open: whether the 10 days count from the statutory or the shifted filing date.
 - [x] ESV in the registration month: the full minimum, by law (#171, Rule 3).
-- [ ] Is there official employment with an employer paying ESV.
-- [ ] Replace the shadcn neutral palette in `web/src/app/globals.css` with the prototype's colour
-      tokens. The prototype is an Obsidian note outside the repository, so #3 shipped the default.
-- [ ] Does removing an address from `Auth__AllowedEmails` have to end a live session, or is
-      deleting the user row the answer? ADR-005 is silent and #3 made the allowlist an entry gate.
-      No session can be revoked server-side today, which [ADR-009](decisions.md) explains, so
-      answering yes costs a ticket store.
+- [x] Is there official employment with an employer paying ESV: no (owner, 2026-10-06). An employed
+      month would be exempt under ESV Law art. 4 part 6 only if the employer paid at least the minimum.
+- [x] The prototype's colour palette: no prototype with colours exists, so the neutral palette stays
+      (owner, 2026-10-06).
+- [x] Does removing an address from `Auth__AllowedEmails` have to end a live session? Yes: the
+      cookie's `OnValidatePrincipal` checks the ticket's email claim against the allowlist, with no
+      ticket store (#289, ADR-005 and ADR-009 amendments of 2026-10-06).
