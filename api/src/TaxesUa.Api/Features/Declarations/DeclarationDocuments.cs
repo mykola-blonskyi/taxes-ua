@@ -44,4 +44,20 @@ internal static class DeclarationDocuments
                 .Where(documents => documents.Filing is not null || documents.Files.Length > 0),
         ];
     }
+
+    /// <summary>
+    /// The bytes of a file <see cref="ListAsync"/> listed: the declaration, or its annex when
+    /// <paramref name="annex"/> is true. Null when the owner has no such file.
+    /// </summary>
+    public static async Task<byte[]?> ReadAsync(
+        AppDbContext database, string userId, int year, int quarter, DeclarationType type, bool annex,
+        CancellationToken cancellationToken)
+    {
+        var file = await database.DeclarationFiles.AsNoTracking()
+            .FirstOrDefaultAsync(
+                row => row.UserId == userId && row.Year == year && row.Quarter == quarter && row.Type == type,
+                cancellationToken);
+
+        return annex ? file?.AnnexContent : file?.Content;
+    }
 }

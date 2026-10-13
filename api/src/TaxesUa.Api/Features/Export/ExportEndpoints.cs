@@ -50,15 +50,9 @@ public static class ExportEndpoints
                         return Results.Unauthorized();
                     }
 
-                    var rows = await LoadRowsAsync(database, user.Id, year, cancellationToken);
-                    var settings = await database.Settings.FindAsync([user.Id], cancellationToken)
-                        ?? new SettingsEntity { UserId = user.Id };
-                    var totalIncomeKop = IncomeLedger.ForYear(
-                        year, rows.Select(row => row.ToEngineInput()).ToList(), settings.ToEngineInput()).TotalIncomeKop;
-                    var exported = new ExportedYear(year, rows, totalIncomeKop, time.NowInKyiv());
+                    var bytes = await RenderAsync(database, user.Id, year, format, time, cancellationToken);
 
-                    return Results.File(
-                        format.Write(exported), format.ContentType, FileName(year, format.Extension));
+                    return Results.File(bytes, format.ContentType, FileName(year, format.Extension));
                 })
                 .Produces<byte[]>(StatusCodes.Status200OK, format.ContentType)
                 .ProducesFieldProblem()
@@ -66,6 +60,23 @@ public static class ExportEndpoints
         }
 
         return routes;
+    }
+
+    /// <summary>The year's statement in <paramref name="extension"/> (one of <see cref="Extensions"/>), as its route serves it.</summary>
+    internal static Task<byte[]> RenderAsync(
+        AppDbContext database, string userId, int year, string extension, TimeProvider time, CancellationToken cancellationToken) =>
+        RenderAsync(database, userId, year, Formats.Single(format => format.Extension == extension), time, cancellationToken);
+
+    private static async Task<byte[]> RenderAsync(
+        AppDbContext database, string userId, int year, ExportFormat format, TimeProvider time, CancellationToken cancellationToken)
+    {
+        var rows = await LoadRowsAsync(database, userId, year, cancellationToken);
+        var settings = await database.Settings.FindAsync([userId], cancellationToken)
+            ?? new SettingsEntity { UserId = userId };
+        var totalIncomeKop = IncomeLedger.ForYear(
+            year, rows.Select(row => row.ToEngineInput()).ToList(), settings.ToEngineInput()).TotalIncomeKop;
+
+        return format.Write(new ExportedYear(year, rows, totalIncomeKop, time.NowInKyiv()));
     }
 
     /// <summary>The statement's formats, by file extension.</summary>

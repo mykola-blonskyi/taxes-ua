@@ -167,19 +167,7 @@ public static partial class InvoicesEndpoints
                     return Problems.NotFound(ProblemCodes.InvoiceNotFound, "invoice", id);
                 }
 
-                InvoicePdfModel model;
-                if (invoice is { Snapshot: { } snapshot })
-                {
-                    model = Model(invoice, snapshot, invoice.SignatureImage);
-                }
-                else
-                {
-                    var details = await database.InvoicingDetails.AsNoTracking()
-                        .FirstOrDefaultAsync(row => row.UserId == user.Id, cancellationToken)
-                        ?? new InvoicingDetails { UserId = user.Id };
-                    var payment = await PaymentDetailsAsync(database, user.Id, invoice.Currency, cancellationToken);
-                    model = Model(invoice, InvoiceRules.Snapshot(details, payment, invoice.Client!), details.SignatureImage);
-                }
+                var pdf = await PdfAsync(database, user.Id, invoice, cancellationToken);
 
                 // Inline, so a preview opens in the browser's viewer; the download link asks for a
                 // download and the browser keeps this name.
@@ -188,10 +176,30 @@ public static partial class InvoicesEndpoints
                 http.Response.Headers.ContentDisposition = disposition.ToString();
                 http.Response.Headers.CacheControl = "private, no-store";
 
-                return Results.File(InvoicePdf.ToPdf(model), "application/pdf");
+                return Results.File(pdf, "application/pdf");
             })
             .Produces<byte[]>(StatusCodes.Status200OK, "application/pdf")
             .Produces(StatusCodes.Status401Unauthorized)
             .ProducesCodedProblem(StatusCodes.Status404NotFound);
+    }
+
+    /// <summary>
+    /// The invoice's PDF: from its frozen snapshot, or from today's details for a draft. The one place
+    /// that renders it, so the PDF route and the year archive cannot differ.
+    /// </summary>
+    internal static async Task<byte[]> PdfAsync(
+        AppDbContext database, string userId, Invoice invoice, CancellationToken cancellationToken)
+    {
+        if (invoice is { Snapshot: { } snapshot })
+        {
+            return InvoicePdf.ToPdf(Model(invoice, snapshot, invoice.SignatureImage));
+        }
+
+        var details = await database.InvoicingDetails.AsNoTracking()
+            .FirstOrDefaultAsync(row => row.UserId == userId, cancellationToken)
+            ?? new InvoicingDetails { UserId = userId };
+        var payment = await PaymentDetailsAsync(database, userId, invoice.Currency, cancellationToken);
+
+        return InvoicePdf.ToPdf(Model(invoice, InvoiceRules.Snapshot(details, payment, invoice.Client!), details.SignatureImage));
     }
 }
