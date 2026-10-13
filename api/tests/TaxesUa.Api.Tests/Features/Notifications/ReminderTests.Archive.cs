@@ -8,7 +8,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Features.Archive;
 using TaxesUa.Api.Features.Declarations;
+using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Notifications;
+using TaxesUa.Api.Features.TaxYears;
+using TaxesUa.Api.Features.Transactions;
+using TaxesUa.Engine;
 using static TaxesUa.Api.Tests.Features.Notifications.EmailChannelTests;
 using static TaxesUa.Api.Tests.Features.Notifications.TelegramSteps;
 
@@ -200,6 +204,51 @@ public sealed partial class ReminderTests
     }
 
     [Fact]
+    public async Task Editing_a_mark_after_the_answer_keeps_the_year_answered()
+    {
+        var telegram = new StubTelegramHandler();
+        var clock = new FakeTimeProvider(YearFiled);
+        await using var application = fixture.CreateApplication(telegram, clock);
+        var owner = await Prepare(application, telegram);
+        await MarkQuarters(owner, 1, 2, 3, 4);
+        await DownloadZip(owner, 2031);
+
+        clock.Advance(TimeSpan.FromMinutes(1));
+        var edited = await owner.PutAsJsonAsync(
+            "/api/declarations/2031/4/filing",
+            new DeclarationFilingRequest(new DateOnly(2032, 2, 3), DeclarationType.Reporting), Json);
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+
+        Assert.Null((await Dashboard(owner))["archive"]);
+    }
+
+    [Fact]
+    public async Task With_two_pending_years_the_newest_shows_and_the_older_takes_its_place_once_it_is_answered()
+    {
+        var telegram = new StubTelegramHandler();
+        await using var application = fixture.CreateApplication(telegram, new FakeTimeProvider(YearFiled));
+        var owner = await Prepare(application, telegram);
+        var taxYear = new TaxYearConfigRequest(800_000, 500, 100, 2_200, 1_500, 1_000, [85], 19, 40, 10, 15, 10, [], "a test source");
+        Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync("/api/tax-years/2030", taxYear, Json)).StatusCode);
+        await SetSettings(owner, new DateOnly(2030, 1, 1), "uk", esvExempt: true);
+        var income = new TransactionRequest(
+            new DateOnly(2030, 2, 10), 12_345_600, Currency.UAH, null, TransactionKind.Income, null, null, null, null, null);
+        Assert.Equal(HttpStatusCode.Created, (await owner.PostAsJsonAsync("/api/transactions", income, Json)).StatusCode);
+        await MarkQuartersOf(owner, 2030, 1, 2, 3, 4);
+        await MarkQuartersOf(owner, 2031, 1, 2, 3, 4);
+
+        Assert.Equal(2031, (await Dashboard(owner))["archive"]!["year"]!.GetValue<int>());
+
+        await DownloadZip(owner, 2031);
+
+        Assert.Equal(2030, (await Dashboard(owner))["archive"]!["year"]!.GetValue<int>());
+
+        Assert.Equal(HttpStatusCode.NoContent, (await owner.PostAsync("/api/archive/2030/notice/dismiss", null)).StatusCode);
+
+        Assert.Null((await Dashboard(owner))["archive"]);
+    }
+
+    [Fact]
     public async Task The_dismissal_needs_a_session_and_a_year_in_range()
     {
         await using var application = fixture.CreateApplication(new StubTelegramHandler());
@@ -213,13 +262,15 @@ public sealed partial class ReminderTests
         ProblemAssert.FieldIs(await ProblemAssert.ReadAsync(outOfRange), "year", "year_out_of_range");
     }
 
-    private static async Task MarkQuarters(HttpClient owner, params int[] quarters)
+    private static Task MarkQuarters(HttpClient owner, params int[] quarters) => MarkQuartersOf(owner, 2031, quarters);
+
+    private static async Task MarkQuartersOf(HttpClient owner, int year, params int[] quarters)
     {
         foreach (var quarter in quarters)
         {
-            var filedOn = quarter == 4 ? new DateOnly(2032, 2, 2) : DeclarationsEndpoints.QuarterEnd(2031, quarter).AddDays(10);
+            var filedOn = quarter == 4 ? new DateOnly(year + 1, 2, 2) : DeclarationsEndpoints.QuarterEnd(year, quarter).AddDays(10);
             var response = await owner.PutAsJsonAsync(
-                $"/api/declarations/2031/{quarter}/filing", new DeclarationFilingRequest(filedOn, DeclarationType.Reporting), Json);
+                $"/api/declarations/{year}/{quarter}/filing", new DeclarationFilingRequest(filedOn, DeclarationType.Reporting), Json);
             Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
         }
     }

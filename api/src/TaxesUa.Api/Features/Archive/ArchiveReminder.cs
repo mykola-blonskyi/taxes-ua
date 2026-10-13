@@ -23,9 +23,22 @@ internal static class ArchiveReminder
     /// </summary>
     public static readonly TimeSpan MessageWindow = TimeSpan.FromDays(14);
 
-    /// <summary>The pending years, newest first.</summary>
+    /// <summary>The newest pending year, or null: the dashboard shows one notice and loads one year's accruals.</summary>
+    public static async Task<FinishedYear?> NewestPendingAsync(
+        AppDbContext database, string userId, CancellationToken cancellationToken) =>
+        (await PendingAsync(database, userId, null, 1, cancellationToken)) is [var newest, ..] ? newest : null;
+
+    /// <summary>
+    /// The pending years, newest first, at most <paramref name="limit"/>. Only years whose newest mark is at
+    /// or after <paramref name="markedSince"/> are looked at: a year is finished no later than its newest mark,
+    /// so a caller that wants years finished since then skips loading the accruals of every older one.
+    /// </summary>
     public static async Task<IReadOnlyList<FinishedYear>> PendingAsync(
-        AppDbContext database, string userId, CancellationToken cancellationToken)
+        AppDbContext database,
+        string userId,
+        DateTimeOffset? markedSince,
+        int limit,
+        CancellationToken cancellationToken)
     {
         var answered = await database.ArchiveNotices.AsNoTracking()
             .Where(notice => notice.UserId == userId)
@@ -37,6 +50,7 @@ internal static class ArchiveReminder
                 .GroupBy(filing => filing.Year)
                 .Select(group => new { Year = group.Key, Newest = group.Max(filing => filing.CreatedAt) })
                 .ToListAsync(cancellationToken))
+            .Where(year => markedSince is not { } since || year.Newest >= since)
             .Where(year => !answered.TryGetValue(year.Year, out var at) || at < year.Newest)
             .Select(year => year.Year)
             .OrderDescending();
@@ -49,6 +63,10 @@ internal static class ArchiveReminder
                 && !(answered.TryGetValue(year, out var at) && at >= finishedAt))
             {
                 pending.Add(new FinishedYear(year, keepUntil, finishedAt));
+                if (pending.Count >= limit)
+                {
+                    break;
+                }
             }
         }
 
@@ -70,7 +88,8 @@ internal sealed class ArchiveIncidentSource(TimeProvider time) : IIncidentSource
 
         return
         [
-            .. (await ArchiveReminder.PendingAsync(database, userId, cancellationToken))
+            .. (await ArchiveReminder.PendingAsync(
+                    database, userId, now - ArchiveReminder.MessageWindow, int.MaxValue, cancellationToken))
                 .Where(year => now - year.FinishedAt <= ArchiveReminder.MessageWindow)
                 .Select(year => new Incident(
                     $"{IncidentKind.Archive}:{year.Year}", IncidentKind.Archive, null, year.Year, KeepUntil: year.KeepUntil)),

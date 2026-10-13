@@ -19,6 +19,9 @@ internal enum IncidentKind
     Archive,
 }
 
+/// <summary>A Treasury account in use whose last day has passed (Rule 16).</summary>
+internal sealed record ExpiredTreasuryAccount(PaymentKind Kind, DateOnly ValidUntil);
+
 /// <summary>
 /// Something the owner must act on, open until it is fixed or done. <c>Key</c> names this occurrence: it is claimed per
 /// channel in <see cref="SentReminder"/> so it is alerted once, and a later occurrence of the same kind
@@ -26,9 +29,6 @@ internal enum IncidentKind
 /// is the tax year it is about, when it is about one; <c>Account</c> the Treasury account that ended;
 /// <c>KeepUntil</c> the keep-until date of the year whose archive is ready.
 /// </summary>
-/// <summary>A Treasury account in use whose last day has passed (Rule 16).</summary>
-internal sealed record ExpiredTreasuryAccount(PaymentKind Kind, DateOnly ValidUntil);
-
 internal sealed record Incident(
     string Key,
     IncidentKind Kind,
