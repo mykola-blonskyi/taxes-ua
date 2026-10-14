@@ -23,7 +23,7 @@ seam in step 2. The Compose project is named after your worktree directory, so t
 side by side, but only one can own port 3000. When `up` fails with `address already in use`, find
 the owner with `lsof -nP -iTCP:3000 -sTCP:LISTEN` and stop that specific PID; never kill by name.
 
-Ready when `docker compose ps` reports `api` healthy and this answers:
+Ready when `docker compose ps` reports `taxes-api` healthy and this answers:
 
 ```
 curl -fsS http://localhost:3000/api/health

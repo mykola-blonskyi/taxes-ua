@@ -63,7 +63,7 @@ export default async function globalSetup(config: FullConfig) {
     await context.dispose();
   } catch (error) {
     // The stack is about to be removed, so this is the only record of why it did not come up.
-    await compose(project, ["logs", "--no-color", "api", "web"], env).catch(() => undefined);
+    await compose(project, ["logs", "--no-color", "taxes-api", "web"], env).catch(() => undefined);
     await teardown();
     throw error;
   }

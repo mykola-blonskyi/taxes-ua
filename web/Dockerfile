@@ -8,7 +8,7 @@ RUN pnpm install --frozen-lockfile
 
 FROM base AS build
 WORKDIR /app
-ARG API_URL=http://api:8080
+ARG API_URL=http://taxes-api:8080
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1 API_URL=$API_URL

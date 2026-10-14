@@ -27,11 +27,11 @@ owner_identity=$(grep '^AGE-SECRET-KEY-' <<<"$owner_key")
 if ! "${compose[@]}" up -d --build --wait --wait-timeout 180; then
   echo "FAIL  the stack did not become healthy"
   "${compose[@]}" ps -a
-  "${compose[@]}" logs --tail 30 api
+  "${compose[@]}" logs --tail 30 taxes-api
   exit 1
 fi
 
-check "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q api)")" healthy "api is healthy"
+check "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q taxes-api)")" healthy "api is healthy"
 check "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q web)")" healthy "web is healthy"
 
 request() {
@@ -86,10 +86,10 @@ check "$(header permissions-policy -H "Host: $domain" http://web:3000/login | gr
 check "$(header x-powered-by -H "Host: $domain" http://web:3000/login)" "" "/login does not advertise the framework"
 
 # The first start migrated an empty database, so it had to dump it first with the real pg_dump, through age.
-dumps=$("${compose[@]}" exec -T api sh -c 'ls /var/lib/taxes-ua/dumps/' | tr -d '\r')
+dumps=$("${compose[@]}" exec -T taxes-api sh -c 'ls /var/lib/taxes-ua/dumps/' | tr -d '\r')
 check "$(grep -c '^taxes_ua-pre-migrate-.*\.dump\.age$' <<<"$dumps" || true)" 1 "api dumped the database, encrypted, before its first migration"
 check "$(grep -cv '\.dump\.age$' <<<"$dumps" || true)" 0 "the dump volume holds no plain dump and no partial file"
-listing=$("${compose[@]}" exec -T -e OWNER_IDENTITY="$owner_identity" api bash -c \
+listing=$("${compose[@]}" exec -T -e OWNER_IDENTITY="$owner_identity" taxes-api bash -c \
   'age -d -i <(printf "%s\n" "$OWNER_IDENTITY") /var/lib/taxes-ua/dumps/taxes_ua-pre-migrate-*.dump.age | pg_restore --list') || true
 if grep -q 'TOC Entries' <<<"$listing"; then r=yes; else r=no; fi
 check "$r" yes "the pre-migration dump decrypts with the owner's recovery key and pg_restore lists it"

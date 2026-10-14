@@ -131,7 +131,7 @@ External systems:
 
 ```
 browser (Next.js UI)
-   │  /api/*  (same origin, rewrite → http://api:8080)
+   │  /api/*  (same origin, rewrite → http://taxes-api:8080)
    ▼
 api: boundary
    UTC → Europe/Kyiv date, amount → kopecks, NBU rate → RateE4, validation

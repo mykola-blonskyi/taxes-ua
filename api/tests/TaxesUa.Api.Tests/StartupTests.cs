@@ -123,9 +123,9 @@ public sealed class StartupTests(ApiFixture fixture) : IClassFixture<ApiFixture>
     // domain in X-Forwarded-Host; the healthcheck asks `localhost:8080` directly.
     [Theory]
     [InlineData("https://localhost:8080", null, HttpStatusCode.OK)]
-    [InlineData("http://api:8080", DeployedHost, HttpStatusCode.OK)]
-    [InlineData("http://api:8080", "evil.example", HttpStatusCode.BadRequest)]
-    [InlineData("http://api:8080", "localhost", HttpStatusCode.BadRequest)]
+    [InlineData("http://taxes-api:8080", DeployedHost, HttpStatusCode.OK)]
+    [InlineData("http://taxes-api:8080", "evil.example", HttpStatusCode.BadRequest)]
+    [InlineData("http://taxes-api:8080", "localhost", HttpStatusCode.BadRequest)]
     [InlineData("https://evil.example", null, HttpStatusCode.BadRequest)]
     public async Task Production_accepts_only_the_domain_and_its_own_internal_names(
         string address, string? forwardedHost, HttpStatusCode expected)
