@@ -131,7 +131,7 @@ External systems:
 
 ```
 browser (Next.js UI)
-   │  /api/*  (same origin, rewrite → http://api:8080)
+   │  /api/*  (same origin, rewrite → http://taxes-api:8080)
    ▼
 api: boundary
    UTC → Europe/Kyiv date, amount → kopecks, NBU rate → RateE4, validation
@@ -345,7 +345,7 @@ yields no working URL (#256).
 
 Other: HTTPS via Traefik. `ALLOWED_HOSTS` pins the host the Google redirect URI is built from, and
 the api refuses to start in Production without it. Host filtering sees the host the container was
-addressed by, so outside Development it also accepts `api` and `localhost`; the pin to the domain is
+addressed by, so outside Development it also accepts `taxes-api` and `localhost`; the pin to the domain is
 `ForwardedHeadersOptions.AllowedHosts`, and a forwarded host outside it gets 400. The forwarded-headers options trust every hop (`KnownProxies` and
 `KnownIPNetworks` are cleared), so the client IP and scheme the api sees are not trustworthy: any caller can send
 `X-Forwarded-For`. A feature that depends on the client IP must first restrict `KnownIPNetworks` to the Docker

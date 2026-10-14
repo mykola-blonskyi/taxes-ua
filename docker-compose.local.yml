@@ -6,7 +6,7 @@ services:
       # shared network.
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
 
-  api:
+  taxes-api:
     environment:
       # A local stack has no pinned domain. Development is the environment where the api accepts any
       # host and serves the OpenAPI document `pnpm gen:api` reads.

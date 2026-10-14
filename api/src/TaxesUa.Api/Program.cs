@@ -103,14 +103,14 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 // Host filtering runs as a startup filter, ahead of UseForwardedHeaders, so it sees the Host this
-// container was addressed by: `api:8080` from web's rewrite and `localhost:8080` from the
+// container was addressed by: `taxes-api:8080` from web's rewrite and `localhost:8080` from the
 // healthcheck, never the public domain. Pinned to the domain alone it answers 400 to both. The
 // domain pin that matters is ForwardedHeadersOptions.AllowedHosts above, and the check after
 // UseForwardedHeaders below refuses a forwarded host it did not accept.
 if (!builder.Environment.IsDevelopment())
 {
     builder.Services.Configure<HostFilteringOptions>(options =>
-        options.AllowedHosts = [.. allowedHosts, "api", "localhost"]);
+        options.AllowedHosts = [.. allowedHosts, "taxes-api", "localhost"]);
 }
 
 builder.Services.ConfigureHttpJsonOptions(options =>

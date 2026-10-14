@@ -26,8 +26,8 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
 - `api` runs as `Production` and refuses to start while `DATABASE_URL`, `GOOGLE_CLIENT_ID`,
   `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAILS`, `ALLOWED_HOSTS` or `PASSKEY_SERVER_DOMAIN` is empty.
   Its log names the missing variables, and the container exits instead of staying up unhealthy.
-- Every service restarts `unless-stopped`, is memory-limited (`api` 512 MB, `web` 384 MB, `backup`
-  256 MB) and rotates its logs (10 MB, 5 files). `api` dumps the database to the `migration-dumps` volume before it runs a
+- Every service restarts `unless-stopped`, is memory-limited (`taxes-api` 512 MB, `web` 384 MB, `backup`
+  256 MB) and rotates its logs (10 MB, 5 files). `taxes-api` dumps the database to the `migration-dumps` volume before it runs a
   pending migration, encrypted to `BACKUP_AGE_RECIPIENT`, and does not migrate if that fails or the variable is
   empty (ADR-027, "Rollback").
 - `MONOBANK_TOKEN_ENCRYPTION_KEY` is the one secret that is *not* required to start (ADR-011): left
@@ -52,7 +52,7 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
   the log. With its variables empty, the service still starts and each nightly run records a failed
   backup. The first Sunday's restore check then fails too, and that alerts the owner at once. Configure
   step 8b before the first Sunday 01:00 UTC after this deploys, or expect that alert.
-- `api` answers only for `ALLOWED_HOSTS`, as forwarded by `web`, plus its own internal names for
+- `taxes-api` answers only for `ALLOWED_HOSTS`, as forwarded by `web`, plus its own internal names for
   the healthcheck and the rewrite. A foreign host gets 400.
 - Every response carries HSTS, `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a
   Permissions-Policy, and pages carry a nonce-based Content-Security-Policy.
@@ -185,11 +185,16 @@ is disabled.
    overrides only the environment name and the connection string, so a local run would inherit it
    and refuse to start.
 
+The api service is named `taxes-api`, not `api`. Coolify attaches every app's services to one shared
+`coolify` network under their service names, so a second app with an `api` service makes `http://api:8080`
+resolve to either, and web's rewrite then reaches the other app's api, which refuses our host. Every
+service web or backup calls by name needs a name no other app on the server uses.
+
 Coolify 4.2.0 can refuse to save the General form while a compose service has no entry in the resource's
-`docker_compose_domains`. The workaround is the same as for `api`: give `backup` an entry with no domain,
+`docker_compose_domains`. The workaround is the same as for `taxes-api`: give `backup` an entry with no domain,
 `"backup":{"domain":null}`, next to the existing ones.
 
-**Check.** Persistent Storage lists the `dataprotection-keys` volume. The `api` and `backup` services
+**Check.** Persistent Storage lists the `dataprotection-keys` volume. The `taxes-api` and `backup` services
 have no domain. The six required variables have values. The two `MONOBANK_*` ones, `TELEGRAM_BOT_TOKEN`
 and the six `SMTP_*` ones may stay empty. The `BACKUP_*` ones may stay empty until step 8b, and every
 night without them is a failed backup.
@@ -257,8 +262,8 @@ against any SMTP catcher listening on the host. Never point a local stack at a r
 
 Click Deploy.
 
-**Check.** The deployment log ends successfully, both containers are healthy, and the `api` log
-has no `Missing required configuration` or `InvalidOperationException` line. If `api` exits with
+**Check.** The deployment log ends successfully, both containers are healthy, and the `taxes-api` log
+has no `Missing required configuration` or `InvalidOperationException` line. If `taxes-api` exits with
 code 134, its log names the variable to fix.
 
 ## 7. Verify the deployment
@@ -282,10 +287,10 @@ registered within a minute of saving the token. If it shows them failed, monoban
 the URL: its check is a plain GET from the bank's servers, so a Cloudflare bot challenge on the
 domain would fail it.
 
-On the VPS, `api` has no host port and no Traefik router:
+On the VPS, `taxes-api` has no host port and no Traefik router:
 
 ```bash
-docker ps --format '{{.Names}}\t{{.Ports}}' | grep -E '^(api|web)-'       # no 0.0.0.0:... mappings
+docker ps --format '{{.Names}}\t{{.Ports}}' | grep -E '^(taxes-api|web)-'       # no 0.0.0.0:... mappings
 docker inspect $(docker ps -qf name='^api-') --format '{{json .Config.Labels}}' | tr ',' '\n' | grep -i 'traefik.http.routers'  # prints nothing
 ```
 

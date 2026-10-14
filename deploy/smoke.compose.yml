@@ -1,7 +1,7 @@
 # Used only by deploy/smoke-test.sh: the production compose plus a throwaway database, with the
 # variables Coolify would set. Nothing is published; the test reaches web over the stack network.
 services:
-  api:
+  taxes-api:
     environment:
       ConnectionStrings__Default: Host=db;Port=5432;Database=taxes_ua;Username=taxes_ua;Password=smoke
       Authentication__Google__ClientId: smoke-client-id
@@ -46,7 +46,7 @@ services:
       BACKUP_OFFSITE_S3_ACCESS_KEY: smoke-access
       BACKUP_OFFSITE_S3_SECRET_KEY: smoke-s3-secret-value
     depends_on:
-      api:
+      taxes-api:
         condition: service_healthy
       s3:
         condition: service_started
