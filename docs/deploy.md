@@ -52,7 +52,7 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
   the log. With its variables empty, the service still starts and each nightly run records a failed
   backup. The first Sunday's restore check then fails too, and that alerts the owner at once. Configure
   step 8b before the first Sunday 01:00 UTC after this deploys, or expect that alert.
-- `api` answers only for `ALLOWED_HOSTS`, as forwarded by `web`, plus its own internal names for
+- `taxes-api` answers only for `ALLOWED_HOSTS`, as forwarded by `web`, plus its own internal names for
   the healthcheck and the rewrite. A foreign host gets 400.
 - Every response carries HSTS, `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a
   Permissions-Policy, and pages carry a nonce-based Content-Security-Policy.
