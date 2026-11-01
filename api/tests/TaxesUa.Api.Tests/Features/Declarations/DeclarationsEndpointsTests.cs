@@ -28,8 +28,7 @@ namespace TaxesUa.Api.Tests.Features.Declarations;
 // ApiFixture is an IClassFixture, so this class owns its database. xUnit runs one class's tests in
 // sequence but in no fixed order, so each test uses a year of its own and first sets the registration
 // date and details it needs. A pending payment candidate is the owner's across every test, so the
-// one test that adds one resolves it again. The clock is in the 2080s because the test client drops a session
-// cookie whose expiry is already past on the real clock.
+// one test that adds one resolves it again.
 public sealed class DeclarationsEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {
     private static readonly JsonSerializerOptions Json =

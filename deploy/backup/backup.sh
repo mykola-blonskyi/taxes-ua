@@ -3,6 +3,7 @@
 #   schedule  (default) every day at 01:00 UTC run `backup`; on Sundays then run `check`
 #   backup    dump the app database, encrypt it with age, upload it, prune old copies
 #   check     restore the newest stored dump into a throwaway cluster and compare it with the live database
+#   health    exit 0 if the live database answers; the compose healthcheck, so Coolify can report the service
 # Every run records one row in "DatabaseBackupRuns" and exits 0 only if it succeeded.
 # Secrets arrive in the environment and go to tools by environment or process substitution, never on a
 # command line, and are never printed.
@@ -492,8 +493,9 @@ main() {
     schedule) cmd_schedule ;;
     backup) cmd_backup ;;
     check) cmd_check ;;
+    health) parse_database_url && live pg_isready -q ;;
     *)
-      echo "usage: backup-db [schedule|backup|check]" >&2
+      echo "usage: backup-db [schedule|backup|check|health]" >&2
       return 2
       ;;
   esac
