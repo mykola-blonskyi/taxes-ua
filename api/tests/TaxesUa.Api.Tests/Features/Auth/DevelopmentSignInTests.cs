@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Time.Testing;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 
@@ -40,6 +42,21 @@ public sealed class DevelopmentSignInTests(ApiFixture fixture) : IClassFixture<A
         var me = await client.GetFromJsonAsync<MeResponse>("/api/auth/me");
 
         Assert.Equal(ApiFixture.AllowedEmail, me?.Email);
+    }
+
+    // A session lives 7 days by the application's clock (ADR-009), even one years behind the real clock.
+    [Fact]
+    public async Task A_session_ends_seven_days_after_sign_in_by_the_applications_clock()
+    {
+        var clock = new FakeTimeProvider(new DateTimeOffset(2020, 3, 2, 10, 0, 0, TimeSpan.Zero));
+        await using var application = fixture.CreateApplication(builder =>
+            builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(clock)));
+        using var client = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
+
+        clock.Advance(TimeSpan.FromDays(7) + TimeSpan.FromMinutes(1));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
     }
 
     [Fact]
