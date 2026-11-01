@@ -385,8 +385,8 @@ current year has no row, a `MissingTaxYear:<year>` incident takes over: the same
 until the year is configured.
 
 **Deleting a year.** The admin may delete a year's row only while it is after the current Kyiv year,
-unverified and unused: no transaction has a `ValueDate` and no invoice an `IssueDate` in that year, for any
-user. The current and past years are refused with `tax_year_not_future`, because the ledger needs a row for
+unverified and unused: no transaction has a `ValueDate` and no invoice an `IssueDate` in that year, and no
+budget payment has that `PeriodYear`, for any user. The current and past years are refused with `tax_year_not_future`, because the ledger needs a row for
 every year from the registration year to today whether or not it holds data (ESV accrues monthly regardless
 of income), and payments, declarations and the registration-year check read those rows too. A verified year
 is refused with `tax_year_verified`, a used one with `tax_year_in_use`. An empty `VerifiedAt` alone does not
@@ -1093,7 +1093,8 @@ the app's home screen, where the pay panel is. The runs are 5 minutes apart.
 
 **The archive reminder.** When every group 3 declaration of a year (the quarters Rule 19 counts) is marked
 filed (Rule 15), the owner is told once to download the year's archive and keep it until its keep-until
-date. Like the reminders above it is computed on every run, not fired by the mark: a year is due while it is
+date. Without a registration date no quarter counts, so no year is finished and nothing is sent until the
+date is set. Like the reminders above it is computed on every run, not fired by the mark: a year is due while it is
 finished and its archive notice is unanswered (Rule 19). It is claimed once per channel under the key
 `Archive:{year}` in the same sent log, with the same retry rule, so a second mark, an unmark and a new mark,
 a restart or two runs at once send nothing more. It waits for no hour: the owner has just marked the
@@ -1208,7 +1209,7 @@ link: nothing in the app fixes it.
 ## Rule 19. Keeping a year's documents
 
 A year's documents (its invoices, receipts, declaration files, payments) are kept until the year's
-keep-until date, shown on the periods screen. The app computes it and never deletes anything.
+keep-until date, shown on the periods screen and the archive screen. The app computes it and never deletes anything.
 
 The period. Tax Code art. 44.3: documents tied to taxes are kept "не менше" 1095 days (44.3.3; the
 1825 days of 44.3.2 bind legal entities and profit-tax payers, and the 2555 days of 44.3.1 transfer
@@ -1221,7 +1222,8 @@ Per year. Every quarter of the year with a group 3 declaration counts: a quarter
 end before the registration date, as the periods screen lists it (Rules 4, 8, 15). Its start is the filing
 date of the owner's filed mark (Rule 15), or else the declaration's deadline as shifted off a weekend
 (Rule 5; Tax Code 49.20 makes that the last day of the deadline). The year's date is the latest of its
-quarters', which is normally Q4's, filed in the next year. A year with no group 3 declaration has no date.
+quarters', which is normally Q4's, filed in the next year. A year with no group 3 declaration has no date,
+and neither does any year while the registration date is not set: which quarters count is not known yet.
 
 The suspension. A suspended day does not count. The suspension is one stretch for every year and every
 owner, `LimitationSuspensionConfig` (its first and last day, the last empty while it lasts), edited by
@@ -1252,10 +1254,12 @@ The arithmetic. With a start S and a suspension from A to B:
   the date is B plus the rest.
 - While the suspension is open (no B), the date is not known: the screen says the period is extended
   while martial law lasts, gives the number of days that will run after it ends, and the earliest the
-  date can be, S + 1095. A year whose quarters are all past their count before A has a fixed date.
+  date can be: the later of S + 1095 and today plus those days (the date were the suspension to end
+  today). S + 1095 alone can already be past and read as "discard now"; the later bound moves with
+  today. A year whose quarters are all past their count before A has a fixed date.
 
 Worked example, 2026 with the seed: Q4 is due 2027-02-09, inside the open suspension, so all 1095 days
-wait for its end and the year shows "not before 2030-02-08". Had the suspension's last day been 2027-06-30,
+wait for its end and the year shows "not before 2030-02-08" until 2027-02-09, then today plus 1095 days. Had the suspension's last day been 2027-06-30,
 the date would be 2030-06-29. A 2015 Q4 declaration filed on 2016-02-01 ends on 2019-01-31, before the
 suspension began.
 
@@ -1274,9 +1278,11 @@ again, which a download or a dismissal answers.
 
 The archive ZIP. `GET /api/archive/{year}/zip` streams the year as `archive-{year}-{yyyy-MM-dd}.zip` (the
 download date in Kyiv), never stored and never cached. It holds exactly what the archive screen lists, by
-the same read (`ArchiveContents`), in `invoices/`, `declarations/Q{n}/`, `statement/` and `payments/`, plus
+the same read (`ArchiveContents`), in `invoices/`, `declarations/Q{n}/`, `statement/` and `payments/` (the
+payments register files a payment under its `PeriodYear`, the year it pays for, not the year of `PaidOn`), plus
 `contents.txt`: plain UTF-8 text with a byte order mark, in the owner's language, giving the title, the
 creation date, the keep-until line worded as the periods screen words it (including the open-suspension
-wording; a year with no group 3 declaration says the period is not determined), then each section with
+wording; a year with no group 3 declaration, or any year before the registration date is set, says the
+period is not determined), then each section with
 its files, or "none" for a section with nothing. Each document is rendered when its turn comes, so memory
 holds one at a time.

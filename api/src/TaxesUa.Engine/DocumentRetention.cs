@@ -28,7 +28,8 @@ public abstract record KeepUntil
     /// <summary>
     /// The suspension is still open, so the count is stopped: it resumes the day after the suspension
     /// ends and runs <c>DaysAfterSuspension</c> more days. The date is then never before
-    /// <c>NotBefore</c>, the day the count would end without the suspension.
+    /// <c>NotBefore</c>: the day the count would end without the suspension, or, when later, the day it
+    /// would end were the suspension to end today.
     /// </summary>
     public sealed record WhileSuspended(int DaysAfterSuspension, DateOnly NotBefore) : KeepUntil;
 }
@@ -46,10 +47,12 @@ public static class DocumentRetention
     /// <summary>
     /// The latest of the year's declarations' keep-until dates, or null for a year with no group 3
     /// declaration. A declaration not marked filed counts from its deadline as shifted off a weekend
-    /// (Tax Code 49.20), which is the last day the law allows.
+    /// (Tax Code 49.20), which is the last day the law allows. <paramref name="today"/> keeps an open
+    /// suspension's earliest date from being in the past, where it would read as "discard now".
     /// </summary>
     public static KeepUntil? ForYear(
         int year,
+        DateOnly today,
         IReadOnlyList<RetainedDeclaration> declarations,
         TaxYearConfigInput config,
         FopSettingsInput settings,
@@ -71,7 +74,7 @@ public static class DocumentRetention
             ? new KeepUntil.On(each.Cast<KeepUntil.On>().Max(until => until.Date))
             : new KeepUntil.WhileSuspended(
                 open.Max(until => until.DaysAfterSuspension),
-                open.Max(until => until.NotBefore));
+                new[] { open.Max(until => until.NotBefore), today.AddDays(open.Max(until => until.DaysAfterSuspension)) }.Max());
     }
 
     /// <summary>

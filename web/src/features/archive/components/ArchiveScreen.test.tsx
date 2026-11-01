@@ -81,6 +81,10 @@ function stub(archive: ArchiveResponse) {
   return stubFetch({
     "GET /api/tax-years": [{ year: 2025 }, { year: 2024 }],
     "GET /api/archive/{year}": (request) => ({ ...archive, year: Number(request.path.split("/").pop()) }),
+    "GET /api/declarations/{year}/keep-until": (request) => ({
+      year: Number(request.path.split("/").at(-2)),
+      keepUntil: { state: "Fixed", date: "2029-02-08", daysAfterSuspension: null },
+    }),
   });
 }
 
@@ -102,6 +106,13 @@ describe("ArchiveScreen", () => {
     expect(hrefOf("Завантажити transactions-2025.xlsx")).toBe("/api/export/transactions.xlsx?year=2025");
     expect(hrefOf("Завантажити payments-2025.csv")).toBe("/api/payments/register.csv?year=2025");
     expect(screen.getByRole("link", { name: "Завантажити payments-2025.csv" })).toHaveAttribute("download", "payments-2025.csv");
+  });
+
+  it("says until when the year's documents must be kept", async () => {
+    stub(full);
+    renderApp(<ArchiveScreen year="2025" />);
+
+    expect(await screen.findByText("Документи за 2025 рік зберігати до 08.02.2029")).toBeVisible();
   });
 
   it("offers the whole year as one ZIP that the server names", async () => {

@@ -5,10 +5,12 @@ import { Download } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { LoadState } from "@/data/api/LoadState";
 import { useArchive, type ArchiveResponse } from "@/data/archive/useArchive";
+import { useKeepUntil } from "@/data/declarations/useKeepUntil";
 import { useTaxYears } from "@/data/tax-years/useTaxYears";
 import { currentYearInKyiv, formatDateOnly, formatInstantInKyiv } from "@/shared/lib/dates";
 import { formatAmount } from "@/shared/lib/money";
 import { Button } from "@/shared/ui/button";
+import { KeepUntilLine } from "@/shared/ui/keep-until-line";
 
 type Quarter = ArchiveResponse["quarters"][number];
 type Item = { id: string; name: string; url: string };
@@ -32,6 +34,7 @@ export function ArchiveScreen({ year: yearParam }: { year?: string }) {
     (configuredYears.length === 0 || configuredYears.includes(current) ? current : Math.max(...configuredYears));
   const years = useMemo(() => [...new Set([...configuredYears, year])].sort((a, b) => a - b), [configuredYears, year]);
   const archiveQuery = useArchive(taxYearsQuery.isSuccess ? year : undefined);
+  const keepUntilQuery = useKeepUntil(taxYearsQuery.isSuccess ? year : undefined);
 
   if (taxYearsQuery.isLoading || taxYearsQuery.isError) {
     return <LoadState query={taxYearsQuery} loading={t("loading")} failed={t("loadFailed")} />;
@@ -39,7 +42,6 @@ export function ArchiveScreen({ year: yearParam }: { year?: string }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      {/* The year's keep-until date goes in this block, beside the year picker. */}
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <label htmlFor="archive-year" className="text-sm font-medium">
@@ -58,6 +60,7 @@ export function ArchiveScreen({ year: yearParam }: { year?: string }) {
             ))}
           </select>
         </div>
+        <KeepUntilLine year={year} keepUntil={keepUntilQuery.data?.keepUntil} />
         {archiveQuery.data && !isEmpty(archiveQuery.data) ? <YearZipDownload year={year} /> : null}
       </div>
 

@@ -14,8 +14,6 @@ internal static class PaymentRegister
 {
     private static readonly string[] Headers = ["Дата оплати", "Платіж", "Сума, грн", "Період", "Примітка"];
 
-    private static readonly string[] KindNames = ["Єдиний податок", "Військовий збір", "ЄСВ"];
-
     private static readonly char[] FormulaTriggers = ['=', '+', '-', '@', '\t', '\r'];
 
     public static string FileName(int year) => $"payments-{year}.csv";
@@ -42,7 +40,7 @@ internal static class PaymentRegister
             AppendLine(builder,
             [
                 row.PaidOn.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture),
-                KindNames[(int)row.Kind],
+                KindName(row.Kind),
                 Amount(row.AmountKop),
                 row.PeriodMonth is { } month
                     ? $"{row.PeriodYear}-{month:00}"
@@ -53,6 +51,14 @@ internal static class PaymentRegister
 
         return [.. Encoding.UTF8.GetPreamble(), .. Encoding.UTF8.GetBytes(builder.ToString())];
     }
+
+    private static string KindName(PaymentKind kind) => kind switch
+    {
+        PaymentKind.SingleTax => "Єдиний податок",
+        PaymentKind.MilitaryLevy => "Військовий збір",
+        PaymentKind.Esv => "ЄСВ",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Unnamed payment kind."),
+    };
 
     private static string Amount(long kop) =>
         $"{(kop < 0 ? "-" : string.Empty)}{Math.Abs(kop) / 100},{Math.Abs(kop) % 100:00}";
