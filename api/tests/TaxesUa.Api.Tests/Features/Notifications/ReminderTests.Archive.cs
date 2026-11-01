@@ -26,11 +26,11 @@ public sealed partial class ReminderTests
 {
     private static readonly DateTimeOffset YearFiled = Kyiv(new DateOnly(2032, 2, 5), 10, 0);
 
-    // The seeded suspension is open, so the date is the earliest possible: the fourth quarter's filing date,
-    // 2032-02-02, plus 1095 days.
+    // The seeded suspension is open, so the date is the earliest possible: were it to end on the day the year
+    // was filed, 2032-02-05, plus 1095 days (later than the fourth quarter's filing date, 2032-02-02, plus 1095).
     private const string ArchiveText =
         "Усі декларації за 2031 рік подано: завантажте архів року.\n"
-        + "Документи за 2031 рік зберігати не менше ніж до 01.02.2035. Строк продовжено на час воєнного стану: "
+        + "Документи за 2031 рік зберігати не менше ніж до 04.02.2035. Строк продовжено на час воєнного стану: "
         + "після його припинення або скасування ще 1095 днів.\n"
         + "Відкрити архів: https://taxes.example.com/archive?year=2031";
 
@@ -141,7 +141,7 @@ public sealed partial class ReminderTests
         Assert.Equal(
             [
                 "Все декларации за 2031 год поданы: скачайте архив года.\n"
-                + "Документы за 2031 год хранить не менее чем до 01.02.2035. Срок продлён на время военного положения: "
+                + "Документы за 2031 год хранить не менее чем до 04.02.2035. Срок продлён на время военного положения: "
                 + "после его прекращения или отмены ещё 1095 дней.",
             ],
             Texts(telegram).Where(text => text.StartsWith("Все декларации", StringComparison.Ordinal)));
@@ -158,7 +158,7 @@ public sealed partial class ReminderTests
         var notice = (await Dashboard(owner))["archive"]!;
         Assert.Equal(2031, notice["year"]!.GetValue<int>());
         Assert.Equal("ExtendedWhileSuspended", notice["keepUntil"]!["state"]!.GetValue<string>());
-        Assert.Equal("2035-02-01", notice["keepUntil"]!["date"]!.GetValue<string>());
+        Assert.Equal("2035-02-04", notice["keepUntil"]!["date"]!.GetValue<string>());
 
         await DownloadZip(owner, 2031);
         await Run(application);

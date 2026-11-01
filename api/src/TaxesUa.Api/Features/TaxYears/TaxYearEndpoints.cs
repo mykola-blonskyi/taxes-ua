@@ -202,6 +202,7 @@ public static class TaxYearEndpoints
                         $"""
                         SELECT EXISTS (SELECT 1 FROM "Transactions" WHERE "ValueDate" >= {first} AND "ValueDate" < {end})
                             OR EXISTS (SELECT 1 FROM "Invoices" WHERE "IssueDate" >= {first} AND "IssueDate" < {end})
+                            OR EXISTS (SELECT 1 FROM "BudgetPayments" WHERE "PeriodYear" = {year})
                             AS "Value"
                         """)
                     .SingleAsync(cancellationToken);
@@ -210,7 +211,7 @@ public static class TaxYearEndpoints
                     return Problems.Create(
                         StatusCodes.Status409Conflict,
                         ProblemCodes.TaxYearInUse,
-                        $"The tax year {year} has transactions or invoices and cannot be deleted.");
+                        $"The tax year {year} has transactions, invoices or budget payments and cannot be deleted.");
                 }
 
                 database.TaxYearConfigs.Remove(config);

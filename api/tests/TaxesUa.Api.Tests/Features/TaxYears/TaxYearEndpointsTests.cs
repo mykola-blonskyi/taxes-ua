@@ -8,6 +8,7 @@ using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
 using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
+using TaxesUa.Api.Features.Payments;
 using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Api.Tests.Features.Fx;
@@ -555,6 +556,36 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         await ProblemAssert.CodeIsAsync(response, ProblemCodes.TaxYearInUse);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/tax-years/{year}")).StatusCode);
+    }
+
+    // A payment filed under the year counts even when it was paid in another one.
+    [Fact]
+    public async Task Delete_refuses_a_year_that_has_a_budget_payment_for_it()
+    {
+        const int year = 2060;
+        using var client = await SignIn();
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
+        await using (var scope = fixture.CreateScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            database.BudgetPayments.Add(new BudgetPayment
+            {
+                Id = Guid.NewGuid(),
+                UserId = database.Users.Single(user => user.Email == ApiFixture.AllowedEmail).Id,
+                PaidOn = new DateOnly(year - 1, 12, 20),
+                Kind = PaymentKind.SingleTax,
+                AmountKop = 100_00,
+                PeriodYear = year,
+                PeriodQuarter = 1,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+            await database.SaveChangesAsync();
+        }
+
+        var response = await client.DeleteAsync($"/api/tax-years/{year}");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await ProblemAssert.CodeIsAsync(response, ProblemCodes.TaxYearInUse);
     }
 
     [Theory]

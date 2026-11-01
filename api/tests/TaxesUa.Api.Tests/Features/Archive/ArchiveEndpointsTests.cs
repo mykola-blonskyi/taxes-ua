@@ -197,6 +197,7 @@ public sealed class ArchiveEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         const int year = 2018;
         using var owner = await SignIn(ApiFixture.AllowedEmail);
         var userId = await UserId(ApiFixture.AllowedEmail);
+        await SetRegistrationDate(owner, new DateOnly(2010, 1, 1));
         Assert.Equal(HttpStatusCode.OK, (await owner.PutAsJsonAsync($"/api/tax-years/{year}", YearRequest(), Json)).StatusCode);
         await SeedInvoice(userId, year, InvoiceStatus.Issued, 1, new DateOnly(year, 2, 10));
         await SeedInvoice(userId, year, InvoiceStatus.Cancelled, 2, new DateOnly(year, 3, 1));
@@ -385,6 +386,22 @@ public sealed class ArchiveEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
             },
             Json);
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    private static async Task SetRegistrationDate(HttpClient client, DateOnly? date)
+    {
+        var request = new SettingsRequest(
+            FopRegistrationDate: date,
+            PaymentMode: PaymentMode.Quarterly,
+            EsvRegistrationMonthPolicy: Api.Features.Settings.EsvRegistrationMonthPolicy.FullMonth,
+            EsvExempt: false,
+            TaxPaymentCountsFromStatutoryDeclarationDate: true,
+            ShiftTaxPaymentFromWeekend: true,
+            WeekendDays: [DayOfWeek.Saturday, DayOfWeek.Sunday],
+            Locale: "uk",
+            Theme: "system",
+            DefaultCurrency: "UAH");
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync("/api/settings", request, Json)).StatusCode);
     }
 
     private async Task<HttpClient> SignIn(string email)

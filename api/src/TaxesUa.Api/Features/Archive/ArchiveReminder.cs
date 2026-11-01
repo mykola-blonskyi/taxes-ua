@@ -25,8 +25,8 @@ internal static class ArchiveReminder
 
     /// <summary>The newest pending year, or null: the dashboard shows one notice and loads one year's accruals.</summary>
     public static async Task<FinishedYear?> NewestPendingAsync(
-        AppDbContext database, string userId, CancellationToken cancellationToken) =>
-        (await PendingAsync(database, userId, null, 1, cancellationToken)) is [var newest, ..] ? newest : null;
+        AppDbContext database, string userId, DateOnly today, CancellationToken cancellationToken) =>
+        (await PendingAsync(database, userId, today, null, 1, cancellationToken)) is [var newest, ..] ? newest : null;
 
     /// <summary>
     /// The pending years, newest first, at most <paramref name="limit"/>. Only years whose newest mark is at
@@ -36,6 +36,7 @@ internal static class ArchiveReminder
     public static async Task<IReadOnlyList<FinishedYear>> PendingAsync(
         AppDbContext database,
         string userId,
+        DateOnly today,
         DateTimeOffset? markedSince,
         int limit,
         CancellationToken cancellationToken)
@@ -58,7 +59,7 @@ internal static class ArchiveReminder
         var pending = new List<FinishedYear>();
         foreach (var year in candidates)
         {
-            if (await KeepUntilEndpoints.LoadAsync(database, userId, year, cancellationToken)
+            if (await KeepUntilEndpoints.LoadAsync(database, userId, year, today, cancellationToken)
                     is { KeepUntil: { } keepUntil, FinishedAt: { } finishedAt }
                 && !(answered.TryGetValue(year, out var at) && at >= finishedAt))
             {
@@ -89,7 +90,7 @@ internal sealed class ArchiveIncidentSource(TimeProvider time) : IIncidentSource
         return
         [
             .. (await ArchiveReminder.PendingAsync(
-                    database, userId, now - ArchiveReminder.MessageWindow, int.MaxValue, cancellationToken))
+                    database, userId, time.TodayInKyiv(), now - ArchiveReminder.MessageWindow, int.MaxValue, cancellationToken))
                 .Where(year => now - year.FinishedAt <= ArchiveReminder.MessageWindow)
                 .Select(year => new Incident(
                     $"{IncidentKind.Archive}:{year.Year}", IncidentKind.Archive, null, year.Year, KeepUntil: year.KeepUntil)),

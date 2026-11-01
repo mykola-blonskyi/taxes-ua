@@ -226,8 +226,8 @@ describe("TaxYearTable verified year", () => {
 });
 
 const deleting = {
-  uk: { delete: "Видалити 2027", confirm: "Так, видалити", cancel: "Скасувати", inUse: /У цьому році є операції або інвойси/ },
-  ru: { delete: "Удалить 2027", confirm: "Да, удалить", cancel: "Отмена", inUse: /В этом году есть операции или инвойсы/ },
+  uk: { delete: "Видалити 2027", confirm: "Так, видалити", cancel: "Скасувати", inUse: /У цьому році є операції, інвойси або платежі/ },
+  ru: { delete: "Удалить 2027", confirm: "Да, удалить", cancel: "Отмена", inUse: /В этом году есть операции, инвойсы или платежи/ },
 } as const;
 
 describe.each(["uk", "ru"] as const)("TaxYearTable delete in %s", (locale) => {

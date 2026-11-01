@@ -43,7 +43,7 @@ public static class DashboardEndpoints
                 var newTaxYear = await NewTaxYearCheck.LoadAsync(database, today, cancellationToken);
                 ExpiredTreasuryAccount[] expiredAccounts =
                     [.. await ExpiredTreasuryAccounts.LoadAsync(database, user.Id, today, cancellationToken)];
-                var archive = (await ArchiveReminder.NewestPendingAsync(database, user.Id, cancellationToken)) is { } newest
+                var archive = (await ArchiveReminder.NewestPendingAsync(database, user.Id, today, cancellationToken)) is { } newest
                     ? new ArchiveNoticeResponse(newest.Year, KeepUntilResponse.Of(newest.KeepUntil)!)
                     : null;
 

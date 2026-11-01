@@ -24,8 +24,11 @@ public class DocumentRetentionTests
         EsvRegistrationMonthPolicy: EsvRegistrationMonthPolicy.FullMonth,
         EsvExempt: false);
 
+    // Early enough that no open suspension's earliest date is pulled forward by it.
+    private static readonly DateOnly Today = new(2026, 1, 1);
+
     private static KeepUntil? ForYear(LimitationSuspension? suspension, params RetainedDeclaration[] declarations) =>
-        DocumentRetention.ForYear(2026, declarations, ReferenceConfig, ReferenceSettings, suspension);
+        DocumentRetention.ForYear(2026, Today, declarations, ReferenceConfig, ReferenceSettings, suspension);
 
     [Fact]
     public void An_unfiled_declaration_counts_from_its_shifted_deadline()
@@ -108,6 +111,23 @@ public class DocumentRetentionTests
         Assert.Equal(
             new KeepUntil.WhileSuspended(1095, new DateOnly(2029, 5, 10)),
             ForYear(new LimitationSuspension(new DateOnly(2022, 3, 17), null), new RetainedDeclaration(1, null)));
+    }
+
+    [Fact]
+    public void An_open_suspension_never_gives_an_earliest_date_in_the_past()
+    {
+        // Without the suspension the count would have ended 2029-05-10; ending today, it would end 1095 days on.
+        var today = new DateOnly(2029, 6, 1);
+
+        Assert.Equal(
+            new KeepUntil.WhileSuspended(1095, today.AddDays(1095)),
+            DocumentRetention.ForYear(
+                2026,
+                today,
+                [new RetainedDeclaration(1, null)],
+                ReferenceConfig,
+                ReferenceSettings,
+                new LimitationSuspension(new DateOnly(2022, 3, 17), null)));
     }
 
     [Fact]

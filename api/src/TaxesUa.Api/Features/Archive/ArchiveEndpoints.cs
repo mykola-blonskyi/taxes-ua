@@ -74,7 +74,7 @@ public static class ArchiveEndpoints
                     var settings = await SettingsEndpoints.LoadOrDefaultAsync(database, user.Id, cancellationToken);
                     var today = time.TodayInKyiv();
                     var keepUntil = KeepUntilResponse.Of(
-                        (await KeepUntilEndpoints.LoadAsync(database, user.Id, year, cancellationToken))?.KeepUntil);
+                        (await KeepUntilEndpoints.LoadAsync(database, user.Id, year, today, cancellationToken))?.KeepUntil);
                     var toc = YearZip.TableOfContents(year, contents, settings.Locale, today, keepUntil);
                     http.Response.Headers.CacheControl = "private, no-store";
 
