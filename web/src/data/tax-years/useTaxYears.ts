@@ -65,3 +65,17 @@ export function useCloneTaxYear() {
     },
   });
 }
+
+export function useDeleteTaxYear() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (year: number) => {
+      await api.DELETE("/api/tax-years/{year}", { params: { path: { year } } });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: taxYearsQueryKey });
+      queryClient.invalidateQueries({ queryKey: periodsQueryKey });
+    },
+  });
+}
