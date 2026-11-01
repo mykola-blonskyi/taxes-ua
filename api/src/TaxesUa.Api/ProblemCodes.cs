@@ -41,6 +41,8 @@ internal static class ProblemCodes
     // Tax years, payments and Treasury accounts.
     public const string TaxYearAlreadyExists = "tax_year_already_exists";
     public const string TaxYearNotConfigured = "tax_year_not_configured";
+    public const string TaxYearVerified = "tax_year_verified";
+    public const string TaxYearInUse = "tax_year_in_use";
     public const string PeriodNotPayable = "period_not_payable";
     public const string CandidateAlreadyDecided = "candidate_already_decided";
     public const string CandidateLinkChanged = "candidate_link_changed";

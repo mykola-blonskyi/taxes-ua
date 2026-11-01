@@ -2,8 +2,13 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
+using TaxesUa.Api.Features.Fx;
+using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.TaxYears;
+using TaxesUa.Api.Features.Transactions;
 using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Tests.Features.TaxYears;
@@ -395,6 +400,7 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
     [InlineData("PUT", "/api/tax-years/2041")]
     [InlineData("POST", "/api/tax-years/2041/verify")]
     [InlineData("POST", "/api/tax-years/2041/clone-to/2042")]
+    [InlineData("DELETE", "/api/tax-years/2041")]
     public async Task Every_route_without_a_session_is_unauthorized(string method, string path)
     {
         using var client = fixture.CreateClient();
@@ -423,6 +429,7 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         await AssertAdminRequired(await member.PutAsJsonAsync($"/api/tax-years/{year}", Request(source: "tampered")));
         await AssertAdminRequired(await member.PostAsync($"/api/tax-years/{year}/verify", null));
         await AssertAdminRequired(await member.PostAsync($"/api/tax-years/{year}/clone-to/{year + 1}", null));
+        await AssertAdminRequired(await member.DeleteAsync($"/api/tax-years/{year}"));
 
         var stored = await admin.GetFromJsonAsync<TaxYearConfigResponse>($"/api/tax-years/{year}");
         Assert.Equal("a test source", stored?.Source);
@@ -474,6 +481,94 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
 
         Assert.True((await admin.GetFromJsonAsync<MeResponse>("/api/auth/me"))?.IsAdmin);
         Assert.False((await member.GetFromJsonAsync<MeResponse>("/api/auth/me"))?.IsAdmin);
+    }
+
+    [Fact]
+    public async Task Delete_removes_an_unverified_year_without_data()
+    {
+        const int year = 2047;
+        using var client = await SignIn();
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
+
+        var deleted = await client.DeleteAsync($"/api/tax-years/{year}");
+
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/api/tax-years/{year}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Delete_a_year_without_a_row_is_not_found()
+    {
+        using var client = await SignIn();
+
+        var response = await client.DeleteAsync("/api/tax-years/2048");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        await ProblemAssert.CodeIsAsync(response, ProblemCodes.TaxYearNotFound);
+    }
+
+    [Fact]
+    public async Task Delete_refuses_a_verified_year()
+    {
+        const int year = 2049;
+        using var client = await SignIn();
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/tax-years/{year}/verify", null)).StatusCode);
+
+        var response = await client.DeleteAsync($"/api/tax-years/{year}");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await ProblemAssert.CodeIsAsync(response, ProblemCodes.TaxYearVerified);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/tax-years/{year}")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(2050, false)]
+    [InlineData(2051, true)]
+    public async Task Delete_refuses_an_unverified_year_that_has_data(int year, bool invoice)
+    {
+        using var client = await SignIn();
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
+        await using (var scope = fixture.CreateScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var userId = database.Users.Single(user => user.Email == ApiFixture.AllowedEmail).Id;
+            var day = new DateOnly(year, 12, 31);
+            if (invoice)
+            {
+                var buyer = database.Clients.Add(new Client { Id = Guid.NewGuid(), UserId = userId, Name = $"Acme {year}" }).Entity;
+                database.Invoices.Add(new Invoice
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    ClientId = buyer.Id,
+                    Status = InvoiceStatus.Draft,
+                    IssueDate = day,
+                    DueDate = day,
+                    Currency = Currency.EUR,
+                    Lines = [new InvoiceLine("Consulting", "Консультації", InvoiceUnit.Hour, 10_000, 100_00)],
+                    TotalMinor = 1_000_00,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow,
+                });
+            }
+            else
+            {
+                database.Transactions.Add(new Transaction
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    ValueDate = day,
+                    AmountMinor = 100_00,
+                    AmountUahKop = 100_00,
+                });
+            }
+
+            await database.SaveChangesAsync();
+        }
+
+        var response = await client.DeleteAsync($"/api/tax-years/{year}");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await ProblemAssert.CodeIsAsync(response, ProblemCodes.TaxYearInUse);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/tax-years/{year}")).StatusCode);
     }
 
     private static async Task AssertAdminRequired(HttpResponseMessage response)

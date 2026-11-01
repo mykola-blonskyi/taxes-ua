@@ -163,6 +163,55 @@ public static class TaxYearEndpoints
             .ProducesCodedProblem(StatusCodes.Status404NotFound)
             .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
+        // Only a year nobody relies on may go. An empty VerifiedAt does not prove that on its own, because
+        // every write clears it and the seeded 2026 starts unverified.
+        taxYears.MapDelete("/{year:int}", async (int year, AppDbContext database, CancellationToken cancellationToken) =>
+            {
+                var config = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
+                if (config is null)
+                {
+                    return Problems.TaxYearNotFound(year);
+                }
+
+                if (config.VerifiedAt is not null)
+                {
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.TaxYearVerified,
+                        $"The tax year {year} is verified and cannot be deleted.");
+                }
+
+                // Raw SQL because Transactions and Invoices already depend on TaxYears; a typed query back
+                // would close a cycle that FeatureBoundaryTests forbids.
+                var first = new DateOnly(year, 1, 1);
+                var end = first.AddYears(1);
+                var inUse = await database.Database.SqlQuery<bool>(
+                        $"""
+                        SELECT EXISTS (SELECT 1 FROM "Transactions" WHERE "ValueDate" >= {first} AND "ValueDate" < {end})
+                            OR EXISTS (SELECT 1 FROM "Invoices" WHERE "IssueDate" >= {first} AND "IssueDate" < {end})
+                            AS "Value"
+                        """)
+                    .SingleAsync(cancellationToken);
+                if (inUse)
+                {
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.TaxYearInUse,
+                        $"The tax year {year} has transactions or invoices and cannot be deleted.");
+                }
+
+                database.TaxYearConfigs.Remove(config);
+                await database.SaveChangesAsync(cancellationToken);
+
+                return Results.NoContent();
+            })
+            .AddEndpointFilter<AdminOnlyFilter>()
+            .Produces(StatusCodes.Status204NoContent)
+            .Produces(StatusCodes.Status401Unauthorized)
+            .ProducesCodedProblem(StatusCodes.Status403Forbidden)
+            .ProducesCodedProblem(StatusCodes.Status404NotFound)
+            .ProducesCodedProblem(StatusCodes.Status409Conflict);
+
         return routes;
     }
 

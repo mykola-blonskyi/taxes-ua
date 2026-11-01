@@ -8,6 +8,7 @@ const list = "GET /api/tax-years" as const;
 const save = "PUT /api/tax-years/{year}" as const;
 const verify = "POST /api/tax-years/{year}/verify" as const;
 const clone = "POST /api/tax-years/{year}/clone-to/{next}" as const;
+const remove = "DELETE /api/tax-years/{year}" as const;
 
 const admin = { id: "u1", email: "owner@example.com", displayName: null, createdAt: "2026-01-01T00:00:00Z", isAdmin: true };
 const member = { ...admin, id: "u2", email: "second@example.com", isAdmin: false };
@@ -209,6 +210,56 @@ describe("TaxYearTable verified year", () => {
 
     const row = (await screen.findByLabelText("Джерело 2025")).closest("tr")!;
     expect(within(row).getByRole("button", { name: "Позначити перевіреним" })).toBeDisabled();
+  });
+
+  it("offers no delete for a verified year", async () => {
+    stubFetch({ [me]: admin, [list]: [year2026, verified2025] });
+    renderApp(<TaxYearTable />);
+
+    const row = (await screen.findByLabelText("Джерело 2025")).closest("tr")!;
+    expect(within(row).queryByRole("button", { name: /Видалити/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Видалити 2026" })).toBeVisible();
+  });
+});
+
+const deleting = {
+  uk: { delete: "Видалити 2026", confirm: "Так, видалити", cancel: "Скасувати", inUse: /У цьому році є операції або інвойси/ },
+  ru: { delete: "Удалить 2026", confirm: "Да, удалить", cancel: "Отмена", inUse: /В этом году есть операции или инвойсы/ },
+} as const;
+
+describe.each(["uk", "ru"] as const)("TaxYearTable delete in %s", (locale) => {
+  const words = deleting[locale];
+
+  it("deletes an unverified year only after confirmation", async () => {
+    const api = stubFetch({ [me]: admin, [list]: [year2026], [remove]: reply(204) });
+    const { user } = renderApp(<TaxYearTable />, { locale });
+
+    await user.click(await screen.findByRole("button", { name: words.delete }));
+    expect(api.requestsTo(remove)).toHaveLength(0);
+    await user.click(screen.getByRole("button", { name: words.confirm }));
+
+    expect(api.requestsTo(remove)[0].path).toBe("/api/tax-years/2026");
+  });
+
+  it("sends nothing when the confirmation is cancelled", async () => {
+    const api = stubFetch({ [me]: admin, [list]: [year2026] });
+    const { user } = renderApp(<TaxYearTable />, { locale });
+
+    await user.click(await screen.findByRole("button", { name: words.delete }));
+    await user.click(screen.getByRole("button", { name: words.cancel }));
+
+    expect(screen.getByRole("button", { name: words.delete })).toBeVisible();
+    expect(api.requestsTo(remove)).toHaveLength(0);
+  });
+
+  it("words a year that is in use", async () => {
+    stubFetch({ [me]: admin, [list]: [year2026], [remove]: reply(409, { code: "tax_year_in_use", title: "In use" }) });
+    const { user } = renderApp(<TaxYearTable />, { locale });
+
+    await user.click(await screen.findByRole("button", { name: words.delete }));
+    await user.click(screen.getByRole("button", { name: words.confirm }));
+
+    expect(await screen.findByText(words.inUse)).toBeVisible();
   });
 });
 

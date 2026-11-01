@@ -384,6 +384,13 @@ years up to the current one, so next year is raised by the December notice alone
 current year has no row, a `MissingTaxYear:<year>` incident takes over: the same alert, once per channel,
 until the year is configured.
 
+**Deleting a year.** The admin may delete a year's row only while it is unverified and unused: no
+transaction has a `ValueDate` and no invoice an `IssueDate` in that year, for any user. A verified year is
+refused with `tax_year_verified`, a used one with `tax_year_in_use`. An empty `VerifiedAt` alone does not
+prove a year unused, because every write clears it and the seeded 2026 starts unverified. Deleting is meant
+for a mistaken clone; there is no soft delete. The seeded 2026 is inserted by its migration once, so a
+deleted 2026 stays deleted on an existing database.
+
 ---
 
 ## Rule 10. Money and dates
