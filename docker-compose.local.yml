@@ -35,6 +35,11 @@ services:
       db:
         condition: service_healthy
 
+  # A local stack gives backup no DATABASE_URL, so its healthcheck could never pass and `up --wait` would fail.
+  backup:
+    healthcheck:
+      disable: true
+
   db:
     image: postgres:18-alpine
     environment:
