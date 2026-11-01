@@ -8,6 +8,7 @@ import { useMe } from "@/data/auth/useMe";
 import { useApiErrorText } from "@/data/api/useApiErrorText";
 import {
   useCloneTaxYear,
+  useDeleteTaxYear,
   useSaveTaxYear,
   useTaxYears,
   useVerifyTaxYear,
@@ -219,7 +220,9 @@ function TaxYearRow({ taxYear, canEdit }: { taxYear: TaxYearConfigResponse; canE
   const saveTaxYear = useSaveTaxYear();
   const verifyTaxYear = useVerifyTaxYear();
   const cloneTaxYear = useCloneTaxYear();
+  const deleteTaxYear = useDeleteTaxYear();
   const [form, setForm] = useState<FormState>(() => toFormState(taxYear));
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const saveFailure = saveTaxYear.error;
   const fieldErrors = apiText.fieldTexts(saveFailure);
@@ -464,7 +467,37 @@ function TaxYearRow({ taxYear, canEdit }: { taxYear: TaxYearConfigResponse; canE
             >
               {cloneTaxYear.isPending ? tYears("cloning") : tYears("cloneToNext", { next })}
             </Button>
+            {taxYear.verifiedAt === null && year > Number(todayInKyiv().slice(0, 4)) && !confirmingDelete ? (
+              <Button type="button" variant="destructive" size="sm" onClick={() => setConfirmingDelete(true)}>
+                {tYears("delete", { year })}
+              </Button>
+            ) : null}
             </>
+          ) : null}
+          {confirmingDelete ? (
+            <div className="col-span-2 flex flex-col gap-2">
+              <p className="text-sm">{tYears("confirmDelete", { year })}</p>
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                disabled={deleteTaxYear.isPending}
+                onClick={() => deleteTaxYear.mutate(year)}
+              >
+                {deleteTaxYear.isPending ? tYears("deleting") : tYears("deleteConfirm")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  deleteTaxYear.reset();
+                  setConfirmingDelete(false);
+                }}
+              >
+                {tYears("cancel")}
+              </Button>
+            </div>
           ) : null}
           <Button asChild variant="outline" size="sm">
             <Link href={`/history?entity=TaxYearConfig&id=${year}`}>{tYears("history")}</Link>
@@ -474,6 +507,11 @@ function TaxYearRow({ taxYear, canEdit }: { taxYear: TaxYearConfigResponse; canE
           ) : null}
           {actionFailure ? (
             <p className="text-xs text-destructive">{apiText.withReason(t("saveFailed"), actionFailure)}</p>
+          ) : null}
+          {deleteTaxYear.error ? (
+            <p className="col-span-2 text-xs text-destructive">
+              {apiText.withReason(tYears("deleteFailed"), deleteTaxYear.error)}
+            </p>
           ) : null}
         </div>
       </td>

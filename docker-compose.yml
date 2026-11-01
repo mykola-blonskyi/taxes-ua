@@ -96,6 +96,14 @@ services:
       BACKUP_OFFSITE_S3_ACCESS_KEY: ${BACKUP_OFFSITE_S3_ACCESS_KEY:-}
       BACKUP_OFFSITE_S3_SECRET_KEY: ${BACKUP_OFFSITE_S3_SECRET_KEY:-}
       BACKUP_OFFSITE_S3_REGION: ${BACKUP_OFFSITE_S3_REGION:-}
+    # Without a healthcheck Coolify reports the service as not configured. It asks the one thing the nightly
+    # run cannot do without: the database answering.
+    healthcheck:
+      test: ["CMD", "backup-db", "health"]
+      interval: 60s
+      timeout: 20s
+      start_period: 30s
+      retries: 3
 
 volumes:
   dataprotection-keys:
