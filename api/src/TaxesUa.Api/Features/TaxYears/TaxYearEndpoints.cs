@@ -163,14 +163,27 @@ public static class TaxYearEndpoints
             .ProducesCodedProblem(StatusCodes.Status404NotFound)
             .ProducesCodedProblem(StatusCodes.Status409Conflict);
 
-        // Only a year nobody relies on may go. An empty VerifiedAt does not prove that on its own, because
-        // every write clears it and the seeded 2026 starts unverified.
-        taxYears.MapDelete("/{year:int}", async (int year, AppDbContext database, CancellationToken cancellationToken) =>
+        // Only a year nobody relies on may go. The ledger needs a row for every year from registration to
+        // today whether or not it holds data, so only a future year qualifies; an empty VerifiedAt proves
+        // nothing on its own, because every write clears it.
+        taxYears.MapDelete("/{year:int}", async (
+                int year,
+                AppDbContext database,
+                TimeProvider time,
+                CancellationToken cancellationToken) =>
             {
                 var config = await database.TaxYearConfigs.FindAsync([year], cancellationToken);
                 if (config is null)
                 {
                     return Problems.TaxYearNotFound(year);
+                }
+
+                if (year <= time.TodayInKyiv().Year)
+                {
+                    return Problems.Create(
+                        StatusCodes.Status409Conflict,
+                        ProblemCodes.TaxYearNotFuture,
+                        $"The tax year {year} has started and cannot be deleted.");
                 }
 
                 if (config.VerifiedAt is not null)

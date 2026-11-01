@@ -467,7 +467,7 @@ function TaxYearRow({ taxYear, canEdit }: { taxYear: TaxYearConfigResponse; canE
             >
               {cloneTaxYear.isPending ? tYears("cloning") : tYears("cloneToNext", { next })}
             </Button>
-            {taxYear.verifiedAt === null && !confirmingDelete ? (
+            {taxYear.verifiedAt === null && year > Number(todayInKyiv().slice(0, 4)) && !confirmingDelete ? (
               <Button type="button" variant="destructive" size="sm" onClick={() => setConfirmingDelete(true)}>
                 {tYears("delete", { year })}
               </Button>
@@ -486,7 +486,15 @@ function TaxYearRow({ taxYear, canEdit }: { taxYear: TaxYearConfigResponse; canE
               >
                 {deleteTaxYear.isPending ? tYears("deleting") : tYears("deleteConfirm")}
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  deleteTaxYear.reset();
+                  setConfirmingDelete(false);
+                }}
+              >
                 {tYears("cancel")}
               </Button>
             </div>

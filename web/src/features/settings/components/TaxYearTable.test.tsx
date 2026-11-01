@@ -36,6 +36,7 @@ const year2026: TaxYearConfigResponse = {
 };
 
 const verified2025: TaxYearConfigResponse = { ...year2026, year: 2025, source: "Минюст", verifiedAt: "2026-01-05T10:00:00Z" };
+const year2027: TaxYearConfigResponse = { ...year2026, year: 2027 };
 
 const copy = {
   uk: {
@@ -212,37 +213,44 @@ describe("TaxYearTable verified year", () => {
     expect(within(row).getByRole("button", { name: "Позначити перевіреним" })).toBeDisabled();
   });
 
-  it("offers no delete for a verified year", async () => {
-    stubFetch({ [me]: admin, [list]: [year2026, verified2025] });
+  it("offers delete only for an unverified year after the current one", async () => {
+    useFakeTimers(["Date"]);
+    vi.setSystemTime(new Date("2026-06-01T10:00:00Z"));
+    const verified2028 = { ...year2026, year: 2028, verifiedAt: "2026-01-05T10:00:00Z" };
+    stubFetch({ [me]: admin, [list]: [verified2025, year2026, year2027, verified2028] });
     renderApp(<TaxYearTable />);
 
-    const row = (await screen.findByLabelText("Джерело 2025")).closest("tr")!;
-    expect(within(row).queryByRole("button", { name: /Видалити/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Видалити 2026" })).toBeVisible();
+    await screen.findByLabelText("Джерело 2028");
+    expect(screen.getAllByRole("button", { name: /Видалити/ }).map((button) => button.textContent)).toEqual(["Видалити 2027"]);
   });
 });
 
 const deleting = {
-  uk: { delete: "Видалити 2026", confirm: "Так, видалити", cancel: "Скасувати", inUse: /У цьому році є операції або інвойси/ },
-  ru: { delete: "Удалить 2026", confirm: "Да, удалить", cancel: "Отмена", inUse: /В этом году есть операции или инвойсы/ },
+  uk: { delete: "Видалити 2027", confirm: "Так, видалити", cancel: "Скасувати", inUse: /У цьому році є операції або інвойси/ },
+  ru: { delete: "Удалить 2027", confirm: "Да, удалить", cancel: "Отмена", inUse: /В этом году есть операции или инвойсы/ },
 } as const;
 
 describe.each(["uk", "ru"] as const)("TaxYearTable delete in %s", (locale) => {
   const words = deleting[locale];
 
+  beforeEach(() => {
+    useFakeTimers(["Date"]);
+    vi.setSystemTime(new Date("2026-06-01T10:00:00Z"));
+  });
+
   it("deletes an unverified year only after confirmation", async () => {
-    const api = stubFetch({ [me]: admin, [list]: [year2026], [remove]: reply(204) });
+    const api = stubFetch({ [me]: admin, [list]: [year2027], [remove]: reply(204) });
     const { user } = renderApp(<TaxYearTable />, { locale });
 
     await user.click(await screen.findByRole("button", { name: words.delete }));
     expect(api.requestsTo(remove)).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: words.confirm }));
 
-    expect(api.requestsTo(remove)[0].path).toBe("/api/tax-years/2026");
+    expect(api.requestsTo(remove)[0].path).toBe("/api/tax-years/2027");
   });
 
   it("sends nothing when the confirmation is cancelled", async () => {
-    const api = stubFetch({ [me]: admin, [list]: [year2026] });
+    const api = stubFetch({ [me]: admin, [list]: [year2027] });
     const { user } = renderApp(<TaxYearTable />, { locale });
 
     await user.click(await screen.findByRole("button", { name: words.delete }));
@@ -252,14 +260,17 @@ describe.each(["uk", "ru"] as const)("TaxYearTable delete in %s", (locale) => {
     expect(api.requestsTo(remove)).toHaveLength(0);
   });
 
-  it("words a year that is in use", async () => {
-    stubFetch({ [me]: admin, [list]: [year2026], [remove]: reply(409, { code: "tax_year_in_use", title: "In use" }) });
+  it("words a year that is in use and clears it on cancel", async () => {
+    stubFetch({ [me]: admin, [list]: [year2027], [remove]: reply(409, { code: "tax_year_in_use", title: "In use" }) });
     const { user } = renderApp(<TaxYearTable />, { locale });
 
     await user.click(await screen.findByRole("button", { name: words.delete }));
     await user.click(screen.getByRole("button", { name: words.confirm }));
 
     expect(await screen.findByText(words.inUse)).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: words.cancel }));
+    expect(screen.queryByText(words.inUse)).not.toBeInTheDocument();
   });
 });
 

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Data;
 using TaxesUa.Api.Features.Auth;
@@ -9,6 +10,7 @@ using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Features.Invoices;
 using TaxesUa.Api.Features.TaxYears;
 using TaxesUa.Api.Features.Transactions;
+using TaxesUa.Api.Tests.Features.Fx;
 using TaxesUa.Engine;
 
 namespace TaxesUa.Api.Tests.Features.TaxYears;
@@ -509,7 +511,7 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
     [Fact]
     public async Task Delete_refuses_a_verified_year()
     {
-        const int year = 2049;
+        const int year = 2052;
         using var client = await SignIn();
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/tax-years/{year}/verify", null)).StatusCode);
@@ -520,55 +522,89 @@ public sealed class TaxYearEndpointsTests(ApiFixture fixture) : IClassFixture<Ap
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/tax-years/{year}")).StatusCode);
     }
 
+    // The ledger needs a row for every year up to today, data or not, so only a future year may go.
     [Theory]
-    [InlineData(2050, false)]
-    [InlineData(2051, true)]
-    public async Task Delete_refuses_an_unverified_year_that_has_data(int year, bool invoice)
+    [InlineData(2053)]
+    [InlineData(2054)]
+    public async Task Delete_refuses_the_current_or_a_past_year(int year)
+    {
+        using var application = fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
+            services.AddSingleton<TimeProvider>(new FakeTime(new DateTimeOffset(2054, 6, 1, 10, 0, 0, TimeSpan.Zero)))));
+        using var client = await ApiFixture.SignIn(application, ApiFixture.AllowedEmail);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
+
+        var response = await client.DeleteAsync($"/api/tax-years/{year}");
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await ProblemAssert.CodeIsAsync(response, ProblemCodes.TaxYearNotFuture);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/tax-years/{year}")).StatusCode);
+    }
+
+    // Any user's row counts: the year's parameters are shared.
+    [Theory]
+    [InlineData(2050, false, ApiFixture.AllowedEmail)]
+    [InlineData(2051, true, ApiFixture.AllowedEmail)]
+    [InlineData(2055, false, ApiFixture.NonAdminEmail)]
+    public async Task Delete_refuses_an_unverified_year_that_has_data(int year, bool invoice, string email)
     {
         using var client = await SignIn();
+        using var owner = await SignIn(email);
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
-        await using (var scope = fixture.CreateScope())
-        {
-            var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var userId = database.Users.Single(user => user.Email == ApiFixture.AllowedEmail).Id;
-            var day = new DateOnly(year, 12, 31);
-            if (invoice)
-            {
-                var buyer = database.Clients.Add(new Client { Id = Guid.NewGuid(), UserId = userId, Name = $"Acme {year}" }).Entity;
-                database.Invoices.Add(new Invoice
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    ClientId = buyer.Id,
-                    Status = InvoiceStatus.Draft,
-                    IssueDate = day,
-                    DueDate = day,
-                    Currency = Currency.EUR,
-                    Lines = [new InvoiceLine("Consulting", "Консультації", InvoiceUnit.Hour, 10_000, 100_00)],
-                    TotalMinor = 1_000_00,
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    UpdatedAt = DateTimeOffset.UtcNow,
-                });
-            }
-            else
-            {
-                database.Transactions.Add(new Transaction
-                {
-                    Id = Guid.NewGuid(),
-                    UserId = userId,
-                    ValueDate = day,
-                    AmountMinor = 100_00,
-                    AmountUahKop = 100_00,
-                });
-            }
-
-            await database.SaveChangesAsync();
-        }
+        await AddRow(email, new DateOnly(year, 12, 31), invoice);
 
         var response = await client.DeleteAsync($"/api/tax-years/{year}");
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         await ProblemAssert.CodeIsAsync(response, ProblemCodes.TaxYearInUse);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/api/tax-years/{year}")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(2056, false)]
+    [InlineData(2058, true)]
+    public async Task Delete_ignores_a_row_dated_the_next_new_year(int year, bool invoice)
+    {
+        using var client = await SignIn();
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/tax-years/{year}", Request())).StatusCode);
+        await AddRow(ApiFixture.AllowedEmail, new DateOnly(year + 1, 1, 1), invoice);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/tax-years/{year}")).StatusCode);
+    }
+
+    private async Task AddRow(string email, DateOnly day, bool invoice)
+    {
+        await using var scope = fixture.CreateScope();
+        var database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var userId = database.Users.Single(user => user.Email == email).Id;
+        if (invoice)
+        {
+            var buyer = database.Clients.Add(new Client { Id = Guid.NewGuid(), UserId = userId, Name = $"Acme {day}" }).Entity;
+            database.Invoices.Add(new Invoice
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                ClientId = buyer.Id,
+                Status = InvoiceStatus.Draft,
+                IssueDate = day,
+                DueDate = day,
+                Currency = Currency.EUR,
+                Lines = [new InvoiceLine("Consulting", "Консультації", InvoiceUnit.Hour, 10_000, 100_00)],
+                TotalMinor = 1_000_00,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+        }
+        else
+        {
+            database.Transactions.Add(new Transaction
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                ValueDate = day,
+                AmountMinor = 100_00,
+                AmountUahKop = 100_00,
+            });
+        }
+
+        await database.SaveChangesAsync();
     }
 
     private static async Task AssertAdminRequired(HttpResponseMessage response)
