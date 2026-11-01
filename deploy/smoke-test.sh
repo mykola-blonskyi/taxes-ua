@@ -33,6 +33,7 @@ fi
 
 check "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q taxes-api)")" healthy "api is healthy"
 check "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q web)")" healthy "web is healthy"
+check "$(docker inspect -f '{{.State.Health.Status}}' "$("${compose[@]}" ps -q backup)")" healthy "backup is healthy"
 
 request() {
   docker run --rm --network "${project}_default" curlimages/curl:8.10.1 -s -o /dev/null -D - \
