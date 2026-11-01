@@ -18,8 +18,7 @@ namespace TaxesUa.Api.Tests.Features.Dashboard;
 
 // ApiFixture is an IClassFixture, so this class owns its database. xUnit runs one class's tests in
 // sequence but in no fixed order, so each test sets the registration date it needs, and only the
-// second owner ever records income or payments. The clock is set in 2080 because the test client
-// drops a session cookie whose expiry is already past on the real clock; registering in 2080 leaves
+// second owner ever records income or payments. The clock is set in 2080, so registering then leaves
 // the seeded 2026 with nothing accrued.
 public sealed class DashboardEndpointsTests(ApiFixture fixture) : IClassFixture<ApiFixture>
 {

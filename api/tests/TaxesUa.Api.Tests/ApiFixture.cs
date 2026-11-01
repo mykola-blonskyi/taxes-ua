@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Mvc.Testing.Handlers;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -207,16 +208,18 @@ public sealed class ApiFixture : IAsyncLifetime
         CreateApplication(builder => builder.UseSetting("Monobank:TokenEncryptionKeyBase64", string.Empty));
 
     // Tests that move a fake clock by days read the owner's session off the same clock, and the 7-day session
-    // lifetime (ADR-009) would end it mid-test. A fake clock fixed in a past week ends it before the test starts:
-    // the test client drops the cookie once its Expires has passed on the real clock. The lifetime is covered by
-    // its own test, so these widen it.
+    // lifetime (ADR-009) would end it mid-test. The lifetime is covered by its own test, so these widen it.
     public static void KeepSessionAcrossClockJumps(IServiceCollection services) =>
         services.PostConfigure<CookieAuthenticationOptions>(
             IdentityConstants.ApplicationScheme, options => options.ExpireTimeSpan = TimeSpan.FromDays(3650));
 
+    // The session cookie's Expires is set by the application's clock, often a fake one in a past year, while the
+    // test client would drop the cookie by the real clock. The signed-in client keeps it until the server clears
+    // it, so the server alone decides, by its own clock, whether the session is still alive.
     public static async Task<HttpClient> SignIn(WebApplicationFactory<Program> application, string email)
     {
-        var client = CreateClient(application);
+        var client = application.CreateDefaultClient(
+            new Uri("https://localhost"), new CookieContainerHandler(), new KeepCookiesHandler());
         var login = await client.GetAsync($"/api/auth/login/development?email={email}");
         Assert.Equal(HttpStatusCode.Found, login.StatusCode);
         var callback = await client.GetAsync(login.Headers.Location);
@@ -227,6 +230,27 @@ public sealed class ApiFixture : IAsyncLifetime
     public string ConnectionString => _database.GetConnectionString();
 
     public AsyncServiceScope CreateScope() => _application.Services.CreateAsyncScope();
+
+    // Takes Expires off every cookie the server sets, except one it clears by setting it empty.
+    private sealed class KeepCookiesHandler : DelegatingHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = await base.SendAsync(request, cancellationToken);
+            if (response.Headers.TryGetValues("Set-Cookie", out var cookies))
+            {
+                var kept = cookies.Select(cookie => cookie.Split(';')[0].EndsWith('=')
+                    ? cookie
+                    : string.Join(';', cookie.Split(';').Where(part =>
+                        !part.TrimStart().StartsWith("expires=", StringComparison.OrdinalIgnoreCase)))).ToArray();
+                response.Headers.Remove("Set-Cookie");
+                response.Headers.TryAddWithoutValidation("Set-Cookie", kept);
+            }
+
+            return response;
+        }
+    }
 
     private sealed class ExternalSignInStub : IStartupFilter
     {

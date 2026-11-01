@@ -93,15 +93,12 @@ public sealed class BackupSchemaVersionsTests(ApiFixture fixture) : IClassFixtur
             });
     }
 
-    // The fixture's dates fix the clock in 2026, so the session cookie's expiry passes on the real clock, which
-    // is the one the test client drops cookies by.
     private WebApplicationFactory<Program> Application() =>
         fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
         {
             services.AddHttpClient<NbuRateClient>()
                 .ConfigurePrimaryHttpMessageHandler(() => StubNbuHandler.ByDate(new Dictionary<string, string>()));
             services.AddSingleton<TimeProvider>(new FakeTime(new DateTimeOffset(Today, new TimeOnly(10, 0), TimeSpan.Zero)));
-            ApiFixture.KeepSessionAcrossClockJumps(services);
         }));
 
     private static Task<HttpResponseMessage> Post(HttpClient owner, JsonObject file) =>
