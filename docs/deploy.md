@@ -45,6 +45,8 @@ What the repository guarantees, checked in CI by `deploy/check-compose.sh` and
   one process may poll a bot, so a local stack must not be given the production token.
 - The data-protection key ring lives in the `dataprotection-keys` volume, so a redeploy keeps the
   owner signed in (ADR-010).
+- Every service has a compose healthcheck, which is where Coolify reads it for a compose app: `taxes-api`
+  asks `/api/health`, `web` its login page, and `backup` whether the database answers (`backup-db health`).
 - The `backup` service publishes no port and backs up `taxes_ua` each night, encrypted, to the MinIO on the
   VPS and, when configured, to a second target off the VPS. It proves a restore every Sunday (ADR-031,
   step 8). The smoke test runs one backup and one restore check against S3-compatible storage and asserts

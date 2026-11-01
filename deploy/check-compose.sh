@@ -29,6 +29,7 @@ check '.services["taxes-api"].environment | has("SOURCE_COMMIT") or has("App__Re
   "compose leaves SOURCE_COMMIT to Coolify, which turns a mention into an empty user variable"
 check '.services["taxes-api"].healthcheck.start_period' 5m0s "api may take five minutes to dump and migrate before it counts as unhealthy"
 check '.services.backup.ports // [] | length' 0 "backup publishes no port"
+check '.services.backup.healthcheck.test | length > 0' true "backup has a healthcheck, so Coolify can report its status"
 check '.services.backup.init' true "backup runs under an init process"
 check '.services.backup.environment.DATABASE_URL' "${DATABASE_URL:-}" \
   "backup reads DATABASE_URL, the variable that feeds the api's ConnectionStrings__Default"

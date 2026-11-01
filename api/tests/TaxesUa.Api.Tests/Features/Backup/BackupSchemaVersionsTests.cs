@@ -2,7 +2,11 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using TaxesUa.Api.Features.Backup;
+using TaxesUa.Api.Features.Fx;
 using TaxesUa.Api.Tests.Features.Fx;
 
 namespace TaxesUa.Api.Tests.Features.Backup;
@@ -24,8 +28,7 @@ public sealed class BackupSchemaVersionsTests(ApiFixture fixture) : IClassFixtur
     [Fact]
     public async Task The_current_fixture_restores_and_exports_back_unchanged()
     {
-        await using var application = fixture.CreateApplication(
-            StubNbuHandler.ByDate(new Dictionary<string, string>()), Today);
+        await using var application = Application();
         using var owner = await ApiFixture.SignIn(application, fixture.NewOwner());
         var file = Fixture();
 
@@ -42,8 +45,7 @@ public sealed class BackupSchemaVersionsTests(ApiFixture fixture) : IClassFixtur
     [InlineData(BackupDocument.CurrentSchemaVersion + 1, "backup_version_unsupported")]
     public async Task A_file_of_another_schema_version_is_refused_by_its_version(int version, string code)
     {
-        await using var application = fixture.CreateApplication(
-            StubNbuHandler.ByDate(new Dictionary<string, string>()), Today);
+        await using var application = Application();
         using var owner = await ApiFixture.SignIn(application, fixture.NewOwner());
         var file = Fixture();
         file["schemaVersion"] = version;
@@ -61,8 +63,7 @@ public sealed class BackupSchemaVersionsTests(ApiFixture fixture) : IClassFixtur
     [Fact]
     public async Task A_current_file_without_an_optional_field_restores_with_its_default()
     {
-        await using var application = fixture.CreateApplication(
-            StubNbuHandler.ByDate(new Dictionary<string, string>()), Today);
+        await using var application = Application();
         using var owner = await ApiFixture.SignIn(application, fixture.NewOwner());
         var file = Fixture();
         Assert.NotNull(file["reserveJar"]);
@@ -91,6 +92,14 @@ public sealed class BackupSchemaVersionsTests(ApiFixture fixture) : IClassFixtur
                 return $"id-{seen[match.Value]}";
             });
     }
+
+    private WebApplicationFactory<Program> Application() =>
+        fixture.CreateApplication(builder => builder.ConfigureTestServices(services =>
+        {
+            services.AddHttpClient<NbuRateClient>()
+                .ConfigurePrimaryHttpMessageHandler(() => StubNbuHandler.ByDate(new Dictionary<string, string>()));
+            services.AddSingleton<TimeProvider>(new FakeTime(new DateTimeOffset(Today, new TimeOnly(10, 0), TimeSpan.Zero)));
+        }));
 
     private static Task<HttpResponseMessage> Post(HttpClient owner, JsonObject file) =>
         owner.PostAsync("/api/restore", new StringContent(file.ToJsonString(), Encoding.UTF8, "application/json"));
