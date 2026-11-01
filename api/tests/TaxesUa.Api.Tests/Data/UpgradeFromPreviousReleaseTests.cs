@@ -55,8 +55,14 @@ public sealed class UpgradeFromPreviousReleaseTests(ApiFixture fixture) : IClass
         await using var application = fixture.CreateApplication(builder =>
         {
             builder.UseSetting("ConnectionStrings:Default", connectionString.ConnectionString);
-            builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(
-                new FakeTimeProvider(new DateTimeOffset(today, new TimeOnly(10, 0), TimeSpan.Zero))));
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton<TimeProvider>(
+                    new FakeTimeProvider(new DateTimeOffset(today, new TimeOnly(10, 0), TimeSpan.Zero)));
+
+                // The seed's year fixes the clock in 2026, where the session cookie's expiry passes on the real clock.
+                ApiFixture.KeepSessionAcrossClockJumps(services);
+            });
         });
         using var client = await ApiFixture.SignIn(application, owner);
 
