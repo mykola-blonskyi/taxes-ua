@@ -207,7 +207,9 @@ public sealed class ApiFixture : IAsyncLifetime
         CreateApplication(builder => builder.UseSetting("Monobank:TokenEncryptionKeyBase64", string.Empty));
 
     // Tests that move a fake clock by days read the owner's session off the same clock, and the 7-day session
-    // lifetime (ADR-009) would end it mid-test. The lifetime is covered by its own test, so these widen it.
+    // lifetime (ADR-009) would end it mid-test. A fake clock fixed in a past week ends it before the test starts:
+    // the test client drops the cookie once its Expires has passed on the real clock. The lifetime is covered by
+    // its own test, so these widen it.
     public static void KeepSessionAcrossClockJumps(IServiceCollection services) =>
         services.PostConfigure<CookieAuthenticationOptions>(
             IdentityConstants.ApplicationScheme, options => options.ExpireTimeSpan = TimeSpan.FromDays(3650));
